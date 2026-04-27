@@ -1,0 +1,16 @@
+.DS_Store
+node_modules
+.pnpm-store
+dist
+*.local
+.env
+.env.local
+.env.*.local
+.cache
+.next
+.vercel
+*.log
+*.lock
+!.github
+coverage
+*.tgz

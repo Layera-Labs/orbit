@@ -1,0 +1,12 @@
+export { ToolsPanel } from './ToolsPanel';
+export { TextPanel } from './TextPanel';
+export { UploadPanel } from './UploadPanel';
+export { AssetsPanel } from './AssetsPanel';
+export { BackgroundsPanel } from './BackgroundsPanel';
+export { VideosPanel } from './VideosPanel';
+export { ShapesPanel } from './ShapesPanel';
+export { AIPanel } from './AIPanel';
+export { HistoryPanel } from './HistoryPanel';
+export { LayersPanel } from './LayersPanel';
+export { MyDesignsPanel } from './MyDesignsPanel';
+export { TemplatesPanel } from './TemplatesPanel';
