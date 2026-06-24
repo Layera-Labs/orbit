@@ -61,4 +61,17 @@ describe('buildFFmpegArgs', () => {
     expect(s).toContain('-loop 1 -t 3 -i pic.png');
     expect(s).not.toContain('-c:a aac');
   });
+
+  it('uses a base image for clip-less projects (lyric/quote videos)', () => {
+    const p = createProject({
+      width: 1080,
+      height: 1920,
+      overlays: [{ id: 'o', type: 'text', text: 'hi', start: 0, end: 3, x: 0.5, y: 0.5, fontSize: 50, color: '#fff' }],
+      audio: [{ id: 'm', src: 'm.mp3', start: 0, duration: 3 }],
+    });
+    const s = buildFFmpegArgs(p, { outputPath: 'out.mp4', overlayImages: { o: '/tmp/o.png' }, baseImage: '/tmp/bg.png' }).join(' ');
+    expect(s).toContain('-loop 1 -t 3 -i /tmp/bg.png');
+    expect(s).toContain("overlay=0:0:enable='between(t,0,3)'");
+    expect(s).toContain('-i m.mp3');
+  });
 });

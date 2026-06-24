@@ -76,6 +76,7 @@ export interface AudioClip {
 
 export type Background =
   | { type: 'color'; color: string }
+  | { type: 'gradient'; from: string; to: string; angle?: number }
   | { type: 'blur'; amount?: number };
 
 export interface VideoProject {

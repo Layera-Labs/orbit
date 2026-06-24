@@ -15,6 +15,7 @@ Orbit is pivoting from a design-canvas SDK toward a **focused mobile video edito
 **Video milestones:**
 - **V1 — Engine (in progress):** [`@orbit/video`](packages/video) — headless timeline model + FFmpeg command-builder + render runner. _Verified 2026-06-25:_ the core pipeline (trim → scale/crop to vertical → audio mix → H.264/AAC MP4 at 1080×1920) renders end-to-end. Text-burn (`drawtext`) needs a **freetype/libass-enabled ffmpeg** (production/Docker) or an image-overlay path — a deployment requirement, not a code gap.
 - **V2 — Overlays & captions (done):** text overlays rendered as PNG frames (resvg — **freetype-free**) composited over video via ffmpeg `overlay` with time-windowed visibility. _Verified 2026-06-25:_ a captioned 1080×1920 MP4 renders end-to-end (caption appears only in its window). Sticker/shape overlays and richer animation build on this same path.
+- **Templates (done):** built-in `captionReel` / `lyricVideo` / `quoteCard` turn simple inputs → a renderable project, incl. gradient/color backgrounds for footage-less videos. _Verified 2026-06-25:_ a lyric video (3 lines + music over a gradient, no footage) renders to a 1080×1920 MP4. The same input shape is what the AI layer (V4) fills.
 - **V3 — Native editor (iOS):** RN UI + react-native-skia preview; device-validated on real hardware.
 - **V4 — AI wedge:** describe → timeline ops; auto-captions; templated short-form.
 

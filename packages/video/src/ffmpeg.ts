@@ -1,6 +1,7 @@
 /**
- * Pure FFmpeg command builder: a `VideoProject` (+ pre-rendered overlay PNGs)
- * → an ffmpeg argv array. Side-effect-free, so it is fully unit-testable.
+ * Pure FFmpeg command builder: a `VideoProject` (+ pre-rendered overlay PNGs,
+ * and an optional base image for clip-less projects) → an ffmpeg argv array.
+ * Side-effect-free, so it is fully unit-testable.
  *
  * Overlays are composited as image inputs via the `overlay` filter (with
  * `enable` timing and optional alpha fade) rather than `drawtext`, so the
@@ -14,6 +15,8 @@ export interface BuildFFmpegOptions {
   outputPath: string;
   /** overlay id → rendered PNG path. Overlays without an image are skipped. */
   overlayImages?: Record<string, string>;
+  /** Base image to use when the project has no visual clip (e.g. a rendered background). */
+  baseImage?: string;
   /** Map a clip/audio `src` to a local file path. Defaults to identity. */
   resolveSrc?: (src: string) => string;
 }
@@ -22,17 +25,23 @@ export function buildFFmpegArgs(project: VideoProject, opts: BuildFFmpegOptions)
   const { width: W, height: H, fps } = project;
   const resolve = opts.resolveSrc ?? ((s) => s);
   const images = opts.overlayImages ?? {};
-  const base = project.clips[0];
-  if (!base) throw new Error('VideoProject has no clips to render');
+  const clip = project.clips[0];
+  if (!clip && !opts.baseImage) {
+    throw new Error('VideoProject has no clips or base image to render');
+  }
   const duration = projectDuration(project);
   const overlays = project.overlays.filter((o) => images[o.id]);
+  const isVideoBase = clip?.type === 'video';
 
   // ---- inputs: base(0), overlay images(1..N), audio(N+1..) ----
   const inputs: string[] = [];
-  if (base.type === 'image') {
-    inputs.push('-loop', '1', '-t', String(base.duration), '-i', resolve(base.src));
+  if (isVideoBase) {
+    inputs.push('-i', resolve(clip!.src));
+  } else if (clip?.type === 'image') {
+    inputs.push('-loop', '1', '-t', String(clip.duration), '-i', resolve(clip.src));
   } else {
-    inputs.push('-i', resolve(base.src));
+    // synthesized background base image, looped for the whole timeline
+    inputs.push('-loop', '1', '-t', String(duration), '-i', opts.baseImage!);
   }
   overlays.forEach((o) => inputs.push('-loop', '1', '-i', images[o.id]));
   project.audio.forEach((a) => inputs.push('-i', resolve(a.src)));
@@ -40,8 +49,8 @@ export function buildFFmpegArgs(project: VideoProject, opts: BuildFFmpegOptions)
 
   // ---- video chain + overlay compositing ----
   const vChain: string[] = [];
-  if (base.type === 'video') {
-    vChain.push(`trim=start=${base.trimIn ?? 0}:duration=${base.duration}`, 'setpts=PTS-STARTPTS');
+  if (isVideoBase) {
+    vChain.push(`trim=start=${clip!.trimIn ?? 0}:duration=${clip!.duration}`, 'setpts=PTS-STARTPTS');
   }
   vChain.push(
     `scale=${W}:${H}:force_original_aspect_ratio=increase`,
@@ -79,9 +88,9 @@ export function buildFFmpegArgs(project: VideoProject, opts: BuildFFmpegOptions)
     );
     aLabels.push(`[${label}]`);
   });
-  if (base.type === 'video' && !base.muted) {
+  if (isVideoBase && !clip!.muted) {
     segments.push(
-      `[0:a]atrim=start=${base.trimIn ?? 0}:duration=${base.duration},asetpts=PTS-STARTPTS,volume=${base.volume ?? 1}[abase]`,
+      `[0:a]atrim=start=${clip!.trimIn ?? 0}:duration=${clip!.duration},asetpts=PTS-STARTPTS,volume=${clip!.volume ?? 1}[abase]`,
     );
     aLabels.push('[abase]');
   }
