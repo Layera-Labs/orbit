@@ -9,9 +9,10 @@ export type {
   Overlay,
   AudioClip,
   Background,
+  Transition,
   VideoProject,
 } from './types';
-export { createProject, projectDuration } from './project';
+export { createProject, projectDuration, transitionDuration } from './project';
 export { buildFFmpegArgs } from './ffmpeg';
 export type { BuildFFmpegOptions } from './ffmpeg';
 export { overlayToSVG } from './overlay-svg';

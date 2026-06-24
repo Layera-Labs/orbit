@@ -74,4 +74,37 @@ describe('buildFFmpegArgs', () => {
     expect(s).toContain("overlay=0:0:enable='between(t,0,3)'");
     expect(s).toContain('-i m.mp3');
   });
+
+  it('joins multiple clips with a crossfade transition', () => {
+    const p = createProject({
+      width: 1080,
+      height: 1920,
+      fps: 30,
+      clips: [
+        { id: 'a', type: 'image', src: 'a.png', start: 0, duration: 3 },
+        { id: 'b', type: 'image', src: 'b.png', start: 0, duration: 3 },
+      ],
+      transition: { type: 'fade', duration: 1 },
+    });
+    const s = args(p);
+    expect(s).toContain('-loop 1 -t 3 -i a.png');
+    expect(s).toContain('-loop 1 -t 3 -i b.png');
+    expect(s).toContain('xfade=transition=fade:duration=1:offset=2'); // accDur(3) - xfade(1)
+    expect(s).toContain('-t 5'); // 3 + 3 - 1
+  });
+
+  it('hard-concats clips when there is no transition', () => {
+    const p = createProject({
+      width: 720,
+      height: 720,
+      clips: [
+        { id: 'a', type: 'image', src: 'a.png', start: 0, duration: 2 },
+        { id: 'b', type: 'image', src: 'b.png', start: 0, duration: 2 },
+      ],
+    });
+    const s = args(p);
+    expect(s).toContain('concat=n=2:v=1:a=0');
+    expect(s).not.toContain('xfade');
+    expect(s).toContain('-t 4');
+  });
 });

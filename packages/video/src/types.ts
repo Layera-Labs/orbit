@@ -79,6 +79,13 @@ export type Background =
   | { type: 'gradient'; from: string; to: string; angle?: number }
   | { type: 'blur'; amount?: number };
 
+/** Transition applied between consecutive clips (v1: one project-wide setting). */
+export interface Transition {
+  type: 'cut' | 'fade';
+  /** Crossfade duration in seconds (ignored for 'cut'). */
+  duration: number;
+}
+
 export interface VideoProject {
   id: ID;
   schemaVersion: 1;
@@ -88,8 +95,10 @@ export interface VideoProject {
   /** Output frame rate. */
   fps: number;
   background: Background;
-  /** v1: a single ordered visual track. clips[0] is the base. */
+  /** Visual clips, played in array order. */
   clips: VisualClip[];
+  /** Optional crossfade/cut applied between consecutive clips. */
+  transition?: Transition;
   /** Time-ranged overlays drawn on top (captions, stickers later). */
   overlays: Overlay[];
   /** Audio tracks (music / voice), mixed together. */

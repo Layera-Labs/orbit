@@ -22,4 +22,18 @@ describe('projectDuration', () => {
     });
     expect(projectDuration(p)).toBe(8); // overlay ends latest
   });
+
+  it('subtracts crossfade overlap across multiple clips', () => {
+    const p = createProject({
+      width: 100,
+      height: 100,
+      clips: [
+        { id: 'a', type: 'image', src: 'a.png', start: 0, duration: 3 },
+        { id: 'b', type: 'image', src: 'b.png', start: 0, duration: 3 },
+        { id: 'c', type: 'image', src: 'c.png', start: 0, duration: 3 },
+      ],
+      transition: { type: 'fade', duration: 1 },
+    });
+    expect(projectDuration(p)).toBe(7); // 3*3 - 1*2 overlaps
+  });
 });

@@ -3,13 +3,14 @@
  * and an optional base image for clip-less projects) → an ffmpeg argv array.
  * Side-effect-free, so it is fully unit-testable.
  *
- * Overlays are composited as image inputs via the `overlay` filter (with
- * `enable` timing and optional alpha fade) rather than `drawtext`, so the
- * ffmpeg build needs no libfreetype. Encodes to H.264/AAC MP4 (iOS/Android
- * friendly: yuv420p + faststart).
+ * Pipeline: each clip is trimmed/scaled/cropped to the output frame, then the
+ * clips are joined — `concat` for hard cuts or chained `xfade` for crossfades.
+ * Text overlays composite over the joined video via `overlay` (PNG inputs, so
+ * no libfreetype needed). Audio mixes the music tracks (single-clip projects
+ * also keep the clip's own audio). Encodes to H.264/AAC MP4 (yuv420p + faststart).
  */
 import type { VideoProject } from './types';
-import { projectDuration } from './project';
+import { projectDuration, transitionDuration } from './project';
 
 export interface BuildFFmpegOptions {
   outputPath: string;
@@ -25,72 +26,99 @@ export function buildFFmpegArgs(project: VideoProject, opts: BuildFFmpegOptions)
   const { width: W, height: H, fps } = project;
   const resolve = opts.resolveSrc ?? ((s) => s);
   const images = opts.overlayImages ?? {};
-  const clip = project.clips[0];
-  if (!clip && !opts.baseImage) {
+  const clips = project.clips;
+  const useBaseImage = clips.length === 0;
+  if (useBaseImage && !opts.baseImage) {
     throw new Error('VideoProject has no clips or base image to render');
   }
   const duration = projectDuration(project);
   const overlays = project.overlays.filter((o) => images[o.id]);
-  const isVideoBase = clip?.type === 'video';
+  const xfade = transitionDuration(project);
 
-  // ---- inputs: base(0), overlay images(1..N), audio(N+1..) ----
+  const scaleChain = `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,fps=${fps},format=yuv420p`;
+
+  // ---- inputs: clips(0..C-1), overlays(C..), audio(after) ----
   const inputs: string[] = [];
-  if (isVideoBase) {
-    inputs.push('-i', resolve(clip!.src));
-  } else if (clip?.type === 'image') {
-    inputs.push('-loop', '1', '-t', String(clip.duration), '-i', resolve(clip.src));
-  } else {
-    // synthesized background base image, looped for the whole timeline
+  const clipCount = useBaseImage ? 1 : clips.length;
+  if (useBaseImage) {
     inputs.push('-loop', '1', '-t', String(duration), '-i', opts.baseImage!);
+  } else {
+    for (const c of clips) {
+      if (c.type === 'image') inputs.push('-loop', '1', '-t', String(c.duration), '-i', resolve(c.src));
+      else inputs.push('-i', resolve(c.src));
+    }
   }
   overlays.forEach((o) => inputs.push('-loop', '1', '-i', images[o.id]));
   project.audio.forEach((a) => inputs.push('-i', resolve(a.src)));
-  const audioBaseIndex = 1 + overlays.length;
-
-  // ---- video chain + overlay compositing ----
-  const vChain: string[] = [];
-  if (isVideoBase) {
-    vChain.push(`trim=start=${clip!.trimIn ?? 0}:duration=${clip!.duration}`, 'setpts=PTS-STARTPTS');
-  }
-  vChain.push(
-    `scale=${W}:${H}:force_original_aspect_ratio=increase`,
-    `crop=${W}:${H}`,
-    'setsar=1',
-    `fps=${fps}`,
-  );
+  const overlayBase = clipCount;
+  const audioBase = clipCount + overlays.length;
 
   const segments: string[] = [];
-  if (overlays.length === 0) {
-    segments.push(`[0:v]${vChain.join(',')}[v]`);
+
+  // ---- per-clip video chains → [c0..] ----
+  const clipLabels: string[] = [];
+  if (useBaseImage) {
+    segments.push(`[0:v]${scaleChain}[c0]`);
+    clipLabels.push('[c0]');
   } else {
-    segments.push(`[0:v]${vChain.join(',')}[base]`);
-    let prev = '[base]';
+    clips.forEach((c, idx) => {
+      const pre = c.type === 'video' ? `trim=start=${c.trimIn ?? 0}:duration=${c.duration},setpts=PTS-STARTPTS,` : '';
+      segments.push(`[${idx}:v]${pre}${scaleChain}[c${idx}]`);
+      clipLabels.push(`[c${idx}]`);
+    });
+  }
+
+  // ---- join clips → [base] (single clip passes through) ----
+  let baseLabel: string;
+  if (clipLabels.length === 1) {
+    baseLabel = clipLabels[0];
+  } else if (xfade > 0) {
+    let acc = clipLabels[0];
+    let accDur = clips[0].duration;
+    for (let i = 1; i < clipLabels.length; i++) {
+      const out = i === clipLabels.length - 1 ? '[base]' : `[xf${i}]`;
+      const offset = Math.max(0, accDur - xfade);
+      segments.push(`${acc}${clipLabels[i]}xfade=transition=fade:duration=${xfade}:offset=${offset}${out}`);
+      acc = out;
+      accDur = accDur + clips[i].duration - xfade;
+    }
+    baseLabel = '[base]';
+  } else {
+    segments.push(`${clipLabels.join('')}concat=n=${clipLabels.length}:v=1:a=0[base]`);
+    baseLabel = '[base]';
+  }
+
+  // ---- overlays over the joined video → [v] ----
+  if (overlays.length === 0) {
+    segments.push(`${baseLabel}null[v]`);
+  } else {
+    let last = baseLabel;
     overlays.forEach((o, i) => {
       const fade: string[] = ['format=rgba'];
       if (o.animation === 'fade') {
         const d = 0.3;
         fade.push(`fade=t=in:st=${o.start}:d=${d}:alpha=1`, `fade=t=out:st=${Math.max(0, o.end - d)}:d=${d}:alpha=1`);
       }
-      segments.push(`[${i + 1}:v]${fade.join(',')}[ov${i}]`);
+      segments.push(`[${overlayBase + i}:v]${fade.join(',')}[ov${i}]`);
       const out = i === overlays.length - 1 ? '[v]' : `[t${i}]`;
-      segments.push(`${prev}[ov${i}]overlay=0:0:enable='between(t,${o.start},${o.end})'${out}`);
-      prev = out;
+      segments.push(`${last}[ov${i}]overlay=0:0:enable='between(t,${o.start},${o.end})'${out}`);
+      last = out;
     });
   }
 
-  // ---- audio ----
+  // ---- audio: music tracks (+ a lone video clip's own audio) ----
   const aLabels: string[] = [];
   project.audio.forEach((a, i) => {
-    const idx = audioBaseIndex + i;
     const label = `a${i}`;
     segments.push(
-      `[${idx}:a]atrim=start=${a.trimIn ?? 0}:duration=${a.duration ?? duration},asetpts=PTS-STARTPTS,volume=${a.volume ?? 1}[${label}]`,
+      `[${audioBase + i}:a]atrim=start=${a.trimIn ?? 0}:duration=${a.duration ?? duration},asetpts=PTS-STARTPTS,volume=${a.volume ?? 1}[${label}]`,
     );
     aLabels.push(`[${label}]`);
   });
-  if (isVideoBase && !clip!.muted) {
+  const loneClip = !useBaseImage && clips.length === 1 ? clips[0] : null;
+  if (loneClip && loneClip.type === 'video' && !loneClip.muted) {
     segments.push(
-      `[0:a]atrim=start=${clip!.trimIn ?? 0}:duration=${clip!.duration},asetpts=PTS-STARTPTS,volume=${clip!.volume ?? 1}[abase]`,
+      `[0:a]atrim=start=${loneClip.trimIn ?? 0}:duration=${loneClip.duration},asetpts=PTS-STARTPTS,volume=${loneClip.volume ?? 1}[abase]`,
     );
     aLabels.push('[abase]');
   }
