@@ -12,7 +12,9 @@ export type {
   VideoProject,
 } from './types';
 export { createProject, projectDuration } from './project';
-export { buildFFmpegArgs, escapeDrawText } from './ffmpeg';
+export { buildFFmpegArgs } from './ffmpeg';
 export type { BuildFFmpegOptions } from './ffmpeg';
+export { overlayToSVG } from './overlay-svg';
+export { rasterizeSVG } from './raster';
 export { renderProject } from './render';
 export type { RenderOptions } from './render';

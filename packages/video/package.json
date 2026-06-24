@@ -21,6 +21,9 @@
     "clean": "rm -rf dist",
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
+  "dependencies": {
+    "@resvg/resvg-js": "^2.6.2"
+  },
   "devDependencies": {
     "@types/node": "^20.11.0",
     "typescript": "^5.4.0",

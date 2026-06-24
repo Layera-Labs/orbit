@@ -12,7 +12,7 @@ export default defineConfig({
     // Node engine — keep Node builtins external; bundle our own modules into
     // one Node-runnable index.js.
     rollupOptions: {
-      external: [/^node:/],
+      external: [/^node:/, '@resvg/resvg-js'],
     },
     sourcemap: true,
   },
