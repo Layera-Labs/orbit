@@ -12,12 +12,18 @@ Orbit is pivoting from a design-canvas SDK toward a **focused mobile video edito
 
 **What carries over:** the headless-model + agent-"apply ops" patterns; the headless renderer (becomes the overlay-frame generator); the server FFmpeg pipeline (was Phase E). **Deprioritized (not deleted):** the v2 design-canvas editor (a possible separate "image/poster" product) and the RN WebView bridge/web-host (canvas-only — not the video path).
 
-**Video milestones:**
-- **V1 — Engine (in progress):** [`@orbit/video`](packages/video) — headless timeline model + FFmpeg command-builder + render runner. _Verified 2026-06-25:_ the core pipeline (trim → scale/crop to vertical → audio mix → H.264/AAC MP4 at 1080×1920) renders end-to-end. Text-burn (`drawtext`) needs a **freetype/libass-enabled ffmpeg** (production/Docker) or an image-overlay path — a deployment requirement, not a code gap.
-- **V2 — Overlays & captions (done):** text overlays rendered as PNG frames (resvg — **freetype-free**) composited over video via ffmpeg `overlay` with time-windowed visibility. _Verified 2026-06-25:_ a captioned 1080×1920 MP4 renders end-to-end (caption appears only in its window). Sticker/shape overlays and richer animation build on this same path.
-- **Templates (done):** built-in `captionReel` / `lyricVideo` / `quoteCard` turn simple inputs → a renderable project, incl. gradient/color backgrounds for footage-less videos. _Verified 2026-06-25:_ a lyric video (3 lines + music over a gradient, no footage) renders to a 1080×1920 MP4. The same input shape is what the AI layer (V4) fills.
-- **V3 — Native editor (iOS):** RN UI + react-native-skia preview; device-validated on real hardware.
-- **V4 — AI wedge (structure done):** [`@orbit/video-ai`](packages/video-ai) — `generateVideoSpec` (Claude picks + fills a template via forced tool use, `claude-opus-4-8`) → `buildProjectFromSpec` → render. _Landed 2026-06-25:_ the full structure, validated and unit-tested **without a key** (injected mock client). **Live `describe → video` runs with your `ANTHROPIC_API_KEY`** (billed per token). Next: generative media (TTS / AI b-roll), auto-captions from audio.
+**Video stack — built and verified 2026-06-25 (all committed):**
+- **Engine** — [`@orbit/video`](packages/video): headless timeline model + ffmpeg command-builder + render runner. Trim → vertical scale/crop → **multi-clip concat / crossfade transitions** → audio mix → H.264/AAC MP4. Verified by single-clip, captioned, and 2-clip-crossfade renders.
+- **Captions / overlays** — text rendered as PNG frames via **resvg (freetype-free)** and composited with ffmpeg `overlay` (time-windowed + fade). Sticker/shape overlays extend the same path.
+- **Templates** — `captionReel` / `lyricVideo` / `quoteCard` turn simple inputs → a renderable project; gradient/color backgrounds for footage-less videos.
+- **AI wedge** — [`@orbit/video-ai`](packages/video-ai): `generateVideoSpec` (Claude picks + fills a template via forced tool use, `claude-opus-4-8`) → `buildProjectFromSpec` → render. Unit-tested without a key; live `describe → video` runs with `ANTHROPIC_API_KEY`.
+- **Billing spine** — [`@orbit/billing`](packages/billing): credit ledger + `meter()` + license keys, overdraft-safe. Generation debits this (ledger ships before generation).
+- **Generative media** — [`@orbit/video-gen`](packages/video-gen): credit-metered `GenerationService` over a pluggable `MediaProvider` (fal/Replicate/ElevenLabs); refuses on insufficient credits, debits only on success. Tested with a mock provider.
+- **Render service** — [`@orbit/render-service`](apps/render-service): `POST /v1/render { project }` → server-side ffmpeg → MP4. The spine the iOS app + web call. Verified by curl.
+
+**Remaining (device- or key-bound — your domain):**
+- **Native iOS editor** — Expo RN app + react-native-skia real-time preview, calling the render service for final output; device-validated on your iPhone. The whole server side it needs is done.
+- **Live wiring** — keys/infra to flip on: `ANTHROPIC_API_KEY` (AI), a fal/Replicate key (generation), R2 + a DB-backed `LedgerStore`/`LicenseRegistry`, and a BullMQ queue for long renders.
 
 The design-canvas roadmap below remains valid for the image product but is **no longer the primary focus.**
 
