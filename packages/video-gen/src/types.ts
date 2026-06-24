@@ -1,0 +1,36 @@
+/**
+ * Provider-agnostic generative-media interfaces. A concrete `MediaProvider`
+ * (fal.ai, Replicate, ElevenLabs, …) implements only the methods it supports;
+ * the `GenerationService` wraps any provider with credit metering.
+ */
+export interface GenImageRequest {
+  prompt: string;
+  width?: number;
+  height?: number;
+  model?: string;
+}
+
+export interface GenVideoRequest {
+  prompt: string;
+  durationSec?: number;
+  /** Optional source image (image-to-video). */
+  image?: string;
+  model?: string;
+}
+
+export interface TTSRequest {
+  text: string;
+  voice?: string;
+}
+
+export interface GenResult {
+  /** URL (or data URI) of the produced asset — typically stored in R2. */
+  url: string;
+  meta?: Record<string, unknown>;
+}
+
+export interface MediaProvider {
+  generateImage?(req: GenImageRequest): Promise<GenResult>;
+  generateVideo?(req: GenVideoRequest): Promise<GenResult>;
+  tts?(req: TTSRequest): Promise<GenResult>;
+}
