@@ -17,7 +17,7 @@ Orbit is pivoting from a design-canvas SDK toward a **focused mobile video edito
 - **V2 — Overlays & captions (done):** text overlays rendered as PNG frames (resvg — **freetype-free**) composited over video via ffmpeg `overlay` with time-windowed visibility. _Verified 2026-06-25:_ a captioned 1080×1920 MP4 renders end-to-end (caption appears only in its window). Sticker/shape overlays and richer animation build on this same path.
 - **Templates (done):** built-in `captionReel` / `lyricVideo` / `quoteCard` turn simple inputs → a renderable project, incl. gradient/color backgrounds for footage-less videos. _Verified 2026-06-25:_ a lyric video (3 lines + music over a gradient, no footage) renders to a 1080×1920 MP4. The same input shape is what the AI layer (V4) fills.
 - **V3 — Native editor (iOS):** RN UI + react-native-skia preview; device-validated on real hardware.
-- **V4 — AI wedge:** describe → timeline ops; auto-captions; templated short-form.
+- **V4 — AI wedge (structure done):** [`@orbit/video-ai`](packages/video-ai) — `generateVideoSpec` (Claude picks + fills a template via forced tool use, `claude-opus-4-8`) → `buildProjectFromSpec` → render. _Landed 2026-06-25:_ the full structure, validated and unit-tested **without a key** (injected mock client). **Live `describe → video` runs with your `ANTHROPIC_API_KEY`** (billed per token). Next: generative media (TTS / AI b-roll), auto-captions from audio.
 
 The design-canvas roadmap below remains valid for the image product but is **no longer the primary focus.**
 
