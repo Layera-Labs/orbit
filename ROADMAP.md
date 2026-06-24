@@ -6,6 +6,22 @@
 
 ---
 
+## ⚠️ Direction update — 2026-06-25: pivot toward video
+
+Orbit is pivoting from a design-canvas SDK toward a **focused mobile video editor + AI** — trim, text/captions, music, transitions, plus AI/template flows (lyric/shayari, auto-caption reels), growing toward a fuller NLE over time. Built **native-first** (not WebView): `react-native-skia` real-time preview + **server-side FFmpeg export** as the reliable spine. **iOS first**, Android next. Solo build, with Claude as the developer.
+
+**What carries over:** the headless-model + agent-"apply ops" patterns; the headless renderer (becomes the overlay-frame generator); the server FFmpeg pipeline (was Phase E). **Deprioritized (not deleted):** the v2 design-canvas editor (a possible separate "image/poster" product) and the RN WebView bridge/web-host (canvas-only — not the video path).
+
+**Video milestones:**
+- **V1 — Engine (in progress):** [`@orbit/video`](packages/video) — headless timeline model + FFmpeg command-builder + render runner. _Verified 2026-06-25:_ the core pipeline (trim → scale/crop to vertical → audio mix → H.264/AAC MP4 at 1080×1920) renders end-to-end. Text-burn (`drawtext`) needs a **freetype/libass-enabled ffmpeg** (production/Docker) or an image-overlay path — a deployment requirement, not a code gap.
+- **V2 — Overlays & captions:** rich animated text/sticker overlays rendered as image frames composited over video (reuses the headless renderer).
+- **V3 — Native editor (iOS):** RN UI + react-native-skia preview; device-validated on real hardware.
+- **V4 — AI wedge:** describe → timeline ops; auto-captions; templated short-form.
+
+The design-canvas roadmap below remains valid for the image product but is **no longer the primary focus.**
+
+---
+
 ## 1. What Orbit is — and is NOT (v1 scope lock)
 
 A single JSON document — pages → layers (`image`, `text`, `shape`, `video`, `audio`) with per-layer transform, animation, and timeline position — is the contract the whole product consumes: the UI renders it, the agent mutates it, the render service rasterizes it. Get the schema right and version it from day one; every shortcut taken now becomes a breaking change for paying clients later.
