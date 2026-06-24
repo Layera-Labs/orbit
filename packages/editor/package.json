@@ -1,0 +1,53 @@
+{
+  "name": "@orbit/editor",
+  "version": "0.0.1",
+  "description": "Orbit canvas editor React UI (new architecture)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./styles.css": "./dist/style.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && vite build",
+    "dev": "vite build --watch --emptyOutDir false",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
+  },
+  "dependencies": {
+    "@orbit/model": "workspace:*",
+    "@orbit/providers": "workspace:*",
+    "@orbit/render": "workspace:*",
+    "framer-motion": "^12.40.0",
+    "jspdf": "^2.5.2",
+    "lucide-react": "^1.17.0",
+    "valtio": "^2.1.2"
+  },
+  "peerDependencies": {
+    "konva": "^9.3.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-konva": "^18.2.10"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "konva": "^9.3.16",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-konva": "^18.2.10",
+    "typescript": "^5.4.0",
+    "vite": "^5.2.0",
+    "vite-plugin-dts": "^3.8.0"
+  },
+  "sideEffects": false
+}

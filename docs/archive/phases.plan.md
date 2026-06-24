@@ -1,3 +1,5 @@
+> **Archived 2026-06-24** — superseded by [`/ROADMAP.md`](../../ROADMAP.md). Kept for history; status here reflects the legacy v1 stack only.
+
 # Orbit SDK — Implementation Status & Phase Roadmap
 
 > Updated: 2026-04-24
@@ -336,5 +338,135 @@ pnpm dev
 
 ---
 
-*Document Version: 1.1*
-*Last Updated: 2026-04-24*
+## Phase 3: Vector Drawing Board + Apps (QR Code)
+
+> **Status:** Planned  
+> **Goal:** Reusable vector asset creation + mini app utilities sidebar
+
+---
+
+### 3.1 Vector Drawing Board
+
+**Overview:** A dedicated "Vectors" sidebar panel where users create, edit, and manage reusable vector boards in a modal editor. Boards are persisted via the same `DesignBackend` interface and can be dragged/placed onto the main artboard as `fabric.Group` layers.
+
+**UI (matching screenshots):**
+
+| Screen | Elements |
+|--------|----------|
+| **Vectors Panel** | Thumbnail list of boards, name + subtitle ("Click to edit · drag preview to place"), trash icon per board, "+ New vector board" CTA |
+| **Board Editor Modal** | Title ("Vector board N"), close X, left Layers sidebar, top toolbar (Select, Pen, Line, Rect, Circle, stroke width, Clear layer, Clear all, Save dropdown), gridded canvas, bottom zoom bar (- / 1:1 / Fit / + / 100%) |
+
+**Core Components:**
+- `VectorBoardsPanel.tsx` — Sidebar rail panel (list + create/delete)
+- `VectorBoardEditor.tsx` — Fullscreen modal overlay with internal mini-canvas
+- `VectorBoardLayers.tsx` — Left layer list inside the modal (eye, name, expand, reorder, delete, add)
+- `vectorBoardsSlice.ts` — Zustand slice for CRUD + localStorage persistence
+
+**Engine reuse:**
+- Leverages existing `VectorDrawTool` and `PathEditor` from Phase 2 for drawing + node editing
+- Uses a secondary small `OrbitEngine` instance (or direct Fabric.js canvas) scoped to the modal
+- Each board saved as `VectorBoard` type with `layers: VectorBoardLayer[]`
+
+**Placement flow:**
+1. User drags board thumbnail to main canvas → creates `fabric.Group` containing all board paths
+2. Or clicks board in list → "Add to canvas" button
+3. Board placed as a standard layer, fully selectable/transformable
+
+**Data model:**
+```ts
+interface VectorBoard {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  layers: VectorBoardLayer[];
+  thumbnail?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface VectorBoardLayer {
+  id: string;
+  name: string;
+  visible: boolean;
+  paths: Array<{
+    type: 'path' | 'rect' | 'circle' | 'line';
+    data: string | object;
+    stroke?: string;
+    strokeWidth?: number;
+    fill?: string;
+  }>;
+}
+```
+
+---
+
+### 3.2 Apps Panel — QR Code Generator
+
+**Overview:** New "Apps" sidebar panel housing embeddable utilities. First app: URL → QR code image layer.
+
+**UI (matching screenshots):**
+
+| Screen | Elements |
+|--------|----------|
+| **Apps List** | "QR code" row with icon + description ("Encode a URL and place it on the artboard.") |
+| **QR Detail View** | Back arrow, "QR code" title, close X, URL input, "Customize" accordion (color, bg, margin, error correction), live preview canvas, "Add to canvas" button (disabled until valid URL) |
+
+**Core Components:**
+- `AppsPanel.tsx` — Sidebar rail panel (app directory)
+- `QRCodeApp.tsx` — Sub-panel with form + live preview
+- `appsSlice.ts` — Zustand slice for form state (non-persisted)
+
+**Dependency:** `qrcode` npm package (canvas-based, client-side generation)
+
+**Flow:**
+1. User enters URL → `qrcode.toDataURL()` generates live preview
+2. Customize accordion expands to show: foreground color, background color, margin, error correction level (L/M/Q/H)
+3. "Add to canvas" → generates final PNG data URL → `createImageLayer()` → adds to main canvas
+
+---
+
+### 3.3 Integration Changes
+
+**`OrbitEditor.tsx`:**
+- Add `vectors` and `apps` to `PANEL_REGISTRY`
+- Import and render `VectorBoardsPanel`, `AppsPanel`
+- Add `VectorBoardEditor` modal trigger controlled by Zustand
+- Provide `onAddVectorBoard` callback to place boards on main canvas
+
+**Store (`packages/react/src/store/index.ts`):**
+- Add `VectorBoardsSlice` (persisted)
+- Add `AppsSlice` (non-persisted)
+- Update `partialize` to include `vectorBoards`
+
+**Icons needed (inline SVG):**
+- `vectors`: Pen/path icon
+- `apps`: 2×2 grid icon
+
+---
+
+### 3.4 Deferred / Future Apps
+- Barcode generator
+- Lorem ipsum text generator
+- Color palette extractor
+- Chart/graph generator
+
+---
+
+## Current Status Summary
+
+| Phase | Status | Notes |
+|-------|--------|-------|
+| Phase 0: Foundation | ✅ 100% Complete | Monorepo, build pipeline, UI components, themes |
+| Phase 1: Image Editor MVP | ✅ 100% Complete | All core features + extras (groups, align, smart guides, export, AI, etc.) |
+| Phase 2: Video + Vector + Multi-User | ✅ 100% Complete | Video engine, audio tracks, transitions, vector tools, collaboration |
+| Phase 3: Vector Board + Apps | 📋 Planned | Vector drawing board modal + QR code app |
+| Testing | ✅ Complete | 203 unit tests, 17 test files, coverage reporting configured |
+| Documentation | ✅ Complete | VitePress docs site with 11 pages |
+| Build | ✅ Passing | All 10 packages build successfully |
+| Demos | ✅ Ready | Both `apps/demo` (Vite/React) and `apps/demo-next` (Next.js) build and run |
+
+---
+
+*Document Version: 1.2*
+*Last Updated: 2026-04-27*

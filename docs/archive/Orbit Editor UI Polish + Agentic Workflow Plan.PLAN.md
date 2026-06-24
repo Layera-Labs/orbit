@@ -1,3 +1,5 @@
+> **Archived 2026-06-24** — superseded by [`/ROADMAP.md`](../../ROADMAP.md). Kept for history; a (largely implemented) legacy-v1 UI + agentic implementation plan.
+
 # Orbit Editor UI Polish + Agentic Workflow Plan
 
 ## Summary
