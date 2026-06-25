@@ -6,7 +6,15 @@
     "orientation": "portrait",
     "platforms": ["ios", "android"],
     "newArchEnabled": true,
-    "ios": { "supportsTablet": true },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true
+        }
+      }
+    },
     "userInterfaceStyle": "dark"
   }
 }

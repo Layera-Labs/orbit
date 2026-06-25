@@ -3,9 +3,10 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { ResizeMode, Video } from 'expo-av';
 import { StatusBar } from 'expo-status-bar';
 
-// ⚠️ Set this to your Mac's LAN IP running the render service (not "localhost" —
-// on a phone that means the phone). Find it with: ipconfig getifaddr en0
-const DEFAULT_SERVER = 'http://192.168.1.10:8787';
+// iOS SIMULATOR: localhost works (the sim shares your Mac's network).
+// PHYSICAL phone: change this (in-app) to your Mac's LAN IP, e.g.
+//   http://192.168.1.10:8787  — find it with: ipconfig getifaddr en0
+const DEFAULT_SERVER = 'http://localhost:8787';
 
 type Mode = 'quote' | 'ai';
 
