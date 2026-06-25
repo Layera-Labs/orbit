@@ -10,7 +10,7 @@ export default defineConfig({
       fileName: 'index',
     },
     rollupOptions: {
-      external: [/^node:/, '@orbit/video', '@anthropic-ai/sdk'],
+      external: [/^node:/, '@orbit/video', '@google/genai'],
     },
     sourcemap: true,
   },

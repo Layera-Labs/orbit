@@ -1,23 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { buildProjectFromSpec, generateVideoSpec } from '../agent';
+import { buildProjectFromSpec, generateVideoSpec, type Brain, type VideoSpec } from '../agent';
 
-/** Fake Anthropic client that returns a single forced tool call. */
-function toolClient(name: string, input: unknown) {
-  return { messages: { create: async () => ({ content: [{ type: 'tool_use', name, input }] }) } };
-}
+/** A fake brain that returns a fixed spec — no LLM / key needed. */
+const fakeBrain = (spec: VideoSpec): Brain => ({ plan: async () => spec });
 
 describe('generateVideoSpec', () => {
-  it('returns the template + filled input from the tool call (no API key)', async () => {
-    const spec = await generateVideoSpec('a sad shayari about the moon', {
-      client: toolClient('lyric_video', { lines: ['raat', 'chand', 'tanhai'] }),
-    });
+  it('delegates to the brain (no key needed)', async () => {
+    const spec = await generateVideoSpec(
+      'a sad shayari about the moon',
+      fakeBrain({ template: 'lyric_video', input: { lines: ['raat', 'chand', 'tanhai'] } }),
+    );
     expect(spec.template).toBe('lyric_video');
     expect(spec.input.lines).toEqual(['raat', 'chand', 'tanhai']);
-  });
-
-  it('throws when the model returns no tool call', async () => {
-    const client = { messages: { create: async () => ({ content: [{ type: 'text', text: 'hi' }] }) } };
-    await expect(generateVideoSpec('x', { client })).rejects.toThrow(/template/);
   });
 });
 

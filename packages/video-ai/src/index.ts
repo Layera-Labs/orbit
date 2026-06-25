@@ -1,13 +1,14 @@
-export { VIDEO_TOOLS } from './tools';
 export {
   generateVideoSpec,
   buildProjectFromSpec,
   generateVideoFromPrompt,
 } from './agent';
 export type {
+  Brain,
   VideoSpec,
   TemplateName,
-  AgentOptions,
   MediaInputs,
   GenerateOptions,
 } from './agent';
+export { createGeminiBrain } from './brains/gemini';
+export type { GeminiBrainOptions } from './brains/gemini';
