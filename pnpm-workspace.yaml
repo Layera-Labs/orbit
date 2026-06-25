@@ -1,3 +1,6 @@
 packages:
   - 'packages/*'
   - 'apps/*'
+  # The Expo app installs standalone (its React Native deps would conflict with
+  # the web packages' React 18 tree). Run it from apps/mobile, not the root.
+  - '!apps/mobile'

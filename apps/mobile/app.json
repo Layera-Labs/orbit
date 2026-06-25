@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Orbit Video",
+    "slug": "orbit-video",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "platforms": ["ios", "android"],
+    "newArchEnabled": true,
+    "ios": { "supportsTablet": true },
+    "userInterfaceStyle": "dark"
+  }
+}
