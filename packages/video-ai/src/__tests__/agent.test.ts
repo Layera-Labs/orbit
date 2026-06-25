@@ -39,8 +39,14 @@ describe('buildProjectFromSpec', () => {
     expect(project.overlays[1].text).toContain('Bruce Lee');
   });
 
-  it('validates required media and fields', () => {
-    expect(() => buildProjectFromSpec({ template: 'lyric_video', input: { lines: ['a'] } }, {})).toThrow(/music/);
+  it('renders a lyric video silently when no music is supplied', () => {
+    const p = buildProjectFromSpec({ template: 'lyric_video', input: { lines: ['a', 'b'] } }, {});
+    expect(p.clips).toHaveLength(0);
+    expect(p.overlays).toHaveLength(2);
+    expect(p.audio).toHaveLength(0);
+  });
+
+  it('validates required fields and media', () => {
     expect(() => buildProjectFromSpec({ template: 'lyric_video', input: {} }, { music: 'm.mp3' })).toThrow(/lines/);
     expect(() => buildProjectFromSpec({ template: 'caption_reel', input: { captions: ['x'] } }, {})).toThrow(/clip/);
   });

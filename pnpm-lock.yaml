@@ -118,6 +118,9 @@ importers:
       '@orbit/video':
         specifier: workspace:*
         version: link:../../packages/video
+      '@orbit/video-ai':
+        specifier: workspace:*
+        version: link:../../packages/video-ai
       express:
         specifier: ^4.19.2
         version: 4.22.2

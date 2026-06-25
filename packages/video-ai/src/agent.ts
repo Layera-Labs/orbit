@@ -81,7 +81,6 @@ export function buildProjectFromSpec(spec: VideoSpec, media: MediaInputs = {}): 
   switch (spec.template) {
     case 'lyric_video': {
       if (!Array.isArray(i.lines) || i.lines.length === 0) throw new Error('lyric_video requires non-empty lines');
-      if (!media.music) throw new Error('lyric_video requires music');
       const background =
         i.backgroundFrom && i.backgroundTo
           ? ({ type: 'gradient', from: i.backgroundFrom, to: i.backgroundTo } as const)

@@ -58,7 +58,8 @@ export interface LyricVideoInput {
   /** Seconds each line is shown (default 2.5). */
   perLine?: number;
   background?: Background;
-  music: string;
+  /** Background music (optional — omit for a silent lyric video). */
+  music?: string;
   musicVolume?: number;
   width?: number;
   height?: number;
@@ -91,7 +92,7 @@ export function lyricVideo(input: LyricVideoInput): VideoProject {
     background: input.background ?? { type: 'gradient', from: '#1e3a8a', to: '#9333ea', angle: 160 },
     clips: [],
     overlays,
-    audio: [{ id: 'music', src: input.music, start: 0, duration: total, volume: input.musicVolume ?? 1 }],
+    audio: input.music ? [{ id: 'music', src: input.music, start: 0, duration: total, volume: input.musicVolume ?? 1 }] : [],
   });
 }
 

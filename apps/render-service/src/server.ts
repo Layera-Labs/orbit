@@ -1,21 +1,40 @@
 /**
  * HTTP render service: wraps the headless `@orbit/video` engine so any client
- * (the iOS app, web, a webhook) can POST a video project and get back an MP4.
- * The render runs server-side with ffmpeg — the reliable export spine.
+ * (the iOS app, web, a webhook) can render a video server-side with ffmpeg.
  *
- * Production additions (documented, not wired here): validate the license key
- * (`@orbit/billing`), store output in R2 and return a signed URL instead of the
- * bytes, and queue long renders (BullMQ) rather than holding the request open.
+ * Endpoints:
+ *   GET  /health
+ *   POST /v1/render   { project }          → { url }   render a VideoProject
+ *   POST /v1/generate { prompt, music? }   → { url, template }   describe → video (needs ANTHROPIC_API_KEY)
+ *
+ * Rendered files are served from /files so clients play a URL (no need to hold
+ * the request open or stream bytes). Production: validate the license key
+ * (`@orbit/billing`), store output in R2 + return a signed URL, and queue long
+ * renders (BullMQ) instead of rendering inline.
  */
 import express, { type Express, type Request, type Response } from 'express';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { renderProject, type VideoProject } from '@orbit/video';
+import { buildProjectFromSpec, generateVideoSpec } from '@orbit/video-ai';
 
 export function createServer(): Express {
   const app = express();
   app.use(express.json({ limit: '8mb' }));
+
+  const outDir = join(tmpdir(), 'orbit-render-outputs');
+  let counter = 0;
+
+  // Serve rendered MP4s so clients can play them by URL.
+  app.use('/files', express.static(outDir));
+
+  async function render(project: VideoProject): Promise<string> {
+    await mkdir(outDir, { recursive: true });
+    const name = `v_${++counter}_${Date.now()}.mp4`;
+    await renderProject(project, { outputPath: join(outDir, name) });
+    return `/files/${name}`;
+  }
 
   app.get('/health', (_req: Request, res: Response) => {
     res.json({ ok: true, service: 'orbit-render' });
@@ -27,17 +46,29 @@ export function createServer(): Express {
       res.status(400).json({ error: 'request body must be { project: VideoProject }' });
       return;
     }
-    const dir = await mkdtemp(join(tmpdir(), 'orbit-render-'));
-    const out = join(dir, 'out.mp4');
     try {
-      await renderProject(project, { outputPath: out });
-      const buf = await readFile(out);
-      res.setHeader('content-type', 'video/mp4');
-      res.send(buf);
+      res.json({ url: await render(project) });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
-    } finally {
-      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  app.post('/v1/generate', async (req: Request, res: Response) => {
+    const body = req.body as { prompt?: string; music?: string } | undefined;
+    if (!body?.prompt) {
+      res.status(400).json({ error: 'request body must be { prompt }' });
+      return;
+    }
+    if (!process.env.ANTHROPIC_API_KEY) {
+      res.status(503).json({ error: 'server is missing ANTHROPIC_API_KEY' });
+      return;
+    }
+    try {
+      const spec = await generateVideoSpec(body.prompt);
+      const project = buildProjectFromSpec(spec, { music: body.music });
+      res.json({ url: await render(project), template: spec.template });
+    } catch (err) {
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
 
