@@ -1,11 +1,11 @@
 /**
- * The AI wedge: "describe → video". Claude reads a prompt, picks one template
- * (via forced tool use), and fills its text fields; we validate the result and
- * build a `VideoProject` the engine renders. Live inference needs an Anthropic
- * API key (`ANTHROPIC_API_KEY`); the structure here is fully testable without
- * one by injecting a `client`.
+ * The AI wedge: "describe → video". A pluggable `Brain` (an LLM) turns a prompt
+ * into a template choice + filled fields; we validate it and build a
+ * `VideoProject` the engine renders. The brain is an interface, so the LLM
+ * provider is swappable (Gemini is the built-in — see `brains/gemini.ts`).
+ *
+ * Media stays caller-supplied (the brain produces text only, never assets).
  */
-import Anthropic from '@anthropic-ai/sdk';
 import {
   captionReel,
   lyricVideo,
@@ -13,7 +13,6 @@ import {
   renderProject,
   type VideoProject,
 } from '@orbit/video';
-import { VIDEO_TOOLS } from './tools';
 
 export type TemplateName = 'lyric_video' | 'caption_reel' | 'quote_card';
 
@@ -22,50 +21,18 @@ export interface VideoSpec {
   input: Record<string, unknown>;
 }
 
-/** The minimal slice of the Anthropic client we use — lets tests inject a fake. */
-interface MessagesClient {
-  messages: {
-    create(params: Record<string, unknown>): Promise<{
-      content: Array<{ type: string; name?: string; input?: unknown }>;
-    }>;
-  };
+/** A pluggable LLM brain: prompt → template choice + filled text fields. */
+export interface Brain {
+  plan(prompt: string): Promise<VideoSpec>;
 }
 
-export interface AgentOptions {
-  /** Anthropic API key. Falls back to `ANTHROPIC_API_KEY`. */
-  apiKey?: string;
-  /** Model id (default `claude-opus-4-8`). */
-  model?: string;
-  /** Inject a client (tests / custom config). */
-  client?: MessagesClient;
-}
-
-const SYSTEM = `You turn a short description into a vertical (9:16) short-form video.
-Choose exactly ONE template using the tools, and fill its text fields with punchy, concise copy.
-- lyric_video: poems, lyrics, shayari, affirmations — 3 to 8 short lines.
-- caption_reel: sequential captions over the user's own footage.
-- quote_card: one short, shareable quote.
-Do not invent media (music or video clips); produce text only. Always call exactly one tool.`;
-
-/** Ask Claude to choose + fill a template for the prompt. */
-export async function generateVideoSpec(prompt: string, opts: AgentOptions = {}): Promise<VideoSpec> {
-  const client: MessagesClient =
-    opts.client ?? (new Anthropic({ apiKey: opts.apiKey }) as unknown as MessagesClient);
-  const res = await client.messages.create({
-    model: opts.model ?? 'claude-opus-4-8',
-    max_tokens: 1024,
-    system: SYSTEM,
-    tools: VIDEO_TOOLS,
-    tool_choice: { type: 'any' },
-    messages: [{ role: 'user', content: prompt }],
-  });
-  const tool = res.content.find((b) => b.type === 'tool_use' && !!b.name);
-  if (!tool?.name) throw new Error('Model did not choose a video template');
-  return { template: tool.name as TemplateName, input: (tool.input ?? {}) as Record<string, unknown> };
+/** Ask the brain to choose + fill a template for the prompt. */
+export function generateVideoSpec(prompt: string, brain: Brain): Promise<VideoSpec> {
+  return brain.plan(prompt);
 }
 
 export interface MediaInputs {
-  /** Audio track path/URL (required by lyric_video, optional elsewhere). */
+  /** Audio track (optional for lyric/quote, none = silent). */
   music?: string;
   /** Base video clip (required by caption_reel). */
   clip?: string;
@@ -101,17 +68,18 @@ export function buildProjectFromSpec(spec: VideoSpec, media: MediaInputs = {}): 
   }
 }
 
-export interface GenerateOptions extends AgentOptions, MediaInputs {
+export interface GenerateOptions extends MediaInputs {
+  brain: Brain;
   outputPath: string;
   ffmpegPath?: string;
 }
 
-/** End-to-end: prompt → spec → project → rendered MP4. */
+/** End-to-end: prompt → (brain) spec → project → rendered MP4. */
 export async function generateVideoFromPrompt(
   prompt: string,
   opts: GenerateOptions,
 ): Promise<{ spec: VideoSpec; outputPath: string }> {
-  const spec = await generateVideoSpec(prompt, opts);
+  const spec = await opts.brain.plan(prompt);
   const project = buildProjectFromSpec(spec, opts);
   await renderProject(project, { outputPath: opts.outputPath, ffmpegPath: opts.ffmpegPath });
   return { spec, outputPath: opts.outputPath };

@@ -5,7 +5,7 @@
  * Endpoints:
  *   GET  /health
  *   POST /v1/render   { project }          → { url }   render a VideoProject
- *   POST /v1/generate { prompt, music? }   → { url, template }   describe → video (needs ANTHROPIC_API_KEY)
+ *   POST /v1/generate { prompt, music? }   → { url, template }   describe → video (needs GEMINI_API_KEY)
  *
  * Rendered files are served from /files so clients play a URL (no need to hold
  * the request open or stream bytes). Production: validate the license key
@@ -17,7 +17,7 @@ import { mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { renderProject, type VideoProject } from '@orbit/video';
-import { buildProjectFromSpec, generateVideoSpec } from '@orbit/video-ai';
+import { buildProjectFromSpec, createGeminiBrain, generateVideoSpec } from '@orbit/video-ai';
 
 export function createServer(): Express {
   const app = express();
@@ -59,12 +59,13 @@ export function createServer(): Express {
       res.status(400).json({ error: 'request body must be { prompt }' });
       return;
     }
-    if (!process.env.ANTHROPIC_API_KEY) {
-      res.status(503).json({ error: 'server is missing ANTHROPIC_API_KEY' });
+    const key = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
+    if (!key) {
+      res.status(503).json({ error: 'server is missing GEMINI_API_KEY (or GOOGLE_API_KEY)' });
       return;
     }
     try {
-      const spec = await generateVideoSpec(body.prompt);
+      const spec = await generateVideoSpec(body.prompt, createGeminiBrain({ apiKey: key }));
       const project = buildProjectFromSpec(spec, { music: body.music });
       res.json({ url: await render(project), template: spec.template });
     } catch (err) {

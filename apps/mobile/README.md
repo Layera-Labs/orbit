@@ -15,8 +15,8 @@ just a client.
 ```bash
 pnpm --filter @orbit/render-service build
 PORT=8787 node apps/render-service/dist/main.js
-# For the "AI describe" mode, export your key first (stays server-side):
-#   export ANTHROPIC_API_KEY=sk-ant-...   then start the service
+# For the "AI describe" mode, export your Gemini key first (stays server-side):
+#   export GEMINI_API_KEY=...   then start the service
 ```
 Make sure `ffmpeg` is on PATH on that machine.
 
@@ -39,7 +39,7 @@ Scan the QR code with **Expo Go** (iOS/Android) on a device on the same network.
 **4. Tap Render.**
 - **Quote (no key):** the app builds a `VideoProject` JSON and calls `/v1/render`.
 - **AI describe:** the app sends the prompt to `/v1/generate` (needs the server's
-  `ANTHROPIC_API_KEY`).
+  `GEMINI_API_KEY`).
 
 ## Notes
 - `expo-av` is used for playback; if your Expo SDK has moved it to `expo-video`,
