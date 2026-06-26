@@ -14,6 +14,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Canvas, Fill, Group, Image as SkImg, rect, useImage } from '@shopify/react-native-skia';
 import { useSharedValue } from 'react-native-reanimated';
 import { useClipFrame } from '../preview/useClipFrame';
+import { ensureFontsLoaded, useFontsVersion } from '../text/fonts';
 import { mono, ratioLabel } from '../constants';
 import { clipAtTime } from '../model/editor-ops';
 import { projectDuration } from '../model/project';
@@ -92,7 +93,15 @@ export function Preview({ width, height }: { width: number; height: number }) {
   const isPlaying = useEditor((s) => s.isPlaying);
   const setPlayhead = useEditor((s) => s.setPlayhead);
   const setPlaying = useEditor((s) => s.setPlaying);
+  const fontsVersion = useFontsVersion();
   const startedAt = useRef(0);
+
+  // Pre-load Google fonts referenced by captions (e.g. on reopening a project).
+  const famKey = (project?.overlays ?? []).map((o) => (o.type === 'text' ? o.fontFamily : '')).join(',');
+  useEffect(() => {
+    ensureFontsLoaded((project?.overlays ?? []).flatMap((o) => (o.type === 'text' && o.fontFamily ? [o.fontFamily] : [])));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [famKey]);
 
   const total = project ? projectDuration(project) : 0;
   const lookupT = total > 0 ? Math.min(playheadSec, total - 0.01) : playheadSec;
@@ -150,6 +159,7 @@ export function Preview({ width, height }: { width: number; height: number }) {
         {captions.map((o: TextOverlay) => (
           <View key={o.id} style={[styles.textOverlay, { top: o.y * height }]}>
             <Text
+              key={`${o.fontFamily ?? 'def'}-${fontsVersion}`}
               style={{
                 color: o.color,
                 fontSize: Math.max(8, o.fontSize * scale),
