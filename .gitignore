@@ -14,3 +14,7 @@ dist
 !.github
 coverage
 *.tgz
+.claude
+.expo
+apps/mobile/.expo
+gen.mp4

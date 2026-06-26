@@ -16,7 +16,7 @@ import { AudioMixer } from './audio-mixer';
 import { TransitionEngine } from './transition-engine';
 import { AdjustmentRenderer, type AdjustmentValues } from '@orbit/effects';
 import { AddLayerCommand, UpdateLayerCommand, MoveLayerCommand, RemoveLayerCommand, DuplicateLayerCommand, GroupLayersCommand, UngroupLayerCommand } from './commands';
-import type { Layer, OrbitTheme, WatermarkOptions, ExportOptions } from '@orbit/shared';
+import type { Layer, OrbitTheme, WatermarkOptions, ExportOptions, SceneGraph as SceneGraphState } from '@orbit/shared';
 import { DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT, generateId } from '@orbit/shared';
 import * as fabric from 'fabric';
 
@@ -66,9 +66,9 @@ export class OrbitEngine {
       onTimeUpdate: (time) => this.emit('audioTimeUpdate', time),
     });
 
-    // Subscribe to viewport changes to update renderer
+    // Subscribe to viewport zoom changes to update renderer CSS scaling
     this.viewport.subscribe((state) => {
-      this.renderer.setViewport(state.zoom, state.panX, state.panY);
+      this.renderer.setZoom(state.zoom);
       this.emit('zoomChange', state.zoom);
     });
 
@@ -110,6 +110,7 @@ export class OrbitEngine {
   init(container: HTMLElement): void {
     this.container = container;
     this.renderer.init(container, this.config.width, this.config.height);
+    this.zoomToFit();
 
     // Setup renderer event handlers
     this.renderer.onSelectionChange((ids) => {
@@ -140,24 +141,15 @@ export class OrbitEngine {
       this.render();
     });
 
-    // Setup pointer events for zoom/pan
-    this.setupPointerEvents(container);
-
-    // Observe container resize - handles both initial sizing and window resize
+    // Observe container resize to recalc offsets and optionally refit
     this.resizeObserver = new ResizeObserver((entries) => {
       if (!this.container) return;
       const entry = entries[0];
       if (!entry) return;
       const { width, height } = entry.contentRect;
       if (width < 10 || height < 10) return;
-      this.renderer.resize(width, height);
-      this.drawController.resize(width, height);
-      this.viewport.zoomToFit(
-        this.config.width,
-        this.config.height,
-        width,
-        height
-      );
+      const canvas = this.renderer.getCanvas();
+      if (canvas) canvas.calcOffset();
     });
     this.resizeObserver.observe(container);
 
@@ -260,11 +252,9 @@ export class OrbitEngine {
         const handleMouseMove = (e: MouseEvent) => {
           if (!this.collaboration) return;
           const rect = canvasEl.getBoundingClientRect();
-          const zoom = this.viewport.getState().zoom;
-          const panX = this.viewport.getState().panX;
-          const panY = this.viewport.getState().panY;
-          const x = (e.clientX - rect.left - panX) / zoom;
-          const y = (e.clientY - rect.top - panY) / zoom;
+          const scale = this.viewport.getState().zoom / 100;
+          const x = (e.clientX - rect.left) / scale;
+          const y = (e.clientY - rect.top) / scale;
           this.collaboration.updateCursor(x, y);
         };
         canvasEl.addEventListener('mousemove', handleMouseMove);
@@ -294,13 +284,32 @@ export class OrbitEngine {
   resizeCanvas(width: number, height: number): void {
     this.config.width = width;
     this.config.height = height;
-    this.scene = new SceneGraph(width, height);
+    
+    // Use setDimensions to avoid creating a new SceneGraph instance
+    // This preserves all subscriptions and existing state
+    this.scene.setDimensions(width, height);
+    
     this.history.clear();
     this.selectedIds = [];
     this.renderer.clearSelection?.();
+    this.renderer.setCanvasSize(width, height);
     this.render();
     this.zoomToFit();
     this.emit('canvasChange', { width, height });
+  }
+
+  loadScene(scene: SceneGraphState): void {
+    this.config.width = scene.width;
+    this.config.height = scene.height;
+    this.selectedIds = [];
+    this.history.clear();
+    this.renderer.clearSelection?.();
+    this.renderer.setCanvasSize(scene.width, scene.height);
+    this.scene.setState(scene);
+    this.render();
+    this.zoomToFit();
+    this.emit('selectionChange', []);
+    this.emit('canvasChange', { width: scene.width, height: scene.height });
   }
 
   setSnapToGrid(enabled: boolean, gridSize: number): void {
@@ -519,23 +528,14 @@ export class OrbitEngine {
     this.viewport.zoomOut();
   }
 
-  zoomToFit(): void {
+  zoomToFit(padding = 96): void {
     if (!this.container) return;
     this.viewport.zoomToFit(
       this.config.width,
       this.config.height,
       this.container.clientWidth,
-      this.container.clientHeight
-    );
-  }
-
-  centerCanvas(): void {
-    if (!this.container) return;
-    this.viewport.centerCanvas(
-      this.config.width,
-      this.config.height,
-      this.container.clientWidth,
-      this.container.clientHeight
+      this.container.clientHeight,
+      padding
     );
   }
 
@@ -925,63 +925,4 @@ export class OrbitEngine {
     this.renderer.render(this.scene.getState());
   }
 
-  private setupPointerEvents(container: HTMLElement): void {
-    let isPanning = false;
-    let lastX = 0;
-    let lastY = 0;
-
-    const handlePointerDown = (e: PointerEvent) => {
-      if (e.button === 1 || (e.button === 0 && e.altKey)) {
-        // Middle mouse or Alt+Left for pan
-        isPanning = true;
-        lastX = e.clientX;
-        lastY = e.clientY;
-        container.style.cursor = 'grabbing';
-      }
-    };
-
-    const handlePointerMove = (e: PointerEvent) => {
-      if (isPanning) {
-        const dx = e.clientX - lastX;
-        const dy = e.clientY - lastY;
-        this.viewport.pan(dx, dy);
-        lastX = e.clientX;
-        lastY = e.clientY;
-      }
-    };
-
-    const handlePointerUp = () => {
-      isPanning = false;
-      container.style.cursor = 'default';
-    };
-
-    // Wheel zoom
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-      const rect = container.getBoundingClientRect();
-      this.viewport.setZoom(
-        this.viewport.getState().zoom * zoomFactor,
-        e.clientX - rect.left,
-        e.clientY - rect.top
-      );
-    };
-
-    container.addEventListener('pointerdown', handlePointerDown);
-    container.addEventListener('pointermove', handlePointerMove);
-    container.addEventListener('pointerup', handlePointerUp);
-    container.addEventListener('pointerleave', handlePointerUp);
-    container.addEventListener('wheel', handleWheel, { passive: false });
-
-    this.cleanupCallbacks.push(() => {
-      container.removeEventListener('pointerdown', handlePointerDown);
-      container.removeEventListener('pointermove', handlePointerMove);
-      container.removeEventListener('pointerup', handlePointerUp);
-      container.removeEventListener('pointerleave', handlePointerUp);
-      container.removeEventListener('wheel', handleWheel);
-      if (container.style.cursor === 'grabbing') {
-        container.style.cursor = 'default';
-      }
-    });
-  }
 }

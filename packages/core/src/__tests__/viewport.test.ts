@@ -5,47 +5,56 @@ describe('ViewportController', () => {
   it('has default state', () => {
     const vp = new ViewportController();
     const state = vp.getState();
-    expect(state.zoom).toBe(1);
-    expect(state.panX).toBe(0);
-    expect(state.panY).toBe(0);
-    expect(state.rotation).toBe(0);
+    expect(state.zoom).toBe(100);
   });
 
-  it('sets zoom', () => {
+  it('sets zoom as percentage', () => {
     const vp = new ViewportController();
-    vp.setZoom(2);
-    expect(vp.getState().zoom).toBe(2);
+    vp.setZoom(150);
+    expect(vp.getState().zoom).toBe(150);
   });
 
   it('clamps zoom to min/max', () => {
     const vp = new ViewportController();
-    vp.setZoom(0.01);
-    expect(vp.getState().zoom).toBe(0.1);
-    vp.setZoom(100);
+    vp.setZoom(1);
     expect(vp.getState().zoom).toBe(5);
+    vp.setZoom(600);
+    expect(vp.getState().zoom).toBe(500);
   });
 
-  it('pans', () => {
+  it('zooms in and out', () => {
     const vp = new ViewportController();
-    vp.pan(100, 50);
-    expect(vp.getState().panX).toBe(100);
-    expect(vp.getState().panY).toBe(50);
+    vp.setZoom(100);
+    vp.zoomIn();
+    expect(vp.getState().zoom).toBe(105);
+    vp.zoomOut();
+    expect(vp.getState().zoom).toBe(100);
   });
 
-  it('centers the canvas at the current zoom', () => {
+  it('calculates fit percentage', () => {
     const vp = new ViewportController();
-    vp.setZoom(0.5);
-    vp.centerCanvas(1000, 800, 1600, 1000);
-    expect(vp.getState()).toMatchObject({ zoom: 0.5, panX: 550, panY: 300 });
+    // 1000x800 canvas in 2000x1200 container = 1.0 scale (max 100%)
+    const fit = vp.calculateFit(1000, 800, 2000, 1200);
+    expect(fit).toBe(100);
+
+    // 2000x1600 canvas in 1000x600 container = 0.25 scale
+    const fit2 = vp.calculateFit(2000, 1600, 1000, 600);
+    expect(fit2).toBeLessThan(100);
+  });
+
+  it('resets zoom to 100%', () => {
+    const vp = new ViewportController();
+    vp.setZoom(50);
+    vp.resetZoom();
+    expect(vp.getState().zoom).toBe(100);
   });
 
   it('notifies subscribers', () => {
     const vp = new ViewportController();
     const callback = vi.fn();
     const unsub = vp.subscribe(callback);
-    vp.setZoom(1.5);
-    expect(callback).toHaveBeenCalledWith(expect.objectContaining({ zoom: 1.5 }));
+    vp.setZoom(150);
+    expect(callback).toHaveBeenCalledWith(expect.objectContaining({ zoom: 150 }));
     unsub();
   });
-
 });

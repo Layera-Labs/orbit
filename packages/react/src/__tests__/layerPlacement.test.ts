@@ -31,6 +31,16 @@ describe('layer placement helpers', () => {
     expect(shape).toMatchObject({ type: 'shape', x: 400, y: 350, width: 200, height: 100 });
   });
 
+  it('auto-sizes text layers when no explicit size is provided', () => {
+    const engine = new OrbitEngine({ width: 1000, height: 800 });
+
+    const text = createCenteredTextLayer(engine, { text: 'Title', fontSize: 48 });
+
+    expect(text.width).toBeLessThan(220);
+    expect(text.height).toBeGreaterThanOrEqual(60);
+    expect(text.x).toBe((1000 - text.width) / 2);
+  });
+
   it('creates full-artboard background layers', () => {
     const engine = new OrbitEngine({ width: 1200, height: 675 });
     const background = createBackgroundLayer(engine, '#f8fafc');

@@ -8,6 +8,7 @@ import { addLayerAndSelect, createBackgroundLayer } from '../../utils/layerPlace
 
 interface BackgroundsPanelProps {
   engine: OrbitEngine | null;
+  onClose?: () => void;
 }
 
 const SOLID_COLORS = [
@@ -25,12 +26,13 @@ const GRADIENTS = [
   { id: 'gold', name: 'Gold', value: 'linear-gradient(135deg, #ca8a04, #f59e0b, #fbbf24)' },
 ];
 
-export const BackgroundsPanel: React.FC<BackgroundsPanelProps> = ({ engine }) => {
+export const BackgroundsPanel: React.FC<BackgroundsPanelProps> = ({ engine, onClose }) => {
   const [activeTab, setActiveTab] = React.useState<'solid' | 'gradient' | 'pattern'>('solid');
   const [customColor, setCustomColor] = React.useState('#3b82f6');
 
   const applyBackground = (_type: 'solid' | 'gradient' | 'pattern', value: string, name = 'Background') => {
     addLayerAndSelect(engine, createBackgroundLayer(engine, value, name), { sendToBack: true });
+    onClose?.();
   };
 
   return (

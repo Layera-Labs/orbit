@@ -12,7 +12,9 @@ module.exports = {
         orbit: {
           // Canvas & Backgrounds
           workspace: 'var(--orbit-workspace-bg)',
+          'workspace-bg': 'var(--orbit-workspace-bg)',
           canvas: 'var(--orbit-canvas-bg)',
+          'canvas-bg': 'var(--orbit-canvas-bg)',
           'canvas-dot': 'var(--orbit-canvas-dot)',
           sidebar: 'var(--orbit-sidebar-bg)',
           'sidebar-rail': 'var(--orbit-sidebar-rail-bg)',

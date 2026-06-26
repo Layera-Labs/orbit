@@ -8,12 +8,12 @@
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./headless": {
-      "import": "./dist/headless/index.js",
-      "types": "./dist/headless/index.d.ts"
+      "types": "./dist/headless/index.d.ts",
+      "import": "./dist/headless/index.js"
     },
     "./styles.css": "./dist/styles.css"
   },
@@ -23,7 +23,7 @@
   ],
   "scripts": {
     "build": "tsc && vite build",
-    "dev": "vite build --watch",
+    "dev": "vite build --watch --emptyOutDir false",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"

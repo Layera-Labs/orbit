@@ -9,7 +9,7 @@
  * no libfreetype needed). Audio mixes the music tracks (single-clip projects
  * also keep the clip's own audio). Encodes to H.264/AAC MP4 (yuv420p + faststart).
  */
-import type { VideoProject } from './types';
+import { FULL_FRAME, type AudioTrack, type VideoProject, type VisualTrack } from './types';
 import { projectDuration, transitionDuration } from './project';
 
 export interface BuildFFmpegOptions {
@@ -20,11 +20,18 @@ export interface BuildFFmpegOptions {
   baseImage?: string;
   /** Map a clip/audio `src` to a local file path. Defaults to identity. */
   resolveSrc?: (src: string) => string;
+  /** Whether a resolved src actually has an audio stream. Defaults to assuming
+   *  yes; pass a real probe so silent clips/images don't break the filtergraph. */
+  hasAudio?: (resolvedSrc: string) => boolean;
 }
 
 export function buildFFmpegArgs(project: VideoProject, opts: BuildFFmpegOptions): string[] {
+  // Multi-track projects composite layers; legacy projects keep the concat/xfade path below.
+  if (project.tracks !== undefined) return buildMultiTrackArgs(project, opts);
+
   const { width: W, height: H, fps } = project;
   const resolve = opts.resolveSrc ?? ((s) => s);
+  const hasAudio = opts.hasAudio ?? (() => true);
   const images = opts.overlayImages ?? {};
   const clips = project.clips;
   const useBaseImage = clips.length === 0;
@@ -109,6 +116,7 @@ export function buildFFmpegArgs(project: VideoProject, opts: BuildFFmpegOptions)
   // ---- audio: music tracks (+ a lone video clip's own audio) ----
   const aLabels: string[] = [];
   project.audio.forEach((a, i) => {
+    if (!hasAudio(resolve(a.src))) return; // skip an audio file with no audio stream
     const label = `a${i}`;
     segments.push(
       `[${audioBase + i}:a]atrim=start=${a.trimIn ?? 0}:duration=${a.duration ?? duration},asetpts=PTS-STARTPTS,volume=${a.volume ?? 1}[${label}]`,
@@ -116,7 +124,7 @@ export function buildFFmpegArgs(project: VideoProject, opts: BuildFFmpegOptions)
     aLabels.push(`[${label}]`);
   });
   const loneClip = !useBaseImage && clips.length === 1 ? clips[0] : null;
-  if (loneClip && loneClip.type === 'video' && !loneClip.muted) {
+  if (loneClip && loneClip.type === 'video' && !loneClip.muted && hasAudio(resolve(loneClip.src))) {
     segments.push(
       `[0:a]atrim=start=${loneClip.trimIn ?? 0}:duration=${loneClip.duration},asetpts=PTS-STARTPTS,volume=${loneClip.volume ?? 1}[abase]`,
     );
@@ -141,6 +149,116 @@ export function buildFFmpegArgs(project: VideoProject, opts: BuildFFmpegOptions)
     '-profile:v', 'high',
     '-preset', 'veryfast',
   );
+  if (audioMap) args.push('-c:a', 'aac', '-b:a', '192k');
+  args.push('-movflags', '+faststart', opts.outputPath);
+  return args;
+}
+
+/**
+ * Multi-track (v2) compositor. Stacks visual tracks bottom→top: each clip is
+ * trimmed, scaled to its normalized `rect`, time-shifted to its absolute
+ * `start` (setpts) and overlaid (gated by `enable`) onto a background base.
+ * Text overlays composite last. Audio clips + each video clip's own audio are
+ * positioned with `adelay` and mixed. Requires `opts.baseImage` (the rasterized
+ * background) so there is always a full-duration canvas.
+ */
+function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): string[] {
+  const { width: W, height: H, fps } = project;
+  const resolve = opts.resolveSrc ?? ((s) => s);
+  const hasAudio = opts.hasAudio ?? (() => true);
+  const images = opts.overlayImages ?? {};
+  if (!opts.baseImage) throw new Error('multi-track render requires a base background image');
+  const duration = projectDuration(project);
+  const tracks = project.tracks ?? [];
+  const visualClips = tracks.filter((t): t is VisualTrack => t.kind === 'visual').flatMap((t) => t.clips);
+  const audioClips = tracks.filter((t): t is AudioTrack => t.kind === 'audio').flatMap((t) => t.clips);
+  const textOverlays = project.overlays.filter((o) => images[o.id]);
+  const even = (n: number) => Math.max(2, Math.round(n / 2) * 2);
+
+  // ---- inputs: base(0), visual clips, text overlays, audio clips ----
+  const inputs: string[] = [];
+  let idx = 0;
+  inputs.push('-loop', '1', '-t', String(duration), '-i', opts.baseImage);
+  const baseIdx = idx++;
+  const vIn = visualClips.map((c) => {
+    if (c.type === 'image') inputs.push('-loop', '1', '-t', String(c.duration), '-i', resolve(c.src));
+    else inputs.push('-i', resolve(c.src));
+    return idx++;
+  });
+  const oIn = textOverlays.map((o) => {
+    inputs.push('-loop', '1', '-i', images[o.id]);
+    return idx++;
+  });
+  const aIn = audioClips.map((a) => {
+    inputs.push('-i', resolve(a.src));
+    return idx++;
+  });
+
+  const segments: string[] = [`[${baseIdx}:v]scale=${W}:${H},setsar=1,fps=${fps},format=yuv420p[base]`];
+
+  // ---- composite visual clips over the base (bottom→top) ----
+  let prev = '[base]';
+  visualClips.forEach((c, i) => {
+    const R = c.rect ?? FULL_FRAME;
+    const rw = even(R.w * W);
+    const rh = even(R.h * H);
+    const rx = Math.round(R.x * W);
+    const ry = Math.round(R.y * H);
+    const S = c.start;
+    const E = c.start + c.duration;
+    const shift = `setpts=PTS-STARTPTS+${S}/TB`;
+    const prep = c.type === 'video' ? `trim=start=${c.trimIn ?? 0}:duration=${c.duration},${shift},` : `${shift},`;
+    const fmt = c.type === 'image' ? 'rgba' : 'yuv420p';
+    segments.push(
+      `[${vIn[i]}:v]${prep}scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1,fps=${fps},format=${fmt}[v${i}]`,
+    );
+    segments.push(`${prev}[v${i}]overlay=${rx}:${ry}:enable='between(t,${S},${E})':eof_action=pass[c${i}]`);
+    prev = `[c${i}]`;
+  });
+
+  // ---- text overlays on top ----
+  textOverlays.forEach((o, i) => {
+    const fade = ['format=rgba'];
+    if (o.animation === 'fade') {
+      const d = 0.3;
+      fade.push(`fade=t=in:st=${o.start}:d=${d}:alpha=1`, `fade=t=out:st=${Math.max(0, o.end - d)}:d=${d}:alpha=1`);
+    }
+    segments.push(`[${oIn[i]}:v]${fade.join(',')}[t${i}]`);
+    segments.push(`${prev}[t${i}]overlay=0:0:enable='between(t,${o.start},${o.end})'[tc${i}]`);
+    prev = `[tc${i}]`;
+  });
+  const vLabel = prev;
+
+  // ---- audio: positioned audio clips + each video clip's own audio, mixed ----
+  const aLabels: string[] = [];
+  audioClips.forEach((a, i) => {
+    if (!hasAudio(resolve(a.src))) return;
+    const ms = Math.max(0, Math.round(a.start * 1000));
+    segments.push(
+      `[${aIn[i]}:a]atrim=start=${a.trimIn ?? 0}:duration=${a.duration},asetpts=PTS-STARTPTS,adelay=${ms}:all=1,volume=${a.volume ?? 1}[aa${i}]`,
+    );
+    aLabels.push(`[aa${i}]`);
+  });
+  visualClips.forEach((c, i) => {
+    if (c.type !== 'video' || c.muted || !hasAudio(resolve(c.src))) return;
+    const ms = Math.max(0, Math.round(c.start * 1000));
+    segments.push(
+      `[${vIn[i]}:a]atrim=start=${c.trimIn ?? 0}:duration=${c.duration},asetpts=PTS-STARTPTS,adelay=${ms}:all=1,volume=${c.volume ?? 1}[va${i}]`,
+    );
+    aLabels.push(`[va${i}]`);
+  });
+  let audioMap: string | null = null;
+  if (aLabels.length === 1) {
+    audioMap = aLabels[0];
+  } else if (aLabels.length > 1) {
+    segments.push(`${aLabels.join('')}amix=inputs=${aLabels.length}:dropout_transition=0:normalize=0[a]`);
+    audioMap = '[a]';
+  }
+
+  // ---- assemble ----
+  const args: string[] = ['-y', ...inputs, '-filter_complex', segments.join(';'), '-map', vLabel];
+  if (audioMap) args.push('-map', audioMap);
+  args.push('-r', String(fps), '-t', String(duration), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-preset', 'veryfast');
   if (audioMap) args.push('-c:a', 'aac', '-b:a', '192k');
   args.push('-movflags', '+faststart', opts.outputPath);
   return args;

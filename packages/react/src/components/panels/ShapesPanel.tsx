@@ -10,6 +10,7 @@ import { createShapeLayer } from '../../utils/layerPlacement';
 
 interface ShapesPanelProps {
   engine: OrbitEngine | null;
+  onClose?: () => void;
 }
 
 const SHAPES = [
@@ -24,7 +25,7 @@ const SHAPES = [
 
 const COLORS = ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#e5e5e5', '#0f0f0f', '#ec4899', '#8b5cf6'];
 
-export const ShapesPanel: React.FC<ShapesPanelProps> = ({ engine }) => {
+export const ShapesPanel: React.FC<ShapesPanelProps> = ({ engine, onClose }) => {
   const { addLayer, selectLayer } = useOrbitLayers(engine);
   const [fillColor, setFillColor] = React.useState('#3b82f6');
   const [strokeColor, setStrokeColor] = React.useState('transparent');
@@ -40,8 +41,9 @@ export const ShapesPanel: React.FC<ShapesPanelProps> = ({ engine }) => {
       });
       const id = addLayer(layer);
       if (id) selectLayer(id);
+      onClose?.();
     },
-    [addLayer, engine, selectLayer, fillColor, strokeColor]
+    [addLayer, engine, selectLayer, fillColor, strokeColor, onClose]
   );
 
   return (

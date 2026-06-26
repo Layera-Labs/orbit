@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+    html,body{margin:0;padding:0}
+    ::-webkit-scrollbar{width:0;height:0;display:none}
+    .noscroll{scrollbar-width:none;-ms-overflow-style:none}
+    @keyframes sheetUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+    @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+    @keyframes popIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+  </style>
+</helmet>
+
+<div style="min-height:100vh;width:100%;display:flex;align-items:flex-start;justify-content:center;background:radial-gradient(120% 90% at 50% 0%, #ececf0 0%, #e2e2e7 60%, #dcdce2 100%);padding:44px 16px;font-family:'Hanken Grotesk',system-ui,sans-serif">
+
+  <div style="position:relative;width:414px;height:872px;border-radius:56px;background:{{ bezelBg }};padding:13px;box-shadow:0 2px 8px rgba(0,0,0,.22), 0 40px 80px -20px rgba(20,20,40,.45), inset 0 0 0 2px rgba(255,255,255,.06)">
+    <div class="noscroll" style="position:relative;width:100%;height:100%;border-radius:44px;overflow:hidden;background:#000">
+
+      <!-- ============ HOME ============ -->
+      <sc-if value="{{ isHome }}" hint-placeholder-val="{{ true }}">
+      <div class="noscroll" style="position:absolute;inset:0;background:#f6f6f8;overflow-y:auto;overflow-x:hidden">
+        <!-- status bar -->
+        <div style="height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 30px 0 34px;position:relative">
+          <span style="font-weight:700;font-size:16px;color:#111;letter-spacing:.2px">10:52</span>
+          <div style="display:flex;align-items:center;gap:7px;color:#111">
+            <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2.5" width="3" height="9.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1" opacity=".3"/></svg>
+            <svg width="17" height="12" viewBox="0 0 17 12" fill="currentColor"><path d="M8.5 2.5c2.3 0 4.4.9 6 2.4l-1.3 1.4A6.7 6.7 0 008.5 4.4 6.7 6.7 0 003.8 6.3L2.5 4.9A8.6 8.6 0 018.5 2.5zM8.5 6.6c1.2 0 2.3.5 3.1 1.3l-3.1 3.3-3.1-3.3A4.5 4.5 0 018.5 6.6z"/></svg>
+            <div style="display:flex;align-items:center;gap:2px"><div style="width:23px;height:12px;border:1.6px solid #111;border-radius:3px;padding:1.5px;opacity:.95"><div style="width:60%;height:100%;background:#111;border-radius:1px"></div></div><span style="font-size:9px;font-weight:700">63</span></div>
+          </div>
+        </div>
+
+        <!-- header -->
+        <div style="padding:8px 22px 0;display:flex;align-items:center;justify-content:space-between">
+          <h1 style="margin:0;font-size:30px;font-weight:800;color:#111;letter-spacing:-.6px">Projects</h1>
+          <div style="display:flex;align-items:center;gap:12px">
+            <div style="width:42px;height:42px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.06)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#222" stroke-width="2" stroke-linecap="round"><path d="M4 8V5h3M20 8V5h-3M4 16v3h3M20 16v3h-3"/></svg></div>
+            <div style="width:42px;height:42px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.06)"><svg width="20" height="20" viewBox="0 0 24 24" fill="#222"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></div>
+          </div>
+        </div>
+
+        <!-- search -->
+        <div style="margin:16px 22px 0;height:46px;border-radius:14px;background:#ececef;display:flex;align-items:center;gap:10px;padding:0 16px">
+          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#9a9aa2" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+          <span style="color:#9a9aa2;font-size:16px;font-weight:500">Search your projects</span>
+        </div>
+
+        <!-- promo -->
+        <div style="margin:16px 22px 0;height:96px;border-radius:18px;overflow:hidden;position:relative;background:linear-gradient(110deg,#1a1340 0%,#3a2a8a 55%,#6d4aff 100%);display:flex;align-items:center;padding:0 20px">
+          <div style="width:50px;height:50px;border-radius:13px;background:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;color:#6d4aff;font-size:20px;letter-spacing:-1px">VL</div>
+          <div style="margin-left:14px">
+            <div style="color:#fff;font-weight:800;font-size:17px">Vela for Desktop <span style="font-size:9px;background:#6d4aff;padding:2px 6px;border-radius:5px;vertical-align:middle;margin-left:4px">NEW</span></div>
+            <div style="color:rgba(255,255,255,.7);font-size:12.5px;margin-top:3px;font-weight:500">Edit on the big screen — early access</div>
+          </div>
+          <div style="position:absolute;right:14px;top:14px;width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;color:#fff;font-size:11px">✕</div>
+          <div style="position:absolute;right:16px;bottom:14px;background:#fff;color:#1a1340;font-weight:700;font-size:12px;padding:6px 14px;border-radius:20px">Get access</div>
+        </div>
+
+        <!-- tabs -->
+        <div class="noscroll" style="margin-top:22px;padding:0 22px;display:flex;gap:22px;overflow-x:auto;font-size:17px;font-weight:700">
+          <span style="color:#111;position:relative;padding-bottom:8px;white-space:nowrap">Projects <span style="color:#9a9aa2">3</span><span style="position:absolute;left:0;bottom:0;width:26px;height:3px;background:#6d4aff;border-radius:2px"></span></span>
+          <span style="color:#b3b3ba;padding-bottom:8px;white-space:nowrap">Works <span>2</span></span>
+          <span style="color:#b3b3ba;padding-bottom:8px;white-space:nowrap">Templates <span>0</span></span>
+          <span style="color:#b3b3ba;padding-bottom:8px;white-space:nowrap">Assets <span>0</span></span>
+        </div>
+        <div style="height:1px;background:#e6e6ea;margin:0 0 0 0"></div>
+
+        <!-- folders -->
+        <div style="padding:20px 22px 6px;font-size:18px;font-weight:800;color:#111">Folders</div>
+        <div class="noscroll" style="display:flex;gap:16px;padding:4px 22px 6px;overflow-x:auto">
+          <sc-for list="{{ folders }}" as="f" hint-placeholder-count="2">
+            <div style="width:118px;flex:0 0 auto">
+              <div style="height:92px;border-radius:16px;background:linear-gradient(160deg,#bfe0ff,#9fc8ff);display:flex;align-items:center;justify-content:center;position:relative;box-shadow:0 4px 14px -6px rgba(120,160,230,.6)">
+                <div style="position:absolute;top:-7px;left:14px;width:40px;height:14px;background:#9fc8ff;border-radius:6px 6px 0 0"></div>
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#4a86d6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="{{ f.icon }}"/></svg>
+              </div>
+              <div style="text-align:center;margin-top:9px;font-weight:700;font-size:15px;color:#111">{{ f.name }}</div>
+              <div style="text-align:center;font-size:12px;color:#a0a0a8;margin-top:1px">{{ f.items }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- projects list -->
+        <div style="padding:18px 22px 8px;display:flex;align-items:center;justify-content:space-between">
+          <div style="font-size:18px;font-weight:800;color:#111">Projects <span style="color:#9a9aa2;font-weight:700">3</span></div>
+          <div style="display:flex;align-items:center;gap:14px;color:#6d4aff;font-weight:700;font-size:15px">Edit
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round"><path d="M8 7h12M8 12h12M8 17h12M3.5 7h.01M3.5 12h.01M3.5 17h.01"/></svg>
+          </div>
+        </div>
+
+        <div style="padding:6px 22px 4px;font-size:11.5px;font-weight:700;letter-spacing:1px;color:#a8a8b0">PAST 30 DAYS</div>
+        <sc-for list="{{ recent }}" as="p" hint-placeholder-count="1">
+          <div onClick="{{ openEditor }}" style="display:flex;align-items:center;gap:14px;padding:12px 22px;cursor:pointer">
+            <div style="width:62px;height:84px;border-radius:11px;background:linear-gradient(160deg,#cdb89e,#8d7256);position:relative;overflow:hidden;flex:0 0 auto;box-shadow:0 2px 8px rgba(0,0,0,.12)">
+              <div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.05) 0 8px,transparent 8px 16px)"></div>
+              <span style="position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;font-weight:600;padding:2px 6px;border-radius:6px;font-family:'JetBrains Mono',monospace">{{ p.time }}</span>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:18px;font-weight:700;color:#111">{{ p.title }}</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:6px"><span style="width:14px;height:14px;border-radius:4px;background:#9fc8ff"></span><span style="color:#9a9aa2;font-size:13.5px;font-weight:500">{{ p.folder }}</span></div>
+            </div>
+            <div style="text-align:right"><div onClick="{{ openProjMenu }}" style="color:#cfcfd6;font-size:18px;letter-spacing:1px;line-height:.6;cursor:pointer;padding:0 4px">···</div><div style="color:#a8a8b0;font-size:13px;margin-top:14px">{{ p.date }}</div></div>
+          </div>
+        </sc-for>
+
+        <div style="padding:10px 22px 4px;font-size:11.5px;font-weight:700;letter-spacing:1px;color:#a8a8b0">OLDER</div>
+        <sc-for list="{{ older }}" as="p" hint-placeholder-count="2">
+          <div onClick="{{ openEditor }}" style="display:flex;align-items:center;gap:14px;padding:12px 22px;cursor:pointer">
+            <div style="width:62px;height:84px;border-radius:11px;background:{{ p.bg }};position:relative;overflow:hidden;flex:0 0 auto;box-shadow:0 2px 8px rgba(0,0,0,.12)">
+              <div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 8px,transparent 8px 16px)"></div>
+              <span style="position:absolute;left:6px;bottom:6px;background:rgba(0,0,0,.55);color:#fff;font-size:10px;font-weight:600;padding:2px 6px;border-radius:6px;font-family:'JetBrains Mono',monospace">{{ p.time }}</span>
+            </div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:18px;font-weight:700;color:#111">{{ p.title }}</div>
+              <div style="display:flex;align-items:center;gap:6px;margin-top:6px"><span style="width:14px;height:14px;border-radius:4px;background:{{ p.dot }}"></span><span style="color:#9a9aa2;font-size:13.5px;font-weight:500">{{ p.folder }}</span></div>
+            </div>
+            <div style="text-align:right"><div onClick="{{ openProjMenu }}" style="color:#cfcfd6;font-size:18px;letter-spacing:1px;line-height:.6;cursor:pointer;padding:0 4px">···</div><div style="color:#a8a8b0;font-size:13px;margin-top:14px">{{ p.date }}</div></div>
+          </div>
+        </sc-for>
+        <div style="height:120px"></div>
+      </div>
+      </sc-if>
+
+      <!-- ============ DISCOVER ============ -->
+      <sc-if value="{{ isDiscover }}" hint-placeholder-val="{{ true }}">
+      <div class="noscroll" style="position:absolute;inset:0;background:#f6f6f8;overflow-y:auto;overflow-x:hidden">
+        <div style="position:relative;background:linear-gradient(110deg,#b07a4e 0%,#b07a4e 50%,#7d93a8 50%,#7d93a8 100%);padding-bottom:18px">
+          <div style="height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 30px 0 34px">
+            <span style="font-weight:700;font-size:16px;color:#fff">10:52</span>
+            <div style="display:flex;align-items:center;gap:7px;color:#fff">
+              <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2.5" width="3" height="9.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1" opacity=".4"/></svg>
+              <div style="display:flex;align-items:center;gap:2px"><div style="width:23px;height:12px;border:1.6px solid #fff;border-radius:3px;padding:1.5px"><div style="width:60%;height:100%;background:#fff;border-radius:1px"></div></div><span style="font-size:9px;font-weight:700">63</span></div>
+            </div>
+          </div>
+          <div style="padding:6px 22px 0;display:flex;align-items:center;justify-content:space-between">
+            <h1 style="margin:0;font-size:30px;font-weight:800;color:#fff;letter-spacing:-.6px">Discover</h1>
+            <div style="display:flex;gap:12px;color:#fff">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M9 14l3-3 3 3"/></svg>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 8V5h3M20 8V5h-3M4 16v3h3M20 16v3h-3"/></svg>
+            </div>
+          </div>
+          <div style="margin:14px 22px 0;height:46px;border-radius:14px;background:rgba(255,255,255,.92);display:flex;align-items:center;gap:10px;padding:0 16px">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#9a9aa2" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+            <span style="color:#9a9aa2;font-size:16px;font-weight:500">Search templates & effects</span>
+          </div>
+          <div style="margin:18px 22px 0;display:flex;align-items:flex-end;justify-content:space-between">
+            <div><div style="font-family:'Hanken Grotesk';font-style:italic;font-weight:800;font-size:34px;color:#fff;line-height:.95">Carousel<br>Style</div><div style="color:rgba(255,255,255,.85);font-size:13px;margin-top:10px;max-width:200px;font-weight:500">Craft scroll-stopping social posts in minutes.</div></div>
+          </div>
+          <div style="display:flex;gap:6px;justify-content:center;margin-top:16px"><span style="width:18px;height:6px;border-radius:3px;background:#fff"></span><span style="width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.5)"></span><span style="width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.5)"></span><span style="width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.5)"></span></div>
+        </div>
+
+        <div class="noscroll" style="display:flex;gap:14px;padding:20px 22px 6px;overflow-x:auto">
+          <sc-for list="{{ cats }}" as="c" hint-placeholder-count="4">
+            <div style="flex:0 0 auto;width:124px">
+              <div style="height:124px;border-radius:18px;background:{{ c.bg }};position:relative;overflow:hidden;display:flex;align-items:flex-end;padding:12px;box-shadow:0 6px 18px -8px rgba(0,0,0,.3)">
+                <div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,rgba(255,255,255,.08) 0 10px,transparent 10px 20px)"></div>
+                <span style="position:relative;font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,255,255,.85)">{{ c.tag }}</span>
+              </div>
+              <div style="text-align:center;margin-top:9px;font-weight:700;font-size:14.5px;color:#111">{{ c.name }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="margin:18px 22px;height:80px;border-radius:16px;background:#eef0fb;display:flex;align-items:center;padding:0 16px;gap:14px">
+          <div style="width:46px;height:46px;border-radius:13px;background:#111;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:13px;font-style:italic">Flux</div>
+          <div style="flex:1"><div style="font-weight:800;font-size:16px;color:#111">Flux Studio: Photo & Graphic</div><div style="color:#9a9aa2;font-size:13px;margin-top:2px;font-weight:500">A quick & pro design app</div></div>
+          <div style="background:#111;color:#fff;font-weight:700;font-size:13px;padding:9px 16px;border-radius:22px">Try Now</div>
+        </div>
+
+        <div style="padding:0 22px;font-size:18px;font-weight:800;color:#111">Recently Used <span style="color:#9a9aa2">1</span></div>
+        <div style="padding:14px 22px 0">
+          <div style="width:150px;height:230px;border-radius:16px;background:linear-gradient(160deg,#2a2a2a,#4a4030);position:relative;overflow:hidden;box-shadow:0 8px 22px -10px rgba(0,0,0,.4)">
+            <div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,200,80,.12) 0 12px,transparent 12px 24px)"></div>
+            <span style="position:absolute;left:10px;bottom:10px;font-family:'JetBrains Mono',monospace;font-size:11px;color:rgba(255,255,255,.7)">9:16 · template</span>
+          </div>
+        </div>
+        <div style="height:140px"></div>
+      </div>
+      </sc-if>
+
+      <!-- ============ EDITOR ============ -->
+      <sc-if value="{{ isEditor }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute;inset:0;background:#0b0b0d;display:flex;flex-direction:column">
+        <!-- status bar -->
+        <div style="height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 30px 0 34px;flex:0 0 auto">
+          <span style="font-weight:700;font-size:16px;color:#fff">10:52</span>
+          <div style="display:flex;align-items:center;gap:7px;color:#fff">
+            <svg width="18" height="12" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2.5" width="3" height="9.5" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1" opacity=".4"/></svg>
+            <div style="display:flex;align-items:center;gap:2px"><div style="width:23px;height:12px;border:1.6px solid #fff;border-radius:3px;padding:1.5px"><div style="width:60%;height:100%;background:#fff;border-radius:1px"></div></div><span style="font-size:9px;font-weight:700">63</span></div>
+          </div>
+        </div>
+
+        <!-- top toolbar -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 18px 8px;flex:0 0 auto">
+          <div style="display:flex;align-items:center;gap:16px">
+            <svg onClick="{{ goHome }}" style="cursor:pointer" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#9a9aa2" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 113.6 2.2c-.7.4-1.1.9-1.1 1.8M12 17h.01"/></svg>
+          </div>
+          <div onClick="{{ openSettings }}" style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <svg width="16" height="20" viewBox="0 0 16 20" fill="none" stroke="#fff" stroke-width="1.8"><rect x="3" y="2" width="10" height="16" rx="2"/></svg>
+            <span style="color:#fff;font-weight:600;font-size:15px">9:16</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <svg onClick="{{ openEditMenu }}" style="cursor:pointer" width="22" height="22" viewBox="0 0 24 24" fill="#fff"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+            <div style="width:42px;height:36px;border-radius:10px;background:#26262b;display:flex;align-items:center;justify-content:center"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7M8 14h8v6H8z"/></svg></div>
+            <div onClick="{{ openExport }}" style="width:42px;height:36px;border-radius:10px;background:#6d4aff;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M5 20h14"/></svg></div>
+          </div>
+        </div>
+
+        <!-- preview -->
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;position:relative;min-height:0">
+          <div style="width:212px;height:376px;border-radius:6px;background:#fff;padding:7px;box-shadow:0 12px 40px -8px rgba(0,0,0,.6)">
+            <div style="width:100%;height:100%;border-radius:3px;background:linear-gradient(165deg,#d9c3a4 0%,#b89970 45%,#8a6d4a 100%);position:relative;overflow:hidden">
+              <div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 10px,transparent 10px 20px)"></div>
+              <div style="position:absolute;left:0;right:0;bottom:0;text-align:center;padding:10px;font-family:'JetBrains Mono',monospace;font-size:10px;color:rgba(255,255,255,.65)">your clip · 9:16</div>
+            </div>
+          </div>
+          <div style="position:absolute;right:24px;bottom:6px;width:34px;height:34px;border-radius:9px;background:rgba(255,255,255,.08);display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M9 3H4v5M15 3h5v5M9 21H4v-5M15 21h5v-5"/></svg></div>
+        </div>
+
+        <!-- transport -->
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:0 22px 6px;flex:0 0 auto">
+          <span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:#fff">2.11<span style="color:#7a7a82">s / 55.06s</span></span>
+          <div style="display:flex;align-items:center;gap:24px">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M18 5v14l-9-7zM7 5h-2v14h2z"/></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M8 5v14l11-7z"/></svg>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M6 5v14l9-7zM17 5h2v14h-2z"/></svg>
+          </div>
+          <div style="display:flex;align-items:center;gap:16px">
+            <svg onClick="{{ openPrefs }}" style="cursor:pointer" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><circle cx="7" cy="8" r="2"/><circle cx="17" cy="16" r="2"/><path d="M9 8h11M4 16h11"/></svg>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7a7a82" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 7H5a2 2 0 00-2 2v0a2 2 0 002 2h10a4 4 0 100-8M9 7l3-3M9 7l3 3" transform="scale(-1,1) translate(-24,0)"/></svg>
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#7a7a82" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 7h4a2 2 0 012 2v0a2 2 0 01-2 2H9a4 4 0 110-8M15 7l-3-3M15 7l-3 3"/></svg>
+          </div>
+        </div>
+
+        <!-- timeline -->
+        <div style="background:#0b0b0d;padding:8px 0 6px;flex:0 0 auto;position:relative">
+          <!-- playhead -->
+          <div style="position:absolute;left:118px;top:0;bottom:30px;width:2px;background:#fff;z-index:5"></div>
+          <div class="noscroll" style="overflow-x:auto;padding:0 0 0 0">
+            <div style="min-width:560px">
+              <!-- audio -->
+              <div onClick="{{ openAudio }}" style="display:flex;align-items:center;gap:0;padding:0 14px 6px;cursor:pointer">
+                <div style="width:42px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:#fff"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M9 18V6l10-2v12"/><circle cx="6" cy="18" r="2.5"/><circle cx="16" cy="16" r="2.5"/><path d="M3 21h3v-3" stroke="#6d4aff"/></svg></div>
+                <div style="flex:1;height:34px;border-radius:7px;background:#6d2ad6;display:flex;align-items:center;padding:0 10px;overflow:hidden;position:relative">
+                  <span style="font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#fff;z-index:2">clip.MOV</span>
+                  <div style="position:absolute;left:80px;right:0;top:0;bottom:0;background:repeating-linear-gradient(90deg,#c79bff 0 2px,transparent 2px 5px);opacity:.7;-webkit-mask:linear-gradient(90deg,transparent,#000 10%);mask:linear-gradient(90deg,transparent,#000 10%)"></div>
+                </div>
+              </div>
+              <!-- subtitle -->
+              <div style="display:flex;align-items:center;padding:0 14px 6px">
+                <div style="width:42px;flex:0 0 auto;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M9 6v0M4 12h16M4 18h10"/><text x="5" y="9" font-size="8" fill="#fff" stroke="none" font-weight="700">T</text></svg></div>
+                <div onClick="{{ openInsert }}" style="flex:1;height:34px;border-radius:7px;background:#1a1a1f;display:flex;align-items:center;padding:0 12px;cursor:pointer"><span style="color:#5e5e68;font-size:13px">Tap to add subtitle</span></div>
+              </div>
+              <!-- sticker -->
+              <div style="display:flex;align-items:center;padding:0 14px 6px">
+                <div style="width:42px;flex:0 0 auto;display:flex;align-items:center;justify-content:center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 14l5-4 4 3 4-4 5 4"/></svg></div>
+                <div onClick="{{ openInsert }}" style="flex:1;height:34px;border-radius:7px;background:#1a1a1f;display:flex;align-items:center;padding:0 12px;cursor:pointer"><span style="color:#5e5e68;font-size:13px">Tap to add sticker / PiP</span></div>
+              </div>
+              <!-- video clips -->
+              <div style="display:flex;align-items:center;padding:0 14px 2px">
+                <div style="width:42px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;color:#fff"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18M8 6v12M16 6v12"/></svg></div>
+                <div style="flex:1;display:flex;border-radius:8px;border:2px solid #f2c14e;overflow:hidden;height:54px">
+                  <sc-for list="{{ frames }}" as="fr" hint-placeholder-count="4">
+                    <div style="flex:1;background:{{ fr.bg }};border-right:1px solid rgba(0,0,0,.3);position:relative">
+                      <div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 6px,transparent 6px 12px)"></div>
+                    </div>
+                  </sc-for>
+                  <div onClick="{{ openMedia }}" style="width:42px;flex:0 0 auto;background:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+                </div>
+              </div>
+              <!-- ruler -->
+              <div style="display:flex;padding:6px 14px 0 56px;align-items:center;gap:0;font-family:'JetBrains Mono',monospace;font-size:9px;color:#6a6a72">
+                <span style="flex:0 0 auto">0s</span><span style="flex:1;text-align:center;letter-spacing:18px;opacity:.5">|||</span><span style="flex:0 0 auto">8s</span><span style="flex:1;text-align:center;letter-spacing:18px;opacity:.5">|||</span><span style="flex:0 0 auto">16s</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- bottom toolbar -->
+        <div id="velaToolbar" class="noscroll" style="display:flex;gap:0;overflow-x:auto;padding:14px 8px 22px;flex:0 0 auto;border-top:1px solid #18181c;background:#0e0e11;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;cursor:grab">
+          <sc-for list="{{ tools }}" as="t" hint-placeholder-count="7">
+            <div onClick="{{ t.onClick }}" style="flex:0 0 auto;width:66px;display:flex;flex-direction:column;align-items:center;gap:7px;cursor:pointer">
+              <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="#e6e6ea" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ t.d }}"/></svg>
+              <span style="font-size:12px;color:#c8c8cf">{{ t.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- INSERT SHEET -->
+      <sc-if value="{{ showInsert }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:20" onClick="{{ closePanel }}"></div>
+      <div style="position:absolute;left:0;right:0;bottom:0;z-index:21;background:#161619;border-radius:26px 26px 0 0;padding:18px 18px 30px">
+        <div style="width:38px;height:4px;border-radius:2px;background:#3a3a42;margin:0 auto 16px"></div>
+        <div style="text-align:center;color:#fff;font-weight:700;font-size:17px;margin-bottom:18px">Add to timeline</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <sc-for list="{{ inserts }}" as="i" hint-placeholder-count="6">
+            <div onClick="{{ closePanel }}" style="height:104px;border-radius:18px;background:{{ i.bg }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{ i.d }}"/></svg>
+              <span style="color:#fff;font-weight:600;font-size:14px">{{ i.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- VIDEO SETTINGS SHEET -->
+      <sc-if value="{{ showSettings }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:20" onClick="{{ closePanel }}"></div>
+      <div style="position:absolute;left:0;right:0;bottom:0;z-index:21;background:#161619;border-radius:26px 26px 0 0;padding:18px 18px 30px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px"><span style="color:#fff;font-weight:700;font-size:17px">Video Settings</span><svg onClick="{{ closePanel }}" style="cursor:pointer" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M5 12l5 5 9-11"/></svg></div>
+        <div class="noscroll" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:6px">
+          <sc-for list="{{ ratios }}" as="r" hint-placeholder-count="5">
+            <div style="flex:0 0 auto;width:78px;height:78px;border-radius:14px;background:{{ r.bg }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:{{ r.fg }};border:{{ r.border }}">
+              <div style="width:24px;height:30px;border:2px solid currentColor;border-radius:4px"></div>
+              <span style="font-size:13px;font-weight:700">{{ r.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="margin-top:16px;background:#1f1f24;border-radius:16px;padding:16px;display:flex;align-items:center;justify-content:space-between">
+          <div><div style="color:#fff;font-weight:700;font-size:16px">HDR</div><div style="color:#7a7a82;font-size:12.5px;margin-top:3px;max-width:230px">Automatically converts your clip to an HDR video</div></div>
+          <div style="width:50px;height:30px;border-radius:15px;background:#3a3a42;position:relative"><div style="position:absolute;left:2px;top:2px;width:26px;height:26px;border-radius:50%;background:#fff"></div></div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- FILTER PANEL -->
+      <sc-if value="{{ showFilter }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;z-index:25;background:#0b0b0d;display:flex;flex-direction:column">
+        <div style="height:54px;flex:0 0 auto"></div>
+        <div style="flex:1;display:flex;align-items:center;justify-content:center;min-height:0;padding-top:10px">
+          <div style="width:200px;height:340px;border-radius:6px;background:#fff;padding:7px"><div style="width:100%;height:100%;border-radius:3px;background:linear-gradient(165deg,#d9c3a4,#8a6d4a);position:relative;overflow:hidden"><div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 10px,transparent 10px 20px)"></div></div></div>
+        </div>
+        <div style="background:#161619;border-radius:22px 22px 0 0;padding:16px 0 18px;flex:0 0 auto">
+          <div style="display:flex;justify-content:center;gap:40px;margin-bottom:18px"><span style="color:#fff;font-weight:700;font-size:16px;position:relative;padding-bottom:7px">Filter<span style="position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:18px;height:2.5px;background:#fff;border-radius:2px"></span></span><span style="color:#6a6a72;font-weight:600;font-size:16px">Adjust</span></div>
+          <div class="noscroll" style="display:flex;gap:26px;overflow-x:auto;padding:0 22px 14px;font-size:15px">
+            <sc-for list="{{ fcats }}" as="fc" hint-placeholder-count="6">
+              <span style="flex:0 0 auto;font-weight:600;color:{{ fc.color }}">{{ fc.name }}</span>
+            </sc-for>
+          </div>
+          <div class="noscroll" style="display:flex;gap:12px;overflow-x:auto;padding:0 18px 14px">
+            <div style="flex:0 0 auto;width:62px;display:flex;flex-direction:column;align-items:center;gap:6px"><div style="width:62px;height:78px;border-radius:10px;background:#1f1f24;display:flex;align-items:center;justify-content:center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div><span style="font-size:11px;color:#9a9aa2">Add</span></div>
+            <sc-for list="{{ filters }}" as="fi" hint-placeholder-count="6">
+              <div style="flex:0 0 auto;width:62px;display:flex;flex-direction:column;align-items:center;gap:6px">
+                <div style="width:62px;height:78px;border-radius:10px;background:{{ fi.bg }};position:relative;overflow:hidden;border:{{ fi.border }}"><div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.08) 0 7px,transparent 7px 14px)"></div></div>
+                <span style="font-size:11px;color:{{ fi.fg }};font-weight:{{ fi.weight }}">{{ fi.name }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;align-items:center;gap:14px;padding:6px 22px 16px">
+            <span style="color:#fff;font-size:14px">Intensity</span>
+            <div style="flex:1;height:3px;background:#3a3a42;border-radius:2px;position:relative"><div style="position:absolute;left:0;top:0;bottom:0;width:100%;background:#f2c14e;border-radius:2px"></div><div style="position:absolute;right:-7px;top:50%;transform:translateY(-50%);width:16px;height:16px;border-radius:50%;background:#fff"></div></div>
+            <span style="font-family:'JetBrains Mono',monospace;color:#fff;font-size:14px">100</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:0 28px">
+            <svg onClick="{{ closePanel }}" style="cursor:pointer" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+            <div style="display:flex;align-items:center;gap:8px;color:#fff;font-weight:600;font-size:15px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round"><path d="M3 12l4 4 7-9M11 16l2 2 8-10"/></svg>Apply to all</div>
+            <svg onClick="{{ closePanel }}" style="cursor:pointer" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M5 12l5 5 9-11"/></svg>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- MEDIA PICKER -->
+      <sc-if value="{{ showMedia }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;z-index:30;background:#161619;display:flex;flex-direction:column">
+        <div style="height:54px;flex:0 0 auto"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 22px 14px">
+          <svg onClick="{{ closePanel }}" style="cursor:pointer" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+        </div>
+        <div style="display:flex;justify-content:center;gap:40px;padding-bottom:14px;border-bottom:1px solid #232329">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:5px;color:#fff"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18"/></svg><span style="font-size:13px;font-weight:600">Recents</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:5px;color:#7a7a82"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7a7a82" stroke-width="1.8" stroke-linejoin="round"><path d="M4 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2z"/></svg><span style="font-size:13px">Stocks</span></div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:5px;color:#7a7a82"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#7a7a82" stroke-width="1.8" stroke-linecap="round"><path d="M4 6h12M4 12h16M4 18h10"/></svg><span style="font-size:13px">Subtitle</span></div>
+        </div>
+        <div class="noscroll" style="display:flex;gap:22px;padding:14px 22px 12px;font-size:14px;font-weight:600">
+          <span style="color:#fff;position:relative;padding-bottom:6px">All<span style="position:absolute;left:0;bottom:0;width:16px;height:2.5px;background:#6d4aff"></span></span>
+          <span style="color:#7a7a82">Video</span><span style="color:#7a7a82">Photo</span><span style="color:#7a7a82">LivePhoto</span><span style="color:#7a7a82">Memories</span>
+        </div>
+        <div class="noscroll" style="flex:1;overflow-y:auto;padding:2px 4px 14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;min-height:0">
+          <sc-for list="{{ media }}" as="m" hint-placeholder-count="12">
+            <div onClick="{{ closePanel }}" style="aspect-ratio:1;background:{{ m.bg }};position:relative;cursor:pointer;overflow:hidden">
+              <div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.05) 0 9px,transparent 9px 18px)"></div>
+              <div style="position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;border:1.6px solid rgba(255,255,255,.7)"></div>
+              <sc-if value="{{ m.dur }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;left:8px;bottom:8px;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;color:#fff">{{ m.dur }}</span></sc-if>
+            </div>
+          </sc-for>
+        </div>
+        <div style="padding:12px 22px 26px;display:flex;justify-content:flex-end">
+          <div onClick="{{ closePanel }}" style="width:58px;height:50px;border-radius:13px;background:#6d4aff;display:flex;align-items:center;justify-content:center;cursor:pointer"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- AUDIO INSERT SHEET -->
+      <sc-if value="{{ showAudio }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:20" onClick="{{ closePanel }}"></div>
+      <div style="position:absolute;left:0;right:0;bottom:0;z-index:21;background:#161619;border-radius:26px 26px 0 0;padding:18px 18px 30px">
+        <div style="width:38px;height:4px;border-radius:2px;background:#3a3a42;margin:0 auto 16px"></div>
+        <div style="text-align:center;color:#fff;font-weight:700;font-size:17px;margin-bottom:18px">Insert audio</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+          <sc-for list="{{ audioInserts }}" as="a" hint-placeholder-count="3">
+            <div onClick="{{ closePanel }}" style="height:128px;border-radius:18px;background:{{ a.bg }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;cursor:pointer">
+              <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="{{ a.d }}"/></svg>
+              <span style="color:#fff;font-weight:600;font-size:15px">{{ a.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- EDITOR PREFERENCES SHEET -->
+      <sc-if value="{{ showPrefs }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:20" onClick="{{ closePanel }}"></div>
+      <div class="noscroll" style="position:absolute;left:0;right:0;bottom:0;max-height:78%;overflow-y:auto;z-index:21;background:#1c1c22;border-radius:26px 26px 0 0;padding:20px 20px 34px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px"><span style="color:#fff;font-weight:700;font-size:19px">Editor Preferences</span><svg onClick="{{ closePanel }}" style="cursor:pointer" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M5 12l5 5 9-11"/></svg></div>
+
+        <div style="color:#7a7a82;font-size:13px;font-weight:600;margin-bottom:10px">Tracks</div>
+        <div style="background:#26262d;border-radius:16px;padding:4px 16px;margin-bottom:24px">
+          <div style="display:flex;align-items:center;gap:14px;padding:16px 0">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#cfcfd6" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 7v10M11 7v10M15 7v10"/></svg>
+            <div style="flex:1"><div style="color:#fff;font-weight:700;font-size:17px">Main Track Mode</div><div style="color:#7a7a82;font-size:13px;margin-top:3px">Fluid timeline; auto-snapping enabled.</div></div>
+            <div style="display:flex;background:#3a3a42;border-radius:11px;padding:3px">
+              <div onClick="{{ setQuick }}" style="padding:7px 16px;border-radius:9px;font-size:14px;font-weight:600;color:#fff;cursor:pointer;background:{{ quickBg }}">Quick</div>
+              <div onClick="{{ setPro }}" style="padding:7px 16px;border-radius:9px;font-size:14px;font-weight:600;color:#fff;cursor:pointer;background:{{ proBg }}">Pro</div>
+            </div>
+          </div>
+          <div style="height:1px;background:#3a3a42"></div>
+          <div style="display:flex;align-items:center;gap:14px;padding:16px 0">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#cfcfd6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="11" height="11" rx="2"/><path d="M9 9V5a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2h-4"/></svg>
+            <div style="flex:1"><div style="color:#fff;font-weight:700;font-size:17px">Track Linkage</div><div style="color:#7a7a82;font-size:13px;margin-top:3px">Other elements move or delete together with main clips.</div></div>
+            <div onClick="{{ toggleLink }}" style="width:50px;height:30px;border-radius:15px;background:{{ linkTrackBg }};position:relative;cursor:pointer;flex:0 0 auto;transition:background .2s"><div style="position:absolute;top:2px;left:{{ linkKnobX }};width:26px;height:26px;border-radius:50%;background:#fff;transition:left .2s"></div></div>
+          </div>
+        </div>
+
+        <div style="color:#7a7a82;font-size:13px;font-weight:600;margin-bottom:10px">Canvas</div>
+        <div style="background:#26262d;border-radius:16px;padding:16px;margin-bottom:24px;display:flex;align-items:center;gap:14px">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#cfcfd6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h4M4 4v4M20 4h-4M20 4v4M4 20h4M4 20v-4M20 20h-4M20 20v-4"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>
+          <div style="flex:1"><div style="color:#fff;font-weight:700;font-size:17px">Object Snapping</div><div style="color:#7a7a82;font-size:13px;margin-top:3px">When off, objects snap only to edges or center.</div></div>
+          <div onClick="{{ toggleSnap }}" style="width:50px;height:30px;border-radius:15px;background:{{ snapTrackBg }};position:relative;cursor:pointer;flex:0 0 auto;transition:background .2s"><div style="position:absolute;top:2px;left:{{ snapKnobX }};width:26px;height:26px;border-radius:50%;background:{{ snapKnobBg }};transition:left .2s"></div></div>
+        </div>
+
+        <div style="color:#7a7a82;font-size:13px;font-weight:600;margin-bottom:10px">Preview</div>
+        <div style="background:#26262d;border-radius:16px;padding:18px 16px 14px">
+          <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#cfcfd6" stroke-width="1.8" stroke-linecap="round"><circle cx="8" cy="8" r="4"/><circle cx="15" cy="13" r="4"/></svg>
+            <div style="color:#fff;font-weight:700;font-size:17px">Preview FPS</div>
+          </div>
+          <div style="height:4px;background:#3a3a42;border-radius:2px;position:relative;margin:0 4px 12px"><div style="position:absolute;left:0;top:0;bottom:0;width:45%;background:#2f7bff;border-radius:2px"></div><div style="position:absolute;left:45%;top:50%;transform:translate(-50%,-50%);width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div></div>
+          <div style="display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:12px;color:#7a7a82;padding:0 2px"><span>24</span><span>25</span><span style="color:#fff">30</span><span>50</span><span>60</span></div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- EDITOR PROJECT MENU -->
+      <sc-if value="{{ showEditMenu }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;background:rgba(0,0,0,.5);z-index:20" onClick="{{ closePanel }}"></div>
+      <div style="position:absolute;left:0;right:0;bottom:0;z-index:21;background:#1c1c22;border-radius:26px 26px 0 0;padding:24px 22px 34px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:20px">
+          <div><div style="font-size:24px;font-weight:800;color:#fff">Jun 24, 2026</div><div style="color:#8a8a93;font-size:15px;margin-top:5px">9:16</div></div>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L18 10l-4-4L4 16zM14 6l4 4"/></svg>
+        </div>
+        <div style="height:1px;background:#2e2e36;margin-bottom:8px"></div>
+        <div onClick="{{ closePanel }}" style="display:flex;align-items:center;gap:18px;padding:18px 0;cursor:pointer">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12v7a1 1 0 001 1h12a1 1 0 001-1v-7M12 3v13M8 7l4-4 4 4"/></svg>
+          <span style="font-size:19px;font-weight:600;color:#fff">Share Project</span>
+        </div>
+        <div onClick="{{ closePanel }}" style="display:flex;align-items:center;gap:18px;padding:18px 0;cursor:pointer">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1"/><circle cx="15" cy="10" r="1"/><path d="M9 15c1 1 5 1 6 0"/></svg>
+          <span style="font-size:19px;font-weight:600;color:#fff">Create Template</span>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- EXPORT SCREEN -->
+      <sc-if value="{{ showExport }}" hint-placeholder-val="{{ false }}">
+      <div class="noscroll" style="position:absolute;inset:0;z-index:32;background:#0b0b0d;overflow-y:auto;display:flex;flex-direction:column">
+        <div style="height:54px;flex:0 0 auto"></div>
+        <div style="padding:8px 22px 0">
+          <svg onClick="{{ closePanel }}" style="cursor:pointer" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </div>
+        <div style="display:flex;justify-content:center;padding:14px 0 24px">
+          <div style="width:148px;height:264px;border-radius:4px;background:#fff;padding:5px"><div style="width:100%;height:100%;border-radius:2px;background:linear-gradient(165deg,#d9c3a4,#8a6d4a);position:relative;overflow:hidden"><div style="position:absolute;inset:0;background:repeating-linear-gradient(135deg,rgba(255,255,255,.06) 0 9px,transparent 9px 18px)"></div></div></div>
+        </div>
+
+        <div style="padding:0 22px;flex:1">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+            <div style="display:flex;align-items:baseline;gap:8px;min-width:0"><span style="color:#fff;font-weight:800;font-size:17px;white-space:nowrap">Export Settings</span><span style="color:#9a9aa2;font-size:13px;font-family:'JetBrains Mono',monospace;white-space:nowrap">4K / 30fps</span></div>
+            <div style="display:flex;background:#26262d;border-radius:12px;padding:3px;flex:0 0 auto">
+              <div onClick="{{ setExpAuto }}" style="padding:7px 15px;border-radius:9px;font-size:14px;font-weight:600;color:#fff;cursor:pointer;background:{{ expAutoBg }}">Auto</div>
+              <div onClick="{{ setExpManual }}" style="padding:7px 15px;border-radius:9px;font-size:14px;font-weight:600;color:#fff;cursor:pointer;background:{{ expManualBg }}">Manual</div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:26px">
+            <span style="color:#fff;font-weight:800;font-size:19px">Export Audio Only</span>
+            <div onClick="{{ toggleExpAudio }}" style="width:50px;height:30px;border-radius:15px;background:{{ expAudioTrackBg }};position:relative;cursor:pointer;transition:background .2s"><div style="position:absolute;top:2px;left:{{ expAudioKnobX }};width:26px;height:26px;border-radius:50%;background:{{ expAudioKnobBg }};transition:left .2s"></div></div>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:30px">
+            <span style="color:#fff;font-weight:800;font-size:19px">HDR</span>
+            <div onClick="{{ toggleExpHdr }}" style="width:50px;height:30px;border-radius:15px;background:{{ expHdrTrackBg }};position:relative;cursor:pointer;transition:background .2s"><div style="position:absolute;top:2px;left:{{ expHdrKnobX }};width:26px;height:26px;border-radius:50%;background:{{ expHdrKnobBg }};transition:left .2s"></div></div>
+          </div>
+
+          <div style="color:#fff;font-weight:600;font-size:17px;margin-bottom:14px">Resolution</div>
+          <div style="height:4px;background:#3a3a42;border-radius:2px;position:relative;margin:0 2px 12px"><div style="position:absolute;left:0;top:0;bottom:0;width:100%;background:#2f7bff;border-radius:2px"></div><div style="position:absolute;left:100%;top:50%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,.5)"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;color:#7a7a82;margin-bottom:28px"><span>480p</span><span>720p</span><span>1080p</span><span>2.7K</span><span style="color:#fff">4K</span></div>
+
+          <div style="color:#fff;font-weight:600;font-size:17px;margin-bottom:14px">FPS</div>
+          <div style="height:4px;background:#3a3a42;border-radius:2px;position:relative;margin:0 2px 12px"><div style="position:absolute;left:0;top:0;bottom:0;width:50%;background:#2f7bff;border-radius:2px"></div><div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,.5)"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;color:#7a7a82;margin-bottom:28px"><span>24</span><span>25</span><span style="color:#fff">30</span><span>50</span><span>60</span></div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <span style="color:#fff;font-weight:600;font-size:17px">Average Bitrate (Mbps)</span>
+            <span style="background:#26262d;color:#fff;font-family:'JetBrains Mono',monospace;font-size:15px;padding:7px 16px;border-radius:8px">23.2</span>
+          </div>
+          <div style="height:4px;background:#3a3a42;border-radius:2px;position:relative;margin:0 2px 12px"><div style="position:absolute;left:0;top:0;bottom:0;width:15%;background:#2f7bff;border-radius:2px"></div><div style="position:absolute;left:15%;top:50%;transform:translate(-50%,-50%);width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 5px rgba(0,0,0,.5)"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:13px;color:#7a7a82;margin-bottom:24px"><span>1.0 Mbps</span><span>150.0 Mbps</span></div>
+
+          <div style="display:flex;align-items:baseline;gap:10px;margin-bottom:20px"><span style="color:#fff;font-weight:800;font-size:17px">Estimated File Size</span><span style="color:#9a9aa2;font-size:15px;font-family:'JetBrains Mono',monospace">152.34 MB</span></div>
+        </div>
+
+        <div style="padding:6px 22px 30px;flex:0 0 auto">
+          <div onClick="{{ closePanel }}" style="height:58px;border-radius:14px;background:#2f7bff;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:19px;cursor:pointer;box-shadow:0 8px 22px -8px rgba(47,123,255,.6)">Export</div>
+        </div>
+      </div>
+      </sc-if>
+      </div>
+      </sc-if>
+
+      <!-- CREATE NEW PROJECT -->
+      <sc-if value="{{ showCreate }}" hint-placeholder-val="{{ false }}">
+      <div class="noscroll" style="position:absolute;inset:0;z-index:35;background:#f6f6f8;overflow-y:auto;overflow-x:hidden">
+        <div style="height:54px"></div>
+        <div style="padding:8px 22px 0;position:relative;display:flex;align-items:center;justify-content:center">
+          <svg onClick="{{ closeModal }}" style="cursor:pointer;position:absolute;left:22px" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#16161a" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          <div style="display:flex;gap:34px;font-size:19px;font-weight:700">
+            <span style="color:#16161a;position:relative;padding-bottom:7px">Create<span style="position:absolute;left:50%;transform:translateX(-50%);bottom:0;width:20px;height:3px;background:#16161a;border-radius:2px"></span></span>
+            <span style="color:#b3b3ba">Yours</span>
+          </div>
+        </div>
+        <div style="margin:22px 22px 0;height:78px;border-radius:16px;overflow:hidden;background:linear-gradient(110deg,#2f7bff,#5aa0ff);display:flex;align-items:center;padding:0 18px;position:relative">
+          <div style="width:46px;height:46px;border-radius:11px;background:rgba(255,255,255,.18)"></div>
+          <div style="margin-left:14px;flex:1"><div style="color:#fff;font-weight:800;font-size:18px">Getting Started</div><div style="color:rgba(255,255,255,.85);font-size:13px;margin-top:2px">A quick guide to help you begin</div></div>
+          <div style="background:#fff;color:#2f7bff;font-weight:700;font-size:14px;padding:8px 16px;border-radius:20px">View</div>
+        </div>
+        <div onClick="{{ openEditor }}" style="margin:14px 22px 0;height:150px;border-radius:18px;background:linear-gradient(120deg,#2f7bff,#5aa0ff);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;cursor:pointer;box-shadow:0 10px 26px -10px rgba(47,123,255,.6)">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 6a2 2 0 104 0 2 2 0 00-4 0zM7 18a2 2 0 104 0 2 2 0 00-4 0zM9 8l9 8M18 8L9 16"/></svg>
+          <div style="color:#fff;font-weight:800;font-size:24px">New Project</div>
+          <div style="color:rgba(255,255,255,.8);font-size:14px">97 Remaining</div>
+        </div>
+        <div style="margin:12px 22px 0;background:#fbf2d8;border-radius:12px;padding:12px 16px;display:flex;align-items:center;gap:10px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="#caa23a"><path d="M4 8l4 4 4-7 4 7 4-4-2 11H6z"/></svg>
+          <span style="flex:1;color:#a8852a;font-size:13.5px;font-weight:600">Upgrade to <span style="font-weight:800">Vela Pro</span> to unlock unlimited projects.</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#caa23a" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg>
+        </div>
+        <div style="padding:24px 22px 12px;font-size:20px;font-weight:800;color:#16161a">Tools</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px 10px;padding:0 22px">
+          <sc-for list="{{ createTools }}" as="ct" hint-placeholder-count="6">
+            <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+              <div style="width:100%;aspect-ratio:1;border-radius:18px;background:#ececef;display:flex;align-items:center;justify-content:center;position:relative">
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#16161a" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="{{ ct.d }}"/></svg>
+                <sc-if value="{{ ct.badge }}" hint-placeholder-val="{{ false }}"><span style="position:absolute;top:8px;right:8px;background:#2f7bff;color:#fff;font-size:9px;font-weight:700;font-style:italic;padding:2px 6px;border-radius:7px">{{ ct.badge }}</span></sc-if>
+              </div>
+              <span style="font-size:13px;font-weight:600;color:#44444c;text-align:center;line-height:1.2">{{ ct.label }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="padding:26px 22px 12px;font-size:20px;font-weight:800;color:#16161a">Tutorial</div>
+        <div style="padding:0 22px;display:flex;flex-direction:column;gap:12px">
+          <div style="height:54px;border-radius:14px;background:#ececef;display:flex;align-items:center;gap:12px;padding:0 16px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#44444c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l9-4 9 4-9 4zM7 11v5c0 1 2 2 5 2s5-1 5-2v-5"/></svg><span style="flex:1;font-size:15px;font-weight:600;color:#16161a">Newbie tutorials and usage guides</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b3b3ba" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></div>
+          <div style="height:54px;border-radius:14px;background:#ececef;display:flex;align-items:center;gap:12px;padding:0 16px"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#44444c" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8l9-4 9 4-9 4zM7 11v5c0 1 2 2 5 2s5-1 5-2v-5"/></svg><span style="flex:1;font-size:15px;font-weight:600;color:#16161a">Template creation tutorial</span><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b3b3ba" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></div>
+        </div>
+        <div style="text-align:center;padding:28px 0 30px;font-size:14px;color:#9a9aa2;font-weight:500">Storage Used: 1.5 GB&nbsp;&nbsp;<span style="color:#2f7bff;font-weight:700">Clean up</span></div>
+      </div>
+      </sc-if>
+
+      <!-- PROJECT CONTEXT MENU -->
+      <sc-if value="{{ showProjMenu }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;background:rgba(20,20,30,.32);z-index:36" onClick="{{ closeModal }}"></div>
+      <div style="position:absolute;left:0;right:0;bottom:0;z-index:37;background:#fff;border-radius:24px 24px 0 0;padding:24px 22px 30px">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:18px">
+          <div><div style="font-size:22px;font-weight:800;color:#16161a">Jun 24, 2026</div><div style="color:#9a9aa2;font-size:14px;margin-top:4px">9:16</div></div>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#16161a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L18 10l-4-4L4 16zM14 6l4 4"/></svg>
+        </div>
+        <div style="height:1px;background:#ececef;margin-bottom:6px"></div>
+        <sc-for list="{{ projMenu }}" as="pm" hint-placeholder-count="6">
+          <div onClick="{{ closeModal }}">
+            <sc-if value="{{ pm.div }}" hint-placeholder-val="{{ false }}"><div style="height:1px;background:#ececef;margin:6px 0"></div></sc-if>
+            <div style="display:flex;align-items:center;gap:16px;padding:15px 0;cursor:pointer">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{{ pm.color }}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="{{ pm.d }}"/></svg>
+              <span style="font-size:18px;font-weight:600;color:{{ pm.color }}">{{ pm.label }}</span>
+              <sc-if value="{{ pm.pro }}" hint-placeholder-val="{{ false }}"><span style="background:#2b2b30;color:#f2c14e;font-size:11px;font-weight:800;padding:3px 9px;border-radius:8px;display:flex;align-items:center;gap:3px">♔ PRO</span></sc-if>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+      </sc-if>
+
+      <!-- BOTTOM NAV (browse only) -->
+      <sc-if value="{{ isBrowse }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute;left:18px;right:18px;bottom:22px;height:62px;border-radius:34px;background:rgba(255,255,255,.86);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);box-shadow:0 8px 30px -6px rgba(20,20,40,.22), inset 0 0 0 1px rgba(255,255,255,.6);display:flex;align-items:center;justify-content:space-around;z-index:15">
+        <div onClick="{{ goHome }}" style="cursor:pointer;display:flex;align-items:center;justify-content:center;width:48px;height:42px;border-radius:21px;background:{{ homeBg }}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{{ homeColor }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7M6 10v9h12v-9"/></svg></div>
+        <div onClick="{{ goDiscover }}" style="cursor:pointer;display:flex;align-items:center;justify-content:center;width:48px;height:42px;border-radius:21px;background:{{ discBg }}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{{ discColor }}" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg></div>
+        <div onClick="{{ openCreate }}" style="cursor:pointer;width:50px;height:50px;border-radius:50%;background:#6d4aff;display:flex;align-items:center;justify-content:center;box-shadow:0 6px 16px -4px rgba(109,74,255,.6)"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+        <div style="cursor:pointer;display:flex;align-items:center;justify-content:center;width:48px;height:42px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9a9aa2" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8l4 4 4-7 4 7 4-4-2 11H6z"/></svg></div>
+        <div style="cursor:pointer;display:flex;align-items:center;justify-content:center;width:48px;height:42px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#9a9aa2" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="9" r="3.2"/><path d="M5 20a7 7 0 0114 0"/></svg></div>
+      </div>
+      </sc-if>
+
+      <!-- dynamic island -->
+      <div style="position:absolute;top:11px;left:50%;transform:translateX(-50%);width:118px;height:34px;background:#000;border-radius:18px;z-index:40"></div>
+      <!-- home indicator -->
+      <div style="position:absolute;bottom:7px;left:50%;transform:translateX(-50%);width:128px;height:5px;border-radius:3px;background:{{ indicatorColor }};z-index:40"></div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:446,&quot;height&quot;:904},&quot;startScreen&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;home&quot;,&quot;discover&quot;,&quot;editor&quot;],&quot;default&quot;:&quot;home&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;phoneColor&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Graphite&quot;,&quot;Silver&quot;,&quot;Gold&quot;],&quot;default&quot;:&quot;Graphite&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  state = { screen: null, panel: null, modal: null, mainTrack: 'Quick', linkage: true, snapping: false, expQuality: 'Manual', expAudio: false, expHdr: false };
+
+  componentDidMount() {
+    let bar = null, down = false, startX = 0, startScroll = 0, moved = false;
+    const find = (t) => t && t.closest ? t.closest('#velaToolbar') : null;
+    this._pd = (e) => {
+      bar = find(e.target);
+      if (!bar) return;
+      down = true; moved = false;
+      startX = e.clientX; startScroll = bar.scrollLeft;
+      bar.style.cursor = 'grabbing';
+    };
+    this._pm = (e) => {
+      if (!down || !bar) return;
+      const dx = e.clientX - startX;
+      if (Math.abs(dx) > 4) moved = true;
+      bar.scrollLeft = startScroll - dx;
+    };
+    this._pu = () => {
+      if (bar) bar.style.cursor = 'grab';
+      down = false; bar = null;
+    };
+    this._click = (e) => { if (moved && find(e.target)) { e.stopPropagation(); e.preventDefault(); moved = false; } };
+    document.addEventListener('pointerdown', this._pd);
+    document.addEventListener('pointermove', this._pm);
+    document.addEventListener('pointerup', this._pu);
+    document.addEventListener('click', this._click, true);
+  }
+
+  componentWillUnmount() {
+    document.removeEventListener('pointerdown', this._pd);
+    document.removeEventListener('pointermove', this._pm);
+    document.removeEventListener('pointerup', this._pu);
+    document.removeEventListener('click', this._click, true);
+  }
+
+  cur() { return this.state.screen || this.props.startScreen || 'home'; }
+  go(s) { return () => this.setState({ screen: s, panel: null, modal: null }); }
+  setPanel(p) { return () => this.setState({ panel: p }); }
+  setModal(m) { return (e) => { if (e && e.stopPropagation) e.stopPropagation(); this.setState({ modal: m }); }; }
+
+  renderVals() {
+    const screen = this.cur();
+    const isEditor = screen === 'editor';
+    const panel = this.state.panel;
+    const bezels = { Graphite: '#0a0a0c', Silver: '#cfcfd6', Gold: '#e7d6ad' };
+
+    const modal = this.state.modal;
+
+    const audioInserts = [
+      { label: 'Music', bg: '#6d4aff', d: 'M9 18V6l10-2v12M6 18a2.5 2.5 0 105 0 2.5 2.5 0 00-5 0M16 16a2.5 2.5 0 105 0 2.5 2.5 0 00-5 0' },
+      { label: 'Sound FX', bg: '#c04af0', d: 'M4 10v4M8 7v10M12 4v16M16 7v10M20 10v4' },
+      { label: 'Record', bg: '#ff5a5f', d: 'M12 4a3 3 0 013 3v5a3 3 0 01-6 0V7a3 3 0 013-3zM6 11a6 6 0 0012 0M12 17v3' },
+    ];
+
+    const createTools = [
+      { label: 'Photo Edit', d: 'M4 5h16v14H4zM4 15l5-4 4 3 3-3 4 3M9 9a1.3 1.3 0 100 .01', badge: '' },
+      { label: 'Teleprompter', d: 'M4 5h16v11H4zM7 9h10M7 12h6M9 20h6M12 16v4', badge: 'New' },
+      { label: 'BeatsClips', d: 'M13 3L5 13h6l-1 8 8-10h-6z', badge: '' },
+      { label: 'Create Template', d: 'M12 5a3 3 0 100 6 3 3 0 000-6zM5 19a7 7 0 0110-6.3M17 14v6M14 17h6', badge: '' },
+      { label: 'Overlay', d: 'M4 4h12v12H4zM8 8h12v12H8z', badge: '' },
+      { label: 'Stories', d: 'M5 5h14M5 9h14M5 13h9M5 17h9M17 13l3 3-3 3', badge: '' },
+    ];
+
+    const projMenu = [
+      { label: 'Move to Folder', d: 'M4 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2zM9 13h6M9 13l2-2M9 13l2 2', color: '#16161a', pro: false },
+      { label: 'Share Project', d: 'M5 12v7a1 1 0 001 1h12a1 1 0 001-1v-7M12 3v13M8 7l4-4 4 4', color: '#16161a', pro: true },
+      { label: 'Rename', d: 'M4 20h4L18 10l-4-4L4 16zM14 6l4 4', color: '#16161a', pro: false },
+      { label: 'Create Template', d: 'M12 5a3 3 0 100 6 3 3 0 000-6zM5 19a7 7 0 0110-6.3M17 14v6M14 17h6', color: '#16161a', pro: false },
+      { label: 'Duplicate', d: 'M8 8h12v12H8zM4 4h12v3M4 4v12h3', color: '#16161a', pro: false, div: true },
+      { label: 'Move to Trash', d: 'M5 7h14M9 7V4h6v3M6 7l1 13h10l1-13', color: '#ff3b30', pro: false },
+    ];
+
+    const stroke = '#e6e6ea';
+    const tools = [
+      { label: 'Filter', d: 'M8 7a4 4 0 100 8 4 4 0 000-8zM14 9a4 4 0 100 8 4 4 0 000-8z', onClick: this.setPanel('filter') },
+      { label: 'Trim', d: 'M7 5v14M17 5v14M7 9h10M7 15h10', onClick: () => {} },
+      { label: 'FX', d: 'M12 3l1.8 4.5L18 9l-4.2 1.5L12 15l-1.8-4.5L6 9l4.2-1.5z M18 14l.9 2.3L21 17l-2.1.7L18 20l-.9-2.3L15 17l2.1-.7z', onClick: () => {} },
+      { label: 'Split', d: 'M7 6a2 2 0 104 0 2 2 0 00-4 0zM7 18a2 2 0 104 0 2 2 0 00-4 0zM9 8l9 8M18 8L9 16', onClick: () => {} },
+      { label: 'Cutout', d: 'M12 7a3 3 0 100 6 3 3 0 000-6zM5 20a7 7 0 0114 0', onClick: () => {} },
+      { label: 'Quality', d: 'M4 6h16v12H4zM10 10l5 3-5 3z', onClick: this.setPanel('settings') },
+      { label: 'Speed', d: 'M4 15a8 8 0 1116 0M12 15l4-4', onClick: () => {} },
+      { label: 'Volume', d: 'M5 10v4h3l4 3V7L8 10zM16 9a4 4 0 010 6M18.5 7a7 7 0 010 10', onClick: () => {} },
+    ];
+
+    const inserts = [
+      { label: 'Photos', bg: '#37b6f0', d: 'M4 5h16v14H4zM4 16l5-4 4 3 3-3 4 3M9 9a1.4 1.4 0 100 .01' },
+      { label: 'Audio', bg: '#6d4aff', d: 'M9 18V6l10-2v12M6 18a2.5 2.5 0 105 0 2.5 2.5 0 00-5 0M16 16a2.5 2.5 0 105 0 2.5 2.5 0 00-5 0' },
+      { label: 'Text', bg: '#15b8a6', d: 'M6 6h12M12 6v12' },
+      { label: 'Sticker', bg: '#c04af0', d: 'M5 4h14v10l-5 5H5zM14 19v-5h5' },
+      { label: 'Effects', bg: '#ff5a5f', d: 'M12 3l1.8 4.5L18 9l-4.2 1.5L12 15l-1.8-4.5L6 9l4.2-1.5z' },
+      { label: 'Record', bg: '#ff8a3d', d: 'M12 4a3 3 0 013 3v5a3 3 0 01-6 0V7a3 3 0 013-3zM6 11a6 6 0 0012 0M12 17v3' },
+    ];
+
+    const ratios = [
+      { label: 'Original', bg: '#1f1f24', fg: '#cfcfd6', border: 'none' },
+      { label: '9:16', bg: '#fff', fg: '#111', border: 'none' },
+      { label: '1:1', bg: '#1f1f24', fg: '#cfcfd6', border: 'none' },
+      { label: '16:9', bg: '#1f1f24', fg: '#cfcfd6', border: 'none' },
+      { label: '4:5', bg: '#1f1f24', fg: '#cfcfd6', border: 'none' },
+      { label: '2:3', bg: '#1f1f24', fg: '#cfcfd6', border: 'none' },
+    ];
+
+    const fcats = ['Season', 'Essence', 'Fog', 'Lune', 'Mood', 'Polar'].map(n => ({
+      name: n, color: n === 'Fog' ? '#fff' : '#7a7a82'
+    }));
+
+    const fbg = ['#cdb89e', '#b8a890', '#d9c3a4', '#a89878', '#c8b498', '#bfa888'];
+    const filters = [
+      { name: 'Original', sel: true }, { name: 'E5' }, { name: 'Fo1' },
+      { name: 'Fo2', sel: true }, { name: 'Fo3' }, { name: 'L1' },
+    ].map((f, i) => ({
+      name: f.name,
+      bg: 'linear-gradient(160deg,' + fbg[i] + ',#8a6d4a)',
+      border: f.sel ? '2px solid #f2c14e' : '2px solid transparent',
+      fg: f.sel ? '#f2c14e' : '#9a9aa2',
+      weight: f.sel ? '700' : '500',
+    }));
+
+    const frames = ['#b89970', '#a88a64', '#c0a47c', '#9d8058'].map(c => ({
+      bg: 'linear-gradient(160deg,' + c + ',#7a6044)'
+    }));
+
+    const mediaHues = [
+      '#3a3a42', '#2e2e36', '#42383a', '#38323e', '#3e3a30', '#323a3a',
+      '#b89970', '#7d93a8', '#9d8a72', '#c8a878', '#5a6e7a', '#8a7560'
+    ];
+    const media = mediaHues.map((h, i) => ({
+      bg: 'linear-gradient(160deg,' + h + ',#1a1a1f)',
+      dur: i === 9 ? '0:14' : (i === 11 ? '0:55' : null),
+    }));
+
+    const folders = [
+      { name: 'Default', items: '3 Items', icon: 'M12 4l8 4-8 4-8-4zM4 12l8 4 8-4M4 16l8 4 8-4' },
+      { name: 'Imported', items: '0 Items', icon: 'M14 4h4v16H6V4h4M9 11l3-3 3 3M12 8v8' },
+    ];
+    const recent = [{ time: '0:55', title: 'Jun 24, 2026', folder: 'Default', date: 'Jun 24' }];
+    const older = [
+      { time: '0:12', title: 'Block Falling Puzzle', folder: 'Default', date: 'Apr 18', bg: 'linear-gradient(160deg,#2a2a32,#4a3a5a)', dot: '#9fc8ff' },
+      { time: '0:14', title: 'Wedding Walk', folder: 'Imported', date: 'Apr 02', bg: 'linear-gradient(160deg,#7a8a6a,#b09878)', dot: '#9fc8ff' },
+    ];
+    const cats = [
+      { name: 'Birthday', tag: 'b-day', bg: 'linear-gradient(160deg,#2a2620,#4a4030)' },
+      { name: 'Portrait', tag: 'filter', bg: 'linear-gradient(160deg,#6a5a7a,#c8a0b0)' },
+      { name: 'Travel', tag: 'travel', bg: 'linear-gradient(160deg,#b07a4e,#d9a878)' },
+      { name: 'Food', tag: 'food', bg: 'linear-gradient(160deg,#c8a878,#e0d0b8)' },
+      { name: 'Mono', tag: 'b&w', bg: 'linear-gradient(160deg,#3a3a3a,#7a7a7a)' },
+    ];
+
+    return {
+      bezelBg: bezels[this.props.phoneColor] || bezels.Graphite,
+      isHome: screen === 'home',
+      isDiscover: screen === 'discover',
+      isEditor,
+      isBrowse: screen === 'home' || screen === 'discover',
+      showInsert: isEditor && panel === 'insert',
+      showSettings: isEditor && panel === 'settings',
+      showFilter: isEditor && panel === 'filter',
+      showMedia: isEditor && panel === 'media',
+      showAudio: isEditor && panel === 'audio',
+      showPrefs: isEditor && panel === 'prefs',
+      showExport: isEditor && panel === 'export',
+      openExport: this.setPanel('export'),
+      showEditMenu: isEditor && panel === 'editmenu',
+      openEditMenu: this.setPanel('editmenu'),
+      expQuality: this.state.expQuality,
+      expAutoBg: this.state.expQuality === 'Auto' ? '#5a5a64' : 'transparent',
+      expManualBg: this.state.expQuality === 'Manual' ? '#5a5a64' : 'transparent',
+      setExpAuto: () => this.setState({ expQuality: 'Auto' }),
+      setExpManual: () => this.setState({ expQuality: 'Manual' }),
+      expAudioTrackBg: this.state.expAudio ? '#2f7bff' : '#fff',
+      expAudioKnobX: this.state.expAudio ? '22px' : '2px',
+      expAudioKnobBg: this.state.expAudio ? '#fff' : '#cfcfd6',
+      toggleExpAudio: () => this.setState(s => ({ expAudio: !s.expAudio })),
+      expHdrTrackBg: this.state.expHdr ? '#2f7bff' : '#fff',
+      expHdrKnobX: this.state.expHdr ? '22px' : '2px',
+      expHdrKnobBg: this.state.expHdr ? '#fff' : '#cfcfd6',
+      toggleExpHdr: () => this.setState(s => ({ expHdr: !s.expHdr })),
+      showCreate: modal === 'create',
+      showProjMenu: modal === 'projmenu',
+      goHome: this.go('home'),
+      goDiscover: this.go('discover'),
+      openEditor: this.go('editor'),
+      openInsert: this.setPanel('insert'),
+      openSettings: this.setPanel('settings'),
+      openMedia: this.setPanel('media'),
+      openAudio: this.setPanel('audio'),
+      openPrefs: this.setPanel('prefs'),
+      openCreate: this.setModal('create'),
+      openProjMenu: this.setModal('projmenu'),
+      closeModal: this.setModal(null),
+      closePanel: this.setPanel(null),
+      audioInserts, createTools, projMenu,
+      mainTrack: this.state.mainTrack,
+      quickBg: this.state.mainTrack === 'Quick' ? '#5a5a64' : 'transparent',
+      proBg: this.state.mainTrack === 'Pro' ? '#5a5a64' : 'transparent',
+      setQuick: () => this.setState({ mainTrack: 'Quick' }),
+      setPro: () => this.setState({ mainTrack: 'Pro' }),
+      linkOn: this.state.linkage,
+      toggleLink: () => this.setState(s => ({ linkage: !s.linkage })),
+      linkTrackBg: this.state.linkage ? '#2f7bff' : '#3a3a42',
+      linkKnobX: this.state.linkage ? '22px' : '2px',
+      snapOn: this.state.snapping,
+      toggleSnap: () => this.setState(s => ({ snapping: !s.snapping })),
+      snapTrackBg: this.state.snapping ? '#2f7bff' : '#fff',
+      snapKnobX: this.state.snapping ? '22px' : '2px',
+      snapKnobBg: this.state.snapping ? '#fff' : '#cfcfd6',
+      homeBg: screen === 'home' ? 'rgba(109,74,255,.12)' : 'transparent',
+      homeColor: screen === 'home' ? '#6d4aff' : '#9a9aa2',
+      discBg: screen === 'discover' ? 'rgba(109,74,255,.12)' : 'transparent',
+      discColor: screen === 'discover' ? '#6d4aff' : '#9a9aa2',
+      indicatorColor: isEditor ? '#fff' : '#111',
+      tools, inserts, ratios, fcats, filters, frames, media,
+      folders, recent, older, cats,
+    };
+  }
+}
+</script>
+</body>
+</html>

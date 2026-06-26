@@ -7,9 +7,10 @@ import { createCenteredTextLayer, createShapeLayer } from '../../utils/layerPlac
 
 interface ToolsPanelProps {
   engine: OrbitEngine | null;
+  onClose?: () => void;
 }
 
-export const ToolsPanel: React.FC<ToolsPanelProps> = ({ engine }) => {
+export const ToolsPanel: React.FC<ToolsPanelProps> = ({ engine, onClose }) => {
   const { addLayer, selectLayer } = useOrbitLayers(engine);
 
   const createTextLayer = useCallback(() => {
@@ -23,8 +24,10 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({ engine }) => {
       name: 'Text',
     });
     const id = addLayer(layer);
+    engine?.setTool('select');
     if (id) selectLayer(id);
-  }, [addLayer, engine, selectLayer]);
+    onClose?.();
+  }, [addLayer, engine, selectLayer, onClose]);
 
   const createRectLayer = useCallback(() => {
     const layer = createShapeLayer(engine, {
@@ -35,7 +38,8 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({ engine }) => {
     });
     const id = addLayer(layer);
     if (id) selectLayer(id);
-  }, [addLayer, engine, selectLayer]);
+    onClose?.();
+  }, [addLayer, engine, selectLayer, onClose]);
 
   const createCircleLayer = useCallback(() => {
     const layer = createShapeLayer(engine, {
@@ -46,7 +50,8 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({ engine }) => {
     });
     const id = addLayer(layer);
     if (id) selectLayer(id);
-  }, [addLayer, engine, selectLayer]);
+    onClose?.();
+  }, [addLayer, engine, selectLayer, onClose]);
 
   return (
     <div className="flex flex-col gap-2 p-orbit-md border-b border-orbit-border">

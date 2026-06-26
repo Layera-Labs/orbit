@@ -29,12 +29,10 @@ export function useOrbitEngine(config: { width?: number; height?: number }) {
       if (!entry) return;
       const { width, height } = entry.contentRect;
       if (width < 10 || height < 10) return;
+      if (fitDone) return;
 
-      engine.viewport.zoomToFit(canvasWidth, canvasHeight, width, height);
-
-      if (!fitDone) {
-        fitDone = true;
-      }
+      engine.viewport.zoomToFit(canvasWidth, canvasHeight, width, height, 96);
+      fitDone = true;
     });
 
     ro.observe(el);
@@ -104,7 +102,7 @@ export function useOrbitLayers(engine: OrbitEngine | null) {
 }
 
 export function useOrbitViewport(engine: OrbitEngine | null) {
-  const [viewport, setViewport] = useState<ViewportState>({ zoom: 1, panX: 0, panY: 0, rotation: 0 });
+  const [viewport, setViewport] = useState<ViewportState>({ zoom: 100 });
 
   useEffect(() => {
     if (!engine) return;

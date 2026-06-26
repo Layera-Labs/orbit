@@ -62,12 +62,28 @@ export interface TextContent {
   fontFamily: string;
   fontSize: number;
   fontWeight: number;
+  fontStyle?: 'normal' | 'italic';
   color: string;
-  alignment: 'left' | 'center' | 'right';
+  alignment: 'left' | 'center' | 'right' | 'justify';
   lineHeight?: number;
   letterSpacing?: number;
   textTransform?: 'none' | 'uppercase' | 'lowercase' | 'capitalize';
   decoration?: 'none' | 'underline' | 'line-through';
+  gradient?: {
+    start: string;
+    end: string;
+    angle: number;
+  };
+  blur?: number;
+  textStrokeColor?: string;
+  textStrokeWidth?: number;
+  shadow?: {
+    color: string;
+    blur: number;
+    opacity: number;
+    offsetX: number;
+    offsetY: number;
+  };
 }
 
 export interface ShapeContent {
@@ -132,9 +148,29 @@ export interface Transition {
   easing: EasingType;
 }
 
+export interface CanvasBorder {
+  width: number;
+  color: string;
+  style: 'none' | 'solid' | 'dashed' | 'dotted';
+  radius: number;
+  sides: {
+    top: boolean;
+    right: boolean;
+    bottom: boolean;
+    left: boolean;
+  };
+  radiusCorners: {
+    topLeft: number;
+    topRight: number;
+    bottomLeft: number;
+    bottomRight: number;
+  };
+}
+
 export interface SceneGraph {
   root: Layer[];
   background: BackgroundProps;
+  border: CanvasBorder;
   width: number;
   height: number;
 }
@@ -493,10 +529,7 @@ export interface KeyboardShortcut {
 
 // ===== Viewport =====
 export interface ViewportState {
-  zoom: number;
-  panX: number;
-  panY: number;
-  rotation: number;
+  zoom: number; // percentage, e.g. 100 = actual size
 }
 
 // ===== History =====

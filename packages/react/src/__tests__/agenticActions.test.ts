@@ -11,8 +11,8 @@ describe('agentic canvas actions', () => {
 
     const textLayer = engine.scene.getLayer(textId);
     expect(textLayer?.type).toBe('text');
-    expect(textLayer?.x).toBeCloseTo(354.8);
-    expect(textLayer?.y).toBe(364);
+    expect(textLayer?.x).toBeCloseTo((1000 - (textLayer?.width ?? 0)) / 2);
+    expect(textLayer?.y).toBeCloseTo((800 - (textLayer?.height ?? 0)) / 2);
     expect(textLayer?.content).toMatchObject({ text: 'Hello Orbit', fontSize: 48, color: '#2563eb' });
     expect(engine.getSelectedLayers()).toEqual([textId]);
 
