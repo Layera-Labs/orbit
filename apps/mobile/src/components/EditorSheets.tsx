@@ -717,7 +717,7 @@ const s = StyleSheet.create({
 
   // grids
   gridTitle: { color: '#fff', fontFamily: font.bold, fontSize: 17, textAlign: 'center', marginBottom: 4 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
   gridCard: { width: '31.5%', borderRadius: 18, alignItems: 'center', justifyContent: 'center', gap: 10 },
   gridLabel: { color: '#fff', fontFamily: font.semibold, fontSize: 14 },
 
