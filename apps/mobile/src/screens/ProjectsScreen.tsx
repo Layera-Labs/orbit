@@ -48,7 +48,7 @@ function ProjectRow({ p, onOpen, onMenu }: { p: StoredProject; onOpen: () => voi
         <Text style={styles.rowName} numberOfLines={1}>{p.name}</Text>
         <View style={styles.rowFolder}>
           <View style={styles.folderDot} />
-          <Text style={styles.rowFolderText}>Default</Text>
+          <Text style={styles.rowFolderText}>{p.folder ?? 'Default'}</Text>
         </View>
       </View>
       <View style={{ alignItems: 'flex-end' }}>
@@ -67,6 +67,21 @@ function ProjectMenu({ p, onClose }: { p: StoredProject; onClose: () => void }) 
   const renameProject = useEditor((s) => s.renameProject);
   const removeProject = useEditor((s) => s.removeProject);
   const duplicateProject = useEditor((s) => s.duplicateProject);
+  const setProjectFolder = useEditor((s) => s.setProjectFolder);
+
+  function moveFolder() {
+    onClose();
+    Alert.prompt(
+      'Move to Folder',
+      'Type a folder name (creates it if new).',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Move', onPress: (t?: string) => t && setProjectFolder(p.id, t) },
+      ],
+      'plain-text',
+      p.folder ?? 'Default',
+    );
+  }
 
   function rename() {
     onClose();
@@ -89,7 +104,7 @@ function ProjectMenu({ p, onClose }: { p: StoredProject; onClose: () => void }) 
     ]);
   }
   const items: MenuItem[] = [
-    { label: 'Move to Folder', d: 'M4 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2zM9 13h6M9 13l2-2M9 13l2 2', color: vela.ink2, onPress: () => soon('Move to Folder') },
+    { label: 'Move to Folder', d: 'M4 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2zM9 13h6M9 13l2-2M9 13l2 2', color: vela.ink2, onPress: moveFolder },
     { label: 'Share Project', d: 'M5 12v7a1 1 0 001 1h12a1 1 0 001-1v-7M12 3v13M8 7l4-4 4 4', color: vela.ink2, pro: true, onPress: () => soon('Share Project') },
     { label: 'Rename', d: 'M4 20h4L18 10l-4-4L4 16zM14 6l4 4', color: vela.ink2, onPress: rename },
     { label: 'Create Template', d: 'M12 5a3 3 0 100 6 3 3 0 000-6zM5 19a7 7 0 0110-6.3M17 14v6M14 17h6', color: vela.ink2, onPress: () => soon('Create Template') },
@@ -135,6 +150,7 @@ export function ProjectsScreen() {
   const [createOpen, setCreateOpen] = useState(false);
   const [promoOpen, setPromoOpen] = useState(true);
   const [menuProject, setMenuProject] = useState<StoredProject | null>(null);
+  const [activeFolder, setActiveFolder] = useState<string | null>(null);
 
   function promptServer() {
     Alert.prompt(
@@ -149,14 +165,18 @@ export function ProjectsScreen() {
     );
   }
 
+  const folderOf = (p: StoredProject) => p.folder ?? 'Default';
   const now = Date.now();
-  const recent = projects.filter((p) => now - p.updatedAt < 30 * DAY);
-  const older = projects.filter((p) => now - p.updatedAt >= 30 * DAY);
+  const visible = activeFolder ? projects.filter((p) => folderOf(p) === activeFolder) : projects;
+  const recent = visible.filter((p) => now - p.updatedAt < 30 * DAY);
+  const older = visible.filter((p) => now - p.updatedAt >= 30 * DAY);
 
-  const folders = [
-    { name: 'Default', items: `${projects.length} ${projects.length === 1 ? 'Item' : 'Items'}`, d: FOLDER_DEFAULT },
-    { name: 'Imported', items: '0 Items', d: FOLDER_IMPORTED },
-  ];
+  const folderNames = Array.from(new Set(['Default', 'Imported', ...projects.map(folderOf)]));
+  const folders = folderNames.map((name) => ({
+    name,
+    count: projects.filter((p) => folderOf(p) === name).length,
+    d: name === 'Imported' ? FOLDER_IMPORTED : FOLDER_DEFAULT,
+  }));
 
   return (
     <View style={styles.root}>
@@ -216,14 +236,14 @@ export function ProjectsScreen() {
         <Text style={styles.sectionH}>Folders</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.folderRow}>
           {folders.map((f) => (
-            <View key={f.name} style={styles.folder}>
-              <LinearGradient colors={['#bfe0ff', '#9fc8ff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.folderCard}>
+            <Pressable key={f.name} style={styles.folder} onPress={() => setActiveFolder(activeFolder === f.name ? null : f.name)}>
+              <LinearGradient colors={activeFolder === f.name ? ['#9fc8ff', '#6d4aff'] : ['#bfe0ff', '#9fc8ff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.folderCard}>
                 <View style={styles.folderTab} />
-                <VIcon d={f.d} size={30} color="#4a86d6" strokeWidth={2} />
+                <VIcon d={f.d} size={30} color={activeFolder === f.name ? '#fff' : '#4a86d6'} strokeWidth={2} />
               </LinearGradient>
-              <Text style={styles.folderName}>{f.name}</Text>
-              <Text style={styles.folderItems}>{f.items}</Text>
-            </View>
+              <Text style={[styles.folderName, activeFolder === f.name && { color: vela.accent }]}>{f.name}</Text>
+              <Text style={styles.folderItems}>{f.count} {f.count === 1 ? 'Item' : 'Items'}</Text>
+            </Pressable>
           ))}
         </ScrollView>
 
