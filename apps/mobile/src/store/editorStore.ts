@@ -9,7 +9,7 @@ import { DEFAULT_SERVER } from '../constants';
 import { createProject, projectDuration } from '../model/project';
 import * as ops from '../model/editor-ops';
 import { MIN_CLIP, newId } from '../model/editor-ops';
-import { FULL_FRAME, type AudioTrackClip, type Rect, type TextOverlay, type VideoProject, type VisualTrackClip } from '../model/types';
+import { FULL_FRAME, type AudioTrackClip, type ClipFilter, type Rect, type TextOverlay, type Transition, type VideoProject, type VisualTrackClip } from '../model/types';
 
 /** Sentinel track id for the text/caption lane (overlays live on project.overlays, not tracks). */
 export const OVERLAY_TRACK = '__overlays__';
@@ -105,6 +105,10 @@ interface EditorState {
   moveClipToTrack: (fromTrackId: string, toTrackId: string, clipId: string, start: number) => void;
   trimClip: (trackId: string, clipId: string, patch: { start?: number; trimIn?: number; duration?: number }) => void;
   setClipRect: (trackId: string, clipId: string, rect: Rect) => void;
+  setSelectedFilter: (filter: ClipFilter | undefined) => void;
+  setSelectedSpeed: (speed: number) => void;
+  setSelectedVolume: (volume: number) => void;
+  setSelectedTransition: (transition: Transition | undefined) => void;
   moveSelectedLayer: (dir: 1 | -1) => void;
   togglePiP: () => void;
   setRatio: (width: number, height: number) => void;
@@ -410,6 +414,27 @@ export const useEditor = create<EditorState>((set, get) => ({
     get().apply((p) => ops.trimClip(p, trackId, clipId, patch));
   },
   setClipRect: (trackId, clipId, rect) => get().apply((p) => ops.setClipRect(p, trackId, clipId, rect)),
+
+  setSelectedFilter: (filter) => {
+    const s = get().selected;
+    if (!s || s.trackId === OVERLAY_TRACK) return;
+    get().apply((p) => ops.setClipFilter(p, s.trackId, s.clipId, filter));
+  },
+  setSelectedSpeed: (speed) => {
+    const s = get().selected;
+    if (!s || s.trackId === OVERLAY_TRACK) return;
+    get().apply((p) => ops.setClipSpeed(p, s.trackId, s.clipId, speed));
+  },
+  setSelectedVolume: (volume) => {
+    const s = get().selected;
+    if (!s || s.trackId === OVERLAY_TRACK) return;
+    get().apply((p) => ops.setClipVolume(p, s.trackId, s.clipId, volume));
+  },
+  setSelectedTransition: (transition) => {
+    const s = get().selected;
+    if (!s || s.trackId === OVERLAY_TRACK) return;
+    get().apply((p) => ops.setClipTransition(p, s.trackId, s.clipId, transition));
+  },
 
   moveSelectedLayer: (dir) => {
     const { selected, project } = get();
