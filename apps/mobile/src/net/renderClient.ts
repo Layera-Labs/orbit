@@ -6,7 +6,7 @@
  */
 import { Directory, File, Paths } from 'expo-file-system';
 import * as MediaLibrary from 'expo-media-library';
-import type { VideoProject } from '../model/types';
+import type { ExportOutput, VideoProject } from '../model/types';
 
 /** localUri → upload token, so re-exports don't re-upload unchanged media. */
 const uploadCache = new Map<string, string>();
@@ -63,6 +63,7 @@ export async function exportProject(
   base: string,
   project: VideoProject,
   onProgress?: (p: ExportProgress) => void,
+  output?: ExportOutput,
 ): Promise<string> {
   const cleanBase = base.replace(/\/+$/, '');
 
@@ -94,7 +95,7 @@ export async function exportProject(
   const res = await fetch(`${cleanBase}/v1/render`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ project: resolved }),
+    body: JSON.stringify({ project: resolved, output }),
   });
   const data = (await res.json()) as { url?: string; error?: string };
   if (!res.ok || !data.url) throw new Error(data.error ?? `render failed (HTTP ${res.status})`);

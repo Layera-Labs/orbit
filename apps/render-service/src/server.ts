@@ -21,7 +21,7 @@ import { mkdir, mkdirSync } from 'node:fs';
 import { mkdir as mkdirAsync } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
-import { renderProject, type VideoProject } from '@orbit/video';
+import { renderProject, type ExportOutput, type VideoProject } from '@orbit/video';
 import { buildProjectFromSpec, createGeminiBrain, generateVideoSpec } from '@orbit/video-ai';
 import { isClientSrc, makeResolveSrc } from './resolve.js';
 
@@ -49,10 +49,10 @@ export function createServer(): Express {
     limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB
   });
 
-  async function render(project: VideoProject): Promise<string> {
+  async function render(project: VideoProject, output?: ExportOutput): Promise<string> {
     await mkdirAsync(outDir, { recursive: true });
     const name = `v_${++counter}_${Date.now()}.mp4`;
-    await renderProject(project, { outputPath: join(outDir, name), resolveSrc });
+    await renderProject(project, { outputPath: join(outDir, name), resolveSrc, output });
     return `/files/${name}`;
   }
 
@@ -70,7 +70,8 @@ export function createServer(): Express {
   });
 
   app.post('/v1/render', async (req: Request, res: Response) => {
-    const project = (req.body as { project?: VideoProject } | undefined)?.project;
+    const body = req.body as { project?: VideoProject; output?: ExportOutput } | undefined;
+    const project = body?.project;
     if (!project || (!Array.isArray(project.clips) && !Array.isArray(project.overlays))) {
       res.status(400).json({ error: 'request body must be { project: VideoProject }' });
       return;
@@ -82,7 +83,7 @@ export function createServer(): Express {
       return;
     }
     try {
-      res.json({ url: await render(project) });
+      res.json({ url: await render(project, body?.output) });
     } catch (err) {
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }

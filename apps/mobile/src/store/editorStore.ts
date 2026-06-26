@@ -9,7 +9,7 @@ import { DEFAULT_SERVER } from '../constants';
 import { createProject, projectDuration } from '../model/project';
 import * as ops from '../model/editor-ops';
 import { MIN_CLIP, newId } from '../model/editor-ops';
-import { FULL_FRAME, type AudioTrackClip, type ClipFilter, type Rect, type TextOverlay, type Transition, type VideoProject, type VisualTrackClip } from '../model/types';
+import { FULL_FRAME, type AudioTrackClip, type ClipFilter, type ExportOutput, type Rect, type TextOverlay, type Transition, type VideoProject, type VisualTrackClip } from '../model/types';
 
 /** Sentinel track id for the text/caption lane (overlays live on project.overlays, not tracks). */
 export const OVERLAY_TRACK = '__overlays__';
@@ -96,8 +96,8 @@ interface EditorState {
   setMediaDuration: (src: string, sec: number) => void;
   setPanel: (panel: EditorPanel | null) => void;
   setPref: <K extends keyof EditorPrefs>(key: K, value: EditorPrefs[K]) => void;
-  exportToPhotos: () => Promise<void>;
-  shareExport: () => Promise<void>;
+  exportToPhotos: (output?: ExportOutput) => Promise<void>;
+  shareExport: (output?: ExportOutput) => Promise<void>;
 
   // helpers
   mainTrackId: () => string | null;
@@ -254,7 +254,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   setPanel: (panel) => set({ panel }),
   setPref: (key, value) => set((s) => ({ prefs: { ...s.prefs, [key]: value } })),
 
-  exportToPhotos: async () => {
+  exportToPhotos: async (output) => {
     const { project, serverUrl, exporting } = get();
     if (!project || exporting) return;
     const clipCount = (project.tracks ?? []).reduce((n, t) => n + t.clips.length, 0);
@@ -264,7 +264,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     }
     set({ panel: null, exporting: true, exportMsg: 'Preparing…' });
     try {
-      const url = await exportProject(serverUrl, project, (p) => set({ exportMsg: progressLabel(p) }));
+      const url = await exportProject(serverUrl, project, (p) => set({ exportMsg: progressLabel(p) }), output);
       await downloadToPhotos(url, Date.now(), (p) => set({ exportMsg: progressLabel(p) }));
       set({ exporting: false });
       Alert.alert('Exported', 'Your video was saved to Photos.');
@@ -274,7 +274,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     }
   },
 
-  shareExport: async () => {
+  shareExport: async (output) => {
     const { project, serverUrl, exporting } = get();
     if (!project || exporting) return;
     const clipCount = (project.tracks ?? []).reduce((n, t) => n + t.clips.length, 0);
@@ -284,7 +284,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     }
     set({ panel: null, exporting: true, exportMsg: 'Preparing…' });
     try {
-      const url = await exportProject(serverUrl, project, (p) => set({ exportMsg: progressLabel(p) }));
+      const url = await exportProject(serverUrl, project, (p) => set({ exportMsg: progressLabel(p) }), output);
       const fileUri = await downloadToPhotos(url, Date.now(), (p) => set({ exportMsg: progressLabel(p) }));
       set({ exporting: false });
       await Share.share({ url: fileUri });

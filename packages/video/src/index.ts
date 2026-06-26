@@ -12,6 +12,7 @@ export type {
   Transition,
   TransitionType,
   ClipFilter,
+  ExportOutput,
   Rect,
   VisualTrackClip,
   AudioTrackClip,
