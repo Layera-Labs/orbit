@@ -6,6 +6,7 @@ import { buildFFmpegArgs, type BuildFFmpegOptions } from './ffmpeg';
 import { backgroundToSVG } from './background-svg';
 import { overlayToSVG } from './overlay-svg';
 import { rasterizeSVG } from './raster';
+import { fontFilesFor } from './google-fonts';
 import type { VideoProject } from './types';
 
 export interface RenderOptions extends Omit<BuildFFmpegOptions, 'overlayImages' | 'hasAudio'> {
@@ -32,10 +33,14 @@ export async function renderProject(project: VideoProject, opts: RenderOptions):
       baseImage = join(dir, 'background.png');
       await writeFile(baseImage, rasterizeSVG(backgroundToSVG(project.background, project.width, project.height)));
     }
+    // Download any Google fonts the captions use so resvg embeds them.
+    const families = project.overlays.flatMap((o) => (o.type === 'text' && o.fontFamily ? [o.fontFamily] : []));
+    const fontFiles = await fontFilesFor(families);
+
     const overlayImages: Record<string, string> = {};
     for (const overlay of project.overlays) {
       if (overlay.type !== 'text') continue;
-      const png = rasterizeSVG(overlayToSVG(overlay, project.width, project.height));
+      const png = rasterizeSVG(overlayToSVG(overlay, project.width, project.height), fontFiles);
       const path = join(dir, `${overlay.id}.png`);
       await writeFile(path, png);
       overlayImages[overlay.id] = path;
