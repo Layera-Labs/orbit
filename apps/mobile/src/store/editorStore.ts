@@ -97,6 +97,7 @@ interface EditorState {
   importAudio: (clip: AudioTrackClip) => void;
   addText: () => void;
   editSelectedText: (text: string) => void;
+  updateSelectedOverlay: (patch: Partial<TextOverlay>) => void;
   addLayer: () => void;
   splitAtPlayhead: () => void;
   duplicateSelected: () => void;
@@ -330,6 +331,12 @@ export const useEditor = create<EditorState>((set, get) => ({
     const s = get().selected;
     if (!s || s.trackId !== OVERLAY_TRACK) return;
     get().apply((p) => ops.updateOverlay(p, s.clipId, { text }));
+  },
+
+  updateSelectedOverlay: (patch) => {
+    const s = get().selected;
+    if (!s || s.trackId !== OVERLAY_TRACK) return;
+    get().apply((p) => ops.updateOverlay(p, s.clipId, patch));
   },
 
   addLayer: () => get().apply((p) => ops.addTrack(p, 'visual')),

@@ -22,6 +22,9 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { font, mono, vela, RATIOS, ratioLabel } from '../constants';
 import { VIcon, type VIconName } from './VIcon';
+import { VSlider } from './VSlider';
+import { ColorSheet } from './ColorSheet';
+import type { TextAlign } from '../model/types';
 import { clipAtTime } from '../model/editor-ops';
 import type { VisualTrackClip } from '../model/types';
 import { videoThumbnail } from '../storage/media';
@@ -458,12 +461,18 @@ function ExportSheet() {
 
 // ---- Text edit (live input + toolbar) ------------------------------------
 
+const ALIGN_ORDER: TextAlign[] = ['left', 'center', 'right'];
+
 function TextEditSheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const selected = useEditor((s) => s.selected);
   const editSelectedText = useEditor((s) => s.editSelectedText);
-  const initial = useEditor((s) => s.project?.overlays.find((o) => o.id === selected?.clipId)?.text ?? '');
-  const [text, setText] = useState(initial);
+  const updateOverlay = useEditor((s) => s.updateSelectedOverlay);
+  const ov = useEditor((s) => s.project?.overlays.find((o) => o.id === selected?.clipId));
+  const projW = useEditor((s) => s.project?.width ?? 1080);
+  const [text, setText] = useState(ov?.text ?? '');
+  const [tool, setTool] = useState<'kb' | 'size'>('kb');
+  const [showColor, setShowColor] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const close = () => setPanel(null);
   const onChange = (t: string) => {
@@ -471,46 +480,66 @@ function TextEditSheet() {
     editSelectedText(t);
   };
 
+  const color = ov?.color ?? '#ffffff';
+  const fontSize = ov?.fontSize ?? Math.round(projW * 0.07);
+  const align = ov?.align ?? 'center';
+  const bold = ov?.bold ?? false;
+  const cycleAlign = () => updateOverlay({ align: ALIGN_ORDER[(ALIGN_ORDER.indexOf(align) + 1) % 3] });
+
   return (
     <Modal visible transparent animationType="slide" onRequestClose={close}>
       <View style={{ flex: 1 }}>
         <Pressable style={StyleSheet.absoluteFill} onPress={close} />
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={s.teWrap} pointerEvents="box-none">
           <View style={s.tePanel}>
-            <View style={s.teInputRow}>
-              <TextInput
-                ref={inputRef}
-                value={text}
-                onChangeText={onChange}
-                autoFocus
-                multiline
-                placeholder="Input Title"
-                placeholderTextColor={vela.muted2}
-                style={s.teInput}
-              />
-              <Pressable onPress={() => onChange('')} hitSlop={8} style={s.teTrash}>
-                <VIcon name="trash" size={22} color={vela.muted} />
-              </Pressable>
-            </View>
+            {tool === 'kb' ? (
+              <View style={s.teInputRow}>
+                <TextInput
+                  ref={inputRef}
+                  value={text}
+                  onChangeText={onChange}
+                  autoFocus
+                  multiline
+                  placeholder="Input Title"
+                  placeholderTextColor={vela.muted2}
+                  style={s.teInput}
+                />
+                <Pressable onPress={() => onChange('')} hitSlop={8} style={s.teTrash}>
+                  <VIcon name="trash" size={22} color={vela.muted} />
+                </Pressable>
+              </View>
+            ) : (
+              <View style={s.teSizeRow}>
+                <Text style={s.teSizeLabel}>Size</Text>
+                <View style={{ flex: 1 }}>
+                  <VSlider value={fontSize} min={16} max={Math.round(projW * 0.3)} step={2} onChange={(v) => updateOverlay({ fontSize: Math.round(v) })} />
+                </View>
+                <Text style={s.teSizeVal}>{Math.round(fontSize)}</Text>
+              </View>
+            )}
             <View style={s.teToolbar}>
-              <Pressable onPress={() => inputRef.current?.focus()} style={s.teKb}>
-                <VIcon name="keyboard" size={24} color="#fff" />
-                <View style={s.teKbUnderline} />
+              <Pressable onPress={() => { setTool('kb'); inputRef.current?.focus(); }} style={s.teTool}>
+                <VIcon name="keyboard" size={24} color={tool === 'kb' ? '#fff' : vela.textLight} />
+                {tool === 'kb' ? <View style={s.teKbUnderline} /> : null}
               </Pressable>
               <Pressable onPress={() => soon('Font')}><VIcon name="font" size={24} color={vela.textLight} /></Pressable>
-              <Pressable onPress={() => soon('Size')}><VIcon name="fontsize" size={24} color={vela.textLight} /></Pressable>
-              <Pressable onPress={() => soon('Color')}>
-                <LinearGradient colors={['#ff5a5f', '#f2c14e', '#15b8a6', '#2f7bff', '#6d4aff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.teColor} />
+              <Pressable onPress={() => setTool('size')} style={s.teTool}>
+                <VIcon name="fontsize" size={24} color={tool === 'size' ? '#fff' : vela.textLight} />
+                {tool === 'size' ? <View style={s.teKbUnderline} /> : null}
               </Pressable>
-              <Pressable onPress={() => soon('Format')}><VIcon name="format" size={24} color={vela.textLight} /></Pressable>
+              <Pressable onPress={() => setShowColor(true)}>
+                <View style={[s.teColor, { backgroundColor: color, borderWidth: 2, borderColor: '#fff' }]} />
+              </Pressable>
+              <Pressable onPress={cycleAlign}><VIcon name="format" size={24} color={vela.textLight} /></Pressable>
               <Pressable onPress={() => soon('Spacing')}><VIcon name="spacing" size={24} color={vela.textLight} /></Pressable>
-              <Pressable onPress={() => soon('Style')}><VIcon name="style" size={24} color={vela.textLight} /></Pressable>
+              <Pressable onPress={() => updateOverlay({ bold: !bold })}><VIcon name="style" size={24} color={bold ? vela.accent : vela.textLight} /></Pressable>
               <View style={s.teDivider} />
               <Pressable onPress={close}><VIcon name="check" size={24} color="#fff" /></Pressable>
             </View>
           </View>
         </KeyboardAvoidingView>
       </View>
+      {showColor ? <ColorSheet value={color} onChange={(hex) => updateOverlay({ color: hex })} onClose={() => setShowColor(false)} /> : null}
     </Modal>
   );
 }
@@ -661,8 +690,11 @@ const s = StyleSheet.create({
   teInput: { flex: 1, backgroundColor: '#2a2a30', borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: '#fff', fontSize: 16, fontFamily: font.medium, maxHeight: 88 },
   teTrash: { padding: 4 },
   teToolbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, paddingVertical: 16 },
-  teKb: { alignItems: 'center', gap: 4 },
+  teTool: { alignItems: 'center', gap: 4 },
   teKbUnderline: { width: 16, height: 2, borderRadius: 1, backgroundColor: '#fff' },
+  teSizeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, height: 56 },
+  teSizeLabel: { color: '#fff', fontSize: 14, fontFamily: font.medium },
+  teSizeVal: { color: '#fff', fontFamily: mono.regular, fontSize: 14, minWidth: 34, textAlign: 'right' },
   teColor: { width: 26, height: 26, borderRadius: 13 },
   teDivider: { width: 1, height: 24, backgroundColor: '#3a3a42' },
 
