@@ -38,7 +38,8 @@
           "savePhotosPermission": "Orbit saves your exported videos to your library.",
           "isAccessMediaLocationEnabled": true
         }
-      ]
+      ],
+      "expo-font"
     ]
   }
 }

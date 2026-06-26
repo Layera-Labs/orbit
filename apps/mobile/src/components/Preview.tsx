@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Image, StyleSheet, Text, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { theme } from '../constants';
+import { theme, mono, ratioLabel } from '../constants';
 import { clipAtTime } from '../model/editor-ops';
 import { projectDuration } from '../model/project';
 import type { TextOverlay, VisualTrack, VisualTrackClip } from '../model/types';
@@ -127,7 +127,11 @@ export function Preview({ width, height }: { width: number; height: number }) {
         <VideoView style={StyleSheet.absoluteFill} player={player} contentFit="contain" nativeControls={false} />
       ) : null}
       {baseActive?.type === 'image' ? <Image source={{ uri: baseActive.src }} style={StyleSheet.absoluteFill} resizeMode="contain" /> : null}
-      {!baseActive ? <Text style={styles.empty}>{total > 0 ? '' : 'Empty — import media'}</Text> : null}
+      {!baseActive && total === 0 ? (
+        <Text style={styles.empty}>
+          your clip · {project ? ratioLabel(project.width, project.height) : '9:16'}
+        </Text>
+      ) : null}
 
       {activeOverlays.map((c) => (
         <OverlayLayer key={c.id} clip={c} width={width} height={height} />
@@ -145,8 +149,8 @@ export function Preview({ width, height }: { width: number; height: number }) {
 }
 
 const styles = StyleSheet.create({
-  frame: { backgroundColor: '#000', borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: theme.border, alignItems: 'center', justifyContent: 'center' },
-  empty: { color: theme.muted, fontSize: 14 },
+  frame: { backgroundColor: '#000', borderRadius: 4, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
+  empty: { position: 'absolute', bottom: 10, color: 'rgba(255,255,255,0.6)', fontSize: 10, fontFamily: mono.regular },
   overlayLayer: { overflow: 'hidden', borderRadius: 4, backgroundColor: '#0006' },
   textOverlay: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   playBtn: { position: 'absolute', bottom: 8, alignSelf: 'center' },
