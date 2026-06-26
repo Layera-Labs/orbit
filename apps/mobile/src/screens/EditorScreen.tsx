@@ -90,8 +90,8 @@ export function EditorScreen() {
     { key: 'split', icon: 'split', label: 'Split', onPress: splitAtPlayhead, disabled: clipCount === 0 },
     { key: 'cutout', icon: 'cutout', label: 'Cutout', soon: true },
     { key: 'quality', icon: 'quality', label: 'Quality', onPress: () => setPanel('settings') },
-    { key: 'speed', icon: 'speed', label: 'Speed', soon: true },
-    { key: 'volume', icon: 'volume', label: 'Volume', soon: true },
+    { key: 'speed', icon: 'speed', label: 'Speed', onPress: () => setPanel('speed') },
+    { key: 'volume', icon: 'volume', label: 'Volume', onPress: () => setPanel('volume') },
   ];
   // Full text toolset (CapCut). Split/Delete/Copy are real; the rest are soon.
   const textTools: Tool[] = [
@@ -111,12 +111,15 @@ export function EditorScreen() {
   ];
   const audioTools: Tool[] = [
     { key: 'split', icon: 'split', label: 'Split', onPress: splitAtPlayhead },
-    { key: 'volume', icon: 'volume', label: 'Volume', soon: true },
+    { key: 'volume', icon: 'volume', label: 'Volume', onPress: () => setPanel('volume') },
     { key: 'copy', icon: 'duplicate', label: 'Copy', onPress: duplicateSelected },
     { key: 'delete', icon: 'trash', label: 'Delete', onPress: removeSelected, danger: true },
   ];
   const visualTools: Tool[] = [
     { key: 'split', icon: 'split', label: 'Split', onPress: splitAtPlayhead },
+    { key: 'filter', icon: 'filter', label: 'Filter', onPress: () => setPanel('filter') },
+    { key: 'speed', icon: 'speed', label: 'Speed', onPress: () => setPanel('speed') },
+    { key: 'volume', icon: 'volume', label: 'Volume', onPress: () => setPanel('volume') },
     { key: 'pip', icon: 'fullscreen', label: 'PiP', onPress: togglePiP },
     { key: 'up', icon: 'chevronUp', label: 'Up', onPress: () => moveSelectedLayer(1) },
     { key: 'down', icon: 'chevronDown', label: 'Down', onPress: () => moveSelectedLayer(-1) },

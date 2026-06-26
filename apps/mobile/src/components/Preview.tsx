@@ -53,9 +53,10 @@ function BaseVideo({ clip, width, height, isPlaying, playheadSec }: { clip: Visu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying]);
   useEffect(() => {
-    timeSV.value = (clip.trimIn ?? 0) + Math.max(0, playheadSec - clip.start);
+    const sp = clip.speed && clip.speed > 0 ? clip.speed : 1;
+    timeSV.value = (clip.trimIn ?? 0) + Math.max(0, (playheadSec - clip.start) * sp);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playheadSec, clip.start, clip.trimIn]);
+  }, [playheadSec, clip.start, clip.trimIn, clip.speed]);
   const frame = useClipFrame(toUri(clip.src), playing, timeSV);
   const cm = colorMatrix(clip.filter);
   return (
