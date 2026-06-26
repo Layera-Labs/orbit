@@ -175,6 +175,19 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
   const audioClips = tracks.filter((t): t is AudioTrack => t.kind === 'audio').flatMap((t) => t.clips);
   const textOverlays = project.overlays.filter((o) => images[o.id]);
   const even = (n: number) => Math.max(2, Math.round(n / 2) * 2);
+  const r3 = (n: number) => Math.round(n * 1000) / 1000;
+
+  // Transitions (fade-through-black) on the MAIN (first visual) track: a clip's
+  // `transitionIn` fades it in; the previous clip then fades out. clip.id → fade.
+  const mainTrack = tracks.find((t): t is VisualTrack => t.kind === 'visual');
+  const mainClips = mainTrack?.clips ?? [];
+  const fadeMap = new Map<string, { fin: number; fout: number }>();
+  mainClips.forEach((c, i) => {
+    const fin = c.transitionIn && c.transitionIn.type !== 'cut' ? c.transitionIn.duration : 0;
+    const next = mainClips[i + 1];
+    const fout = next?.transitionIn && next.transitionIn.type !== 'cut' ? next.transitionIn.duration : 0;
+    if (fin || fout) fadeMap.set(c.id, { fin, fout });
+  });
 
   // ---- inputs: base(0), visual clips, text overlays, audio clips ----
   const inputs: string[] = [];
@@ -213,10 +226,12 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
     const shift = sp === 1 ? `setpts=PTS-STARTPTS+${S}/TB` : `setpts=(PTS-STARTPTS)/${sp}+${S}/TB`;
     const prep = c.type === 'video' ? `trim=start=${c.trimIn ?? 0}:duration=${srcDur},${shift},` : `setpts=PTS-STARTPTS+${S}/TB,`;
     const grade = filterToFFmpeg(c.filter);
-    const fmt = c.type === 'image' ? 'rgba' : 'yuv420p';
-    segments.push(
-      `[${vIn[i]}:v]${prep}${grade}scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1,fps=${fps},format=${fmt}[v${i}]`,
-    );
+    const fade = fadeMap.get(c.id);
+    const fmt = c.type === 'image' ? 'rgba' : fade ? 'yuva420p' : 'yuv420p';
+    let chain = `${prep}${grade}scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1,fps=${fps},format=${fmt}`;
+    if (fade?.fin) chain += `,fade=t=in:st=${r3(S)}:d=${fade.fin}:alpha=1`;
+    if (fade?.fout) chain += `,fade=t=out:st=${r3(E - fade.fout)}:d=${fade.fout}:alpha=1`;
+    segments.push(`[${vIn[i]}:v]${chain}[v${i}]`);
     segments.push(`${prev}[v${i}]overlay=${rx}:${ry}:enable='between(t,${S},${E})':eof_action=pass[c${i}]`);
     prev = `[c${i}]`;
   });

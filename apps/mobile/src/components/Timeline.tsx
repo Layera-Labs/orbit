@@ -27,7 +27,7 @@ import { mono, vela } from '../constants';
 import { VIcon, type VIconName } from './VIcon';
 import { MIN_CLIP } from '../model/editor-ops';
 import { projectDuration } from '../model/project';
-import type { Rect, VisualTrackClip } from '../model/types';
+import type { Rect, Transition, VisualTrackClip } from '../model/types';
 import { pickAndAddMedia } from '../media/pick';
 import { videoThumbnail } from '../storage/media';
 import { OVERLAY_TRACK, useEditor } from '../store/editorStore';
@@ -46,7 +46,7 @@ const PLAYHEAD_X = 10; // playhead offset from the gutter — clips start right 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 type RowKind = 'audio' | 'text' | 'visual' | 'sound';
-type ClipLike = { id: string; start: number; duration: number; trimIn?: number; src?: string; type?: 'video' | 'image'; rect?: Rect; text?: string };
+type ClipLike = { id: string; start: number; duration: number; trimIn?: number; src?: string; type?: 'video' | 'image'; rect?: Rect; text?: string; transitionIn?: Transition };
 interface RowDef {
   key: string;
   icon: VIconName;
@@ -241,6 +241,8 @@ function RowBg({ height }: { height: number }) {
 
 /** Scrolling clip layer for a row (transparent; sits on top of the RowBg). */
 function ClipLane({ row, scrollW, pxPerSec, selected }: { row: RowDef; scrollW: number; pxPerSec: number; selected: ReturnType<typeof useEditor.getState>['selected'] }) {
+  const select = useEditor((s) => s.select);
+  const setPanel = useEditor((s) => s.setPanel);
   const lastEnd = row.clips.reduce((m, { clip }) => Math.max(m, clip.start + clip.duration), 0);
   return (
     <View style={{ height: row.height }}>
@@ -257,6 +259,24 @@ function ClipLane({ row, scrollW, pxPerSec, selected }: { row: RowDef; scrollW: 
           <ClipView key={clip.id} clip={clip} trackId={trackId} kind={row.kind} height={row.height} selected={selected?.trackId === trackId && selected?.clipId === clip.id} pxPerSec={pxPerSec} />
         ))
       )}
+      {/* Transition chips between adjacent main-track clips */}
+      {row.key === 'video'
+        ? row.clips.slice(1).map(({ clip, trackId }) => {
+            const hasT = !!clip.transitionIn && clip.transitionIn.type !== 'cut';
+            return (
+              <Pressable
+                key={`tr-${clip.id}`}
+                style={[styles.trChip, hasT && styles.trChipOn, { left: clip.start * pxPerSec - 11, top: row.height / 2 - 10 }]}
+                onPress={() => {
+                  select({ trackId, clipId: clip.id });
+                  setPanel('transition');
+                }}
+              >
+                <VIcon name={hasT ? 'fx' : 'plus'} size={12} color={hasT ? '#111' : '#fff'} />
+              </Pressable>
+            );
+          })
+        : null}
       {row.addTile && row.clips.length > 0 ? (
         <Pressable onPress={row.add} style={[styles.addTile, { left: lastEnd * pxPerSec + 4, height: row.height }]}>
           <VIcon name="plus" size={22} color="#111" />
@@ -400,6 +420,8 @@ const styles = StyleSheet.create({
   durTag: { position: 'absolute', bottom: 2, right: 4, backgroundColor: '#000a', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 },
   durText: { color: '#fff', fontSize: 9, fontFamily: mono.medium },
   addTile: { position: 'absolute', top: 0, width: ADD_TILE_W, backgroundColor: '#fff', borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  trChip: { position: 'absolute', width: 22, height: 20, borderRadius: 6, backgroundColor: '#000a', alignItems: 'center', justifyContent: 'center', zIndex: 6, borderWidth: 1, borderColor: '#fff6' },
+  trChipOn: { backgroundColor: vela.select, borderColor: vela.select },
   handle: { position: 'absolute', top: 0, bottom: 0, width: HANDLE_W, backgroundColor: vela.select, alignItems: 'center', justifyContent: 'center' },
   handleLeft: { left: 0, borderTopLeftRadius: 6, borderBottomLeftRadius: 6 },
   handleRight: { right: 0, borderTopRightRadius: 6, borderBottomRightRadius: 6 },

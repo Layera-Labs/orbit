@@ -32,6 +32,18 @@ function toUri(p?: string | null): string | null {
   return p.startsWith('http') || p.startsWith('file:') ? p : `file://${p}`;
 }
 
+/** Base-clip opacity for fade-through-black transitions (in/out windows). */
+function transitionOpacity(clip: VisualTrackClip, next: VisualTrackClip | undefined, t: number): number {
+  const fin = clip.transitionIn && clip.transitionIn.type !== 'cut' ? clip.transitionIn.duration : 0;
+  const fout = next?.transitionIn && next.transitionIn.type !== 'cut' ? next.transitionIn.duration : 0;
+  const S = clip.start;
+  const E = clip.start + clip.duration;
+  let op = 1;
+  if (fin > 0 && t < S + fin) op = Math.min(op, (t - S) / fin);
+  if (fout > 0 && t > E - fout) op = Math.min(op, (E - t) / fout);
+  return Math.max(0, Math.min(1, op));
+}
+
 /** Active base VIDEO clip — its own `useVideo` decoder; mounted only while active. */
 function BaseVideo({ clip, width, height, isPlaying, playheadSec }: { clip: VisualTrackClip; width: number; height: number; isPlaying: boolean; playheadSec: number }) {
   const playing = useSharedValue(isPlaying);
@@ -123,6 +135,10 @@ export function Preview({ width, height }: { width: number; height: number }) {
   const base = visualTracks[0];
   const overlayTracks = visualTracks.slice(1);
   const baseActive = base ? (clipAtTime(base, lookupT) as VisualTrackClip | undefined) : undefined;
+  const baseClips = base?.clips ?? [];
+  const baseIdx = baseActive ? baseClips.findIndex((c) => c.id === baseActive.id) : -1;
+  const nextBaseClip = baseIdx >= 0 ? baseClips[baseIdx + 1] : undefined;
+  const baseOp = baseActive ? transitionOpacity(baseActive, nextBaseClip, playheadSec) : 1;
 
   // Transport clock: advance the playhead while playing.
   useEffect(() => {
@@ -155,11 +171,13 @@ export function Preview({ width, height }: { width: number; height: number }) {
     <View style={[styles.frame, { width, height }]}>
       <Canvas style={{ width, height }}>
         <Fill color="#000000" />
-        {baseActive?.type === 'video' ? (
-          <BaseVideo key={baseActive.id} clip={baseActive} width={width} height={height} isPlaying={isPlaying} playheadSec={playheadSec} />
-        ) : baseActive?.type === 'image' ? (
-          <BaseImage key={baseActive.id} clip={baseActive} width={width} height={height} />
-        ) : null}
+        <Group opacity={baseOp}>
+          {baseActive?.type === 'video' ? (
+            <BaseVideo key={baseActive.id} clip={baseActive} width={width} height={height} isPlaying={isPlaying} playheadSec={playheadSec} />
+          ) : baseActive?.type === 'image' ? (
+            <BaseImage key={baseActive.id} clip={baseActive} width={width} height={height} />
+          ) : null}
+        </Group>
         {activeOverlays.map((c) => (
           <OverlayLayer key={c.id} clip={c} width={width} height={height} />
         ))}
