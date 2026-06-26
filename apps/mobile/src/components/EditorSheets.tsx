@@ -24,6 +24,7 @@ import { font, mono, vela, RATIOS, ratioLabel } from '../constants';
 import { VIcon, type VIconName } from './VIcon';
 import { VSlider } from './VSlider';
 import { ColorSheet } from './ColorSheet';
+import { FontPickerSheet } from './FontPickerSheet';
 import type { TextAlign } from '../model/types';
 import { clipAtTime } from '../model/editor-ops';
 import type { VisualTrackClip } from '../model/types';
@@ -473,6 +474,7 @@ function TextEditSheet() {
   const [text, setText] = useState(ov?.text ?? '');
   const [tool, setTool] = useState<'kb' | 'size'>('kb');
   const [showColor, setShowColor] = useState(false);
+  const [showFont, setShowFont] = useState(false);
   const inputRef = useRef<TextInput>(null);
   const close = () => setPanel(null);
   const onChange = (t: string) => {
@@ -522,7 +524,7 @@ function TextEditSheet() {
                 <VIcon name="keyboard" size={24} color={tool === 'kb' ? '#fff' : vela.textLight} />
                 {tool === 'kb' ? <View style={s.teKbUnderline} /> : null}
               </Pressable>
-              <Pressable onPress={() => soon('Font')}><VIcon name="font" size={24} color={vela.textLight} /></Pressable>
+              <Pressable onPress={() => setShowFont(true)}><VIcon name="font" size={24} color={vela.textLight} /></Pressable>
               <Pressable onPress={() => setTool('size')} style={s.teTool}>
                 <VIcon name="fontsize" size={24} color={tool === 'size' ? '#fff' : vela.textLight} />
                 {tool === 'size' ? <View style={s.teKbUnderline} /> : null}
@@ -540,6 +542,7 @@ function TextEditSheet() {
         </KeyboardAvoidingView>
       </View>
       {showColor ? <ColorSheet value={color} onChange={(hex) => updateOverlay({ color: hex })} onClose={() => setShowColor(false)} /> : null}
+      {showFont ? <FontPickerSheet value={ov?.fontFamily} onChange={(family) => updateOverlay({ fontFamily: family })} onClose={() => setShowFont(false)} /> : null}
     </Modal>
   );
 }
