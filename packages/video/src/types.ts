@@ -118,6 +118,16 @@ export interface ClipFilter {
 // renderer keeps a separate concat/xfade path for them).
 // ---------------------------------------------------------------------------
 
+/** Per-export output overrides (resolution / fps / bitrate / audio-only). */
+export interface ExportOutput {
+  width?: number;
+  height?: number;
+  fps?: number;
+  /** target video bitrate, Mbps. */
+  bitrate?: number;
+  audioOnly?: boolean;
+}
+
 /** Normalized rectangle on the output canvas (fractions of width/height, 0..1). */
 export interface Rect {
   x: number;
