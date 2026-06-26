@@ -18,3 +18,6 @@ coverage
 .expo
 apps/mobile/.expo
 gen.mp4
+# Expo CNG-generated native projects (app.json stays canonical)
+apps/mobile/ios
+apps/mobile/android

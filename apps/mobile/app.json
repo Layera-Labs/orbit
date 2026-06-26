@@ -19,7 +19,8 @@
         "NSPhotoLibraryUsageDescription": "Orbit needs access to your photo library to import videos and images into your projects.",
         "NSPhotoLibraryAddUsageDescription": "Orbit saves your exported videos to your photo library.",
         "NSMicrophoneUsageDescription": "Orbit needs microphone access for audio in your videos."
-      }
+      },
+      "bundleIdentifier": "com.anonymous.orbit-video"
     },
     "userInterfaceStyle": "dark",
     "plugins": [
