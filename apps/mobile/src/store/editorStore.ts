@@ -107,6 +107,8 @@ interface EditorState {
   trimClip: (trackId: string, clipId: string, patch: { start?: number; trimIn?: number; duration?: number }) => void;
   setClipRect: (trackId: string, clipId: string, rect: Rect) => void;
   setSelectedFilter: (filter: ClipFilter | undefined) => void;
+  /** Apply a filter to the effects target (selected visual clip, else base clip at playhead). */
+  applyClipFilter: (filter: ClipFilter | undefined) => void;
   setSelectedSpeed: (speed: number) => void;
   setSelectedVolume: (volume: number) => void;
   setSelectedTransition: (transition: Transition | undefined) => void;
@@ -427,6 +429,12 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (!s || s.trackId === OVERLAY_TRACK) return;
     get().apply((p) => ops.setClipFilter(p, s.trackId, s.clipId, filter));
   },
+  applyClipFilter: (filter) => {
+    const t = effectsTarget();
+    if (!t) return;
+    get().apply((p) => ops.setClipFilter(p, t.trackId, t.clipId, filter));
+    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+  },
   setSelectedSpeed: (speed) => {
     const s = get().selected;
     if (!s || s.trackId === OVERLAY_TRACK) return;
@@ -488,3 +496,25 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   setSourceDims: (width, height) => set({ sourceDims: { width, height } }),
 }));
+
+/**
+ * The clip an effect (filter/speed/...) should target: the selected visual clip
+ * if there is one, otherwise the base track's clip at the playhead.
+ */
+export function effectsTarget(): { trackId: string; clipId: string; clip: VisualTrackClip } | null {
+  const { selected, project, playheadSec } = useEditor.getState();
+  const tracks = project?.tracks ?? [];
+  if (selected) {
+    const tr = tracks.find((t) => t.id === selected.trackId);
+    if (tr && tr.kind === 'visual') {
+      const clip = tr.clips.find((c) => c.id === selected.clipId);
+      if (clip) return { trackId: tr.id, clipId: clip.id, clip };
+    }
+  }
+  const base = tracks.find((t) => t.kind === 'visual');
+  if (base && base.kind === 'visual') {
+    const clip = ops.clipAtTime(base, playheadSec) as VisualTrackClip | undefined;
+    if (clip) return { trackId: base.id, clipId: clip.id, clip };
+  }
+  return null;
+}
