@@ -26,7 +26,7 @@ import { VSlider } from './VSlider';
 import { ColorSheet } from './ColorSheet';
 import { FontPickerSheet } from './FontPickerSheet';
 import { FILTER_LIST } from '../filters/registry';
-import type { ClipFilter, TextAlign } from '../model/types';
+import type { ClipFilter, TextAlign, TransitionType } from '../model/types';
 import { clipAtTime } from '../model/editor-ops';
 import type { VisualTrackClip } from '../model/types';
 import { videoThumbnail } from '../storage/media';
@@ -577,6 +577,67 @@ function TextEditSheet() {
   );
 }
 
+// ---- Transition ----------------------------------------------------------
+
+const TRANSITIONS: { key: TransitionType; label: string; soon?: boolean }[] = [
+  { key: 'cut', label: 'None' },
+  { key: 'fade', label: 'Fade' },
+  { key: 'dissolve', label: 'Dissolve', soon: true },
+  { key: 'slide', label: 'Slide', soon: true },
+  { key: 'wipe', label: 'Wipe', soon: true },
+  { key: 'zoom', label: 'Zoom', soon: true },
+];
+
+function TransitionSheet() {
+  const setPanel = useEditor((s) => s.setPanel);
+  const setSelectedTransition = useEditor((s) => s.setSelectedTransition);
+  const selected = useEditor((s) => s.selected);
+  const current = useEditor((s) => {
+    const tr = (s.project?.tracks ?? []).find((t) => t.id === selected?.trackId);
+    const c = tr?.kind === 'visual' ? tr.clips.find((x) => x.id === selected?.clipId) : undefined;
+    return c?.transitionIn;
+  });
+  const close = () => setPanel(null);
+  const [dur, setDur] = useState(current?.duration ?? 0.5);
+  const type: TransitionType = current?.type ?? 'cut';
+
+  const apply = (key: TransitionType) => {
+    setSelectedTransition(key === 'cut' ? undefined : { type: key, duration: dur });
+  };
+
+  return (
+    <BottomSheet onClose={close} style={{ gap: 16 }} dim="#0002">
+      <View style={s.rowBetween}>
+        <Text style={s.sheetTitle}>Transition</Text>
+        <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
+      </View>
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 16, paddingVertical: 2 }}>
+        {TRANSITIONS.map((t) => {
+          const on = type === t.key;
+          return (
+            <Pressable key={t.key} style={s.trItem} onPress={() => (t.soon ? soon(t.label) : apply(t.key))}>
+              <View style={[s.trIcon, on && s.trIconOn]}>
+                <VIcon name={t.key === 'cut' ? 'close' : 'fx'} size={22} color={on ? '#111' : '#fff'} />
+              </View>
+              <Text style={[s.trLabel, on && { color: vela.select }]}>{t.label}</Text>
+              {t.soon ? <View style={s.trSoon}><Text style={s.trSoonText}>soon</Text></View> : null}
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+      {type !== 'cut' ? (
+        <View style={s.intensityRow}>
+          <Text style={s.intensityLabel}>Duration</Text>
+          <View style={{ flex: 1 }}>
+            <VSlider value={dur} min={0.2} max={2} onChange={(v) => { const d = Math.round(v * 10) / 10; setDur(d); setSelectedTransition({ type, duration: d }); }} />
+          </View>
+          <Text style={s.intensityVal}>{dur.toFixed(1)}s</Text>
+        </View>
+      ) : null}
+    </BottomSheet>
+  );
+}
+
 // ---- Export progress -----------------------------------------------------
 
 function ExportProgressModal() {
@@ -608,6 +669,7 @@ export function EditorSheets() {
       {panel === 'filter' && <FilterSheet />}
       {panel === 'export' && <ExportSheet />}
       {panel === 'textedit' && <TextEditSheet />}
+      {panel === 'transition' && <TransitionSheet />}
       <ExportProgressModal />
     </>
   );
@@ -698,6 +760,13 @@ const s = StyleSheet.create({
   intensityVal: { color: '#fff', fontFamily: mono.regular, fontSize: 14, minWidth: 34, textAlign: 'right' },
   filterActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 28, paddingTop: 8 },
   applyAll: { color: vela.muted, fontFamily: font.semibold, fontSize: 15 },
+
+  trItem: { width: 62, alignItems: 'center', gap: 7 },
+  trIcon: { width: 56, height: 56, borderRadius: 14, backgroundColor: vela.card3, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
+  trIconOn: { backgroundColor: vela.select, borderColor: vela.select },
+  trLabel: { color: vela.muted, fontSize: 12, fontFamily: font.medium },
+  trSoon: { position: 'absolute', top: -3, right: 4, backgroundColor: vela.card2, borderRadius: 5, paddingHorizontal: 4, paddingVertical: 1 },
+  trSoonText: { color: vela.muted2, fontSize: 8, fontFamily: font.bold },
 
   filterSheet: { gap: 14 },
   fTabOn: { color: '#fff', fontFamily: font.bold, fontSize: 16 },

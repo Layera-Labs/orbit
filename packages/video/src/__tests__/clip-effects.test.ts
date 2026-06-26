@@ -73,3 +73,39 @@ describe('engine applies per-clip filter + speed', () => {
     expect(graph).toContain('atempo=2,adelay=');
   });
 });
+
+describe('engine applies transitions (fade-through-black)', () => {
+  const project: VideoProject = {
+    id: 'p',
+    schemaVersion: 2,
+    width: 1080,
+    height: 1920,
+    fps: 30,
+    background: { type: 'color', color: '#000000' },
+    clips: [],
+    overlays: [],
+    audio: [],
+    tracks: [
+      {
+        id: 'base',
+        kind: 'visual',
+        clips: [
+          { id: 'a', type: 'video', src: 'a.mp4', start: 0, duration: 3, trimIn: 0 },
+          { id: 'b', type: 'video', src: 'b.mp4', start: 3, duration: 3, trimIn: 0, transitionIn: { type: 'fade', duration: 1 } },
+        ],
+      },
+    ],
+  };
+  const args = buildFFmpegArgs(project, { outputPath: '/tmp/o.mp4', baseImage: '/tmp/bg.png', hasAudio: () => true });
+  const graph = args[args.indexOf('-filter_complex') + 1];
+
+  it('fades the incoming clip in at its start', () => {
+    expect(graph).toContain('fade=t=in:st=3:d=1:alpha=1');
+  });
+  it('fades the previous clip out into the transition', () => {
+    expect(graph).toContain('fade=t=out:st=2:d=1:alpha=1'); // clip a ends at 3, fade out over last 1s
+  });
+  it('uses an alpha pixel format for faded clips', () => {
+    expect(graph).toContain('format=yuva420p');
+  });
+});
