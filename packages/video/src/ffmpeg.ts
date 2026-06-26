@@ -11,6 +11,7 @@
  */
 import { FULL_FRAME, type AudioTrack, type VideoProject, type VisualTrack } from './types';
 import { projectDuration, transitionDuration } from './project';
+import { atempoChain, filterToFFmpeg } from './filters';
 
 export interface BuildFFmpegOptions {
   outputPath: string;
@@ -206,11 +207,15 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
     const ry = Math.round(R.y * H);
     const S = c.start;
     const E = c.start + c.duration;
-    const shift = `setpts=PTS-STARTPTS+${S}/TB`;
-    const prep = c.type === 'video' ? `trim=start=${c.trimIn ?? 0}:duration=${c.duration},${shift},` : `${shift},`;
+    const sp = c.speed && c.speed > 0 ? c.speed : 1;
+    // speed: consume `duration*sp` source seconds, then setpts divides by sp.
+    const srcDur = c.duration * sp;
+    const shift = sp === 1 ? `setpts=PTS-STARTPTS+${S}/TB` : `setpts=(PTS-STARTPTS)/${sp}+${S}/TB`;
+    const prep = c.type === 'video' ? `trim=start=${c.trimIn ?? 0}:duration=${srcDur},${shift},` : `setpts=PTS-STARTPTS+${S}/TB,`;
+    const grade = filterToFFmpeg(c.filter);
     const fmt = c.type === 'image' ? 'rgba' : 'yuv420p';
     segments.push(
-      `[${vIn[i]}:v]${prep}scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1,fps=${fps},format=${fmt}[v${i}]`,
+      `[${vIn[i]}:v]${prep}${grade}scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1,fps=${fps},format=${fmt}[v${i}]`,
     );
     segments.push(`${prev}[v${i}]overlay=${rx}:${ry}:enable='between(t,${S},${E})':eof_action=pass[c${i}]`);
     prev = `[c${i}]`;
@@ -242,8 +247,12 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
   visualClips.forEach((c, i) => {
     if (c.type !== 'video' || c.muted || !hasAudio(resolve(c.src))) return;
     const ms = Math.max(0, Math.round(c.start * 1000));
+    const sp = c.speed && c.speed > 0 ? c.speed : 1;
+    const srcDur = c.duration * sp;
+    const tempo = atempoChain(sp);
+    const tempoPart = tempo ? `${tempo},` : '';
     segments.push(
-      `[${vIn[i]}:a]atrim=start=${c.trimIn ?? 0}:duration=${c.duration},asetpts=PTS-STARTPTS,adelay=${ms}:all=1,volume=${c.volume ?? 1}[va${i}]`,
+      `[${vIn[i]}:a]atrim=start=${c.trimIn ?? 0}:duration=${srcDur},asetpts=PTS-STARTPTS,${tempoPart}adelay=${ms}:all=1,volume=${c.volume ?? 1}[va${i}]`,
     );
     aLabels.push(`[va${i}]`);
   });

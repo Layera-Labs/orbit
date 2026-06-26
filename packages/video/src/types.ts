@@ -79,11 +79,34 @@ export type Background =
   | { type: 'gradient'; from: string; to: string; angle?: number }
   | { type: 'blur'; amount?: number };
 
-/** Transition applied between consecutive clips (v1: one project-wide setting). */
+export type TransitionType = 'cut' | 'fade' | 'dissolve' | 'slide' | 'wipe' | 'zoom';
+
+/** Transition between consecutive clips (legacy: one project-wide setting;
+ *  multi-track: per base-clip boundary via `VisualTrackClip.transitionIn`). */
 export interface Transition {
-  type: 'cut' | 'fade';
+  type: TransitionType;
   /** Crossfade duration in seconds (ignored for 'cut'). */
   duration: number;
+}
+
+/**
+ * Per-clip colour grade. `preset` names a look (resolved via FILTER_PRESETS in
+ * `filters.ts`); the explicit fields override the preset's params. `intensity`
+ * (0..1) lerps the whole grade toward neutral. The mobile Skia preview and the
+ * server ffmpeg render read the SAME values (kept in lock-step).
+ */
+export interface ClipFilter {
+  preset?: string;
+  /** eq brightness, -1..1 (0 = neutral). */
+  brightness?: number;
+  /** eq contrast, 0..2 (1 = neutral). */
+  contrast?: number;
+  /** eq saturation, 0..3 (1 = neutral). */
+  saturation?: number;
+  /** warm(+) / cool(-) tint, -1..1 (0 = neutral). */
+  temperature?: number;
+  /** overall strength, 0..1 (default 1). */
+  intensity?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -121,6 +144,12 @@ export interface VisualTrackClip {
   /** 0..1 gain on the clip's own audio. */
   volume?: number;
   muted?: boolean;
+  /** Colour grade applied to this clip (preview + export). */
+  filter?: ClipFilter;
+  /** Playback speed multiplier (1 = normal; 2 = 2× faster). */
+  speed?: number;
+  /** Transition INTO this clip from the previous base-track clip (crossfade etc.). */
+  transitionIn?: Transition;
 }
 
 export interface AudioTrackClip {
