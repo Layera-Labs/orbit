@@ -638,6 +638,72 @@ function TransitionSheet() {
   );
 }
 
+// ---- Speed / Volume ------------------------------------------------------
+
+function SpeedSheet() {
+  const setPanel = useEditor((s) => s.setPanel);
+  const applyClipSpeed = useEditor((s) => s.applyClipSpeed);
+  const [speed, setSpeed] = useState(() => effectsTarget()?.clip.speed ?? 1);
+  const close = () => setPanel(null);
+  const set = (v: number) => {
+    setSpeed(v);
+    applyClipSpeed(v);
+  };
+  return (
+    <BottomSheet onClose={close} style={{ gap: 16 }} dim="#0002">
+      <View style={s.rowBetween}>
+        <Text style={s.sheetTitle}>Speed</Text>
+        <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
+      </View>
+      <View style={s.intensityRow}>
+        <Text style={s.intensityLabel}>Speed</Text>
+        <View style={{ flex: 1 }}><VSlider value={speed} min={0.25} max={4} onChange={(v) => set(Math.round(v * 100) / 100)} /></View>
+        <Text style={s.intensityVal}>{speed.toFixed(2)}×</Text>
+      </View>
+      <View style={s.chipRow}>
+        {[0.5, 1, 2, 3].map((v) => (
+          <Pressable key={v} onPress={() => set(v)} style={[s.chip, speed === v && s.chipOn]}>
+            <Text style={[s.chipText, speed === v && { color: '#111' }]}>{v}×</Text>
+          </Pressable>
+        ))}
+      </View>
+    </BottomSheet>
+  );
+}
+
+function VolumeSheet() {
+  const setPanel = useEditor((s) => s.setPanel);
+  const applyClipVolume = useEditor((s) => s.applyClipVolume);
+  const [vol, setVol] = useState(() => {
+    const { selected, project } = useEditor.getState();
+    const tracks = project?.tracks ?? [];
+    if (selected) {
+      const tr = tracks.find((t) => t.id === selected.trackId);
+      const c = tr?.clips.find((x) => x.id === selected.clipId);
+      if (c) return c.volume ?? 1;
+    }
+    return effectsTarget()?.clip.volume ?? 1;
+  });
+  const close = () => setPanel(null);
+  const set = (v: number) => {
+    setVol(v);
+    applyClipVolume(v);
+  };
+  return (
+    <BottomSheet onClose={close} style={{ gap: 16 }} dim="#0002">
+      <View style={s.rowBetween}>
+        <Text style={s.sheetTitle}>Volume</Text>
+        <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
+      </View>
+      <View style={s.intensityRow}>
+        <Text style={s.intensityLabel}>Volume</Text>
+        <View style={{ flex: 1 }}><VSlider value={vol} min={0} max={2} onChange={(v) => set(Math.round(v * 20) / 20)} /></View>
+        <Text style={s.intensityVal}>{Math.round(vol * 100)}%</Text>
+      </View>
+    </BottomSheet>
+  );
+}
+
 // ---- Export progress -----------------------------------------------------
 
 function ExportProgressModal() {
@@ -670,6 +736,8 @@ export function EditorSheets() {
       {panel === 'export' && <ExportSheet />}
       {panel === 'textedit' && <TextEditSheet />}
       {panel === 'transition' && <TransitionSheet />}
+      {panel === 'speed' && <SpeedSheet />}
+      {panel === 'volume' && <VolumeSheet />}
       <ExportProgressModal />
     </>
   );
@@ -767,6 +835,11 @@ const s = StyleSheet.create({
   trLabel: { color: vela.muted, fontSize: 12, fontFamily: font.medium },
   trSoon: { position: 'absolute', top: -3, right: 4, backgroundColor: vela.card2, borderRadius: 5, paddingHorizontal: 4, paddingVertical: 1 },
   trSoonText: { color: vela.muted2, fontSize: 8, fontFamily: font.bold },
+
+  chipRow: { flexDirection: 'row', gap: 10 },
+  chip: { flex: 1, height: 40, borderRadius: 10, backgroundColor: vela.card3, alignItems: 'center', justifyContent: 'center' },
+  chipOn: { backgroundColor: vela.select },
+  chipText: { color: '#fff', fontFamily: font.semibold, fontSize: 14 },
 
   filterSheet: { gap: 14 },
   fTabOn: { color: '#fff', fontFamily: font.bold, fontSize: 16 },

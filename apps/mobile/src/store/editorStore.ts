@@ -28,7 +28,7 @@ import { Alert } from 'react-native';
 
 export type Screen = 'projects' | 'discover' | 'editor' | 'quick';
 /** Editor sheets/panels — mirrors Vela's `panel` state machine. */
-export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition';
+export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition' | 'speed' | 'volume';
 export interface EditorPrefs {
   mainTrack: 'Quick' | 'Pro';
   linkage: boolean;
@@ -109,6 +109,10 @@ interface EditorState {
   setSelectedFilter: (filter: ClipFilter | undefined) => void;
   /** Apply a filter to the effects target (selected visual clip, else base clip at playhead). */
   applyClipFilter: (filter: ClipFilter | undefined) => void;
+  /** Apply speed to the effects target. */
+  applyClipSpeed: (speed: number) => void;
+  /** Apply volume to the selected clip (audio or video), else the base clip at playhead. */
+  applyClipVolume: (volume: number) => void;
   setSelectedSpeed: (speed: number) => void;
   setSelectedVolume: (volume: number) => void;
   setSelectedTransition: (transition: Transition | undefined) => void;
@@ -434,6 +438,24 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (!t) return;
     get().apply((p) => ops.setClipFilter(p, t.trackId, t.clipId, filter));
     set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+  },
+  applyClipSpeed: (speed) => {
+    const t = effectsTarget();
+    if (!t) return;
+    get().apply((p) => ops.setClipSpeed(p, t.trackId, t.clipId, speed));
+    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+  },
+  applyClipVolume: (volume) => {
+    const s = get().selected;
+    let target = s && s.trackId !== OVERLAY_TRACK ? { trackId: s.trackId, clipId: s.clipId } : null;
+    if (!target) {
+      const t = effectsTarget();
+      if (t) target = { trackId: t.trackId, clipId: t.clipId };
+    }
+    if (!target) return;
+    const tt = target;
+    get().apply((p) => ops.setClipVolume(p, tt.trackId, tt.clipId, volume));
+    set({ selected: tt });
   },
   setSelectedSpeed: (speed) => {
     const s = get().selected;
