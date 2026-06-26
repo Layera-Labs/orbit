@@ -85,6 +85,7 @@ interface EditorState {
   removeProject: (id: string) => void;
   renameProject: (id: string, name: string) => void;
   duplicateProject: (id: string) => void;
+  setProjectFolder: (id: string, folder: string) => void;
   closeEditor: () => void;
 
   // transient UI
@@ -216,6 +217,14 @@ export const useEditor = create<EditorState>((set, get) => ({
     saveProject({ ...stored, name: clean, updatedAt: Date.now() });
     set({ projects: listProjects() });
     if (get().projectId === id) set({ name: clean });
+  },
+
+  setProjectFolder: (id, folder) => {
+    const stored = loadProject(id);
+    if (!stored) return;
+    const f = folder.trim() || 'Default';
+    saveProject({ ...stored, folder: f });
+    set({ projects: listProjects() });
   },
 
   duplicateProject: (id) => {

@@ -14,6 +14,8 @@ export interface StoredProject {
   updatedAt: number;
   /** Optional poster thumbnail URI (first clip frame). */
   posterUri?: string;
+  /** Folder name this project belongs to (default "Default"). */
+  folder?: string;
   /** Source-media length in seconds, keyed by media URI — used to clamp trims.
    *  App-only metadata; never sent to the render service. */
   mediaDurations?: Record<string, number>;
