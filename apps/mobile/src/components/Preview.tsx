@@ -10,7 +10,7 @@
  * layers (P4/P5). The server export is the true composite.
  */
 import { useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { type GestureResponderEvent, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Canvas, ColorMatrix, Fill, Group, Image as SkImg, rect, useImage } from '@shopify/react-native-skia';
 import { useSharedValue } from 'react-native-reanimated';
 import { useClipFrame } from '../preview/useClipFrame';
@@ -21,7 +21,7 @@ import { clipAtTime } from '../model/editor-ops';
 import { projectDuration } from '../model/project';
 import type { TextOverlay, VisualTrack, VisualTrackClip } from '../model/types';
 import { videoThumbnail } from '../storage/media';
-import { useEditor } from '../store/editorStore';
+import { OVERLAY_TRACK, useEditor } from '../store/editorStore';
 
 const TICK_MS = 50;
 const posterCache = new Map<string, string>();
@@ -120,6 +120,8 @@ export function Preview({ width, height }: { width: number; height: number }) {
   const isPlaying = useEditor((s) => s.isPlaying);
   const setPlayhead = useEditor((s) => s.setPlayhead);
   const setPlaying = useEditor((s) => s.setPlaying);
+  const select = useEditor((s) => s.select);
+  const selected = useEditor((s) => s.selected);
   const fontsVersion = useFontsVersion();
   const startedAt = useRef(0);
 
@@ -163,13 +165,43 @@ export function Preview({ width, height }: { width: number; height: number }) {
   }, [isPlaying, total, project?.id]);
 
   const activeOverlays = overlayTracks
-    .map((t) => clipAtTime(t, lookupT) as VisualTrackClip | undefined)
-    .filter((c): c is VisualTrackClip => !!c);
+    .map((t) => {
+      const c = clipAtTime(t, lookupT) as VisualTrackClip | undefined;
+      return c ? { clip: c, trackId: t.id } : null;
+    })
+    .filter((x): x is { clip: VisualTrackClip; trackId: string } => !!x);
   const captions = (project?.overlays ?? []).filter((o) => playheadSec >= o.start && playheadSec <= o.end);
   const scale = project ? width / project.width : 1;
 
+  // Tap an element in the preview to SELECT it (top→bottom): sticker/PiP overlays
+  // by rect, then captions by a y-band, then the base clip; empty area deselects.
+  function onTapPreview(e: GestureResponderEvent) {
+    const nx = e.nativeEvent.locationX / width;
+    const ny = e.nativeEvent.locationY / height;
+    for (let i = activeOverlays.length - 1; i >= 0; i--) {
+      const { clip, trackId } = activeOverlays[i];
+      const r = clip.rect ?? { x: 0, y: 0, w: 1, h: 1 };
+      if (nx >= r.x && nx <= r.x + r.w && ny >= r.y && ny <= r.y + r.h) {
+        select({ trackId, clipId: clip.id });
+        return;
+      }
+    }
+    for (const o of captions) {
+      if (Math.abs(ny - o.y) < 0.1) {
+        select({ trackId: OVERLAY_TRACK, clipId: o.id });
+        return;
+      }
+    }
+    if (baseActive && base) {
+      const isSel = selected?.trackId === base.id && selected?.clipId === baseActive.id;
+      select(isSel ? null : { trackId: base.id, clipId: baseActive.id });
+      return;
+    }
+    select(null);
+  }
+
   return (
-    <View style={[styles.frame, { width, height }]}>
+    <Pressable style={[styles.frame, { width, height }]} onPress={onTapPreview}>
       <Canvas style={{ width, height }}>
         <Fill color="#000000" />
         <Group opacity={baseOp}>
@@ -179,8 +211,8 @@ export function Preview({ width, height }: { width: number; height: number }) {
             <BaseImage key={baseActive.id} clip={baseActive} width={width} height={height} />
           ) : null}
         </Group>
-        {activeOverlays.map((c) => (
-          <OverlayLayer key={c.id} clip={c} width={width} height={height} />
+        {activeOverlays.map(({ clip }) => (
+          <OverlayLayer key={clip.id} clip={clip} width={width} height={height} />
         ))}
       </Canvas>
 
@@ -207,7 +239,7 @@ export function Preview({ width, height }: { width: number; height: number }) {
           </View>
         ))}
       </View>
-    </View>
+    </Pressable>
   );
 }
 
