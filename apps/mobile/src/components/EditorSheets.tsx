@@ -25,12 +25,13 @@ import { VIcon, type VIconName } from './VIcon';
 import { VSlider } from './VSlider';
 import { ColorSheet } from './ColorSheet';
 import { FontPickerSheet } from './FontPickerSheet';
-import type { TextAlign } from '../model/types';
+import { FILTER_LIST } from '../filters/registry';
+import type { ClipFilter, TextAlign } from '../model/types';
 import { clipAtTime } from '../model/editor-ops';
 import type { VisualTrackClip } from '../model/types';
 import { videoThumbnail } from '../storage/media';
 import { pickAndAddAudio, pickAndAddMedia, pickAndAddOverlay } from '../media/pick';
-import { useEditor } from '../store/editorStore';
+import { effectsTarget, useEditor } from '../store/editorStore';
 
 const soon = (label: string) => Alert.alert('Coming soon', `${label} is coming soon.`);
 
@@ -45,10 +46,10 @@ function VToggle({ value, onChange, offColor = vela.toggleOff }: { value: boolea
   );
 }
 
-function BottomSheet({ onClose, children, style }: { onClose: () => void; children: React.ReactNode; style?: object }) {
+function BottomSheet({ onClose, children, style, dim }: { onClose: () => void; children: React.ReactNode; style?: object; dim?: string }) {
   return (
     <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={s.backdrop} onPress={onClose}>
+      <Pressable style={[s.backdrop, dim ? { backgroundColor: dim } : null]} onPress={onClose}>
         <Pressable style={[s.sheet, style]} onPress={() => {}}>
           {children}
         </Pressable>
@@ -323,55 +324,84 @@ function PrefsSheet() {
   );
 }
 
-// ---- Filter (full screen, soon) ------------------------------------------
+// ---- Filter (live grade) -------------------------------------------------
 
-const FILTER_CATS = ['Season', 'Essence', 'Fog', 'Lune', 'Mood', 'Polar'];
-const FILTER_THUMBS = ['Original', 'E5', 'Fo1', 'Fo2', 'Fo3', 'L1'];
+const FILTER_SWATCH: Record<string, readonly [string, string]> = {
+  none: ['#9a9aa2', '#5e5e68'],
+  vivid: ['#ff5a5f', '#2f7bff'],
+  warm: ['#f2c14e', '#c04a2a'],
+  cool: ['#37b6f0', '#2f3a8a'],
+  mono: ['#cfcfd6', '#3a3a42'],
+  fade: ['#d9c3a4', '#9a9aa2'],
+  film: ['#8a6d4a', '#3a2a20'],
+};
+const r2 = (n: number) => Math.round(n * 100) / 100;
+
+function AdjustRow({ label, value, min, max, onChange, fmt }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void; fmt: (v: number) => string }) {
+  return (
+    <View style={s.adjustRow}>
+      <Text style={s.adjustLabel}>{label}</Text>
+      <View style={{ flex: 1 }}>
+        <VSlider value={value} min={min} max={max} onChange={onChange} />
+      </View>
+      <Text style={s.adjustVal}>{fmt(value)}</Text>
+    </View>
+  );
+}
 
 function FilterSheet() {
   const setPanel = useEditor((s) => s.setPanel);
+  const applyClipFilter = useEditor((s) => s.applyClipFilter);
   const close = () => setPanel(null);
+  const [filter, setFilter] = useState<ClipFilter>(() => effectsTarget()?.clip.filter ?? {});
+  const [tab, setTab] = useState<'filter' | 'adjust'>('filter');
+  const apply = (f: ClipFilter) => {
+    setFilter(f);
+    applyClipFilter(Object.keys(f).length ? f : undefined);
+  };
+  const preset = filter.preset ?? 'none';
+  const intensity = filter.intensity ?? 1;
+
   return (
-    <FullSheet onClose={close}>
-      <View style={{ height: 54 }} />
-      <View style={s.filterPreviewWrap}>
-        <View style={s.filterPreviewFrame}>
-          <LinearGradient colors={['#d9c3a4', '#8a6d4a']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.filterPreviewInner} />
+    <BottomSheet onClose={close} style={s.filterSheet} dim="#0002">
+      <View style={s.rowBetween}>
+        <View style={{ flexDirection: 'row', gap: 26 }}>
+          <Pressable onPress={() => setTab('filter')}><Text style={tab === 'filter' ? s.fTabOn : s.fTabOff}>Filter</Text></Pressable>
+          <Pressable onPress={() => setTab('adjust')}><Text style={tab === 'adjust' ? s.fTabOn : s.fTabOff}>Adjust</Text></Pressable>
         </View>
+        <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
       </View>
-      <View style={s.filterPanel}>
-        <View style={s.filterTabs}>
-          <Text style={s.filterTabOn}>Filter</Text>
-          <Text style={s.filterTabOff}>Adjust</Text>
+
+      {tab === 'filter' ? (
+        <>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterThumbRow}>
+            {FILTER_LIST.map(({ key, label }) => {
+              const on = preset === key;
+              return (
+                <Pressable key={key} style={s.filterThumb} onPress={() => apply(key === 'none' ? {} : { preset: key, intensity })}>
+                  <LinearGradient colors={FILTER_SWATCH[key] ?? FILTER_SWATCH.none} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.filterThumbImg, on && s.filterThumbOn]} />
+                  <Text style={[s.filterThumbLabel, on && s.filterThumbLabelOn]}>{label}</Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+          {preset !== 'none' ? (
+            <View style={s.intensityRow}>
+              <Text style={s.intensityLabel}>Intensity</Text>
+              <View style={{ flex: 1 }}><VSlider value={intensity} min={0} max={1} onChange={(v) => apply({ ...filter, intensity: r2(v) })} /></View>
+              <Text style={s.intensityVal}>{Math.round(intensity * 100)}</Text>
+            </View>
+          ) : null}
+        </>
+      ) : (
+        <View style={{ gap: 2 }}>
+          <AdjustRow label="Brightness" value={filter.brightness ?? 0} min={-0.5} max={0.5} onChange={(v) => apply({ ...filter, brightness: r2(v) })} fmt={(v) => `${Math.round(v * 100)}`} />
+          <AdjustRow label="Contrast" value={filter.contrast ?? 1} min={0.5} max={1.8} onChange={(v) => apply({ ...filter, contrast: r2(v) })} fmt={(v) => v.toFixed(2)} />
+          <AdjustRow label="Saturation" value={filter.saturation ?? 1} min={0} max={2.5} onChange={(v) => apply({ ...filter, saturation: r2(v) })} fmt={(v) => v.toFixed(2)} />
+          <AdjustRow label="Temperature" value={filter.temperature ?? 0} min={-1} max={1} onChange={(v) => apply({ ...filter, temperature: r2(v) })} fmt={(v) => `${Math.round(v * 100)}`} />
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterCatRow}>
-          {FILTER_CATS.map((c) => (
-            <Text key={c} style={[s.filterCat, c === 'Fog' && s.filterCatOn]}>{c}</Text>
-          ))}
-        </ScrollView>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.filterThumbRow}>
-          {FILTER_THUMBS.map((f, i) => {
-            const on = i === 0;
-            return (
-              <Pressable key={f} style={s.filterThumb} onPress={() => soon('Filters')}>
-                <LinearGradient colors={['#cdb89e', '#8a6d4a']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[s.filterThumbImg, on && s.filterThumbOn]} />
-                <Text style={[s.filterThumbLabel, on && s.filterThumbLabelOn]}>{f}</Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-        <View style={s.intensityRow}>
-          <Text style={s.intensityLabel}>Intensity</Text>
-          <View style={{ flex: 1 }}><StaticSlider fill={1} knobSize={16} /></View>
-          <Text style={s.intensityVal}>100</Text>
-        </View>
-        <View style={s.filterActions}>
-          <Pressable onPress={close} hitSlop={10}><VIcon name="close" size={24} color="#fff" /></Pressable>
-          <Text style={s.applyAll}>Filters soon</Text>
-          <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
-        </View>
-      </View>
-    </FullSheet>
+      )}
+    </BottomSheet>
   );
 }
 
@@ -663,11 +693,18 @@ const s = StyleSheet.create({
   filterThumbOn: { borderColor: vela.select },
   filterThumbLabel: { fontSize: 11, color: vela.muted, fontFamily: font.medium },
   filterThumbLabelOn: { color: vela.select, fontFamily: font.bold },
-  intensityRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 22, paddingVertical: 6 },
+  intensityRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 4, paddingVertical: 6 },
   intensityLabel: { color: '#fff', fontSize: 14, fontFamily: font.medium },
-  intensityVal: { color: '#fff', fontFamily: mono.regular, fontSize: 14 },
+  intensityVal: { color: '#fff', fontFamily: mono.regular, fontSize: 14, minWidth: 34, textAlign: 'right' },
   filterActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 28, paddingTop: 8 },
   applyAll: { color: vela.muted, fontFamily: font.semibold, fontSize: 15 },
+
+  filterSheet: { gap: 14 },
+  fTabOn: { color: '#fff', fontFamily: font.bold, fontSize: 16 },
+  fTabOff: { color: vela.muted3, fontFamily: font.semibold, fontSize: 16 },
+  adjustRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 4 },
+  adjustLabel: { color: vela.textLight, fontSize: 14, fontFamily: font.medium, width: 86 },
+  adjustVal: { color: '#fff', fontFamily: mono.regular, fontSize: 13, minWidth: 40, textAlign: 'right' },
 
   // export
   exportTopRow: { paddingHorizontal: 22, paddingTop: 8 },

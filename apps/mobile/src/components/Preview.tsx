@@ -11,10 +11,11 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Canvas, Fill, Group, Image as SkImg, rect, useImage } from '@shopify/react-native-skia';
+import { Canvas, ColorMatrix, Fill, Group, Image as SkImg, rect, useImage } from '@shopify/react-native-skia';
 import { useSharedValue } from 'react-native-reanimated';
 import { useClipFrame } from '../preview/useClipFrame';
 import { ensureFontsLoaded, useFontsVersion } from '../text/fonts';
+import { colorMatrix } from '../filters/registry';
 import { mono, ratioLabel } from '../constants';
 import { clipAtTime } from '../model/editor-ops';
 import { projectDuration } from '../model/project';
@@ -44,14 +45,24 @@ function BaseVideo({ clip, width, height, isPlaying, playheadSec }: { clip: Visu
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playheadSec, clip.start, clip.trimIn]);
   const frame = useClipFrame(toUri(clip.src), playing, timeSV);
-  return <SkImg image={frame} x={0} y={0} width={width} height={height} fit="contain" />;
+  const cm = colorMatrix(clip.filter);
+  return (
+    <SkImg image={frame} x={0} y={0} width={width} height={height} fit="contain">
+      {cm ? <ColorMatrix matrix={cm} /> : null}
+    </SkImg>
+  );
 }
 
 /** Active base IMAGE clip. */
 function BaseImage({ clip, width, height }: { clip: VisualTrackClip; width: number; height: number }) {
   const img = useImage(toUri(clip.src));
+  const cm = colorMatrix(clip.filter);
   if (!img) return null;
-  return <SkImg image={img} x={0} y={0} width={width} height={height} fit="contain" />;
+  return (
+    <SkImg image={img} x={0} y={0} width={width} height={height} fit="contain">
+      {cm ? <ColorMatrix matrix={cm} /> : null}
+    </SkImg>
+  );
 }
 
 /** A positioned overlay layer (image live; video as a poster frame). */
@@ -79,10 +90,13 @@ function OverlayLayer({ clip, width, height }: { clip: VisualTrackClip; width: n
   }, [clip.src, clip.type, clip.type === 'video' ? clip.trimIn : 0]);
 
   const img = useImage(toUri(posterUri));
+  const cm = colorMatrix(clip.filter);
   if (!img) return null;
   return (
     <Group clip={rect(x, y, w, h)}>
-      <SkImg image={img} x={x} y={y} width={w} height={h} fit="cover" />
+      <SkImg image={img} x={x} y={y} width={w} height={h} fit="cover">
+        {cm ? <ColorMatrix matrix={cm} /> : null}
+      </SkImg>
     </Group>
   );
 }
