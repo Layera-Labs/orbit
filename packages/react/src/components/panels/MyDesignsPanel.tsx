@@ -5,16 +5,25 @@ import * as React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import { OrbitInput, OrbitButton, OrbitDropdown } from '@orbit/ui';
 import { useEditorStore } from '../../store';
-import type { DesignBackend, SortOption } from '../../store/types';
+import type { DesignBackend, DesignData, SortOption } from '../../store/types';
 import type { OrbitEngine } from '@orbit/core';
 import { useToast } from '../ToastProvider';
 
 interface MyDesignsPanelProps {
   engine: OrbitEngine | null;
   designBackend?: DesignBackend;
+  getDesignPages?: () => { pages: NonNullable<DesignData['pages']>; activePageIndex: number };
+  onLoadDesign?: (data: DesignData) => void;
+  onClose?: () => void;
 }
 
-export const MyDesignsPanel: React.FC<MyDesignsPanelProps> = ({ engine, designBackend }) => {
+export const MyDesignsPanel: React.FC<MyDesignsPanelProps> = ({
+  engine,
+  designBackend,
+  getDesignPages,
+  onLoadDesign,
+  onClose,
+}) => {
   const { addToast } = useToast();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<SortOption>('updated');
@@ -50,12 +59,17 @@ export const MyDesignsPanel: React.FC<MyDesignsPanelProps> = ({ engine, designBa
     if (!engine || !designBackend) return;
     setIsLoading(true);
     try {
+      const pageSnapshot = getDesignPages?.();
+      const activePageIndex = pageSnapshot?.activePageIndex ?? 0;
+      const activeScene = pageSnapshot?.pages[activePageIndex] ?? engine.scene.getState();
       const designData = {
         id: currentDesignId || `design-${Date.now()}`,
         name: currentDesignName,
-        scene: engine.scene.getState(),
+        scene: activeScene,
+        pages: pageSnapshot?.pages,
+        activePageIndex: pageSnapshot?.activePageIndex,
         viewport: engine.viewport.getState(),
-        background: engine.scene.getState().background,
+        background: activeScene.background,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -76,18 +90,18 @@ export const MyDesignsPanel: React.FC<MyDesignsPanelProps> = ({ engine, designBa
     try {
       const data = await designBackend.get(id);
       if (data) {
-        // Restore scene
-        engine.scene.setDimensions(data.scene.width, data.scene.height);
-        engine.scene.setBackground(data.background);
-        // Clear existing layers and add saved ones
-        data.scene.root.forEach((layer) => {
-          engine.scene.addLayer(layer);
-        });
-        // Restore viewport
+        if (onLoadDesign) {
+          onLoadDesign(data);
+        } else {
+          const pages = data.pages?.length ? data.pages : [data.scene];
+          const pageIndex = Math.min(Math.max(data.activePageIndex ?? 0, 0), pages.length - 1);
+          engine.loadScene(pages[pageIndex]);
+        }
         engine.viewport.setZoom(data.viewport.zoom);
         setCurrentDesignId(data.id);
         setCurrentDesignName(data.name);
         addToast(`Loaded "${data.name}"`, 'success');
+        onClose?.();
       }
     } catch {
       addToast('Failed to load design', 'error');

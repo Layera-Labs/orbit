@@ -86,21 +86,87 @@ export interface Transition {
   duration: number;
 }
 
+// ---------------------------------------------------------------------------
+// Multi-track (v2) model — CapCut-style layers. When `VideoProject.tracks` is
+// present the renderer COMPOSITES: visual tracks stack bottom→top (array order),
+// each clip placed at an ABSOLUTE timeline `start` and a normalized `rect` on
+// the canvas (picture-in-picture); audio tracks mix, positioned by `start`.
+// The legacy single-track `clips`/`audio`/`transition` fields still work (the
+// renderer keeps a separate concat/xfade path for them).
+// ---------------------------------------------------------------------------
+
+/** Normalized rectangle on the output canvas (fractions of width/height, 0..1). */
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Full-frame placement default. */
+export const FULL_FRAME: Rect = { x: 0, y: 0, w: 1, h: 1 };
+
+export interface VisualTrackClip {
+  id: ID;
+  type: 'video' | 'image';
+  src: string;
+  /** ABSOLUTE start on the timeline, seconds. */
+  start: number;
+  /** On-timeline length, seconds. */
+  duration: number;
+  /** Video source in-point, seconds (default 0). */
+  trimIn?: number;
+  /** Placement on the canvas (default full-frame). Overlay tracks use a sub-rect for PiP. */
+  rect?: Rect;
+  /** 0..1 gain on the clip's own audio. */
+  volume?: number;
+  muted?: boolean;
+}
+
+export interface AudioTrackClip {
+  id: ID;
+  src: string;
+  /** ABSOLUTE start on the timeline, seconds. */
+  start: number;
+  /** On-timeline length, seconds (default: to end of source). */
+  duration: number;
+  trimIn?: number;
+  volume?: number;
+}
+
+export interface VisualTrack {
+  id: ID;
+  kind: 'visual';
+  name?: string;
+  clips: VisualTrackClip[];
+}
+
+export interface AudioTrack {
+  id: ID;
+  kind: 'audio';
+  name?: string;
+  clips: AudioTrackClip[];
+}
+
+export type Track = VisualTrack | AudioTrack;
+
 export interface VideoProject {
   id: ID;
-  schemaVersion: 1;
+  schemaVersion: 1 | 2;
   /** Output resolution, px (e.g. 1080×1920 for reels). */
   width: number;
   height: number;
   /** Output frame rate. */
   fps: number;
   background: Background;
-  /** Visual clips, played in array order. */
+  /** Visual clips, played in array order (legacy single-track). */
   clips: VisualClip[];
-  /** Optional crossfade/cut applied between consecutive clips. */
+  /** Optional crossfade/cut applied between consecutive clips (legacy). */
   transition?: Transition;
   /** Time-ranged overlays drawn on top (captions, stickers later). */
   overlays: Overlay[];
-  /** Audio tracks (music / voice), mixed together. */
+  /** Audio tracks (music / voice), mixed together (legacy). */
   audio: AudioClip[];
+  /** Multi-track layers (v2). When present, the renderer composites these. */
+  tracks?: Track[];
 }

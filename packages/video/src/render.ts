@@ -8,9 +8,12 @@ import { overlayToSVG } from './overlay-svg';
 import { rasterizeSVG } from './raster';
 import type { VideoProject } from './types';
 
-export interface RenderOptions extends Omit<BuildFFmpegOptions, 'overlayImages'> {
+export interface RenderOptions extends Omit<BuildFFmpegOptions, 'overlayImages' | 'hasAudio'> {
   /** ffmpeg binary path (default: `ffmpeg` on PATH). Production ships its own. */
   ffmpegPath?: string;
+  /** ffprobe binary path (default: `ffprobe` on PATH). Used to detect which
+   *  sources actually have audio so silent clips don't break the filtergraph. */
+  ffprobePath?: string;
   /** Receives raw ffmpeg stderr chunks (progress lives here). */
   onProgress?: (chunk: string) => void;
 }
@@ -22,9 +25,10 @@ export interface RenderOptions extends Omit<BuildFFmpegOptions, 'overlayImages'>
 export async function renderProject(project: VideoProject, opts: RenderOptions): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'orbit-video-'));
   try {
-    // Clip-less projects (lyric/quote videos) render their background as the base.
+    // Clip-less legacy projects AND every multi-track project render their
+    // background as a full-duration base canvas to composite onto.
     let baseImage: string | undefined;
-    if (project.clips.length === 0) {
+    if (project.clips.length === 0 || project.tracks !== undefined) {
       baseImage = join(dir, 'background.png');
       await writeFile(baseImage, rasterizeSVG(backgroundToSVG(project.background, project.width, project.height)));
     }
@@ -36,12 +40,48 @@ export async function renderProject(project: VideoProject, opts: RenderOptions):
       await writeFile(path, png);
       overlayImages[overlay.id] = path;
     }
-    const args = buildFFmpegArgs(project, { ...opts, overlayImages, baseImage });
+    // Probe which sources actually carry audio so the builder only wires audio
+    // that exists (silent clips / images would otherwise break the filtergraph).
+    const resolveSrc = opts.resolveSrc ?? ((s) => s);
+    const audioCandidates = new Set<string>();
+    for (const c of project.clips) if (c.type === 'video') audioCandidates.add(resolveSrc(c.src));
+    for (const a of project.audio) audioCandidates.add(resolveSrc(a.src));
+    for (const t of project.tracks ?? []) {
+      if (t.kind === 'visual') {
+        for (const c of t.clips) if (c.type === 'video') audioCandidates.add(resolveSrc(c.src));
+      } else {
+        for (const c of t.clips) audioCandidates.add(resolveSrc(c.src));
+      }
+    }
+    const withAudio = new Set<string>();
+    await Promise.all(
+      [...audioCandidates].map(async (src) => {
+        if (await probeHasAudio(opts.ffprobePath ?? 'ffprobe', src)) withAudio.add(src);
+      }),
+    );
+    const hasAudio = (resolvedSrc: string) => withAudio.has(resolvedSrc);
+
+    const args = buildFFmpegArgs(project, { ...opts, overlayImages, baseImage, hasAudio });
     await runFFmpeg(opts.ffmpegPath ?? 'ffmpeg', args, opts.onProgress);
     return opts.outputPath;
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+/** Resolve true if `file` has at least one audio stream (best-effort via ffprobe). */
+function probeHasAudio(bin: string, file: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const proc = spawn(
+      bin,
+      ['-v', 'error', '-select_streams', 'a', '-show_entries', 'stream=index', '-of', 'csv=p=0', file],
+      { stdio: ['ignore', 'pipe', 'ignore'] },
+    );
+    let out = '';
+    proc.stdout.on('data', (d: Buffer) => (out += d.toString()));
+    proc.on('error', () => resolve(false));
+    proc.on('close', () => resolve(out.trim().length > 0));
+  });
 }
 
 function runFFmpeg(bin: string, args: string[], onProgress?: (s: string) => void): Promise<void> {

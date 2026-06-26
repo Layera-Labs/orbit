@@ -20,7 +20,7 @@ export const BottomBar: React.FC<BottomBarProps> = ({ engine }) => {
   const setSnapToGrid = useEditorStore((s) => s.setSnapToGrid);
   const showRulers = useEditorStore((s) => s.showRulers);
   const setShowRulers = useEditorStore((s) => s.setShowRulers);
-  const zoomPercent = Math.round(zoom * 100);
+  const zoomPercent = Math.round(zoom);
 
   return (
     <div className="flex h-orbit-zoombar items-center justify-between border-t border-orbit-border bg-orbit-sidebar px-orbit-md">

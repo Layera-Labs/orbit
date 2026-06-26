@@ -35,9 +35,8 @@ export class DrawController {
     this.canvas.style.left = '0';
     this.canvas.style.width = '100%';
     this.canvas.style.height = '100%';
-    this.canvas.style.pointerEvents = 'none'; // toggled on when drawing
+    this.canvas.style.pointerEvents = 'none';
     this.canvas.style.zIndex = '10';
-    container.style.position = 'relative';
     container.appendChild(this.canvas);
 
     this.ctx = this.canvas.getContext('2d');

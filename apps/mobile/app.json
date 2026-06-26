@@ -4,7 +4,10 @@
     "slug": "orbit-video",
     "version": "1.0.0",
     "orientation": "portrait",
-    "platforms": ["ios", "android"],
+    "platforms": [
+      "ios",
+      "android"
+    ],
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
@@ -12,9 +15,30 @@
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true,
           "NSAllowsLocalNetworking": true
-        }
+        },
+        "NSPhotoLibraryUsageDescription": "Orbit needs access to your photo library to import videos and images into your projects.",
+        "NSPhotoLibraryAddUsageDescription": "Orbit saves your exported videos to your photo library.",
+        "NSMicrophoneUsageDescription": "Orbit needs microphone access for audio in your videos."
       }
     },
-    "userInterfaceStyle": "dark"
+    "userInterfaceStyle": "dark",
+    "plugins": [
+      "expo-asset",
+      "expo-video",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Orbit needs access to your photos to import videos and images."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Orbit needs access to your photos.",
+          "savePhotosPermission": "Orbit saves your exported videos to your library.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ]
+    ]
   }
 }

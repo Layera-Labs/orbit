@@ -14,6 +14,9 @@ export function useEngineBridge(engine: OrbitEngine | null) {
   useEffect(() => {
     if (!engine) return;
 
+    setLayers(engine.scene.getState().root);
+    setViewport(engine.viewport.getState());
+
     // Sync layers
     const unsubScene = engine.scene.subscribe((state) => {
       setLayers(state.root);
@@ -26,7 +29,7 @@ export function useEngineBridge(engine: OrbitEngine | null) {
 
     // Sync viewport
     const unsubViewport = engine.viewport.subscribe((state) => {
-      setViewport({ zoom: state.zoom, panX: state.panX, panY: state.panY, rotation: state.rotation });
+      setViewport({ zoom: state.zoom });
     });
 
     // Sync tool
