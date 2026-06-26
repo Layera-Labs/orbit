@@ -35,7 +35,7 @@ describe('OrbitEngine (without init)', () => {
   it('initializes with config', () => {
     expect(engine.scene.getState().width).toBe(800);
     expect(engine.scene.getState().height).toBe(600);
-    expect(engine.viewport.getState().zoom).toBe(1);
+    expect(engine.viewport.getState().zoom).toBe(100);
     expect(engine.history.canUndo()).toBe(false);
   });
 
@@ -93,6 +93,44 @@ describe('OrbitEngine (without init)', () => {
     });
     engine.removeLayer(id);
     expect(engine.scene.getState().root.length).toBe(0);
+  });
+
+  it('loads a replacement scene', () => {
+    engine.addLayer({
+      type: 'text', name: 'Old',
+      x: 0, y: 0, width: 100, height: 50,
+      rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
+      visible: true, locked: false, blendMode: 'normal', effects: [],
+      content: { type: 'text', text: 'Old', fontFamily: 'Inter', fontSize: 16, fontWeight: 400, color: '#000', alignment: 'left' },
+    });
+
+    engine.loadScene({
+      root: [{
+        id: 'layer-next',
+        type: 'text',
+        name: 'Next',
+        x: 0, y: 0, width: 100, height: 50,
+        rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
+        visible: true, locked: false, blendMode: 'normal', effects: [],
+        content: { type: 'text', text: 'Next', fontFamily: 'Inter', fontSize: 16, fontWeight: 400, color: '#000', alignment: 'left' },
+      }],
+      background: { type: 'solid', value: '#ffffff' },
+      border: {
+        width: 0,
+        color: '#000000',
+        style: 'solid',
+        radius: 0,
+        sides: { top: true, right: true, bottom: true, left: true },
+        radiusCorners: { topLeft: 0, topRight: 0, bottomLeft: 0, bottomRight: 0 },
+      },
+      width: 500,
+      height: 400,
+    });
+
+    expect(engine.scene.getState().root).toHaveLength(1);
+    expect(engine.scene.getState().root[0].name).toBe('Next');
+    expect(engine.scene.getState().width).toBe(500);
+    expect(engine.history.canUndo()).toBe(false);
   });
 
   it('duplicates a layer', () => {
@@ -180,12 +218,15 @@ describe('OrbitEngine (without init)', () => {
     expect(callback).toHaveBeenCalled();
   });
 
-  it('resizeCanvas updates dimensions and clears history', () => {
+  it('resizeCanvas updates dimensions and preserves layers', () => {
     engine.addLayer({ type: 'text', name: 'Test', x: 0, y: 0, width: 100, height: 50, rotation: 0, scaleX: 1, scaleY: 1, opacity: 1, visible: true, locked: false, blendMode: 'normal', effects: [], content: { type: 'text', text: 'A', fontFamily: 'Inter', fontSize: 16, fontWeight: 400, color: '#000', alignment: 'left' } });
+    engine.scene.setBackground({ type: 'solid', value: '#ff0000' });
     engine.resizeCanvas(1920, 1080);
     expect(engine.scene.getState().width).toBe(1920);
     expect(engine.scene.getState().height).toBe(1080);
-    expect(engine.scene.getState().root).toHaveLength(0);
+    expect(engine.scene.getState().root).toHaveLength(1);
+    expect(engine.scene.getState().root[0].name).toBe('Test');
+    expect(engine.scene.getState().background.value).toBe('#ff0000');
   });
 
   it('clearCanvas removes all layers', () => {
@@ -298,28 +339,29 @@ describe('OrbitEngine (without init)', () => {
   });
 
   // --- Zoom / Viewport ---
-  it('setZoom updates viewport', () => {
-    engine.setZoom(2);
-    expect(engine.viewport.getState().zoom).toBe(2);
+  it('setZoom updates viewport as percentage', () => {
+    engine.setZoom(200);
+    expect(engine.viewport.getState().zoom).toBe(200);
   });
 
-  it('zoomIn increases zoom', () => {
+  it('zoomIn increases zoom percentage', () => {
+    engine.setZoom(100);
     const before = engine.viewport.getState().zoom;
     engine.zoomIn();
     expect(engine.viewport.getState().zoom).toBeGreaterThan(before);
   });
 
-  it('zoomOut decreases zoom', () => {
-    engine.setZoom(2);
+  it('zoomOut decreases zoom percentage', () => {
+    engine.setZoom(200);
     const before = engine.viewport.getState().zoom;
     engine.zoomOut();
     expect(engine.viewport.getState().zoom).toBeLessThan(before);
   });
 
-  it('resetZoom resets to 1', () => {
-    engine.setZoom(3);
+  it('resetZoom resets to 100%', () => {
+    engine.setZoom(50);
     engine.resetZoom();
-    expect(engine.viewport.getState().zoom).toBe(1);
+    expect(engine.viewport.getState().zoom).toBe(100);
   });
 
   it('zoomToFit does nothing without container', () => {

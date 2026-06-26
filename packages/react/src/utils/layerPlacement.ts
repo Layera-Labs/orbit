@@ -84,14 +84,25 @@ export interface TextLayerPreset {
   name?: string;
 }
 
+function estimateTextSize(text: string, fontSize: number): LayerSize {
+  const lines = text.split('\n');
+  const longestLine = lines.reduce((longest, line) => (line.length > longest.length ? line : longest), '');
+
+  return {
+    width: Math.max(1, Math.ceil(longestLine.length * fontSize * 0.58)),
+    height: Math.max(1, Math.ceil(lines.length * fontSize * 1.25)),
+  };
+}
+
 export function createCenteredTextLayer(
   engine: OrbitEngine | null,
   preset: TextLayerPreset
 ): Omit<Layer, 'id'> {
   const fontSize = preset.fontSize ?? 32;
   const text = preset.text || 'Text';
-  const width = preset.width ?? Math.max(220, Math.min(720, text.length * fontSize * 0.55));
-  const height = preset.height ?? Math.max(fontSize * 1.5, 44);
+  const estimatedSize = estimateTextSize(text, fontSize);
+  const width = preset.width ?? estimatedSize.width;
+  const height = preset.height ?? estimatedSize.height;
   const position = getCenteredLayerPosition(engine, width, height);
 
   return baseLayer({

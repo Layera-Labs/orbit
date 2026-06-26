@@ -1,105 +1,56 @@
 /**
- * Viewport Controller - Manages zoom, pan, and canvas transform
+ * Viewport Controller - Manages zoom percentage for CSS scaling
+ * Pan is handled natively by browser scroll (overflow-auto on container)
  */
 
-import { clamp } from '@orbit/shared';
-import type { ViewportState } from '@orbit/shared';
-export type { ViewportState };
+export interface ViewportState {
+  zoom: number; // percentage, e.g. 100 = actual size
+}
 
 export class ViewportController {
   private state: ViewportState = {
-    zoom: 1,
-    panX: 0,
-    panY: 0,
-    rotation: 0,
+    zoom: 100,
   };
 
-  private minZoom = 0.1;
-  private maxZoom = 5;
+  private minZoom = 5;
+  private maxZoom = 500;
+  private zoomStep = 5;
   private listeners: Set<(state: ViewportState) => void> = new Set();
 
   getState(): ViewportState {
     return { ...this.state };
   }
 
-  setZoom(zoom: number, centerX?: number, centerY?: number): void {
-    const oldZoom = this.state.zoom;
-    const newZoom = clamp(zoom, this.minZoom, this.maxZoom);
-
-    if (centerX !== undefined && centerY !== undefined) {
-      // Zoom towards point
-      const scale = newZoom / oldZoom;
-      this.state.panX = centerX - (centerX - this.state.panX) * scale;
-      this.state.panY = centerY - (centerY - this.state.panY) * scale;
-    }
-
-    this.state.zoom = newZoom;
+  setZoom(percent: number): void {
+    this.state.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, Math.round(percent)));
     this.emit();
   }
 
-  zoomIn(factor = 1.2): void {
-    this.setZoom(this.state.zoom * factor);
+  zoomIn(step = this.zoomStep): void {
+    this.setZoom(this.state.zoom + step);
   }
 
-  zoomOut(factor = 1.2): void {
-    this.setZoom(this.state.zoom / factor);
+  zoomOut(step = this.zoomStep): void {
+    this.setZoom(this.state.zoom - step);
   }
 
-  zoomToFit(canvasWidth: number, canvasHeight: number, containerWidth: number, containerHeight: number, minZoom = 0.35): void {
-    const scaleX = containerWidth / canvasWidth;
-    const scaleY = containerHeight / canvasHeight;
-    const zoom = Math.min(scaleX, scaleY) * 0.9; // 90% fit with padding
-    this.state.zoom = clamp(zoom, minZoom, this.maxZoom);
-    this.state.panX = (containerWidth - canvasWidth * this.state.zoom) / 2;
-    this.state.panY = (containerHeight - canvasHeight * this.state.zoom) / 2;
-    this.emit();
+  /** Calculate fit percentage without applying it */
+  calculateFit(canvasWidth: number, canvasHeight: number, containerWidth: number, containerHeight: number, padding = 32): number {
+    const cw = containerWidth - padding * 2;
+    const ch = containerHeight - padding * 2;
+    if (cw <= 0 || ch <= 0) return 100;
+    const raw = Math.min(cw / canvasWidth, ch / canvasHeight) * 0.98;
+    const scale = Math.min(1, raw); // never zoom in past 100%
+    return Math.max(this.minZoom, Math.min(this.maxZoom, Math.round(scale * 100)));
   }
 
-  centerCanvas(
-    canvasWidth: number,
-    canvasHeight: number,
-    containerWidth: number,
-    containerHeight: number,
-    zoom = this.state.zoom
-  ): void {
-    this.state.zoom = clamp(zoom, this.minZoom, this.maxZoom);
-    this.state.panX = (containerWidth - canvasWidth * this.state.zoom) / 2;
-    this.state.panY = (containerHeight - canvasHeight * this.state.zoom) / 2;
-    this.emit();
+  zoomToFit(canvasWidth: number, canvasHeight: number, containerWidth: number, containerHeight: number, padding = 32): void {
+    this.setZoom(this.calculateFit(canvasWidth, canvasHeight, containerWidth, containerHeight, padding));
   }
 
   resetZoom(): void {
-    this.state.zoom = 1;
-    this.state.panX = 0;
-    this.state.panY = 0;
-    this.state.rotation = 0;
+    this.state.zoom = 100;
     this.emit();
-  }
-
-  pan(deltaX: number, deltaY: number): void {
-    this.state.panX += deltaX;
-    this.state.panY += deltaY;
-    this.emit();
-  }
-
-  setPan(x: number, y: number): void {
-    this.state.panX = x;
-    this.state.panY = y;
-    this.emit();
-  }
-
-  screenToCanvas(screenX: number, screenY: number): { x: number; y: number } {
-    return {
-      x: (screenX - this.state.panX) / this.state.zoom,
-      y: (screenY - this.state.panY) / this.state.zoom,
-    };
-  }
-
-  canvasToScreen(canvasX: number, canvasY: number): { x: number; y: number } {
-    return {
-      x: canvasX * this.state.zoom + this.state.panX,
-      y: canvasY * this.state.zoom + this.state.panY,
-    };
   }
 
   subscribe(listener: (state: ViewportState) => void): () => void {

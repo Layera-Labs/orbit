@@ -17,6 +17,7 @@ import { Timeline } from './components/Timeline';
 import { RulerOverlay } from './components/RulerOverlay';
 import { VideoExportModal } from './components/VideoExportModal';
 import { ContextToolbar } from './components/ContextToolbar';
+import { PageControls } from './components/PageControls';
 import {
   ToolsPanel,
   TextPanel,
@@ -31,8 +32,8 @@ import {
   TemplatesPanel,
 } from './components/panels';
 import { AgenticPanel } from './components/right-panel/AgenticPanel';
-import type { AssetProvider } from '@orbit/shared';
-import type { UploadConfig, AutoSaveConfig, DesignBackend } from './store/types';
+import type { AssetProvider, SceneGraph as SceneGraphState } from '@orbit/shared';
+import type { UploadConfig, AutoSaveConfig, DesignBackend, DesignData } from './store/types';
 import { addLayerAndSelect, createImageLayer, createVideoLayer } from './utils/layerPlacement';
 
 export interface OrbitEditorProps {
@@ -86,6 +87,38 @@ const PANEL_REGISTRY = [
   { id: 'templates', label: 'Templates', icon: Icons.templates, component: TemplatesPanel },
 ];
 
+interface EditorPage {
+  id: string;
+  scene: SceneGraphState;
+}
+
+type PagesLayout = 'vertical' | 'horizontal';
+
+function createPageId(): string {
+  return `page-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function cloneScene(scene: SceneGraphState): SceneGraphState {
+  return JSON.parse(JSON.stringify(scene)) as SceneGraphState;
+}
+
+function createBlankScene(width: number, height: number): SceneGraphState {
+  return {
+    root: [],
+    background: { type: 'solid', value: '#ffffff' },
+    border: {
+      width: 0,
+      color: '#000000',
+      style: 'solid',
+      radius: 0,
+      sides: { top: true, right: true, bottom: true, left: true },
+      radiusCorners: { topLeft: 0, topRight: 0, bottomLeft: 0, bottomRight: 0 },
+    },
+    width,
+    height,
+  };
+}
+
 export const OrbitEditor: React.FC<OrbitEditorProps> = (props) => {
   return (
     <ToastProvider>
@@ -106,9 +139,11 @@ const OrbitEditorInner: React.FC<OrbitEditorProps> = ({
   autoSave,
 }) => {
   const { addToast } = useToast();
+  const initialCanvasWidth = (config?.width as number) || 1080;
+  const initialCanvasHeight = (config?.height as number) || 1080;
   const { containerRef, engine, isReady } = useOrbitEngine({
-    width: (config?.width as number) || 1080,
-    height: (config?.height as number) || 1080,
+    width: initialCanvasWidth,
+    height: initialCanvasHeight,
   });
 
   // Bridge engine state to Zustand
@@ -138,12 +173,223 @@ const OrbitEditorInner: React.FC<OrbitEditorProps> = ({
   const showRulers = useEditorStore((s) => s.showRulers);
   const canvasWidth = useEditorStore((s) => s.canvasWidth);
   const canvasHeight = useEditorStore((s) => s.canvasHeight);
-  const panX = useEditorStore((s) => s.panX);
-  const panY = useEditorStore((s) => s.panY);
   const zoom = useEditorStore((s) => s.zoom);
   const [videoExportOpen, setVideoExportOpen] = useState(false);
 
   const designBackend = customDesignBackend || localStorageDesignBackend;
+  const [pages, setPages] = useState<EditorPage[]>(() => [
+    { id: createPageId(), scene: createBlankScene(initialCanvasWidth, initialCanvasHeight) },
+  ]);
+  const [activePageIndex, setActivePageIndex] = useState(0);
+  const [pagesLayout, setPagesLayout] = useState<PagesLayout>('vertical');
+  const activePageIndexRef = useRef(0);
+  const pagesRef = useRef(pages);
+
+  useEffect(() => {
+    pagesRef.current = pages;
+  }, [pages]);
+
+  useEffect(() => {
+    activePageIndexRef.current = activePageIndex;
+  }, [activePageIndex]);
+
+  const getPagesSnapshot = useCallback((): EditorPage[] => {
+    const snapshot = pagesRef.current.map((page) => ({
+      ...page,
+      scene: cloneScene(page.scene),
+    }));
+    const activeIndex = activePageIndexRef.current;
+    if (engine && snapshot[activeIndex]) {
+      snapshot[activeIndex] = {
+        ...snapshot[activeIndex],
+        scene: cloneScene(engine.scene.getState()),
+      };
+    }
+    return snapshot;
+  }, [engine]);
+
+  const activatePage = useCallback((index: number, nextPages = pagesRef.current) => {
+    const page = nextPages[index];
+    if (!engine || !page) return;
+    activePageIndexRef.current = index;
+    setActivePageIndex(index);
+    engine.loadScene(cloneScene(page.scene));
+  }, [engine]);
+
+  const scrollActivePageIntoView = useCallback((behavior: ScrollBehavior = 'smooth') => {
+    requestAnimationFrame(() => {
+      const wrapper = containerRef.current?.querySelector<HTMLElement>('.canvas-container');
+      wrapper?.scrollIntoView({
+        behavior,
+        block: pagesLayout === 'vertical' ? 'center' : 'nearest',
+        inline: pagesLayout === 'horizontal' ? 'center' : 'nearest',
+      });
+    });
+  }, [containerRef, pagesLayout]);
+
+  const handleSetActivePage = useCallback((index: number) => {
+    const snapshot = getPagesSnapshot();
+    const nextIndex = Math.min(Math.max(index, 0), snapshot.length - 1);
+    setPages(snapshot);
+    activatePage(nextIndex, snapshot);
+    scrollActivePageIntoView();
+  }, [activatePage, getPagesSnapshot, scrollActivePageIntoView]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    const wrapper = container?.querySelector<HTMLElement>('.canvas-container');
+    if (!container || !wrapper) return;
+
+    const scale = Math.max(zoom / 100, 0.01);
+    const pageWidth = Math.max(1, Math.round(canvasWidth * scale));
+    const pageHeight = Math.max(1, Math.round(canvasHeight * scale));
+    const isVertical = pagesLayout === 'vertical';
+
+    container.style.display = 'flex';
+    container.style.flexDirection = isVertical ? 'column' : 'row';
+    container.style.alignItems = 'center';
+    const pageList = pagesRef.current;
+
+    container.style.justifyContent = pageList.length === 1 ? 'center' : 'flex-start';
+    container.style.gap = '64px';
+    container.style.overflow = 'auto';
+    container.style.boxSizing = 'border-box';
+    container.style.padding = isVertical ? '92px 48px 72px' : '92px 72px 72px 128px';
+
+    wrapper.style.order = String(activePageIndex);
+    wrapper.style.flex = '0 0 auto';
+    wrapper.style.margin = pageList.length === 1 ? 'auto' : '0';
+    wrapper.style.boxShadow = '0 28px 70px -42px rgba(15, 23, 42, 0.55)';
+
+    container.querySelectorAll<HTMLElement>('.orbit-page-slot').forEach((slot) => slot.remove());
+
+    pageList.forEach((page, index) => {
+      if (index === activePageIndex) return;
+      const slot = document.createElement('button');
+      slot.type = 'button';
+      slot.className = 'orbit-page-slot';
+      slot.setAttribute('aria-label', `Open page ${index + 1}`);
+      slot.title = `Page ${index + 1}`;
+      slot.style.order = String(index);
+      slot.style.width = `${pageWidth}px`;
+      slot.style.height = `${pageHeight}px`;
+      slot.style.flex = '0 0 auto';
+      slot.style.border = '0';
+      slot.style.padding = '0';
+      slot.style.background = page.scene.background.type === 'solid' ? String(page.scene.background.value) : '#ffffff';
+      slot.style.boxShadow = '0 28px 70px -42px rgba(15, 23, 42, 0.55)';
+      slot.style.cursor = 'pointer';
+      slot.style.display = 'block';
+      slot.onclick = () => handleSetActivePage(index);
+      container.appendChild(slot);
+    });
+
+    scrollActivePageIntoView('auto');
+  }, [
+    activePageIndex,
+    canvasHeight,
+    canvasWidth,
+    containerRef,
+    handleSetActivePage,
+    pages.length,
+    pagesLayout,
+    scrollActivePageIntoView,
+    zoom,
+  ]);
+
+  useEffect(() => {
+    if (!engine) return;
+    return engine.scene.subscribe((scene) => {
+      const activeIndex = activePageIndexRef.current;
+      setPages((currentPages) =>
+        currentPages.map((page, index) =>
+          index === activeIndex ? { ...page, scene: cloneScene(scene) } : page
+        )
+      );
+    });
+  }, [engine]);
+
+  const handlePreviousPage = useCallback(() => {
+    const snapshot = getPagesSnapshot();
+    const nextIndex = Math.max(0, activePageIndexRef.current - 1);
+    setPages(snapshot);
+    activatePage(nextIndex, snapshot);
+    scrollActivePageIntoView();
+  }, [activatePage, getPagesSnapshot, scrollActivePageIntoView]);
+
+  const handleNextPage = useCallback(() => {
+    const snapshot = getPagesSnapshot();
+    const nextIndex = Math.min(snapshot.length - 1, activePageIndexRef.current + 1);
+    setPages(snapshot);
+    activatePage(nextIndex, snapshot);
+    scrollActivePageIntoView();
+  }, [activatePage, getPagesSnapshot, scrollActivePageIntoView]);
+
+  const handleAddPage = useCallback(() => {
+    const snapshot = getPagesSnapshot();
+    const activeIndex = activePageIndexRef.current;
+    const currentScene = snapshot[activeIndex]?.scene ?? createBlankScene(initialCanvasWidth, initialCanvasHeight);
+    const nextPage: EditorPage = {
+      id: createPageId(),
+      scene: createBlankScene(currentScene.width, currentScene.height),
+    };
+    const nextPages = [...snapshot, nextPage];
+    const nextIndex = nextPages.length - 1;
+    setPages(nextPages);
+    activatePage(nextIndex, nextPages);
+    scrollActivePageIntoView();
+  }, [activatePage, getPagesSnapshot, initialCanvasHeight, initialCanvasWidth, scrollActivePageIntoView]);
+
+  const handleDuplicatePage = useCallback(() => {
+    const snapshot = getPagesSnapshot();
+    const activeIndex = activePageIndexRef.current;
+    const currentPage = snapshot[activeIndex];
+    if (!currentPage) return;
+    const nextIndex = activeIndex + 1;
+    const nextPage: EditorPage = {
+      id: createPageId(),
+      scene: cloneScene(currentPage.scene),
+    };
+    const nextPages = [...snapshot.slice(0, nextIndex), nextPage, ...snapshot.slice(nextIndex)];
+    setPages(nextPages);
+    activatePage(nextIndex, nextPages);
+    scrollActivePageIntoView();
+  }, [activatePage, getPagesSnapshot, scrollActivePageIntoView]);
+
+  const handleDeletePage = useCallback(() => {
+    const snapshot = getPagesSnapshot();
+    const activeIndex = activePageIndexRef.current;
+    if (activeIndex === 0 || snapshot.length <= 1) return;
+    const nextPages = snapshot.filter((_, index) => index !== activeIndex);
+    const nextIndex = Math.max(0, activeIndex - 1);
+    setPages(nextPages);
+    activatePage(nextIndex, nextPages);
+    scrollActivePageIntoView();
+  }, [activatePage, getPagesSnapshot, scrollActivePageIntoView]);
+
+  const getDesignPagesForSave = useCallback(() => {
+    const snapshot = getPagesSnapshot();
+    return {
+      pages: snapshot.map((page) => page.scene),
+      activePageIndex: activePageIndexRef.current,
+    };
+  }, [getPagesSnapshot]);
+
+  const handleLoadDesign = useCallback((data: DesignData) => {
+    const savedScenes = data.pages?.length ? data.pages : [data.scene];
+    const nextPages = savedScenes.map((scene) => ({
+      id: createPageId(),
+      scene: cloneScene(scene),
+    }));
+    const nextIndex = Math.min(Math.max(data.activePageIndex ?? 0, 0), nextPages.length - 1);
+    setPages(nextPages);
+    activatePage(nextIndex, nextPages);
+    scrollActivePageIntoView('auto');
+  }, [activatePage, scrollActivePageIntoView]);
+
+  const handleTogglePagesLayout = useCallback(() => {
+    setPagesLayout((layout) => layout === 'vertical' ? 'horizontal' : 'vertical');
+  }, []);
 
   // Sync snap-to-grid settings to engine
   useEffect(() => {
@@ -183,12 +429,16 @@ const OrbitEditorInner: React.FC<OrbitEditorProps> = ({
     if (!engine) return;
     setIsSaving(true);
     try {
+      const pageSnapshot = getPagesSnapshot();
+      const activeScene = pageSnapshot[activePageIndexRef.current]?.scene ?? engine.scene.getState();
       const designData = {
         id: currentDesignId || `design-${Date.now()}`,
         name: useEditorStore.getState().currentDesignName,
-        scene: engine.scene.getState(),
+        scene: activeScene,
+        pages: pageSnapshot.map((page) => page.scene),
+        activePageIndex: activePageIndexRef.current,
         viewport: engine.viewport.getState(),
-        background: engine.scene.getState().background,
+        background: activeScene.background,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -212,7 +462,7 @@ const OrbitEditorInner: React.FC<OrbitEditorProps> = ({
     } finally {
       setIsSaving(false);
     }
-  }, [engine, currentDesignId, autoSave, designBackend, setIsSaving, setCurrentDesignId, setLastSavedAt]);
+  }, [engine, currentDesignId, autoSave, designBackend, setIsSaving, setCurrentDesignId, setLastSavedAt, getPagesSnapshot]);
 
   // Auto-save on canvas changes
   useEffect(() => {
@@ -235,12 +485,16 @@ const OrbitEditorInner: React.FC<OrbitEditorProps> = ({
     if (!callbacks?.onPublish || !engine) return;
     setIsPublishing(true);
     try {
+      const pageSnapshot = getPagesSnapshot();
+      const activeScene = pageSnapshot[activePageIndexRef.current]?.scene ?? engine.scene.getState();
       const designData = {
         id: currentDesignId || `design-${Date.now()}`,
         name: useEditorStore.getState().currentDesignName,
-        scene: engine.scene.getState(),
+        scene: activeScene,
+        pages: pageSnapshot.map((page) => page.scene),
+        activePageIndex: activePageIndexRef.current,
         viewport: engine.viewport.getState(),
-        background: engine.scene.getState().background,
+        background: activeScene.background,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -251,7 +505,7 @@ const OrbitEditorInner: React.FC<OrbitEditorProps> = ({
     } finally {
       setIsPublishing(false);
     }
-  }, [callbacks, engine, currentDesignId, setIsPublishing, addToast]);
+  }, [callbacks, engine, currentDesignId, setIsPublishing, addToast, getPagesSnapshot]);
 
   const handleExport = useCallback(
     async (format: 'png' | 'jpg' | 'svg' | 'pdf', quality?: number, scale?: number) => {
@@ -341,10 +595,12 @@ const OrbitEditorInner: React.FC<OrbitEditorProps> = ({
     }
     if (activePanelDef.id === 'my-designs') {
       panelProps.designBackend = designBackend;
+      panelProps.getDesignPages = getDesignPagesForSave;
+      panelProps.onLoadDesign = handleLoadDesign;
     }
 
     return <PanelComponent {...panelProps} />;
-  }, [activePanelDef, engine, providers, uploadConfig, designBackend, handleAddImage, handleAddVideo, callbacks]);
+  }, [activePanelDef, engine, providers, uploadConfig, designBackend, handleAddImage, handleAddVideo, callbacks, getDesignPagesForSave, handleLoadDesign]);
 
   return (
     <>
@@ -396,8 +652,9 @@ const OrbitEditorInner: React.FC<OrbitEditorProps> = ({
                 const rect = e.currentTarget.getBoundingClientRect();
                 const mouseX = e.clientX - rect.left;
                 const mouseY = e.clientY - rect.top;
-                const canvasX = (mouseX - panX) / zoom;
-                const canvasY = (mouseY - panY) / zoom;
+                const scale = Math.max(zoom / 100, 0.01);
+                const canvasX = mouseX / scale;
+                const canvasY = mouseY / scale;
                 if (asset.type === 'video') {
                   handleAddVideo(
                     asset.src,
@@ -430,7 +687,7 @@ const OrbitEditorInner: React.FC<OrbitEditorProps> = ({
               backgroundSize: showGrid ? `${gridSize}px ${gridSize}px` : 'auto',
             }}
           >
-            <div className="pointer-events-none absolute left-1/2 top-4 z-[45] -translate-x-1/2">
+            <div className="pointer-events-none absolute left-1/2 top-4 z-[70] -translate-x-1/2">
               <ContextToolbar engine={engine} />
             </div>
 
@@ -455,11 +712,22 @@ const OrbitEditorInner: React.FC<OrbitEditorProps> = ({
 
             <RulerOverlay
               zoom={zoom}
-              panX={panX}
-              panY={panY}
               canvasWidth={canvasWidth}
               canvasHeight={canvasHeight}
               showRulers={showRulers}
+              containerRef={containerRef}
+            />
+            <PageControls
+              containerRef={containerRef}
+              activePageIndex={activePageIndex}
+              pageCount={pages.length}
+              pagesLayout={pagesLayout}
+              onPreviousPage={handlePreviousPage}
+              onNextPage={handleNextPage}
+              onDuplicatePage={handleDuplicatePage}
+              onAddPage={handleAddPage}
+              onDeletePage={handleDeletePage}
+              onTogglePagesLayout={handleTogglePagesLayout}
             />
             <div ref={containerRef} className="h-full w-full" />
           </div>

@@ -20,7 +20,8 @@ export interface Renderer {
   destroy(): void;
   render(scene: SceneGraphType): void;
   resize(width: number, height: number): void;
-  setViewport(zoom: number, panX: number, panY: number): void;
+  setCanvasSize(width: number, height: number): void;
+  setZoom(percent: number): void;
   getCanvas(): fabric.Canvas | null;
   exportToDataURL(format: string, quality?: number, scale?: number): string;
   setSelection(ids: string[]): void;
@@ -74,19 +75,37 @@ export class FabricRenderer implements Renderer {
     this.container = container;
     this.canvasWidth = width;
     this.canvasHeight = height;
+    this.applyContainerLayout();
+
+    // Clean up any existing canvas elements (React Strict Mode double-mount)
+    const existing = container.querySelectorAll('canvas, .canvas-container');
+    existing.forEach((el) => el.remove());
+
     const canvasEl = document.createElement('canvas');
     canvasEl.id = 'orbit-canvas';
+    canvasEl.className = 'block max-w-none';
     container.appendChild(canvasEl);
 
+    // Initialize with artboard dimensions (backstore), NOT container size
     this.canvas = new fabric.Canvas(canvasEl, {
-      width: container.clientWidth,
-      height: container.clientHeight,
+      width,
+      height,
       backgroundColor: 'transparent',
       preserveObjectStacking: true,
       selection: true,
       fireRightClick: true,
       stopContextMenu: true,
     });
+    this.applyWrapperLayout();
+
+    // Clean up duplicate canvas after Fabric.js initializes its wrapper
+    setTimeout(() => {
+      // Only remove if the original is still a direct child of container
+      // (meaning Fabric.js cloned it rather than moving it into the wrapper)
+      if (canvasEl.parentElement === container) {
+        canvasEl.remove();
+      }
+    }, 0);
 
     // Configure Fabric.js defaults
     fabric.FabricObject.prototype.set({
@@ -99,7 +118,39 @@ export class FabricRenderer implements Renderer {
       padding: 4,
     });
 
+    // Set up clipPath to hide objects outside artboard
+    this.updateClipPath();
+
     this.setupEvents();
+  }
+
+  private applyContainerLayout(): void {
+    if (!this.container) return;
+
+    this.container.style.display = 'flex';
+    this.container.style.overflow = 'auto';
+    this.container.style.boxSizing = 'border-box';
+    this.container.style.padding = '32px';
+  }
+
+  private applyWrapperLayout(): void {
+    const wrapper = this.canvas?.wrapperEl;
+    if (!wrapper) return;
+
+    wrapper.style.margin = 'auto';
+    wrapper.style.flex = '0 0 auto';
+  }
+
+  private updateClipPath(): void {
+    if (!this.canvas) return;
+    const clipRect = new fabric.Rect({
+      left: 0,
+      top: 0,
+      width: this.canvasWidth,
+      height: this.canvasHeight,
+      absolutePositioned: true,
+    });
+    this.canvas.clipPath = clipRect;
   }
 
   destroy(): void {
@@ -116,6 +167,11 @@ export class FabricRenderer implements Renderer {
     this.objectMap.clear();
     this.imageCache.clear();
     this.pendingImages.clear();
+    // Remove Fabric.js wrapper from DOM to prevent duplicates on re-init
+    if (this.container) {
+      const wrapper = this.container.querySelector('.canvas-container');
+      if (wrapper) wrapper.remove();
+    }
   }
 
   render(scene: SceneGraphType): void {
@@ -147,6 +203,9 @@ export class FabricRenderer implements Renderer {
       }
     });
 
+    // Render border on top of everything
+    this.renderBorder(scene.border);
+
     this.canvas.requestRenderAll();
 
     // Re-add watermark on top of layers
@@ -160,15 +219,32 @@ export class FabricRenderer implements Renderer {
 
   resize(width: number, height: number): void {
     if (!this.canvas || !this.container) return;
-    this.canvas.setWidth(width);
-    this.canvas.setHeight(height);
-    this.canvas.requestRenderAll();
+    // Scale the visual CSS size only; backstore stays at artboard dimensions
+    this.canvas.setDimensions({ width, height }, { cssOnly: true });
+    this.applyWrapperLayout();
+    this.canvas.calcOffset();
   }
 
-  setViewport(zoom: number, panX: number, panY: number): void {
+  setCanvasSize(width: number, height: number): void {
+    this.canvasWidth = width;
+    this.canvasHeight = height;
     if (!this.canvas) return;
-    this.canvas.setZoom(zoom);
-    this.canvas.setViewportTransform([zoom, 0, 0, zoom, panX, panY]);
+    // Update backstore dimensions
+    this.canvas.setDimensions({ width, height });
+    this.applyWrapperLayout();
+    // Update clipPath to match new artboard size
+    this.updateClipPath();
+  }
+
+  setZoom(percent: number): void {
+    if (!this.canvas) return;
+    const s = percent / 100;
+    this.canvas.setDimensions(
+      { width: this.canvasWidth * s, height: this.canvasHeight * s },
+      { cssOnly: true }
+    );
+    this.applyWrapperLayout();
+    this.canvas.calcOffset();
     this.canvas.requestRenderAll();
   }
 
@@ -354,6 +430,101 @@ export class FabricRenderer implements Renderer {
       this.selectionCallback?.([]);
     });
 
+    const emitObjectUpdate = (obj: fabric.Object) => {
+      const id = this.findLayerId(obj);
+      if (!id || !this.modifyCallback) return;
+
+      const updates: Record<string, unknown> = {
+        x: obj.left,
+        y: obj.top,
+        width: obj.width ? obj.width * (obj.scaleX || 1) : undefined,
+        height: obj.height ? obj.height * (obj.scaleY || 1) : undefined,
+        rotation: obj.angle,
+        scaleX: obj.scaleX,
+        scaleY: obj.scaleY,
+        skewX: obj.skewX,
+        skewY: obj.skewY,
+      };
+
+      if (obj instanceof fabric.Text && 'text' in obj) {
+        updates.text = obj.text;
+      }
+
+      this.modifyCallback(id, updates);
+    };
+
+    // Long-press drag state
+    let dragTimer: ReturnType<typeof setTimeout> | null = null;
+    let isDragging = false;
+    let dragObj: fabric.Object | null = null;
+    let dragStartPos = { left: 0, top: 0 };
+    const DRAG_DELAY = 400;
+
+    // Mouse down: start timer, save position
+    this.canvas.on('mouse:down', (e) => {
+      const obj = e.target;
+      if (!obj || (obj instanceof fabric.IText && obj.isEditing)) return;
+
+      dragObj = obj;
+      isDragging = false;
+      dragStartPos = { left: obj.left || 0, top: obj.top || 0 };
+
+      dragTimer = setTimeout(() => {
+        isDragging = true;
+      }, DRAG_DELAY);
+    });
+
+    // Object moving: if not long press yet, snap back to start
+    this.canvas.on('object:moving', (e) => {
+      const obj = e.target;
+      if (!obj) return;
+
+      if (!isDragging && obj === dragObj) {
+        // Snap back to original position
+        obj.set({ left: dragStartPos.left, top: dragStartPos.top });
+        obj.setCoords();
+        return;
+      }
+
+      // Snap to grid
+      if (this.snapEnabled) {
+        const grid = this.snapGridSize;
+        obj.set({
+          left: Math.round((obj.left || 0) / grid) * grid,
+          top: Math.round((obj.top || 0) / grid) * grid,
+        });
+      }
+
+      // Smart guides
+      if (this.smartGuidesEnabled) {
+        this.applySmartGuides(obj);
+      }
+    });
+
+    // Mouse up: cancel timer, reset if short click
+    this.canvas.on('mouse:up', (e) => {
+      if (dragTimer) {
+        clearTimeout(dragTimer);
+        dragTimer = null;
+      }
+
+      const obj = e.target;
+      if (obj && !isDragging && obj === dragObj) {
+        // Short click: reset to original position
+        obj.set({ left: dragStartPos.left, top: dragStartPos.top });
+        obj.setCoords();
+      }
+
+      if (obj && isDragging) {
+        // Long press drag ended: emit update
+        emitObjectUpdate(obj);
+      }
+
+      dragObj = null;
+      isDragging = false;
+      this.clearGuideLines();
+    });
+
     // Object moving (with optional snap to grid + smart guides)
     this.canvas.on('object:moving', (e) => {
       const obj = e.target;
@@ -374,41 +545,21 @@ export class FabricRenderer implements Renderer {
       }
     });
 
-    // Clear guides when drag ends
-    this.canvas.on('mouse:up', () => {
-      this.clearGuideLines();
-    });
-
     // Object modified (move, scale, rotate, text edit)
     this.canvas.on('object:modified', (e) => {
       const obj = e.target;
-      if (!obj) return;
+      if (obj) emitObjectUpdate(obj);
+    });
 
-      const id = this.findLayerId(obj);
-      if (id && this.modifyCallback) {
-        const updates: Record<string, unknown> = {
-          x: obj.left,
-          y: obj.top,
-          width: obj.width ? obj.width * (obj.scaleX || 1) : undefined,
-          height: obj.height ? obj.height * (obj.scaleY || 1) : undefined,
-          rotation: obj.angle,
-          scaleX: obj.scaleX,
-          scaleY: obj.scaleY,
-          skewX: obj.skewX,
-          skewY: obj.skewY,
-        };
-        // Include text content if this is a text object
-        if (obj instanceof fabric.Textbox && 'text' in obj) {
-          updates.text = (obj as fabric.Textbox).text;
-        }
-        this.modifyCallback(id, updates);
-      }
+    this.canvas.on('text:changed', (e) => {
+      const obj = e.target;
+      if (obj) emitObjectUpdate(obj);
     });
 
     // Double-click to enter text editing
     this.canvas.on('mouse:dblclick', (e) => {
       const obj = e.target;
-      if (obj instanceof fabric.Textbox) {
+      if (obj instanceof fabric.IText) {
         obj.enterEditing();
       }
     });
@@ -656,16 +807,40 @@ export class FabricRenderer implements Renderer {
     img.src = src;
   }
 
-  private createTextObject(layer: Layer): fabric.Textbox | null {
-    const content = layer.content as { text: string; fontSize: number; color: string; fontFamily?: string; fontWeight?: number };
-    return new fabric.Textbox(content.text, {
+  private createTextObject(layer: Layer): fabric.Text | null {
+    const content = layer.content as {
+      text: string;
+      fontSize: number;
+      color: string;
+      fontFamily?: string;
+      fontWeight?: number;
+      fontStyle?: 'normal' | 'italic';
+      alignment?: 'left' | 'center' | 'right' | 'justify';
+      lineHeight?: number;
+      letterSpacing?: number;
+      decoration?: 'none' | 'underline' | 'line-through';
+      gradient?: { start: string; end: string; angle: number };
+      blur?: number;
+      textStrokeColor?: string;
+      textStrokeWidth?: number;
+      shadow?: { color: string; blur: number; opacity: number; offsetX: number; offsetY: number };
+    };
+    const text = new fabric.Text(content.text, {
       left: layer.x,
       top: layer.y,
-      width: layer.width,
       fontSize: content.fontSize,
       fill: content.color,
       fontFamily: content.fontFamily || 'Inter',
       fontWeight: content.fontWeight || 400,
+      fontStyle: content.fontStyle || 'normal',
+      textAlign: content.alignment || 'left',
+      lineHeight: content.lineHeight ?? 1.16,
+      charSpacing: content.letterSpacing ?? 0,
+      underline: content.decoration === 'underline',
+      linethrough: content.decoration === 'line-through',
+      stroke: content.textStrokeColor || undefined,
+      strokeWidth: content.textStrokeWidth || 0,
+      shadow: this.createTextShadow(content),
       opacity: layer.opacity,
       angle: layer.rotation,
       scaleX: layer.scaleX,
@@ -673,6 +848,69 @@ export class FabricRenderer implements Renderer {
       skewX: (layer as any).skewX || 0,
       skewY: (layer as any).skewY || 0,
     });
+    if (content.gradient) {
+      text.set('fill', this.createTextGradient(content.gradient, text.width || layer.width, text.height || layer.height));
+    }
+    return text;
+  }
+
+  private createTextGradient(
+    gradient: { start: string; end: string; angle: number },
+    width: number,
+    height: number
+  ): fabric.Gradient<'linear'> {
+    const safeWidth = Math.max(1, width);
+    const safeHeight = Math.max(1, height);
+    const radians = ((gradient.angle || 0) * Math.PI) / 180;
+    const x = Math.cos(radians) * safeWidth * 0.5;
+    const y = Math.sin(radians) * safeHeight * 0.5;
+
+    return new fabric.Gradient({
+      type: 'linear',
+      coords: {
+        x1: safeWidth / 2 - x,
+        y1: safeHeight / 2 - y,
+        x2: safeWidth / 2 + x,
+        y2: safeHeight / 2 + y,
+      },
+      colorStops: [
+        { offset: 0, color: gradient.start },
+        { offset: 1, color: gradient.end },
+      ],
+    });
+  }
+
+  private createTextShadow(content: {
+    color: string;
+    blur?: number;
+    shadow?: { color: string; blur: number; opacity: number; offsetX: number; offsetY: number };
+  }): fabric.Shadow | undefined {
+    if (content.shadow) {
+      return new fabric.Shadow({
+        color: this.hexToRgba(content.shadow.color, content.shadow.opacity / 100),
+        blur: content.shadow.blur,
+        offsetX: content.shadow.offsetX,
+        offsetY: content.shadow.offsetY,
+      });
+    }
+    if (content.blur && content.blur > 0) {
+      return new fabric.Shadow({
+        color: this.hexToRgba(content.color, 0.65),
+        blur: content.blur,
+        offsetX: 0,
+        offsetY: 0,
+      });
+    }
+    return undefined;
+  }
+
+  private hexToRgba(color: string, alpha: number): string {
+    const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(color);
+    if (!match) return color;
+    const r = parseInt(match[1], 16);
+    const g = parseInt(match[2], 16);
+    const b = parseInt(match[3], 16);
+    return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, alpha))})`;
   }
 
   private createShapeObject(layer: Layer): fabric.Object | null {
@@ -1060,6 +1298,94 @@ export class FabricRenderer implements Renderer {
     if (!anyPlaying) {
       this.stopPlaybackLoop();
     }
+  }
+
+  private renderBorder(border: SceneGraphType['border']): void {
+    if (!this.canvas || border.width <= 0) return;
+
+    const w = border.width;
+    const inset = w / 2;
+    const W = this.canvasWidth;
+    const H = this.canvasHeight;
+
+    // Get per-corner radius values
+    const rTL = border.radiusCorners.topLeft || border.radius;
+    const rTR = border.radiusCorners.topRight || border.radius;
+    const rBR = border.radiusCorners.bottomRight || border.radius;
+    const rBL = border.radiusCorners.bottomLeft || border.radius;
+
+    // Helper to create arc path command
+    const arc = (r: number, x: number, y: number) => `A ${r} ${r} 0 0 1 ${x} ${y}`;
+
+    const pathSegments: string[] = [];
+
+    // Build path clockwise from top-left
+    // Start at top-left corner (end of left side arc)
+    let startX = inset;
+    let startY = inset + rTL;
+    pathSegments.push(`M ${startX} ${startY}`);
+
+    // Top-left corner arc (connecting left to top)
+    if (rTL > 0 && (border.sides.top || border.sides.left)) {
+      pathSegments.push(arc(rTL, inset + rTL, inset));
+    } else if (border.sides.top) {
+      pathSegments.push(`L ${inset} ${inset}`);
+    }
+
+    // Top side
+    if (border.sides.top) {
+      pathSegments.push(`L ${W - inset - rTR} ${inset}`);
+    }
+
+    // Top-right corner arc
+    if (rTR > 0 && (border.sides.top || border.sides.right)) {
+      pathSegments.push(arc(rTR, W - inset, inset + rTR));
+    } else if (border.sides.right) {
+      pathSegments.push(`L ${W - inset} ${inset}`);
+    }
+
+    // Right side
+    if (border.sides.right) {
+      pathSegments.push(`L ${W - inset} ${H - inset - rBR}`);
+    }
+
+    // Bottom-right corner arc
+    if (rBR > 0 && (border.sides.right || border.sides.bottom)) {
+      pathSegments.push(arc(rBR, W - inset - rBR, H - inset));
+    } else if (border.sides.bottom) {
+      pathSegments.push(`L ${W - inset} ${H - inset}`);
+    }
+
+    // Bottom side
+    if (border.sides.bottom) {
+      pathSegments.push(`L ${inset + rBL} ${H - inset}`);
+    }
+
+    // Bottom-left corner arc
+    if (rBL > 0 && (border.sides.bottom || border.sides.left)) {
+      pathSegments.push(arc(rBL, inset, H - inset - rBL));
+    } else if (border.sides.left) {
+      pathSegments.push(`L ${inset} ${H - inset}`);
+    }
+
+    // Left side
+    if (border.sides.left) {
+      pathSegments.push(`L ${inset} ${inset + rTL}`);
+    }
+
+    const pathString = pathSegments.join(' ');
+    if (!pathString || pathString === `M ${startX} ${startY}`) return;
+
+    const path = new fabric.Path(pathString, {
+      fill: 'transparent',
+      stroke: border.color,
+      strokeWidth: w,
+      strokeDashArray: border.style === 'dashed' ? [w * 2, w] : border.style === 'dotted' ? [w, w * 1.5] : undefined,
+      selectable: false,
+      evented: false,
+    });
+    this.canvas.add(path);
+    this.canvas.bringObjectToFront(path);
   }
 
   private renderBackground(background: SceneGraphType['background']): void {

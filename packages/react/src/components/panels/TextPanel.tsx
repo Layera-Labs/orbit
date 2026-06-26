@@ -9,6 +9,7 @@ import { createCenteredTextLayer } from '../../utils/layerPlacement';
 
 interface TextPanelProps {
   engine: OrbitEngine | null;
+  onClose?: () => void;
 }
 
 const DEFAULT_STYLES = [
@@ -45,7 +46,7 @@ const BRAND_KIT = [
   { label: 'Title', text: 'Title', fontSize: 48, fontWeight: 700, fontFamily: 'Playfair Display', color: '#1a1a1a' },
 ];
 
-export const TextPanel: React.FC<TextPanelProps> = ({ engine }) => {
+export const TextPanel: React.FC<TextPanelProps> = ({ engine, onClose }) => {
   const { addLayer, selectLayer } = useOrbitLayers(engine);
   const [searchQuery, setSearchQuery] = React.useState('');
 
@@ -53,9 +54,11 @@ export const TextPanel: React.FC<TextPanelProps> = ({ engine }) => {
     (preset: { text: string; fontSize: number; fontWeight: number; fontFamily: string; color: string }) => {
       const layer = createCenteredTextLayer(engine, preset);
       const id = addLayer(layer);
+      engine?.setTool('select');
       if (id) selectLayer(id);
+      onClose?.();
     },
-    [addLayer, engine, selectLayer]
+    [addLayer, engine, selectLayer, onClose]
   );
 
   return (

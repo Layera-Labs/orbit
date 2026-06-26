@@ -112,4 +112,34 @@ describe('SceneGraph', () => {
     sg.setBackground({ type: 'solid', value: '#ff0000' });
     expect(sg.getState().background.value).toBe('#ff0000');
   });
+
+  it('replaces the full scene state', () => {
+    const sg = new SceneGraph();
+    sg.addLayer({
+      type: 'text', name: 'Old',
+      x: 0, y: 0, width: 100, height: 50,
+      rotation: 0, scaleX: 1, scaleY: 1, opacity: 1,
+      visible: true, locked: false, blendMode: 'normal', effects: [],
+      content: { type: 'text', text: 'Old', fontFamily: 'Inter', fontSize: 16, fontWeight: 400, color: '#000', alignment: 'left' },
+    });
+
+    sg.setState({
+      root: [],
+      background: { type: 'solid', value: '#ffffff' },
+      border: {
+        width: 0,
+        color: '#000000',
+        style: 'solid',
+        radius: 0,
+        sides: { top: true, right: true, bottom: true, left: true },
+        radiusCorners: { topLeft: 0, topRight: 0, bottomLeft: 0, bottomRight: 0 },
+      },
+      width: 500,
+      height: 400,
+    });
+
+    expect(sg.getState().root).toEqual([]);
+    expect(sg.getState().width).toBe(500);
+    expect(sg.getState().height).toBe(400);
+  });
 });

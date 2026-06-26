@@ -9,9 +9,10 @@ import type { AssetProvider, Asset } from '@orbit/shared';
 interface VideosPanelProps {
   videoProvider?: AssetProvider;
   onAddVideo?: (src: string, width: number, height: number, duration: number) => void;
+  onClose?: () => void;
 }
 
-export const VideosPanel: React.FC<VideosPanelProps> = ({ videoProvider, onAddVideo }) => {
+export const VideosPanel: React.FC<VideosPanelProps> = ({ videoProvider, onAddVideo, onClose }) => {
   const [query, setQuery] = useState('');
   const [videos, setVideos] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -80,7 +81,10 @@ export const VideosPanel: React.FC<VideosPanelProps> = ({ videoProvider, onAddVi
           {videos.map((video) => (
             <button
               key={video.id}
-              onClick={() => onAddVideo?.(video.src, video.width || 640, video.height || 360, video.duration || 10)}
+              onClick={() => {
+                onAddVideo?.(video.src, video.width || 640, video.height || 360, video.duration || 10);
+                onClose?.();
+              }}
               className="group relative aspect-video overflow-hidden rounded-orbit-md bg-orbit-panel text-left"
             >
               {video.thumbnail ? (

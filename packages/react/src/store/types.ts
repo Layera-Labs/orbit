@@ -25,6 +25,8 @@ export interface DesignData {
   id: string;
   name: string;
   scene: SceneGraph;
+  pages?: SceneGraph[];
+  activePageIndex?: number;
   viewport: ViewportState;
   background: BackgroundProps;
   createdAt: string;

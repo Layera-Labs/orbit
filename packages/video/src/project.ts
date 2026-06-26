@@ -29,6 +29,14 @@ export function transitionDuration(p: VideoProject): number {
  * overlap adjacent clips, so each transition shortens the total by its duration.
  */
 export function projectDuration(p: VideoProject): number {
+  // Multi-track: every clip has an absolute start, so duration is the latest end.
+  if (p.tracks?.length) {
+    let d = 0;
+    for (const t of p.tracks) for (const c of t.clips) d = Math.max(d, c.start + c.duration);
+    for (const o of p.overlays) d = Math.max(d, o.end);
+    return d;
+  }
+  // Legacy single track: clips play sequentially, crossfades overlap.
   let visual = 0;
   if (p.clips.length) {
     const total = p.clips.reduce((s, c) => s + c.duration, 0);
