@@ -129,6 +129,7 @@ function ProjectMenuSheet() {
   const setName = useEditor((s) => s.setName);
   const setPoster = useEditor((s) => s.setPoster);
   const setPanel = useEditor((s) => s.setPanel);
+  const shareExport = useEditor((s) => s.shareExport);
   const close = () => setPanel(null);
 
   function rename() {
@@ -188,10 +189,9 @@ function ProjectMenuSheet() {
         <VIcon name="image" size={24} color="#fff" />
         <Text style={s.menuRowText}>Set cover</Text>
       </Pressable>
-      <Pressable style={s.menuRow} onPress={() => soon('Share Project')}>
-        <VIcon name="export" size={24} color={vela.muted} />
-        <Text style={[s.menuRowText, { color: vela.muted }]}>Share Project</Text>
-        <View style={s.soonPill}><Text style={s.soonPillText}>soon</Text></View>
+      <Pressable style={s.menuRow} onPress={() => { close(); shareExport(); }}>
+        <VIcon name="export" size={24} color="#fff" />
+        <Text style={s.menuRowText}>Share Project</Text>
       </Pressable>
       <Pressable style={s.menuRow} onPress={() => soon('Create Template')}>
         <VIcon name="templates" size={24} color={vela.muted} />
