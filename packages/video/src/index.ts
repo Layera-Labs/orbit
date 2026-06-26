@@ -10,8 +10,19 @@ export type {
   AudioClip,
   Background,
   Transition,
+  TransitionType,
+  ClipFilter,
+  Rect,
+  VisualTrackClip,
+  AudioTrackClip,
+  VisualTrack,
+  AudioTrack,
+  Track,
   VideoProject,
 } from './types';
+export { FULL_FRAME } from './types';
+export { FILTER_PRESETS, NEUTRAL, resolveFilter, filterToFFmpeg, atempoChain, isNeutral } from './filters';
+export type { FilterParams } from './filters';
 export { createProject, projectDuration, transitionDuration } from './project';
 export { buildFFmpegArgs } from './ffmpeg';
 export type { BuildFFmpegOptions } from './ffmpeg';

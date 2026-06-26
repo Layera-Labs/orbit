@@ -8,9 +8,11 @@
 import type {
   AudioTrack,
   AudioTrackClip,
+  ClipFilter,
   Rect,
   TextOverlay,
   Track,
+  Transition,
   VideoProject,
   VisualTrack,
   VisualTrackClip,
@@ -241,6 +243,38 @@ export function setClipRect(p: VideoProject, trackId: string, clipId: string, re
     trackId,
     (cs) => cs.map((c) => (c.id === clipId ? { ...c, rect } : c)),
     (cs) => cs,
+  );
+}
+
+function patchVisualClip(p: VideoProject, trackId: string, clipId: string, patch: Partial<VisualTrackClip>): VideoProject {
+  return updateClips(
+    p,
+    trackId,
+    (cs) => cs.map((c) => (c.id === clipId ? { ...c, ...patch } : c)),
+    (cs) => cs,
+  );
+}
+
+export function setClipFilter(p: VideoProject, trackId: string, clipId: string, filter: ClipFilter | undefined): VideoProject {
+  return patchVisualClip(p, trackId, clipId, { filter });
+}
+
+export function setClipSpeed(p: VideoProject, trackId: string, clipId: string, speed: number): VideoProject {
+  return patchVisualClip(p, trackId, clipId, { speed: Math.max(0.25, Math.min(4, speed)) });
+}
+
+export function setClipTransition(p: VideoProject, trackId: string, clipId: string, transitionIn: Transition | undefined): VideoProject {
+  return patchVisualClip(p, trackId, clipId, { transitionIn });
+}
+
+/** Set volume on a visual (video) OR audio clip — patches whichever lane holds it. */
+export function setClipVolume(p: VideoProject, trackId: string, clipId: string, volume: number): VideoProject {
+  const v = Math.max(0, Math.min(2, volume));
+  return updateClips(
+    p,
+    trackId,
+    (cs) => cs.map((c) => (c.id === clipId ? { ...c, volume: v } : c)),
+    (cs) => cs.map((c) => (c.id === clipId ? { ...c, volume: v } : c)),
   );
 }
 

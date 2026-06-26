@@ -81,11 +81,29 @@ export type Background =
   | { type: 'gradient'; from: string; to: string; angle?: number }
   | { type: 'blur'; amount?: number };
 
-/** Transition applied between consecutive clips (v1: one project-wide setting). */
+export type TransitionType = 'cut' | 'fade' | 'dissolve' | 'slide' | 'wipe' | 'zoom';
+
+/** Transition between consecutive clips (legacy: project-wide; multi-track:
+ *  per base-clip boundary via `VisualTrackClip.transitionIn`). */
 export interface Transition {
-  type: 'cut' | 'fade';
+  type: TransitionType;
   /** Crossfade duration in seconds (ignored for 'cut'). */
   duration: number;
+}
+
+/** Per-clip colour grade (preview + export read the same values). */
+export interface ClipFilter {
+  preset?: string;
+  /** eq brightness, -1..1 (0 = neutral). */
+  brightness?: number;
+  /** eq contrast, 0..2 (1 = neutral). */
+  contrast?: number;
+  /** eq saturation, 0..3 (1 = neutral). */
+  saturation?: number;
+  /** warm(+) / cool(-) tint, -1..1 (0 = neutral). */
+  temperature?: number;
+  /** overall strength, 0..1 (default 1). */
+  intensity?: number;
 }
 
 // ---- Multi-track (v2) model — mirror of packages/video/src/types.ts ----
@@ -112,6 +130,12 @@ export interface VisualTrackClip {
   rect?: Rect;
   volume?: number;
   muted?: boolean;
+  /** Colour grade (preview + export). */
+  filter?: ClipFilter;
+  /** Playback speed multiplier (1 = normal). */
+  speed?: number;
+  /** Transition INTO this clip from the previous base-track clip. */
+  transitionIn?: Transition;
 }
 
 export interface AudioTrackClip {
