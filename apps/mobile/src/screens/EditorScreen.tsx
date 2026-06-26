@@ -1,20 +1,23 @@
-import { type ComponentProps, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, useWindowDimensions, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+/**
+ * Editor screen — Vela skin. Top bar (back · help · ratio chip · ⋯ · Save ·
+ * Export), a white-framed composite preview, a transport row, the Vela timeline,
+ * and the bottom tool rail. Tools we have wire to real actions; everything else
+ * is tagged "soon". Sheets (settings, project menu, insert, audio, prefs,
+ * filter, export) live in <EditorSheets/> and open via the store `panel` state.
+ */
+import { Alert, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { projectDuration } from '../model/project';
-import { clipAtTime } from '../model/editor-ops';
-import type { VisualTrackClip } from '../model/types';
-import { videoThumbnail } from '../storage/media';
-import { RATIOS, ratioLabel, theme } from '../constants';
+import { ratioLabel, font, mono, vela } from '../constants';
+import { VIcon, type VIconName } from '../components/VIcon';
 import { Preview } from '../components/Preview';
 import { Timeline } from '../components/Timeline';
-import { exportProject, downloadToPhotos, type ExportProgress } from '../net/renderClient';
+import { EditorSheets } from '../components/EditorSheets';
+import { SelectionActionBar } from '../components/SelectionActionBar';
 import { OVERLAY_TRACK, useEditor } from '../store/editorStore';
 
-type IconName = ComponentProps<typeof Ionicons>['name'];
 interface Tool {
   key: string;
-  icon: IconName;
+  icon: VIconName;
   label: string;
   onPress?: () => void;
   soon?: boolean;
@@ -22,38 +25,19 @@ interface Tool {
   disabled?: boolean;
 }
 
-function fmt(sec: number): string {
-  const s = Math.max(0, sec);
-  return `${Math.floor(s / 60)}:${Math.floor(s % 60).toString().padStart(2, '0')}`;
-}
+const soonAlert = (label: string) => Alert.alert('Coming soon', `${label} is coming soon.`);
 
-function progressLabel(p: ExportProgress): string {
-  switch (p.stage) {
-    case 'uploading':
-      return `Uploading media ${p.current ?? 1}/${p.total ?? 1}…`;
-    case 'rendering':
-      return 'Rendering on server…';
-    case 'downloading':
-      return 'Downloading…';
-    case 'saving':
-      return 'Saving to Photos…';
-  }
-}
-
-function ToolButton({ tool, vertical }: { tool: Tool; vertical?: boolean }) {
-  const color = tool.soon ? theme.muted : tool.danger ? theme.danger : theme.text;
-  const onPress = tool.soon ? () => Alert.alert('Coming soon', `${tool.label} is coming soon.`) : tool.onPress;
+function ToolButton({ tool }: { tool: Tool }) {
+  const color = tool.soon ? vela.muted2 : tool.danger ? vela.danger : vela.textLight;
+  const onPress = tool.soon ? () => soonAlert(tool.label) : tool.onPress;
+  const dimmed = tool.disabled && !tool.soon;
   return (
-    <Pressable
-      style={[styles.tool, vertical && styles.toolVertical, tool.disabled && !tool.soon && styles.toolDisabled]}
-      onPress={onPress}
-      disabled={tool.disabled && !tool.soon}
-    >
-      <Ionicons name={tool.icon} size={22} color={tool.disabled && !tool.soon ? theme.muted : color} />
-      <Text style={[styles.toolLabel, tool.danger && { color: theme.danger }]}>{tool.label}</Text>
+    <Pressable style={styles.tool} onPress={onPress} disabled={dimmed}>
+      <VIcon name={tool.icon} size={25} color={dimmed ? vela.muted3 : color} strokeWidth={1.7} />
+      <Text style={[styles.toolLabel, tool.danger && { color: vela.danger }]}>{tool.label}</Text>
       {tool.soon ? (
-        <View style={styles.soonBadge}>
-          <Text style={styles.soonText}>soon</Text>
+        <View style={styles.soonTag}>
+          <Text style={styles.soonTagText}>soon</Text>
         </View>
       ) : null}
     </Pressable>
@@ -63,25 +47,18 @@ function ToolButton({ tool, vertical }: { tool: Tool; vertical?: boolean }) {
 export function EditorScreen() {
   const { width: screenW } = useWindowDimensions();
   const project = useEditor((s) => s.project);
-  const name = useEditor((s) => s.name);
   const selected = useEditor((s) => s.selected);
   const closeEditor = useEditor((s) => s.closeEditor);
   const splitAtPlayhead = useEditor((s) => s.splitAtPlayhead);
   const removeSelected = useEditor((s) => s.removeSelected);
   const moveSelectedLayer = useEditor((s) => s.moveSelectedLayer);
   const togglePiP = useEditor((s) => s.togglePiP);
-  const serverUrl = useEditor((s) => s.serverUrl);
+  const duplicateSelected = useEditor((s) => s.duplicateSelected);
   const playheadSec = useEditor((s) => s.playheadSec);
   const isPlaying = useEditor((s) => s.isPlaying);
   const setPlaying = useEditor((s) => s.setPlaying);
   const setPlayhead = useEditor((s) => s.setPlayhead);
-  const setPoster = useEditor((s) => s.setPoster);
-  const setRatio = useEditor((s) => s.setRatio);
-  const setName = useEditor((s) => s.setName);
-  const sourceDims = useEditor((s) => s.sourceDims);
-  const [exporting, setExporting] = useState(false);
-  const [exportMsg, setExportMsg] = useState('');
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const setPanel = useEditor((s) => s.setPanel);
 
   if (!project) return null;
 
@@ -93,284 +70,186 @@ export function EditorScreen() {
   const selectedIsAudio = selectedTrack?.kind === 'audio';
   const selectedIsText = selected?.trackId === OVERLAY_TRACK;
 
-  function promptEditText() {
-    const st = useEditor.getState();
-    const sel = st.selected;
-    if (!sel || sel.trackId !== OVERLAY_TRACK) return;
-    const o = st.project?.overlays.find((x) => x.id === sel.clipId);
-    Alert.prompt(
-      'Caption text',
-      undefined,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Save', onPress: (t?: string) => t !== undefined && st.editSelectedText(t) },
-      ],
-      'plain-text',
-      o?.text ?? '',
-    );
-  }
-
-  // Fit a preview frame for this ratio into the available width.
+  // Fit the white preview frame (7px white padding all round) into the stage.
   const ar = project.width / project.height;
-  let fw = screenW - 40;
-  let fh = fw / ar;
-  if (fh > 260) {
-    fh = 260;
-    fw = fh * ar;
+  let iw = screenW - 48;
+  let ih = iw / ar;
+  const maxH = 380;
+  if (ih > maxH) {
+    ih = maxH;
+    iw = ih * ar;
   }
 
-  async function onExport() {
-    if (!project) return;
-    if (clipCount === 0 && project.overlays.length === 0) {
-      Alert.alert('Nothing to export', 'Import a clip first.');
-      return;
-    }
-    setExporting(true);
-    setExportMsg('Preparing…');
-    try {
-      const url = await exportProject(serverUrl, project, (p) => setExportMsg(progressLabel(p)));
-      await downloadToPhotos(url, Date.now(), (p) => setExportMsg(progressLabel(p)));
-      setExporting(false);
-      Alert.alert('Exported', 'Your video was saved to Photos.');
-    } catch (e) {
-      setExporting(false);
-      Alert.alert('Export failed', e instanceof Error ? e.message : String(e));
-    }
-  }
-
-  async function onCover() {
-    if (!project) return;
-    const mainTrack = project.tracks?.find((t) => t.kind === 'visual');
-    const c = mainTrack ? (clipAtTime(mainTrack, playheadSec) as VisualTrackClip | undefined) : undefined;
-    if (!c) {
-      Alert.alert('Cover', 'Add a video or image first, move the playhead, then tap Cover.');
-      return;
-    }
-    if (c.type === 'image') {
-      setPoster(c.src);
-      Alert.alert('Cover set', 'Project cover updated.');
-      return;
-    }
-    const t = await videoThumbnail(c.src, (c.trimIn ?? 0) + (playheadSec - c.start));
-    if (t) {
-      setPoster(t);
-      Alert.alert('Cover set', 'Project cover updated to the current frame.');
-    } else {
-      Alert.alert('Cover', 'Could not capture the frame.');
-    }
-  }
-
-  function onRename() {
-    Alert.prompt(
-      'Rename project',
-      undefined,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Save', onPress: (t?: string) => t && setName(t) },
-      ],
-      'plain-text',
-      name,
-    );
-  }
-
-  const ratioOptions = sourceDims
-    ? [{ key: 'orig', label: 'Original', hint: 'Source', width: sourceDims.width, height: sourceDims.height }, ...RATIOS]
-    : RATIOS;
-
-  // Bottom feature bar: the headline tools (horizontal scroll), then a few
-  // selection-specific actions appended on the right.
+  // Bottom tool rail. With nothing selected it shows Vela's eight; selecting a
+  // clip/overlay REPLACES it with that element's contextual tools (CapCut-style).
   const base: Tool[] = [
-    { key: 'cover', icon: 'image-outline', label: 'Cover', onPress: onCover, disabled: clipCount === 0 },
-    { key: 'split', icon: 'cut-outline', label: 'Split', onPress: splitAtPlayhead, disabled: clipCount === 0 },
-    { key: 'speed', icon: 'speedometer-outline', label: 'Speed', soon: true },
-    { key: 'filter', icon: 'color-filter-outline', label: 'Filter', soon: true },
-    { key: 'effects', icon: 'sparkles-outline', label: 'Effects', soon: true },
-    { key: 'extract', icon: 'download-outline', label: 'Extract', soon: true },
-    { key: 'fx', icon: 'flash-outline', label: 'FX', soon: true },
-    { key: 'quality', icon: 'tv-outline', label: 'Quality', soon: true },
+    { key: 'filter', icon: 'filter', label: 'Filter', onPress: () => setPanel('filter') },
+    { key: 'trim', icon: 'trim', label: 'Trim', soon: true },
+    { key: 'fx', icon: 'fx', label: 'FX', soon: true },
+    { key: 'split', icon: 'split', label: 'Split', onPress: splitAtPlayhead, disabled: clipCount === 0 },
+    { key: 'cutout', icon: 'cutout', label: 'Cutout', soon: true },
+    { key: 'quality', icon: 'quality', label: 'Quality', onPress: () => setPanel('settings') },
+    { key: 'speed', icon: 'speed', label: 'Speed', soon: true },
+    { key: 'volume', icon: 'volume', label: 'Volume', soon: true },
   ];
-  let contextual: Tool[] = [];
-  if (selectedIsText) {
-    contextual = [
-      { key: 'edit', icon: 'create-outline', label: 'Edit', onPress: promptEditText },
-      { key: 'del', icon: 'trash-outline', label: 'Delete', onPress: removeSelected, danger: true },
-    ];
-  } else if (selectedIsAudio) {
-    contextual = [
-      { key: 'vol', icon: 'volume-high-outline', label: 'Volume', soon: true },
-      { key: 'del', icon: 'trash-outline', label: 'Delete', onPress: removeSelected, danger: true },
-    ];
-  } else if (selected) {
-    contextual = [
-      { key: 'pip', icon: 'scan-outline', label: 'PiP', onPress: togglePiP, disabled: !selectedIsVisual },
-      { key: 'up', icon: 'chevron-up', label: 'Up', onPress: () => moveSelectedLayer(1), disabled: !selectedIsVisual },
-      { key: 'down', icon: 'chevron-down', label: 'Down', onPress: () => moveSelectedLayer(-1), disabled: !selectedIsVisual },
-      { key: 'del', icon: 'trash-outline', label: 'Delete', onPress: removeSelected, danger: true },
-    ];
-  }
-  const bottomTools: Tool[] = [...base, ...contextual];
+  // Full text toolset (CapCut). Split/Delete/Copy are real; the rest are soon.
+  const textTools: Tool[] = [
+    { key: 'font', icon: 'font', label: 'Font', soon: true },
+    { key: 'size', icon: 'fontsize', label: 'Size', soon: true },
+    { key: 'split', icon: 'split', label: 'Split', onPress: splitAtPlayhead },
+    { key: 'delete', icon: 'trash', label: 'Delete', onPress: removeSelected, danger: true },
+    { key: 'color', icon: 'color', label: 'Color', soon: true },
+    { key: 'format', icon: 'format', label: 'Format', soon: true },
+    { key: 'spacing', icon: 'spacing', label: 'Spacing', soon: true },
+    { key: 'style', icon: 'style', label: 'Style', soon: true },
+    { key: 'blending', icon: 'blending', label: 'Blending', soon: true },
+    { key: 'opacity', icon: 'opacity', label: 'Opacity', soon: true },
+    { key: 'position', icon: 'position', label: 'Position', soon: true },
+    { key: 'mask', icon: 'mask', label: 'Mask', soon: true },
+    { key: 'copy', icon: 'duplicate', label: 'Copy', onPress: duplicateSelected },
+  ];
+  const audioTools: Tool[] = [
+    { key: 'split', icon: 'split', label: 'Split', onPress: splitAtPlayhead },
+    { key: 'volume', icon: 'volume', label: 'Volume', soon: true },
+    { key: 'copy', icon: 'duplicate', label: 'Copy', onPress: duplicateSelected },
+    { key: 'delete', icon: 'trash', label: 'Delete', onPress: removeSelected, danger: true },
+  ];
+  const visualTools: Tool[] = [
+    { key: 'split', icon: 'split', label: 'Split', onPress: splitAtPlayhead },
+    { key: 'pip', icon: 'fullscreen', label: 'PiP', onPress: togglePiP },
+    { key: 'up', icon: 'chevronUp', label: 'Up', onPress: () => moveSelectedLayer(1) },
+    { key: 'down', icon: 'chevronDown', label: 'Down', onPress: () => moveSelectedLayer(-1) },
+    { key: 'opacity', icon: 'opacity', label: 'Opacity', soon: true },
+    { key: 'copy', icon: 'duplicate', label: 'Copy', onPress: duplicateSelected },
+    { key: 'delete', icon: 'trash', label: 'Delete', onPress: removeSelected, danger: true },
+  ];
+  const bottomTools: Tool[] = selectedIsText
+    ? textTools
+    : selectedIsAudio
+      ? audioTools
+      : selected && selectedIsVisual
+        ? visualTools
+        : base;
 
   return (
     <View style={styles.root}>
+      {/* Top bar */}
       <View style={styles.topbar}>
-        <Pressable onPress={closeEditor} hitSlop={10}>
-          <Text style={styles.back}>‹ Projects</Text>
-        </Pressable>
-        <View style={styles.titleWrap}>
-          <Pressable style={styles.ratioChip} onPress={() => setSettingsOpen(true)}>
-            <Ionicons name="phone-portrait-outline" size={15} color={theme.text} />
-            <Text style={styles.ratioChipText}>{ratioLabel(project.width, project.height)}</Text>
-            <Ionicons name="chevron-down" size={14} color={theme.subtext} />
+        <View style={styles.topGroup}>
+          <Pressable onPress={closeEditor} hitSlop={10}>
+            <VIcon name="back" size={24} color="#fff" />
+          </Pressable>
+          <Pressable onPress={() => soonAlert('Help')} hitSlop={10}>
+            <VIcon name="help" size={22} color={vela.muted} />
           </Pressable>
         </View>
-        <Pressable style={[styles.export, exporting && styles.exportOff]} onPress={onExport} disabled={exporting}>
-          <Text style={styles.exportText}>Export</Text>
+
+        <Pressable style={styles.ratioChip} onPress={() => setPanel('settings')} hitSlop={8}>
+          <VIcon name="frame" size={18} color="#fff" />
+          <Text style={styles.ratioChipText}>{ratioLabel(project.width, project.height)}</Text>
+          <VIcon name="chevronDown" size={14} color="#fff" />
+        </Pressable>
+
+        <View style={styles.topGroup}>
+          <Pressable onPress={() => setPanel('editmenu')} hitSlop={10}>
+            <VIcon name="dots" size={22} color="#fff" />
+          </Pressable>
+          <Pressable style={styles.saveTile} onPress={() => Alert.alert('Saved', 'Your project saves automatically.')}>
+            <VIcon name="save" size={19} color="#fff" />
+          </Pressable>
+          <Pressable style={styles.exportTile} onPress={() => setPanel('export')}>
+            <VIcon name="export" size={19} color="#fff" />
+          </Pressable>
+        </View>
+      </View>
+
+      {/* Preview */}
+      <View style={styles.stage}>
+        <View style={[styles.whiteFrame, { width: iw + 14, height: ih + 14 }]}>
+          <Preview width={iw} height={ih} />
+        </View>
+        <Pressable style={styles.fullscreenBtn} onPress={() => soonAlert('Fullscreen')}>
+          <VIcon name="fullscreen" size={18} color="#fff" />
         </Pressable>
       </View>
 
-      <View style={styles.previewWrap}>
-        <Preview width={fw} height={fh} />
-      </View>
-
-      {/* Transport bar */}
+      {/* Transport */}
       <View style={styles.transport}>
         <Text style={styles.tc}>
-          {fmt(playheadSec)} / {fmt(dur)}
+          {playheadSec.toFixed(2)}
+          <Text style={styles.tcDim}>s / {dur.toFixed(2)}s</Text>
         </Text>
         <View style={styles.transportBtns}>
           <Pressable onPress={() => setPlayhead(0)} hitSlop={12}>
-            <Ionicons name="play-skip-back" size={20} color={theme.text} />
+            <VIcon name="prev" size={18} color="#fff" />
           </Pressable>
-          <Pressable style={styles.playMain} onPress={() => setPlaying(!isPlaying)} hitSlop={12}>
-            <Ionicons name={isPlaying ? 'pause' : 'play'} size={24} color={theme.accentText} />
+          <Pressable onPress={() => setPlaying(!isPlaying)} hitSlop={12}>
+            <VIcon name={isPlaying ? 'pause' : 'play'} size={24} color="#fff" />
           </Pressable>
           <Pressable onPress={() => setPlayhead(dur)} hitSlop={12}>
-            <Ionicons name="play-skip-forward" size={20} color={theme.text} />
+            <VIcon name="next" size={18} color="#fff" />
+          </Pressable>
+        </View>
+        <View style={styles.transportRight}>
+          <Pressable onPress={() => setPanel('prefs')} hitSlop={10}>
+            <VIcon name="prefs" size={20} color="#fff" />
+          </Pressable>
+          <Pressable onPress={() => soonAlert('Undo')} hitSlop={8}>
+            <VIcon d="M9 14l-4-4 4-4M5 10h7a5 5 0 015 5v1" size={19} color={vela.muted2} />
+          </Pressable>
+          <Pressable onPress={() => soonAlert('Redo')} hitSlop={8}>
+            <VIcon d="M15 14l4-4-4-4M19 10h-7a5 5 0 00-5 5v1" size={19} color={vela.muted2} />
           </Pressable>
         </View>
       </View>
 
-      {/* Timeline (its own left gutter holds per-row add buttons) */}
-      <Timeline />
+      {/* Timeline (with the floating selection action bar over its top) */}
+      <View style={styles.timelineWrap}>
+        <Timeline />
+        <SelectionActionBar />
+      </View>
 
-      {/* Bottom contextual edit-bar */}
-      <View style={styles.bottomBar}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bottomBarContent}>
+      {/* Bottom tool rail */}
+      <View style={styles.toolbar}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.toolbarContent}>
           {bottomTools.map((t) => (
             <ToolButton key={t.key} tool={t} />
           ))}
         </ScrollView>
       </View>
 
-      <Modal visible={exporting} transparent animationType="fade">
-        <View style={styles.exportBackdrop}>
-          <View style={styles.exportCard}>
-            <ActivityIndicator color={theme.accent} size="large" />
-            <Text style={styles.exportMsg}>{exportMsg}</Text>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Project settings (ratio / HDR / rename) */}
-      <Modal visible={settingsOpen} transparent animationType="slide" onRequestClose={() => setSettingsOpen(false)}>
-        <Pressable style={styles.sheetBackdrop} onPress={() => setSettingsOpen(false)}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Project settings</Text>
-              <Pressable onPress={() => setSettingsOpen(false)} hitSlop={10}>
-                <Ionicons name="checkmark" size={24} color={theme.accent} />
-              </Pressable>
-            </View>
-
-            <Text style={styles.sheetLabel}>Aspect ratio</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.ratioRow}>
-              {ratioOptions.map((r) => {
-                const on = r.width === project.width && r.height === project.height;
-                return (
-                  <Pressable key={r.key} style={[styles.ratioCard, on && styles.ratioCardOn]} onPress={() => setRatio(r.width, r.height)}>
-                    <Text style={[styles.ratioCardLabel, on && styles.ratioCardLabelOn]}>{r.label}</Text>
-                    <Text style={styles.ratioCardHint}>{r.hint}</Text>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-
-            <View style={styles.sheetRow}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sheetRowTitle}>
-                  HDR <Text style={styles.soonInline}>soon</Text>
-                </Text>
-                <Text style={styles.sheetRowSub}>Convert the export to an HDR video</Text>
-              </View>
-              <Switch value={false} disabled trackColor={{ true: theme.accent, false: theme.border }} />
-            </View>
-
-            <Pressable style={styles.sheetActionRow} onPress={() => { setSettingsOpen(false); onRename(); }}>
-              <Ionicons name="create-outline" size={18} color={theme.text} />
-              <Text style={styles.sheetActionText}>Rename project</Text>
-              <Ionicons name="chevron-forward" size={16} color={theme.muted} style={{ marginLeft: 'auto' }} />
-            </Pressable>
-          </Pressable>
-        </Pressable>
-      </Modal>
+      {/* Sheets + export progress */}
+      <EditorSheets />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: theme.editorBg, paddingTop: 56 },
-  topbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 12 },
-  back: { color: theme.accent, fontSize: 16, fontWeight: '600', width: 84 },
-  titleWrap: { flex: 1, alignItems: 'center' },
-  title: { color: theme.text, fontSize: 16, fontWeight: '700' },
-  subtitle: { color: theme.muted, fontSize: 12, marginTop: 1 },
-  export: { backgroundColor: theme.accent, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10, width: 84, alignItems: 'center' },
-  exportOff: { opacity: 0.5 },
-  exportText: { color: theme.accentText, fontWeight: '700' },
+  root: { flex: 1, backgroundColor: vela.editorBg, paddingTop: 56 },
 
-  previewWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 4, paddingBottom: 8 },
+  topGroup: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  ratioChip: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  ratioChipText: { color: '#fff', fontFamily: font.semibold, fontSize: 15 },
+  saveTile: { width: 42, height: 36, borderRadius: 10, backgroundColor: vela.saveTile, alignItems: 'center', justifyContent: 'center' },
+  exportTile: { width: 42, height: 36, borderRadius: 10, backgroundColor: vela.accent, alignItems: 'center', justifyContent: 'center' },
 
-  transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.border },
-  tc: { position: 'absolute', left: 18, color: theme.subtext, fontSize: 12, fontVariant: ['tabular-nums'] },
-  transportBtns: { flexDirection: 'row', alignItems: 'center', gap: 28 },
-  playMain: { width: 44, height: 44, borderRadius: 22, backgroundColor: theme.accent, alignItems: 'center', justifyContent: 'center' },
+  stage: { flex: 1, alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  whiteFrame: { backgroundColor: '#fff', borderRadius: 6, padding: 7 },
+  fullscreenBtn: { position: 'absolute', right: 24, bottom: 6, width: 34, height: 34, borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
 
-  timelineRow: { flexDirection: 'row', borderTopWidth: 1, borderTopColor: theme.border },
-  rail: { width: 60, paddingVertical: 8, gap: 6, borderRightWidth: 1, borderRightColor: theme.border, backgroundColor: theme.surface2 },
-  timelineWrap: { flex: 1 },
+  transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, paddingVertical: 6 },
+  tc: { fontFamily: mono.regular, fontSize: 13, color: '#fff' },
+  tcDim: { color: vela.muted2 },
+  transportBtns: { flexDirection: 'row', alignItems: 'center', gap: 24 },
+  transportRight: { flexDirection: 'row', alignItems: 'center', gap: 16 },
 
-  bottomBar: { borderTopWidth: 1, borderTopColor: theme.border },
-  bottomBarContent: { paddingHorizontal: 12, paddingVertical: 10, gap: 10, alignItems: 'center' },
+  timelineWrap: { position: 'relative' },
 
-  tool: { alignItems: 'center', gap: 3, minWidth: 56, paddingVertical: 2 },
-  toolVertical: { minWidth: 0, width: '100%' },
-  toolDisabled: { opacity: 0.35 },
-  toolLabel: { color: theme.subtext, fontSize: 11 },
-  soonBadge: { position: 'absolute', top: -3, right: 4, backgroundColor: theme.surface, borderRadius: 4, paddingHorizontal: 3 },
-  soonText: { color: theme.muted, fontSize: 7, fontWeight: '700' },
-
-  exportBackdrop: { flex: 1, backgroundColor: '#000c', alignItems: 'center', justifyContent: 'center' },
-  exportCard: { backgroundColor: theme.surface, borderRadius: 16, padding: 28, alignItems: 'center', gap: 14, minWidth: 200 },
-  exportMsg: { color: theme.text, fontSize: 15 },
-
-  ratioChip: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: theme.surface, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16 },
-  ratioChipText: { color: theme.text, fontWeight: '700', fontSize: 14 },
-
-  sheetBackdrop: { flex: 1, backgroundColor: '#000a', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: theme.surface2, padding: 20, paddingBottom: 36, borderTopLeftRadius: 20, borderTopRightRadius: 20, gap: 12 },
-  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sheetTitle: { color: theme.text, fontSize: 18, fontWeight: '700' },
-  sheetLabel: { color: theme.subtext, fontSize: 13 },
-  ratioRow: { gap: 10, paddingVertical: 2 },
-  ratioCard: { minWidth: 72, backgroundColor: theme.surface, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 14, borderWidth: 2, borderColor: 'transparent', alignItems: 'center' },
-  ratioCardOn: { borderColor: theme.accent },
-  ratioCardLabel: { color: theme.text, fontSize: 16, fontWeight: '700' },
-  ratioCardLabelOn: { color: theme.accent },
-  ratioCardHint: { color: theme.muted, fontSize: 11, marginTop: 2 },
-  sheetRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: theme.surface, borderRadius: 12, padding: 14, marginTop: 4 },
-  sheetRowTitle: { color: theme.text, fontSize: 15, fontWeight: '600' },
-  sheetRowSub: { color: theme.muted, fontSize: 12, marginTop: 2 },
-  soonInline: { color: theme.muted, fontSize: 10, fontWeight: '700' },
-  sheetActionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: theme.surface, borderRadius: 12, padding: 14 },
-  sheetActionText: { color: theme.text, fontSize: 15, fontWeight: '600' },
+  toolbar: { borderTopWidth: 1, borderTopColor: vela.toolbarBorder, backgroundColor: vela.toolbar },
+  toolbarContent: { paddingVertical: 14, paddingHorizontal: 8, paddingBottom: 22 },
+  tool: { width: 66, alignItems: 'center', gap: 7 },
+  toolLabel: { color: vela.textLight2, fontSize: 12, fontFamily: font.medium },
+  soonTag: { position: 'absolute', top: -4, right: 8, backgroundColor: vela.card2, borderRadius: 5, paddingHorizontal: 4, paddingVertical: 1 },
+  soonTagText: { color: vela.muted2, fontSize: 8, fontFamily: font.bold },
 });

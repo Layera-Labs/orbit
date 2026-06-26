@@ -1,12 +1,13 @@
 /**
- * CapCut-style multi-track timeline (Expo Go — RN Views + Gesture Handler).
+ * Vela-styled multi-track timeline (Expo Go — RN Views + Gesture Handler).
  *
  * Layout: a FIXED left gutter of per-row add-icons aligned to FIVE fixed lanes,
  * top→bottom — Music · Text · Image · Video · Sound — and a horizontally
- * scrolling area (ruler + lanes) under a fixed playhead (scroll = scrub). Clips
- * are absolutely positioned by their ABSOLUTE start; a selected clip drags by
- * the body (move in time) or edge handles (trim); scroll locks while selected.
- * The Sound lane is a read-only waveform mirror of the main video clips' audio.
+ * scrolling area (ruler + lanes) under a fixed white playhead (scroll = scrub).
+ * Each row shows a dark "empty track" bar; clips ride on top, absolutely
+ * positioned by their ABSOLUTE start. A selected clip drags by the body (move in
+ * time) or yellow edge handles (trim); scroll locks while a clip is selected.
+ * The Sound lane is a read-only waveform mirror of the main clips' audio.
  */
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -22,39 +23,41 @@ import {
   View,
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../constants';
+import { mono, vela } from '../constants';
+import { VIcon, type VIconName } from './VIcon';
 import { MIN_CLIP } from '../model/editor-ops';
 import { projectDuration } from '../model/project';
 import type { Rect, VisualTrackClip } from '../model/types';
-import { pickAndAddAudio, pickAndAddMedia, pickAndAddOverlay } from '../media/pick';
+import { pickAndAddMedia } from '../media/pick';
 import { videoThumbnail } from '../storage/media';
 import { OVERLAY_TRACK, useEditor } from '../store/editorStore';
 
-const MUSIC_H = 38;
+const MUSIC_H = 36;
 const TEXT_H = 30;
-const IMAGE_H = 42;
-const VIDEO_H = 56;
-const SOUND_H = 34;
+const IMAGE_H = 40;
+const VIDEO_H = 54;
+const SOUND_H = 32;
 const RULER_H = 22;
 const GUTTER_W = 48;
-const LANE_GAP = 5;
+const LANE_GAP = 6;
 const HANDLE_W = 16;
+const ADD_TILE_W = 42;
 const PLAYHEAD_X = 10; // playhead offset from the gutter — clips start right here (no big gap)
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-type IconName = React.ComponentProps<typeof Ionicons>['name'];
 type RowKind = 'audio' | 'text' | 'visual' | 'sound';
 type ClipLike = { id: string; start: number; duration: number; trimIn?: number; src?: string; type?: 'video' | 'image'; rect?: Rect; text?: string };
 interface RowDef {
   key: string;
-  icon: IconName;
+  icon: VIconName;
   label: string;
   kind: RowKind;
   height: number;
   clips: { clip: ClipLike; trackId: string }[];
   add: () => void;
   empty: string;
+  /** show a white "+" tile after the last clip (the main video row) */
+  addTile?: boolean;
 }
 
 const thumbCache = new Map<string, string>();
@@ -84,7 +87,7 @@ function Filmstrip({ clip, height }: { clip: VisualTrackClip; height: number }) 
   if (!uri) {
     return (
       <View style={styles.thumbFallback}>
-        <Ionicons name={clip.type === 'video' ? 'film-outline' : 'image-outline'} size={18} color={theme.muted} />
+        <VIcon name={clip.type === 'video' ? 'video' : 'image'} size={18} color={vela.muted} />
       </View>
     );
   }
@@ -153,7 +156,7 @@ function ClipView({ clip, trackId, kind, height, selected, pxPerSec }: { clip: C
       {kind === 'visual' ? (
         <Filmstrip clip={v} height={height} />
       ) : kind === 'audio' ? (
-        <Waveform seed={clip.id} width={width} color="#9ff5d6" />
+        <Waveform seed={clip.id} width={width} color="#c79bff" />
       ) : (
         <View style={styles.textFill}>
           <Text numberOfLines={1} style={styles.textLabel}>
@@ -231,17 +234,14 @@ function Ruler({ end, pxPerSec }: { end: number; pxPerSec: number }) {
   );
 }
 
-function laneBg(kind: RowKind) {
-  return kind === 'audio' ? styles.audioLane : kind === 'text' ? styles.textLane : kind === 'sound' ? styles.soundLane : styles.visualLane;
-}
-
-/** Fixed, full-width background bar for a row (does not scroll). */
-function RowBg({ row }: { row: RowDef }) {
-  return <View style={[styles.rowBg, { height: row.height }, laneBg(row.kind)]} />;
+/** Fixed, full-width "empty track" bar for a row (does not scroll). */
+function RowBg({ height }: { height: number }) {
+  return <View style={[styles.rowBg, { height }]} />;
 }
 
 /** Scrolling clip layer for a row (transparent; sits on top of the RowBg). */
 function ClipLane({ row, scrollW, pxPerSec, selected }: { row: RowDef; scrollW: number; pxPerSec: number; selected: ReturnType<typeof useEditor.getState>['selected'] }) {
+  const lastEnd = row.clips.reduce((m, { clip }) => Math.max(m, clip.start + clip.duration), 0);
   return (
     <View style={{ height: row.height }}>
       {row.clips.length === 0 ? (
@@ -257,6 +257,11 @@ function ClipLane({ row, scrollW, pxPerSec, selected }: { row: RowDef; scrollW: 
           <ClipView key={clip.id} clip={clip} trackId={trackId} kind={row.kind} height={row.height} selected={selected?.trackId === trackId && selected?.clipId === clip.id} pxPerSec={pxPerSec} />
         ))
       )}
+      {row.addTile && row.clips.length > 0 ? (
+        <Pressable onPress={row.add} style={[styles.addTile, { left: lastEnd * pxPerSec + 4, height: row.height }]}>
+          <VIcon name="plus" size={22} color="#111" />
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -268,7 +273,7 @@ export function Timeline() {
   const selected = useEditor((s) => s.selected);
   const setPlayhead = useEditor((s) => s.setPlayhead);
   const isPlaying = useEditor((s) => s.isPlaying);
-  const addText = useEditor((s) => s.addText);
+  const setPanel = useEditor((s) => s.setPanel);
 
   const scrollRef = useRef<ScrollView>(null);
   const [viewW, setViewW] = useState(0);
@@ -282,17 +287,18 @@ export function Timeline() {
 
   const toEntries = (ts: { id: string; clips: ClipLike[] }[]) => ts.flatMap((t) => t.clips.map((clip) => ({ clip, trackId: t.id })));
   const rows: RowDef[] = [
-    { key: 'music', icon: 'musical-notes', label: 'Music', kind: 'audio', height: MUSIC_H, clips: toEntries(audio), add: () => void pickAndAddAudio(), empty: 'Tap ♪+ to add music' },
-    { key: 'text', icon: 'text', label: 'Text', kind: 'text', height: TEXT_H, clips: overlays.map((o) => ({ clip: { id: o.id, start: o.start, duration: Math.max(0.1, o.end - o.start), text: o.text }, trackId: OVERLAY_TRACK })), add: addText, empty: 'Tap T+ to add subtitle' },
-    { key: 'image', icon: 'image', label: 'Image', kind: 'visual', height: IMAGE_H, clips: toEntries(visual.slice(1)), add: () => void pickAndAddOverlay(), empty: 'Tap +  to add sticker / PiP' },
-    { key: 'video', icon: 'film', label: 'Video', kind: 'visual', height: VIDEO_H, clips: main ? main.clips.map((clip) => ({ clip, trackId: main.id })) : [], add: () => void pickAndAddMedia(), empty: 'Tap +  to add video' },
-    { key: 'sound', icon: 'volume-high', label: 'Sound', kind: 'sound', height: SOUND_H, clips: main ? main.clips.filter((c) => c.type === 'video').map((clip) => ({ clip, trackId: main.id })) : [], add: () => Alert.alert('Coming soon', 'Voiceover is coming soon.'), empty: 'Original audio' },
+    { key: 'music', icon: 'gutterAudio', label: 'Music', kind: 'audio', height: MUSIC_H, clips: toEntries(audio), add: () => setPanel('audio'), empty: 'Tap to add music' },
+    { key: 'text', icon: 'subtitle', label: 'Text', kind: 'text', height: TEXT_H, clips: overlays.map((o) => ({ clip: { id: o.id, start: o.start, duration: Math.max(0.1, o.end - o.start), text: o.text }, trackId: OVERLAY_TRACK })), add: () => setPanel('insert'), empty: 'Tap to add subtitle' },
+    { key: 'image', icon: 'image', label: 'Image', kind: 'visual', height: IMAGE_H, clips: toEntries(visual.slice(1)), add: () => setPanel('insert'), empty: 'Tap to add sticker / PiP' },
+    { key: 'video', icon: 'video', label: 'Video', kind: 'visual', height: VIDEO_H, clips: main ? main.clips.map((clip) => ({ clip, trackId: main.id })) : [], add: () => void pickAndAddMedia(), empty: 'Tap to add video', addTile: true },
+    { key: 'sound', icon: 'soundfx', label: 'Sound', kind: 'sound', height: SOUND_H, clips: main ? main.clips.filter((c) => c.type === 'video').map((clip) => ({ clip, trackId: main.id })) : [], add: () => Alert.alert('Coming soon', 'Voiceover is coming soon.'), empty: 'Original audio' },
   ];
 
   const end = project ? projectDuration(project) : 0;
   const scrollEnabled = !selected && !isPlaying;
   const scrollW = Math.max(1, viewW - GUTTER_W);
-  const contentW = Math.max(1, end * pxPerSec);
+  // leave room past the content for the white "+" add tile on the video row.
+  const contentW = Math.max(1, end * pxPerSec + ADD_TILE_W + 8);
 
   useEffect(() => {
     if (!userScrolling.current && viewW > 0) scrollRef.current?.scrollTo({ x: playheadSec * pxPerSec, animated: false });
@@ -312,8 +318,7 @@ export function Timeline() {
           <View style={{ gap: LANE_GAP }}>
             {rows.map((r) => (
               <Pressable key={r.key} style={[styles.gutterItem, { height: r.height }]} onPress={r.add}>
-                <Ionicons name={r.icon} size={16} color={theme.text} />
-                <Text style={styles.gutterLabel}>{r.label}</Text>
+                <VIcon name={r.icon} size={18} color="#fff" />
               </Pressable>
             ))}
           </View>
@@ -326,7 +331,7 @@ export function Timeline() {
             <View style={{ height: RULER_H }} />
             <View style={{ gap: LANE_GAP }}>
               {rows.map((r) => (
-                <RowBg key={r.key} row={r} />
+                <RowBg key={r.key} height={r.height} />
               ))}
             </View>
           </View>
@@ -354,7 +359,7 @@ export function Timeline() {
             </View>
           </ScrollView>
 
-          {/* Fixed playhead near the left of the scroll area */}
+          {/* Fixed white playhead near the left of the scroll area */}
           <View style={[styles.playhead, { left: PLAYHEAD_X }]} pointerEvents="none">
             <View style={styles.playheadKnob} />
             <View style={styles.playheadLine} />
@@ -366,49 +371,41 @@ export function Timeline() {
 }
 
 const styles = StyleSheet.create({
-  root: { backgroundColor: theme.editorBg, borderTopWidth: 1, borderTopColor: theme.trackBorder },
+  root: { backgroundColor: vela.editorBg, paddingTop: 4 },
   body: { flexDirection: 'row', paddingVertical: 8 },
-  gutter: { width: GUTTER_W, borderRightWidth: 1, borderRightColor: theme.trackBorder },
-  gutterItem: { alignItems: 'center', justifyContent: 'center', gap: 2 },
-  gutterLabel: { color: theme.subtext, fontSize: 8, fontWeight: '600' },
+  gutter: { width: GUTTER_W },
+  gutterItem: { alignItems: 'center', justifyContent: 'center' },
 
-  ruler: { height: RULER_H, justifyContent: 'flex-end', borderBottomWidth: 1, borderBottomColor: theme.trackBorder },
-  tickLabel: { color: theme.subtext, fontSize: 10, marginBottom: 1, fontWeight: '600' },
-  tickMajor: { width: 1.5, height: 9, backgroundColor: theme.subtext },
-  tickMinor: { width: 1, height: 5, backgroundColor: '#3f5170' },
+  ruler: { height: RULER_H, justifyContent: 'flex-end' },
+  tickLabel: { color: vela.muted3, fontSize: 9, marginBottom: 1, fontFamily: mono.regular },
+  tickMajor: { width: 1.5, height: 8, backgroundColor: vela.muted3 },
+  tickMinor: { width: 1, height: 4, backgroundColor: '#3a3a42' },
 
-  rowBg: { borderRadius: 6 },
-  visualLane: { backgroundColor: theme.track },
-  audioLane: { backgroundColor: '#332b3c' },
-  textLane: { backgroundColor: theme.track },
-  soundLane: { backgroundColor: '#34321f' },
+  rowBg: { borderRadius: 7, backgroundColor: vela.emptyTrack },
   emptyTap: { height: '100%', justifyContent: 'center' },
-  emptyHint: { color: theme.subtext, fontSize: 11, paddingLeft: 8 },
+  emptyHint: { color: vela.muted4, fontSize: 13, paddingLeft: 12 },
 
-  clip: { position: 'absolute', top: 0, borderRadius: 8, overflow: 'hidden', backgroundColor: theme.surface, borderWidth: 2, borderColor: 'transparent' },
-  audioClip: { backgroundColor: '#1f6f57' },
-  textClip: { backgroundColor: '#6d4bd6', justifyContent: 'center' },
-  clipOn: { borderColor: theme.accent },
+  clip: { position: 'absolute', top: 0, borderRadius: 7, overflow: 'hidden', backgroundColor: '#2a2a30', borderWidth: 2, borderColor: 'transparent' },
+  audioClip: { backgroundColor: vela.audio },
+  textClip: { backgroundColor: vela.accent, justifyContent: 'center' },
+  clipOn: { borderColor: vela.select },
   filmstrip: { flexDirection: 'row', height: '100%', overflow: 'hidden' },
-  thumbFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.surface },
+  thumbFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#2a2a30' },
   textFill: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
-  textLabel: { color: '#fff', fontSize: 11, fontWeight: '700' },
+  textLabel: { color: '#fff', fontSize: 11, fontFamily: 'HankenGrotesk_700Bold' },
   waveform: { ...StyleSheet.absoluteFillObject, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', paddingHorizontal: 2 },
-  soundBlock: { position: 'absolute', top: 0, bottom: 0, borderRadius: 6, overflow: 'hidden', backgroundColor: '#3a3417' },
+  soundBlock: { position: 'absolute', top: 0, bottom: 0, borderRadius: 7, overflow: 'hidden', backgroundColor: '#34321f' },
   badge: { position: 'absolute', top: 2, left: 4, backgroundColor: '#000a', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 },
-  badgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
+  badgeText: { color: '#fff', fontSize: 9, fontFamily: 'HankenGrotesk_700Bold' },
   durTag: { position: 'absolute', bottom: 2, right: 4, backgroundColor: '#000a', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 },
-  durText: { color: '#fff', fontSize: 9, fontWeight: '600' },
-  handle: { position: 'absolute', top: 0, bottom: 0, width: HANDLE_W, backgroundColor: theme.accent, alignItems: 'center', justifyContent: 'center' },
+  durText: { color: '#fff', fontSize: 9, fontFamily: mono.medium },
+  addTile: { position: 'absolute', top: 0, width: ADD_TILE_W, backgroundColor: '#fff', borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  handle: { position: 'absolute', top: 0, bottom: 0, width: HANDLE_W, backgroundColor: vela.select, alignItems: 'center', justifyContent: 'center' },
   handleLeft: { left: 0, borderTopLeftRadius: 6, borderBottomLeftRadius: 6 },
   handleRight: { right: 0, borderTopRightRadius: 6, borderBottomRightRadius: 6 },
-  handleBar: { width: 3, height: 18, borderRadius: 2, backgroundColor: theme.accentText },
+  handleBar: { width: 3, height: 18, borderRadius: 2, backgroundColor: '#111' },
 
   playhead: { position: 'absolute', top: 0, bottom: 0, alignItems: 'center', marginLeft: -1 },
   playheadKnob: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#fff' },
   playheadLine: { flex: 1, width: 2, backgroundColor: '#fff' },
-
-  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 18, paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.border },
-  zoomBtn: { width: 34, height: 28, borderRadius: 8, backgroundColor: theme.surface, alignItems: 'center', justifyContent: 'center' },
-  time: { color: theme.subtext, fontSize: 13, minWidth: 56, textAlign: 'center' },
 });
