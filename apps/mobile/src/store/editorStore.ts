@@ -24,7 +24,17 @@ import {
 } from '../storage/projects';
 import { loadSettings, saveSettings } from '../storage/settings';
 import { exportProject, downloadToPhotos, type ExportProgress } from '../net/renderClient';
-import { Alert } from 'react-native';
+import { Alert, Share } from 'react-native';
+
+function progressLabel(p: ExportProgress): string {
+  return p.stage === 'uploading'
+    ? `Uploading media ${p.current ?? 1}/${p.total ?? 1}…`
+    : p.stage === 'rendering'
+      ? 'Rendering on server…'
+      : p.stage === 'downloading'
+        ? 'Downloading…'
+        : 'Saving…';
+}
 
 export type Screen = 'projects' | 'discover' | 'editor' | 'quick';
 /** Editor sheets/panels — mirrors Vela's `panel` state machine. */
@@ -74,6 +84,7 @@ interface EditorState {
   openProject: (id: string) => void;
   removeProject: (id: string) => void;
   renameProject: (id: string, name: string) => void;
+  duplicateProject: (id: string) => void;
   closeEditor: () => void;
 
   // transient UI
@@ -86,6 +97,7 @@ interface EditorState {
   setPanel: (panel: EditorPanel | null) => void;
   setPref: <K extends keyof EditorPrefs>(key: K, value: EditorPrefs[K]) => void;
   exportToPhotos: () => Promise<void>;
+  shareExport: () => Promise<void>;
 
   // helpers
   mainTrackId: () => string | null;
@@ -206,6 +218,21 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (get().projectId === id) set({ name: clean });
   },
 
+  duplicateProject: (id) => {
+    const stored = loadProject(id);
+    if (!stored) return;
+    const nid = newId('proj');
+    saveProject({
+      id: nid,
+      name: `${stored.name} copy`,
+      updatedAt: Date.now(),
+      project: { ...stored.project, id: nid },
+      posterUri: stored.posterUri,
+      mediaDurations: stored.mediaDurations ?? {},
+    });
+    set({ projects: listProjects() });
+  },
+
   closeEditor: () => set({ screen: 'projects', isPlaying: false, panel: null, projects: listProjects() }),
 
   select: (sel) => set({ selected: sel }),
@@ -235,23 +262,35 @@ export const useEditor = create<EditorState>((set, get) => ({
       Alert.alert('Nothing to export', 'Import a clip first.');
       return;
     }
-    const label = (p: ExportProgress) =>
-      p.stage === 'uploading'
-        ? `Uploading media ${p.current ?? 1}/${p.total ?? 1}…`
-        : p.stage === 'rendering'
-          ? 'Rendering on server…'
-          : p.stage === 'downloading'
-            ? 'Downloading…'
-            : 'Saving to Photos…';
     set({ panel: null, exporting: true, exportMsg: 'Preparing…' });
     try {
-      const url = await exportProject(serverUrl, project, (p) => set({ exportMsg: label(p) }));
-      await downloadToPhotos(url, Date.now(), (p) => set({ exportMsg: label(p) }));
+      const url = await exportProject(serverUrl, project, (p) => set({ exportMsg: progressLabel(p) }));
+      await downloadToPhotos(url, Date.now(), (p) => set({ exportMsg: progressLabel(p) }));
       set({ exporting: false });
       Alert.alert('Exported', 'Your video was saved to Photos.');
     } catch (e) {
       set({ exporting: false });
       Alert.alert('Export failed', e instanceof Error ? e.message : String(e));
+    }
+  },
+
+  shareExport: async () => {
+    const { project, serverUrl, exporting } = get();
+    if (!project || exporting) return;
+    const clipCount = (project.tracks ?? []).reduce((n, t) => n + t.clips.length, 0);
+    if (clipCount === 0 && project.overlays.length === 0) {
+      Alert.alert('Nothing to share', 'Import a clip first.');
+      return;
+    }
+    set({ panel: null, exporting: true, exportMsg: 'Preparing…' });
+    try {
+      const url = await exportProject(serverUrl, project, (p) => set({ exportMsg: progressLabel(p) }));
+      const fileUri = await downloadToPhotos(url, Date.now(), (p) => set({ exportMsg: progressLabel(p) }));
+      set({ exporting: false });
+      await Share.share({ url: fileUri });
+    } catch (e) {
+      set({ exporting: false });
+      Alert.alert('Share failed', e instanceof Error ? e.message : String(e));
     }
   },
 

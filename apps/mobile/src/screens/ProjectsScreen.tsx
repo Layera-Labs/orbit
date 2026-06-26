@@ -66,6 +66,7 @@ interface MenuItem { label: string; d: string; color: string; onPress: () => voi
 function ProjectMenu({ p, onClose }: { p: StoredProject; onClose: () => void }) {
   const renameProject = useEditor((s) => s.renameProject);
   const removeProject = useEditor((s) => s.removeProject);
+  const duplicateProject = useEditor((s) => s.duplicateProject);
 
   function rename() {
     onClose();
@@ -92,7 +93,7 @@ function ProjectMenu({ p, onClose }: { p: StoredProject; onClose: () => void }) 
     { label: 'Share Project', d: 'M5 12v7a1 1 0 001 1h12a1 1 0 001-1v-7M12 3v13M8 7l4-4 4 4', color: vela.ink2, pro: true, onPress: () => soon('Share Project') },
     { label: 'Rename', d: 'M4 20h4L18 10l-4-4L4 16zM14 6l4 4', color: vela.ink2, onPress: rename },
     { label: 'Create Template', d: 'M12 5a3 3 0 100 6 3 3 0 000-6zM5 19a7 7 0 0110-6.3M17 14v6M14 17h6', color: vela.ink2, onPress: () => soon('Create Template') },
-    { label: 'Duplicate', d: 'M8 8h12v12H8zM4 4h12v3M4 4v12h3', color: vela.ink2, div: true, onPress: () => soon('Duplicate') },
+    { label: 'Duplicate', d: 'M8 8h12v12H8zM4 4h12v3M4 4v12h3', color: vela.ink2, div: true, onPress: () => { onClose(); duplicateProject(p.id); } },
     { label: 'Move to Trash', d: 'M5 7h14M9 7V4h6v3M6 7l1 13h10l1-13', color: '#ff3b30', onPress: trash },
   ];
 
