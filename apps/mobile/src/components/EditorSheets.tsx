@@ -26,7 +26,8 @@ import { VSlider } from './VSlider';
 import { ColorSheet } from './ColorSheet';
 import { FontPickerSheet } from './FontPickerSheet';
 import { FILTER_LIST } from '../filters/registry';
-import type { ClipFilter, TextAlign, TransitionType } from '../model/types';
+import type { ClipFilter, ExportOutput, TextAlign, TransitionType } from '../model/types';
+import { projectDuration } from '../model/project';
 import { clipAtTime } from '../model/editor-ops';
 import type { VisualTrackClip } from '../model/types';
 import { videoThumbnail } from '../storage/media';
@@ -407,13 +408,44 @@ function FilterSheet() {
 
 // ---- Export (full screen) ------------------------------------------------
 
+const RES_STEPS = [
+  { label: '480p', scale: 0.45 },
+  { label: '720p', scale: 0.667 },
+  { label: '1080p', scale: 1 },
+  { label: '2.7K', scale: 1.4 },
+  { label: '4K', scale: 2 },
+];
+const FPS_OPTS = [24, 25, 30, 50, 60];
+
 function ExportSheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const exportToPhotos = useEditor((s) => s.exportToPhotos);
+  const project = useEditor((s) => s.project);
   const [quality, setQuality] = useState<'Auto' | 'Manual'>('Manual');
   const [audioOnly, setAudioOnly] = useState(false);
-  const [hdr, setHdr] = useState(false);
+  const [resIdx, setResIdx] = useState(2);
+  const [fpsIdx, setFpsIdx] = useState(2);
+  const [bitrate, setBitrate] = useState(20);
   const close = () => setPanel(null);
+
+  const W = project?.width ?? 1080;
+  const H = project?.height ?? 1920;
+  const dur = project ? projectDuration(project) : 0;
+  const scale = RES_STEPS[resIdx].scale;
+  const fps = FPS_OPTS[fpsIdx];
+  const estMB = Math.max(1, Math.round((bitrate * dur) / 8));
+
+  const onExport = () => {
+    let output: ExportOutput | undefined;
+    if (quality === 'Manual') {
+      output = audioOnly
+        ? { audioOnly: true }
+        : { width: Math.round(W * scale), height: Math.round(H * scale), fps, bitrate };
+    } else if (audioOnly) {
+      output = { audioOnly: true };
+    }
+    exportToPhotos(output);
+  };
 
   return (
     <FullSheet onClose={close}>
@@ -431,7 +463,7 @@ function ExportSheet() {
           <View style={s.rowBetween}>
             <View style={s.rowBaseline}>
               <Text style={s.exportH}>Export Settings</Text>
-              <Text style={s.exportHmono}>4K / 30fps</Text>
+              <Text style={s.exportHmono}>{quality === 'Manual' ? `${RES_STEPS[resIdx].label} / ${fps}fps` : 'Auto'}</Text>
             </View>
             <View style={s.segment}>
               {(['Auto', 'Manual'] as const).map((q) => (
@@ -446,44 +478,42 @@ function ExportSheet() {
             <Text style={s.exportToggleLabel}>Export Audio Only</Text>
             <VToggle value={audioOnly} onChange={() => setAudioOnly((v) => !v)} offColor="#fff" />
           </View>
-          <View style={[s.rowBetween, { marginTop: 22 }]}>
-            <Text style={s.exportToggleLabel}>HDR <Text style={s.soonInline}>soon</Text></Text>
-            <VToggle value={hdr} onChange={() => setHdr((v) => !v)} offColor="#fff" />
-          </View>
 
-          <Text style={s.exportField}>Resolution <Text style={s.soonInline}>soon</Text></Text>
-          <StaticSlider fill={1} knobSize={22} />
-          <View style={s.scaleRow}>
-            {['480p', '720p', '1080p', '2.7K', '4K'].map((v, i) => (
-              <Text key={v} style={[s.scaleLabel, i === 4 && s.scaleLabelOn]}>{v}</Text>
-            ))}
-          </View>
+          {quality === 'Manual' && !audioOnly ? (
+            <>
+              <Text style={s.exportField}>Resolution</Text>
+              <View style={s.scaleRow}>
+                {RES_STEPS.map((r, i) => (
+                  <Pressable key={r.label} onPress={() => setResIdx(i)}>
+                    <Text style={[s.scaleLabel, i === resIdx && s.scaleLabelOn]}>{r.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
 
-          <Text style={s.exportField}>FPS <Text style={s.soonInline}>soon</Text></Text>
-          <StaticSlider fill={0.5} knobSize={22} />
-          <View style={s.scaleRow}>
-            {['24', '25', '30', '50', '60'].map((v, i) => (
-              <Text key={v} style={[s.scaleLabel, i === 2 && s.scaleLabelOn]}>{v}</Text>
-            ))}
-          </View>
+              <Text style={s.exportField}>FPS</Text>
+              <View style={s.scaleRow}>
+                {FPS_OPTS.map((v, i) => (
+                  <Pressable key={v} onPress={() => setFpsIdx(i)}>
+                    <Text style={[s.scaleLabel, i === fpsIdx && s.scaleLabelOn]}>{v}</Text>
+                  </Pressable>
+                ))}
+              </View>
 
-          <View style={[s.rowBetween, { marginTop: 8 }]}>
-            <Text style={s.exportField}>Average Bitrate (Mbps)</Text>
-            <Text style={s.bitrateChip}>23.2</Text>
-          </View>
-          <StaticSlider fill={0.15} knobSize={22} />
-          <View style={s.scaleRow}>
-            <Text style={s.scaleLabel}>1.0 Mbps</Text>
-            <Text style={s.scaleLabel}>150.0 Mbps</Text>
-          </View>
+              <View style={[s.rowBetween, { marginTop: 18 }]}>
+                <Text style={s.exportField}>Average Bitrate (Mbps)</Text>
+                <Text style={s.bitrateChip}>{bitrate}</Text>
+              </View>
+              <VSlider value={bitrate} min={1} max={150} onChange={(v) => setBitrate(Math.round(v))} />
 
-          <View style={[s.rowBaseline, { marginTop: 20 }]}>
-            <Text style={s.exportH}>Estimated File Size</Text>
-            <Text style={s.exportHmono}>~ render dependent</Text>
-          </View>
+              <View style={[s.rowBaseline, { marginTop: 18 }]}>
+                <Text style={s.exportH}>Estimated File Size</Text>
+                <Text style={s.exportHmono}>~ {estMB} MB</Text>
+              </View>
+            </>
+          ) : null}
         </View>
       </ScrollView>
-      <Pressable style={s.exportBtn} onPress={exportToPhotos}>
+      <Pressable style={s.exportBtn} onPress={onExport}>
         <Text style={s.exportBtnText}>Export</Text>
       </Pressable>
     </FullSheet>

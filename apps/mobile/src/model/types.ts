@@ -106,6 +106,15 @@ export interface ClipFilter {
   intensity?: number;
 }
 
+/** Per-export output overrides (resolution / fps / bitrate / audio-only). */
+export interface ExportOutput {
+  width?: number;
+  height?: number;
+  fps?: number;
+  bitrate?: number;
+  audioOnly?: boolean;
+}
+
 // ---- Multi-track (v2) model — mirror of packages/video/src/types.ts ----
 
 /** Normalized rectangle on the output canvas (fractions of width/height, 0..1). */

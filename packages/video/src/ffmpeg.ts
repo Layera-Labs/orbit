@@ -9,7 +9,7 @@
  * no libfreetype needed). Audio mixes the music tracks (single-clip projects
  * also keep the clip's own audio). Encodes to H.264/AAC MP4 (yuv420p + faststart).
  */
-import { FULL_FRAME, type AudioTrack, type VideoProject, type VisualTrack } from './types';
+import { FULL_FRAME, type AudioTrack, type ExportOutput, type VideoProject, type VisualTrack } from './types';
 import { projectDuration, transitionDuration } from './project';
 import { atempoChain, filterToFFmpeg } from './filters';
 
@@ -24,6 +24,8 @@ export interface BuildFFmpegOptions {
   /** Whether a resolved src actually has an audio stream. Defaults to assuming
    *  yes; pass a real probe so silent clips/images don't break the filtergraph. */
   hasAudio?: (resolvedSrc: string) => boolean;
+  /** Per-export output overrides (resolution / fps / bitrate / audio-only). */
+  output?: ExportOutput;
 }
 
 export function buildFFmpegArgs(project: VideoProject, opts: BuildFFmpegOptions): string[] {
@@ -279,10 +281,24 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
     audioMap = '[a]';
   }
 
-  // ---- assemble ----
-  const args: string[] = ['-y', ...inputs, '-filter_complex', segments.join(';'), '-map', vLabel];
+  // ---- assemble (with per-export output overrides) ----
+  const out = opts.output;
+  const audioOnly = !!out?.audioOnly && !!audioMap;
+  let vMap = vLabel;
+  if (!audioOnly && out?.width && out?.height) {
+    segments.push(`${vLabel}scale=${even(out.width)}:${even(out.height)}:flags=lanczos,setsar=1[vout]`);
+    vMap = '[vout]';
+  }
+  const args: string[] = ['-y', ...inputs, '-filter_complex', segments.join(';')];
+  if (!audioOnly) args.push('-map', vMap);
   if (audioMap) args.push('-map', audioMap);
-  args.push('-r', String(fps), '-t', String(duration), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-preset', 'veryfast');
+  args.push('-t', String(duration));
+  if (audioOnly) {
+    args.push('-vn');
+  } else {
+    args.push('-r', String(out?.fps && out.fps > 0 ? out.fps : fps), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-preset', 'veryfast');
+    if (out?.bitrate && out.bitrate > 0) args.push('-b:v', `${out.bitrate}M`, '-maxrate', `${out.bitrate}M`, '-bufsize', `${out.bitrate * 2}M`);
+  }
   if (audioMap) args.push('-c:a', 'aac', '-b:a', '192k');
   args.push('-movflags', '+faststart', opts.outputPath);
   return args;
