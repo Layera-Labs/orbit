@@ -48,6 +48,7 @@ export function EditorScreen() {
   const { width: screenW } = useWindowDimensions();
   const project = useEditor((s) => s.project);
   const selected = useEditor((s) => s.selected);
+  const select = useEditor((s) => s.select);
   const closeEditor = useEditor((s) => s.closeEditor);
   const splitAtPlayhead = useEditor((s) => s.splitAtPlayhead);
   const removeSelected = useEditor((s) => s.removeSelected);
@@ -163,15 +164,15 @@ export function EditorScreen() {
         </View>
       </View>
 
-      {/* Preview */}
-      <View style={styles.stage}>
+      {/* Preview (tap to deselect — hides the selection action bar) */}
+      <Pressable style={styles.stage} onPress={() => selected && select(null)}>
         <View style={[styles.whiteFrame, { width: iw + 14, height: ih + 14 }]}>
           <Preview width={iw} height={ih} />
         </View>
         <Pressable style={styles.fullscreenBtn} onPress={() => soonAlert('Fullscreen')}>
           <VIcon name="fullscreen" size={18} color="#fff" />
         </Pressable>
-      </View>
+      </Pressable>
 
       {/* Transport */}
       <View style={styles.transport}>
