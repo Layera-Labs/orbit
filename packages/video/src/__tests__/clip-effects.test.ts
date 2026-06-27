@@ -310,6 +310,28 @@ describe('export output: HDR10', () => {
   });
 });
 
+describe('engine applies static opacity', () => {
+  const mk = (opacity?: number): VideoProject => ({
+    id: 'p', schemaVersion: 2, width: 1080, height: 1920, fps: 30,
+    background: { type: 'color', color: '#000000' }, clips: [], overlays: [], audio: [],
+    tracks: [{ id: 'base', kind: 'visual', clips: [{ id: 'v0', type: 'video', src: 'a.mp4', start: 0, duration: 4, trimIn: 0, opacity }] }],
+  });
+  const graph = (p: VideoProject) => {
+    const a = buildFFmpegArgs(p, { outputPath: '/tmp/o.mp4', baseImage: '/tmp/bg.png', hasAudio: () => true });
+    return a[a.indexOf('-filter_complex') + 1];
+  };
+
+  it('multiplies alpha via colorchannelmixer on an rgba clip', () => {
+    const g = graph(mk(0.5));
+    expect(g).toContain('format=rgba,colorchannelmixer=aa=0.5');
+  });
+
+  it('opacity of 1 (or unset) adds no alpha multiply', () => {
+    expect(graph(mk(1))).not.toContain('colorchannelmixer');
+    expect(graph(mk(undefined))).not.toContain('colorchannelmixer');
+  });
+});
+
 describe('engine applies transitions (fade-through-black)', () => {
   const project: VideoProject = {
     id: 'p',
