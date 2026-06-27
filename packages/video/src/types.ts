@@ -109,6 +109,28 @@ export interface ClipFilter {
   intensity?: number;
 }
 
+/** Ken-Burns style camera move applied over a clip's duration. */
+export type MotionType =
+  | 'none'
+  | 'zoomIn'
+  | 'zoomOut'
+  | 'panLeft'
+  | 'panRight'
+  | 'panUp'
+  | 'panDown'
+  | 'kenBurns';
+
+/**
+ * Per-clip motion (zoom / pan animated across the clip window). Preview (Skia
+ * `<Group transform>` interpolated by playhead) and export (ffmpeg `zoompan`
+ * driven by output-frame `on`) read the SAME preset + intensity.
+ */
+export interface Motion {
+  type: MotionType;
+  /** 0..1 strength of the move (default 0.5). */
+  intensity?: number;
+}
+
 // ---------------------------------------------------------------------------
 // Multi-track (v2) model — CapCut-style layers. When `VideoProject.tracks` is
 // present the renderer COMPOSITES: visual tracks stack bottom→top (array order),
@@ -160,6 +182,8 @@ export interface VisualTrackClip {
   blur?: number;
   /** Playback speed multiplier (1 = normal; 2 = 2× faster). */
   speed?: number;
+  /** Ken-Burns camera move animated over the clip (preview + export). */
+  motion?: Motion;
   /** Transition INTO this clip from the previous base-track clip (crossfade etc.). */
   transitionIn?: Transition;
 }
