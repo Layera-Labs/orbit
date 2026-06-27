@@ -139,6 +139,24 @@ export interface Keyframe {
   y: number;
 }
 
+/**
+ * Shape mask: reveals only the part of a layer inside the shape (or outside, if
+ * inverted). Coordinates are normalized within the clip's own frame (0..1).
+ * Preview clips the Skia layer to the shape; export keys the alpha via `geq`.
+ */
+export type MaskShape = 'rectangle' | 'circle';
+export interface ClipMask {
+  shape: MaskShape;
+  /** Shape centre, normalized (0..1). */
+  cx: number;
+  cy: number;
+  /** Half-width / half-height (rectangle) or radii (circle), normalized (0..1). */
+  rx: number;
+  ry: number;
+  /** Keep OUTSIDE the shape instead of inside. */
+  invert?: boolean;
+}
+
 /** Ken-Burns style camera move applied over a clip's duration. */
 export type MotionType =
   | 'none'
@@ -214,6 +232,8 @@ export interface VisualTrackClip {
   blur?: number;
   /** Static layer opacity, 0..1 (default 1). Keyframes override when present. */
   opacity?: number;
+  /** Shape mask revealing only part of the layer (preview + export). */
+  mask?: ClipMask;
   /** Playback speed multiplier (1 = normal; 2 = 2× faster). */
   speed?: number;
   /** Ken-Burns camera move animated over the clip (preview + export). */

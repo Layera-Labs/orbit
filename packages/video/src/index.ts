@@ -13,6 +13,8 @@ export type {
   TransitionType,
   ClipFilter,
   ChromaKey,
+  ClipMask,
+  MaskShape,
   Keyframe,
   Motion,
   MotionType,
@@ -30,6 +32,7 @@ export { FILTER_PRESETS, NEUTRAL, resolveFilter, filterToFFmpeg, atempoChain, is
 export type { FilterParams } from './filters';
 export { hasMotion, motionStateAt, motionToZoompan, motionIntensity, ZOOM_DELTA, PAN_ZOOM } from './motion';
 export { chromaToFFmpeg, hexToRgb } from './cutout';
+export { maskToFFmpeg } from './mask';
 export { hasKeyframes, sampleKeyframes, keyframeExpr, animatesOpacity, animatesPosition } from './keyframes';
 export { createProject, projectDuration, transitionDuration } from './project';
 export { buildFFmpegArgs } from './ffmpeg';
