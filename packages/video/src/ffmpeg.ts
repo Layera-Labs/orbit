@@ -236,8 +236,10 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
     const kfs = c.keyframes;
     const kfOpacity = hasKeyframes(kfs) && animatesOpacity(kfs!);
     const kfPosition = hasKeyframes(kfs) && animatesPosition(kfs!);
-    // alpha plane needed for keying, animated opacity, OR fades.
-    const fmt = c.type === 'image' || key || kfOpacity ? 'rgba' : fade ? 'yuva420p' : 'yuv420p';
+    // static opacity (keyframes override when they animate opacity).
+    const staticOpacity = !kfOpacity && c.opacity != null && c.opacity < 0.999 ? Math.max(0, c.opacity) : null;
+    // alpha plane needed for keying, animated/static opacity, OR fades.
+    const fmt = c.type === 'image' || key || kfOpacity || staticOpacity != null ? 'rgba' : fade ? 'yuva420p' : 'yuv420p';
     let chain = `${prep}${grade}scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1,fps=${fps},format=${fmt}`;
     if (key) chain += `,${key}`;
     if (c.blur && c.blur > 0) chain += `,gblur=sigma=${r3(c.blur * 20)}`;
@@ -250,6 +252,8 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
       // bake per-frame opacity into the alpha plane (T = timeline seconds).
       const a = keyframeExpr(kfs!, 'opacity', S, c.duration, 'T', 255);
       chain += `,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='clip(${a},0,255)'`;
+    } else if (staticOpacity != null) {
+      chain += `,colorchannelmixer=aa=${r3(staticOpacity)}`;
     }
     if (fade?.fin) chain += `,fade=t=in:st=${r3(S)}:d=${fade.fin}:alpha=1`;
     if (fade?.fout) chain += `,fade=t=out:st=${r3(E - fade.fout)}:d=${fade.fout}:alpha=1`;

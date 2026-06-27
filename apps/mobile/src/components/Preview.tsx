@@ -62,9 +62,9 @@ function BackgroundFill({ bg, width, height }: { bg: Background | undefined; wid
   return <Fill color={bg?.type === 'color' ? bg.color : '#000000'} />;
 }
 
-/** Interpolated layer opacity from a clip's keyframes at the playhead (1 if none). */
+/** Layer opacity at the playhead: keyframes if animated, else the static value. */
 function clipKfOpacity(clip: VisualTrackClip, playheadSec: number): number {
-  if (!hasKeyframes(clip.keyframes)) return 1;
+  if (!hasKeyframes(clip.keyframes)) return clip.opacity ?? 1;
   return sampleKeyframes(clip.keyframes!, (playheadSec - clip.start) / Math.max(0.001, clip.duration)).opacity;
 }
 
@@ -171,7 +171,7 @@ function OverlayLayer({ clip, width, height, playheadSec }: { clip: VisualTrackC
   const y = (kf ? kf.y : r.y) * height;
   const w = r.w * width;
   const h = r.h * height;
-  const op = kf ? kf.opacity : 1;
+  const op = kf ? kf.opacity : clip.opacity ?? 1;
 
   const [posterUri, setPosterUri] = useState<string | null>(clip.type === 'image' ? clip.src : posterCache.get(clip.src) ?? null);
   useEffect(() => {
