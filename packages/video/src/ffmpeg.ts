@@ -317,6 +317,16 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
   args.push('-t', String(duration));
   if (audioOnly) {
     args.push('-vn');
+  } else if (out?.hdr) {
+    // HDR10: 10-bit HEVC tagged BT.2020 primaries + PQ (SMPTE-2084) transfer.
+    args.push(
+      '-r', String(out.fps && out.fps > 0 ? out.fps : fps),
+      '-c:v', 'libx265', '-pix_fmt', 'yuv420p10le',
+      '-color_primaries', 'bt2020', '-color_trc', 'smpte2084', '-colorspace', 'bt2020nc',
+      '-x265-params', 'colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:hdr10=1:repeat-headers=1',
+      '-tag:v', 'hvc1', '-preset', 'veryfast',
+    );
+    if (out.bitrate && out.bitrate > 0) args.push('-b:v', `${out.bitrate}M`, '-maxrate', `${out.bitrate}M`, '-bufsize', `${out.bitrate * 2}M`);
   } else {
     args.push('-r', String(out?.fps && out.fps > 0 ? out.fps : fps), '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-preset', 'veryfast');
     if (out?.bitrate && out.bitrate > 0) args.push('-b:v', `${out.bitrate}M`, '-maxrate', `${out.bitrate}M`, '-bufsize', `${out.bitrate * 2}M`);

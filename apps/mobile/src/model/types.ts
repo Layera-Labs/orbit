@@ -152,6 +152,8 @@ export interface ExportOutput {
   fps?: number;
   bitrate?: number;
   audioOnly?: boolean;
+  /** Encode HDR10: 10-bit HEVC tagged BT.2020 + PQ. */
+  hdr?: boolean;
 }
 
 // ---- Multi-track (v2) model — mirror of packages/video/src/types.ts ----
