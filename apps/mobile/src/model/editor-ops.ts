@@ -10,6 +10,7 @@ import type {
   AudioTrackClip,
   ChromaKey,
   ClipFilter,
+  Keyframe,
   Motion,
   Rect,
   TextOverlay,
@@ -275,6 +276,11 @@ export function setClipMotion(p: VideoProject, trackId: string, clipId: string, 
 
 export function setClipCutout(p: VideoProject, trackId: string, clipId: string, cutout: ChromaKey | undefined): VideoProject {
   return patchVisualClip(p, trackId, clipId, { cutout: cutout && cutout.color ? cutout : undefined });
+}
+
+export function setClipKeyframes(p: VideoProject, trackId: string, clipId: string, keyframes: Keyframe[] | undefined): VideoProject {
+  const kfs = keyframes && keyframes.length ? [...keyframes].sort((a, b) => a.t - b.t) : undefined;
+  return patchVisualClip(p, trackId, clipId, { keyframes: kfs });
 }
 
 export function setClipTransition(p: VideoProject, trackId: string, clipId: string, transitionIn: Transition | undefined): VideoProject {

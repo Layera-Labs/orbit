@@ -106,6 +106,17 @@ export interface ClipFilter {
   intensity?: number;
 }
 
+/** A keyframe snapshot (opacity + normalized position) at a clip-local time. */
+export interface Keyframe {
+  /** Time within the clip, 0..1 (fraction of duration). */
+  t: number;
+  /** 0..1 layer opacity. */
+  opacity: number;
+  /** Normalized top-left position on the canvas (0..1), for PiP/overlay clips. */
+  x: number;
+  y: number;
+}
+
 /** Chroma-key background removal (pixels near `color` become transparent). */
 export interface ChromaKey {
   /** Background colour to remove, hex (e.g. '#00d400'). */
@@ -177,6 +188,8 @@ export interface VisualTrackClip {
   motion?: Motion;
   /** Chroma-key background removal (green-screen / solid colour). */
   cutout?: ChromaKey;
+  /** Keyframes animating opacity + position over the clip (≥2 to animate). */
+  keyframes?: Keyframe[];
   /** Transition INTO this clip from the previous base-track clip. */
   transitionIn?: Transition;
 }
