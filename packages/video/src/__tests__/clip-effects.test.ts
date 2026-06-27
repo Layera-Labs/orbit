@@ -286,6 +286,30 @@ describe('engine bakes keyframes (overlay x/y expr + alpha geq)', () => {
   });
 });
 
+describe('export output: HDR10', () => {
+  const project: VideoProject = {
+    id: 'p', schemaVersion: 2, width: 1080, height: 1920, fps: 30,
+    background: { type: 'color', color: '#000000' }, clips: [], overlays: [], audio: [],
+    tracks: [{ id: 'base', kind: 'visual', clips: [{ id: 'v0', type: 'video', src: 'a.mp4', start: 0, duration: 2, trimIn: 0 }] }],
+  };
+  const hdr = buildFFmpegArgs(project, { outputPath: '/tmp/o.mp4', baseImage: '/tmp/bg.png', hasAudio: () => false, output: { hdr: true, bitrate: 40 } });
+  const sdr = buildFFmpegArgs(project, { outputPath: '/tmp/o.mp4', baseImage: '/tmp/bg.png', hasAudio: () => false });
+
+  it('encodes 10-bit HEVC tagged BT.2020 + PQ when hdr', () => {
+    expect(hdr).toContain('libx265');
+    expect(hdr).toContain('yuv420p10le');
+    expect(hdr).toContain('smpte2084');
+    expect(hdr).toContain('bt2020');
+    expect(hdr.join(' ')).toContain('-b:v 40M');
+  });
+
+  it('stays 8-bit H.264 without hdr', () => {
+    expect(sdr).toContain('libx264');
+    expect(sdr).not.toContain('libx265');
+    expect(sdr).toContain('yuv420p');
+  });
+});
+
 describe('engine applies transitions (fade-through-black)', () => {
   const project: VideoProject = {
     id: 'p',
