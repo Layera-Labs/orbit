@@ -5,7 +5,8 @@
  * is tagged "soon". Sheets (settings, project menu, insert, audio, prefs,
  * filter, export) live in <EditorSheets/> and open via the store `panel` state.
  */
-import { Alert, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useState } from 'react';
+import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { projectDuration } from '../model/project';
 import { ratioLabel, font, mono, vela } from '../constants';
 import { VIcon, type VIconName } from '../components/VIcon';
@@ -64,6 +65,8 @@ export function EditorScreen() {
   const redo = useEditor((s) => s.redo);
   const canUndo = useEditor((s) => s.past.length > 0);
   const canRedo = useEditor((s) => s.future.length > 0);
+  const { height: screenH } = useWindowDimensions();
+  const [fullscreen, setFullscreen] = useState(false);
 
   if (!project) return null;
 
@@ -159,7 +162,15 @@ export function EditorScreen() {
           <Pressable onPress={closeEditor} hitSlop={10}>
             <VIcon name="back" size={24} color="#fff" />
           </Pressable>
-          <Pressable onPress={() => soonAlert('Help')} hitSlop={10}>
+          <Pressable
+            onPress={() =>
+              Alert.alert(
+                'Orbit editor',
+                'Scrub by dragging the timeline. Tap a clip to select it, then use the tools below. Drag a PiP in the preview to move it. Tap ⤢ for fullscreen preview. Export saves to Photos.',
+              )
+            }
+            hitSlop={10}
+          >
             <VIcon name="help" size={22} color={vela.muted} />
           </Pressable>
         </View>
@@ -188,7 +199,7 @@ export function EditorScreen() {
         <View style={[styles.whiteFrame, { width: iw + 14, height: ih + 14 }]}>
           <Preview width={iw} height={ih} />
         </View>
-        <Pressable style={styles.fullscreenBtn} onPress={() => soonAlert('Fullscreen')}>
+        <Pressable style={styles.fullscreenBtn} onPress={() => setFullscreen(true)}>
           <VIcon name="fullscreen" size={18} color="#fff" />
         </Pressable>
       </Pressable>
@@ -240,6 +251,24 @@ export function EditorScreen() {
 
       {/* Sheets + export progress */}
       <EditorSheets />
+
+      {/* Fullscreen preview */}
+      <Modal visible={fullscreen} animationType="fade" onRequestClose={() => setFullscreen(false)}>
+        <View style={styles.fsRoot}>
+          {(() => {
+            let fw = screenW;
+            let fh = fw / ar;
+            if (fh > screenH) {
+              fh = screenH;
+              fw = fh * ar;
+            }
+            return <Preview width={fw} height={fh} />;
+          })()}
+          <Pressable style={styles.fsClose} onPress={() => setFullscreen(false)} hitSlop={12}>
+            <VIcon name="close" size={26} color="#fff" />
+          </Pressable>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -257,6 +286,8 @@ const styles = StyleSheet.create({
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   whiteFrame: { backgroundColor: '#fff', borderRadius: 6, padding: 7 },
   fullscreenBtn: { position: 'absolute', right: 24, bottom: 6, width: 34, height: 34, borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
+  fsRoot: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
+  fsClose: { position: 'absolute', top: 52, right: 20, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
 
   transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, paddingVertical: 6 },
   tc: { fontFamily: mono.regular, fontSize: 13, color: '#fff' },
