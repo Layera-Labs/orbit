@@ -74,6 +74,39 @@ describe('engine applies per-clip filter + speed', () => {
   });
 });
 
+describe('engine applies per-clip FX (blur)', () => {
+  const project: VideoProject = {
+    id: 'p',
+    schemaVersion: 2,
+    width: 1080,
+    height: 1920,
+    fps: 30,
+    background: { type: 'color', color: '#000000' },
+    clips: [],
+    overlays: [],
+    audio: [],
+    tracks: [
+      {
+        id: 'base',
+        kind: 'visual',
+        clips: [{ id: 'v0', type: 'video', src: 'a.mp4', start: 0, duration: 4, trimIn: 0, blur: 0.5 }],
+      },
+    ],
+  };
+  const args = buildFFmpegArgs(project, { outputPath: '/tmp/o.mp4', baseImage: '/tmp/bg.png', hasAudio: () => true });
+  const graph = args[args.indexOf('-filter_complex') + 1];
+
+  it('maps blur 0..1 to gblur sigma (×20)', () => {
+    expect(graph).toContain('gblur=sigma=10'); // 0.5 × 20
+  });
+
+  it('omits gblur when blur is absent or zero', () => {
+    const none: VideoProject = { ...project, tracks: [{ id: 'base', kind: 'visual', clips: [{ id: 'v0', type: 'video', src: 'a.mp4', start: 0, duration: 4, trimIn: 0 }] }] };
+    const a = buildFFmpegArgs(none, { outputPath: '/tmp/o.mp4', baseImage: '/tmp/bg.png', hasAudio: () => true });
+    expect(a[a.indexOf('-filter_complex') + 1]).not.toContain('gblur');
+  });
+});
+
 describe('engine applies transitions (fade-through-black)', () => {
   const project: VideoProject = {
     id: 'p',

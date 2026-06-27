@@ -38,7 +38,7 @@ function progressLabel(p: ExportProgress): string {
 
 export type Screen = 'projects' | 'discover' | 'editor' | 'quick';
 /** Editor sheets/panels — mirrors Vela's `panel` state machine. */
-export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition' | 'speed' | 'volume';
+export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition' | 'speed' | 'volume' | 'fx';
 export interface EditorPrefs {
   mainTrack: 'Quick' | 'Pro';
   linkage: boolean;
@@ -122,6 +122,8 @@ interface EditorState {
   setSelectedFilter: (filter: ClipFilter | undefined) => void;
   /** Apply a filter to the effects target (selected visual clip, else base clip at playhead). */
   applyClipFilter: (filter: ClipFilter | undefined) => void;
+  /** Apply a Gaussian blur (FX) to the effects target. */
+  applyClipBlur: (blur: number) => void;
   /** Apply speed to the effects target. */
   applyClipSpeed: (speed: number) => void;
   /** Apply volume to the selected clip (audio or video), else the base clip at playhead. */
@@ -485,6 +487,12 @@ export const useEditor = create<EditorState>((set, get) => ({
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipFilter(p, t.trackId, t.clipId, filter));
+    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+  },
+  applyClipBlur: (blur) => {
+    const t = effectsTarget();
+    if (!t) return;
+    get().apply((p) => ops.setClipBlur(p, t.trackId, t.clipId, blur));
     set({ selected: { trackId: t.trackId, clipId: t.clipId } });
   },
   applyClipSpeed: (speed) => {

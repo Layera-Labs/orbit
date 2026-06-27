@@ -11,7 +11,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { type GestureResponderEvent, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Canvas, ColorMatrix, Fill, Group, Image as SkImg, rect, useImage } from '@shopify/react-native-skia';
+import { Blur, Canvas, ColorMatrix, Fill, Group, Image as SkImg, rect, useImage } from '@shopify/react-native-skia';
 import { useSharedValue } from 'react-native-reanimated';
 import { useClipFrame } from '../preview/useClipFrame';
 import { ensureFontsLoaded, useFontsVersion } from '../text/fonts';
@@ -62,6 +62,7 @@ function BaseVideo({ clip, width, height, isPlaying, playheadSec }: { clip: Visu
   return (
     <SkImg image={frame} x={0} y={0} width={width} height={height} fit="contain">
       {cm ? <ColorMatrix matrix={cm} /> : null}
+      {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
     </SkImg>
   );
 }
@@ -74,6 +75,7 @@ function BaseImage({ clip, width, height }: { clip: VisualTrackClip; width: numb
   return (
     <SkImg image={img} x={0} y={0} width={width} height={height} fit="contain">
       {cm ? <ColorMatrix matrix={cm} /> : null}
+      {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
     </SkImg>
   );
 }
