@@ -22,6 +22,8 @@ import {
   saveProject,
   type StoredProject,
 } from '../storage/projects';
+import { saveUserTemplate, type StoredTemplate } from '../storage/templates';
+import type { EditorTemplate } from '../templates';
 import { loadSettings, saveSettings } from '../storage/settings';
 import { exportProject, downloadToPhotos, type ExportProgress } from '../net/renderClient';
 import { Alert, Share } from 'react-native';
@@ -81,6 +83,12 @@ interface EditorState {
   loadSettings: () => void;
   setServerUrl: (url: string) => void;
   newProject: (name: string, width: number, height: number) => void;
+  /** Create + open a new project seeded from a built-in template. */
+  newProjectFromTemplate: (tpl: EditorTemplate) => void;
+  /** Create + open a new project cloned from a user-saved template. */
+  newProjectFromStoredTemplate: (tpl: StoredTemplate) => void;
+  /** Save the current project's structure as a reusable user template. */
+  saveAsTemplate: () => void;
   openProject: (id: string) => void;
   removeProject: (id: string) => void;
   renameProject: (id: string, name: string) => void;
@@ -191,6 +199,54 @@ export const useEditor = create<EditorState>((set, get) => ({
       panel: null,
       screen: 'editor',
     });
+  },
+
+  newProjectFromTemplate: (tpl) => {
+    const id = newId('proj');
+    const base = createProject({ id, width: tpl.width, height: tpl.height, background: tpl.background });
+    const overlays = tpl.texts.map((o) => ({ ...o, id: newId('ov'), type: 'text' as const }));
+    const project: VideoProject = { ...base, schemaVersion: 2, tracks: ops.newProjectTracks(), overlays };
+    saveProject({ id, name: tpl.name, updatedAt: Date.now(), project, mediaDurations: {} });
+    set({
+      projectId: id,
+      name: tpl.name,
+      posterUri: undefined,
+      mediaDurations: {},
+      sourceDims: undefined,
+      project,
+      selected: null,
+      playheadSec: 0,
+      isPlaying: false,
+      pxPerSec: DEFAULT_PX_PER_SEC,
+      panel: null,
+      screen: 'editor',
+    });
+  },
+
+  newProjectFromStoredTemplate: (tpl) => {
+    const id = newId('proj');
+    const project: VideoProject = { ...JSON.parse(JSON.stringify(tpl.project)), id, schemaVersion: 2 };
+    saveProject({ id, name: tpl.name, updatedAt: Date.now(), project, mediaDurations: {} });
+    set({
+      projectId: id,
+      name: tpl.name,
+      posterUri: undefined,
+      mediaDurations: {},
+      sourceDims: undefined,
+      project,
+      selected: null,
+      playheadSec: 0,
+      isPlaying: false,
+      pxPerSec: DEFAULT_PX_PER_SEC,
+      panel: null,
+      screen: 'editor',
+    });
+  },
+
+  saveAsTemplate: () => {
+    const { project, name } = get();
+    if (!project) return;
+    saveUserTemplate({ id: newId('tpl'), name: `${name} (template)`, createdAt: Date.now(), project });
   },
 
   openProject: (id) => {

@@ -1,7 +1,7 @@
 /**
- * Discover (Vela light). Curated/static showcase — gradient hero, category
- * cards, a partner promo, and a recently-used rail. Content is decorative for
- * now (actions tagged soon); the bottom nav + Create are real.
+ * Discover (Vela light). Gradient hero + searchable showcase. The template
+ * cards are REAL: tapping one creates a new editable project from a built-in
+ * (or user-saved) template. Hero/promo remain decorative.
  */
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -11,21 +11,19 @@ import { VIcon } from '../components/VIcon';
 import { BottomNav } from '../components/BottomNav';
 import { CreateSheet } from './CreateSheet';
 import { useEditor } from '../store/editorStore';
+import { BUILTIN_TEMPLATES, type EditorTemplate } from '../templates';
+import { listUserTemplates } from '../storage/templates';
 
 const soon = (label: string) => Alert.alert('Coming soon', `${label} is coming soon.`);
-
-const CATS = [
-  { name: 'Birthday', tag: 'b-day', colors: ['#2a2620', '#4a4030'] as const },
-  { name: 'Portrait', tag: 'filter', colors: ['#6a5a7a', '#c8a0b0'] as const },
-  { name: 'Travel', tag: 'travel', colors: ['#b07a4e', '#d9a878'] as const },
-  { name: 'Food', tag: 'food', colors: ['#c8a878', '#e0d0b8'] as const },
-  { name: 'Mono', tag: 'b&w', colors: ['#3a3a3a', '#7a7a7a'] as const },
-];
+const ratioOf = (t: { width: number; height: number }) => (t.height > t.width ? '9:16' : t.height === t.width ? '1:1' : '16:9');
 
 export function DiscoverScreen() {
   const go = useEditor((s) => s.go);
   const newProject = useEditor((s) => s.newProject);
+  const newProjectFromTemplate = useEditor((s) => s.newProjectFromTemplate);
+  const newProjectFromStoredTemplate = useEditor((s) => s.newProjectFromStoredTemplate);
   const [createOpen, setCreateOpen] = useState(false);
+  const userTemplates = listUserTemplates();
 
   return (
     <View style={styles.root}>
@@ -56,14 +54,14 @@ export function DiscoverScreen() {
           </View>
         </LinearGradient>
 
-        {/* category cards */}
+        {/* template quick row */}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catRow}>
-          {CATS.map((c) => (
-            <Pressable key={c.name} style={styles.cat} onPress={() => soon(c.name)}>
-              <LinearGradient colors={c.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.catCard}>
-                <Text style={styles.catTag}>{c.tag}</Text>
+          {BUILTIN_TEMPLATES.map((tpl) => (
+            <Pressable key={tpl.id} style={styles.cat} onPress={() => newProjectFromTemplate(tpl)}>
+              <LinearGradient colors={tpl.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.catCard}>
+                <Text style={styles.catTag}>{tpl.tag}</Text>
               </LinearGradient>
-              <Text style={styles.catName}>{c.name}</Text>
+              <Text style={styles.catName}>{tpl.name}</Text>
             </Pressable>
           ))}
         </ScrollView>
@@ -78,13 +76,35 @@ export function DiscoverScreen() {
           <View style={styles.fluxBtn}><Text style={styles.fluxBtnText}>Try Now</Text></View>
         </Pressable>
 
-        {/* recently used */}
-        <Text style={styles.sectionH}>Recently Used <Text style={{ color: vela.lightMuted }}>1</Text></Text>
-        <View style={{ paddingHorizontal: 22, paddingTop: 14 }}>
-          <LinearGradient colors={['#2a2a2a', '#4a4030']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.recentCard}>
-            <Text style={styles.recentTag}>9:16 · template</Text>
-          </LinearGradient>
+        {/* templates grid */}
+        <Text style={styles.sectionH}>Templates <Text style={{ color: vela.lightMuted }}>{BUILTIN_TEMPLATES.length}</Text></Text>
+        <View style={styles.grid}>
+          {BUILTIN_TEMPLATES.map((tpl) => (
+            <Pressable key={tpl.id} style={styles.gridCell} onPress={() => newProjectFromTemplate(tpl)}>
+              <LinearGradient colors={tpl.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gridCard}>
+                <Text style={styles.recentTag}>{ratioOf(tpl)} · {tpl.tag}</Text>
+                <Text style={styles.gridName}>{tpl.name}</Text>
+              </LinearGradient>
+            </Pressable>
+          ))}
         </View>
+
+        {/* user-saved templates */}
+        {userTemplates.length ? (
+          <>
+            <Text style={styles.sectionH}>My Templates <Text style={{ color: vela.lightMuted }}>{userTemplates.length}</Text></Text>
+            <View style={styles.grid}>
+              {userTemplates.map((tpl) => (
+                <Pressable key={tpl.id} style={styles.gridCell} onPress={() => newProjectFromStoredTemplate(tpl)}>
+                  <LinearGradient colors={['#2a2a2a', '#4a4030']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gridCard}>
+                    <Text style={styles.recentTag}>{ratioOf(tpl.project)} · saved</Text>
+                    <Text style={styles.gridName} numberOfLines={1}>{tpl.name}</Text>
+                  </LinearGradient>
+                </Pressable>
+              ))}
+            </View>
+          </>
+        ) : null}
       </ScrollView>
 
       <BottomNav active="discover" onHome={() => go('projects')} onDiscover={() => {}} onCreate={() => setCreateOpen(true)} />
@@ -132,6 +152,9 @@ const styles = StyleSheet.create({
   fluxBtnText: { color: '#fff', fontFamily: font.bold, fontSize: 13 },
 
   sectionH: { paddingHorizontal: 22, paddingTop: 18, fontFamily: font.extrabold, fontSize: 18, color: vela.ink },
-  recentCard: { width: 150, height: 230, borderRadius: 16, justifyContent: 'flex-end', padding: 10 },
   recentTag: { fontFamily: mono.regular, fontSize: 11, color: 'rgba(255,255,255,0.7)' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 22, paddingTop: 14, gap: 14, justifyContent: 'space-between' },
+  gridCell: { width: '47%' },
+  gridCard: { aspectRatio: 0.72, borderRadius: 16, justifyContent: 'flex-end', padding: 12, gap: 4 },
+  gridName: { fontFamily: font.bold, fontSize: 15, color: '#fff' },
 });
