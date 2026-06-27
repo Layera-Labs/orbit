@@ -5,7 +5,7 @@
  * pickers; visual-only controls (filters, export sliders, prefs effects) are
  * tagged "soon". Export runs the real upload→render→Photos pipeline.
  */
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -30,10 +30,11 @@ import type { ClipFilter, ClipMask, ExportOutput, Keyframe, MaskShape, Motion, M
 import { FULL_FRAME } from '../model/types';
 import { sampleKeyframes } from '../preview/keyframes';
 import { projectDuration } from '../model/project';
-import { clipAtTime } from '../model/editor-ops';
+import { clipAtTime, newId } from '../model/editor-ops';
 import type { VisualTrackClip } from '../model/types';
-import { videoThumbnail } from '../storage/media';
+import { copyIntoMedia, videoThumbnail } from '../storage/media';
 import { pickAndAddAudio, pickAndAddMedia, pickAndAddOverlay } from '../media/pick';
+import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
 import { effectsTarget, useEditor } from '../store/editorStore';
 
 const soon = (label: string) => Alert.alert('Coming soon', `${label} is coming soon.`);
@@ -1165,6 +1166,68 @@ function MaskSheet() {
   );
 }
 
+function VoiceoverSheet() {
+  const setPanel = useEditor((s) => s.setPanel);
+  const playheadSec = useEditor((s) => s.playheadSec);
+  const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const [recording, setRecording] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const startedAt = useRef(0);
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const close = () => setPanel(null);
+  const clearTimer = () => {
+    if (timer.current) clearInterval(timer.current);
+    timer.current = null;
+  };
+  useEffect(() => clearTimer, []);
+
+  const start = async () => {
+    try {
+      const perm = await requestRecordingPermissionsAsync();
+      if (!perm.granted) {
+        Alert.alert('Microphone needed', 'Allow microphone access to record a voiceover.');
+        return;
+      }
+      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      startedAt.current = Date.now();
+      setElapsed(0);
+      setRecording(true);
+      timer.current = setInterval(() => setElapsed((Date.now() - startedAt.current) / 1000), 100);
+    } catch (e) {
+      Alert.alert('Recording failed', e instanceof Error ? e.message : String(e));
+    }
+  };
+  const stop = async () => {
+    clearTimer();
+    setRecording(false);
+    const secs = (Date.now() - startedAt.current) / 1000;
+    try {
+      await recorder.stop();
+      const uri = recorder.uri;
+      if (uri && secs > 0.3) {
+        const src = copyIntoMedia(uri, 'm4a');
+        useEditor.getState().importAudio({ id: newId('a'), src, start: playheadSec, duration: Math.max(0.3, secs), volume: 1 });
+      }
+    } catch (e) {
+      Alert.alert('Recording failed', e instanceof Error ? e.message : String(e));
+    }
+    close();
+  };
+
+  return (
+    <BottomSheet onClose={close} style={{ gap: 18, alignItems: 'center', paddingVertical: 28 }} dim="#0007">
+      <Text style={s.sheetTitle}>Voiceover</Text>
+      <Text style={s.voTime}>{elapsed.toFixed(1)}s</Text>
+      <Pressable onPress={recording ? stop : start} style={[s.recBtn, recording && s.recBtnOn]}>
+        <VIcon name={recording ? 'pause' : 'record'} size={30} color="#fff" />
+      </Pressable>
+      <Text style={s.voHint}>{recording ? 'Recording… tap to stop & add' : 'Tap to record from the playhead'}</Text>
+    </BottomSheet>
+  );
+}
+
 // ---- Export progress -----------------------------------------------------
 
 function ExportProgressModal() {
@@ -1207,6 +1270,7 @@ export function EditorSheets() {
       {panel === 'opacity' && <OpacitySheet />}
       {panel === 'position' && <PositionSheet />}
       {panel === 'mask' && <MaskSheet />}
+      {panel === 'voiceover' && <VoiceoverSheet />}
       <ExportProgressModal />
     </>
   );
@@ -1315,6 +1379,10 @@ const s = StyleSheet.create({
   cutSwatch: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   cutSwatchOn: { borderWidth: 2, borderColor: '#fff' },
   trimReadout: { color: vela.muted2, fontFamily: mono.regular, fontSize: 12, textAlign: 'center' },
+  voTime: { color: '#fff', fontFamily: mono.bold, fontSize: 30 },
+  recBtn: { width: 76, height: 76, borderRadius: 38, backgroundColor: vela.danger, alignItems: 'center', justifyContent: 'center' },
+  recBtnOn: { backgroundColor: '#7a1f1f' },
+  voHint: { color: vela.muted2, fontFamily: font.medium, fontSize: 13 },
   kfAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: vela.select, borderRadius: 18, paddingVertical: 8, paddingHorizontal: 14 },
   kfAddText: { color: '#111', fontFamily: font.semibold, fontSize: 14 },
   kfClear: { color: vela.muted2, fontFamily: font.medium, fontSize: 13 },
