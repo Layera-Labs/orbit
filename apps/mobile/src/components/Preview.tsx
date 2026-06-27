@@ -11,7 +11,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { type GestureResponderEvent, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Blur, Canvas, ColorMatrix, Fill, Group, Image as SkImg, ImageShader, type SkImage, Shader, Skia, rect, useImage } from '@shopify/react-native-skia';
+import { Blur, Canvas, ColorMatrix, Fill, Group, Image as SkImg, ImageShader, LinearGradient, type SkImage, Shader, Skia, rect, useImage, vec } from '@shopify/react-native-skia';
 import { type SharedValue, useSharedValue } from 'react-native-reanimated';
 import { useClipFrame } from '../preview/useClipFrame';
 import { motionTransform } from '../preview/motion';
@@ -21,7 +21,7 @@ import { colorMatrix } from '../filters/registry';
 import { mono, ratioLabel } from '../constants';
 import { clipAtTime } from '../model/editor-ops';
 import { projectDuration } from '../model/project';
-import type { TextOverlay, VisualTrack, VisualTrackClip } from '../model/types';
+import type { Background, TextOverlay, VisualTrack, VisualTrackClip } from '../model/types';
 import { videoThumbnail } from '../storage/media';
 import { OVERLAY_TRACK, useEditor } from '../store/editorStore';
 
@@ -43,6 +43,23 @@ half4 main(float2 xy) {
   float a = ka * c.a;
   return half4(c.rgb * a, a);
 }`)!;
+
+/** The project background (solid or gradient) — mirrors the engine's resvg bg. */
+function BackgroundFill({ bg, width, height }: { bg: Background | undefined; width: number; height: number }) {
+  if (bg?.type === 'gradient') {
+    const a = ((bg.angle ?? 0) * Math.PI) / 180;
+    const cx = width / 2;
+    const cy = height / 2;
+    const hx = (Math.cos(a) * Math.max(width, height)) / 2;
+    const hy = (Math.sin(a) * Math.max(width, height)) / 2;
+    return (
+      <Fill>
+        <LinearGradient start={vec(cx - hx, cy - hy)} end={vec(cx + hx, cy + hy)} colors={[bg.from, bg.to]} />
+      </Fill>
+    );
+  }
+  return <Fill color={bg?.type === 'color' ? bg.color : '#000000'} />;
+}
 
 /** Interpolated layer opacity from a clip's keyframes at the playhead (1 if none). */
 function clipKfOpacity(clip: VisualTrackClip, playheadSec: number): number {
@@ -280,7 +297,7 @@ export function Preview({ width, height }: { width: number; height: number }) {
   return (
     <Pressable style={[styles.frame, { width, height }]} onPress={onTapPreview}>
       <Canvas style={{ width, height }}>
-        <Fill color="#000000" />
+        <BackgroundFill bg={project?.background} width={width} height={height} />
         <Group opacity={baseOp}>
           {baseActive?.type === 'video' ? (
             <BaseVideo key={baseActive.id} clip={baseActive} width={width} height={height} isPlaying={isPlaying} playheadSec={playheadSec} />
