@@ -113,12 +113,10 @@ function VideoSettingsSheet() {
       </ScrollView>
       <View style={s.infoCard}>
         <View style={{ flex: 1 }}>
-          <Text style={s.infoTitle}>
-            HDR <Text style={s.soonInline}>soon</Text>
-          </Text>
-          <Text style={s.infoSub}>Automatically converts your clip to an HDR video</Text>
+          <Text style={s.infoTitle}>HDR</Text>
+          <Text style={s.infoSub}>Export in HDR10 (10-bit HEVC) from the Export screen</Text>
         </View>
-        <VToggle value={false} />
+        <VIcon name="export" size={22} color={vela.muted2} />
       </View>
     </BottomSheet>
   );
@@ -425,6 +423,7 @@ function ExportSheet() {
   const project = useEditor((s) => s.project);
   const [quality, setQuality] = useState<'Auto' | 'Manual'>('Manual');
   const [audioOnly, setAudioOnly] = useState(false);
+  const [hdr, setHdr] = useState(false);
   const [resIdx, setResIdx] = useState(2);
   const [fpsIdx, setFpsIdx] = useState(2);
   const [bitrate, setBitrate] = useState(20);
@@ -442,9 +441,11 @@ function ExportSheet() {
     if (quality === 'Manual') {
       output = audioOnly
         ? { audioOnly: true }
-        : { width: Math.round(W * scale), height: Math.round(H * scale), fps, bitrate };
+        : { width: Math.round(W * scale), height: Math.round(H * scale), fps, bitrate, hdr: hdr || undefined };
     } else if (audioOnly) {
       output = { audioOnly: true };
+    } else if (hdr) {
+      output = { hdr: true };
     }
     exportToPhotos(output);
   };
@@ -480,6 +481,16 @@ function ExportSheet() {
             <Text style={s.exportToggleLabel}>Export Audio Only</Text>
             <VToggle value={audioOnly} onChange={() => setAudioOnly((v) => !v)} offColor="#fff" />
           </View>
+
+          {!audioOnly ? (
+            <View style={[s.rowBetween, { marginTop: 18 }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={s.exportToggleLabel}>HDR (HDR10)</Text>
+                <Text style={s.infoSub}>10-bit HEVC, BT.2020 + PQ colour</Text>
+              </View>
+              <VToggle value={hdr} onChange={() => setHdr((v) => !v)} offColor="#fff" />
+            </View>
+          ) : null}
 
           {quality === 'Manual' && !audioOnly ? (
             <>

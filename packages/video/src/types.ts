@@ -178,6 +178,8 @@ export interface ExportOutput {
   /** target video bitrate, Mbps. */
   bitrate?: number;
   audioOnly?: boolean;
+  /** Encode HDR10: 10-bit HEVC tagged BT.2020 + PQ (SMPTE-2084). */
+  hdr?: boolean;
 }
 
 /** Normalized rectangle on the output canvas (fractions of width/height, 0..1). */
