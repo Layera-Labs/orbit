@@ -28,11 +28,10 @@ export function SelectionActionBar() {
 
   const isText = selected.trackId === OVERLAY_TRACK;
   const actions: Action[] = [
-    { key: 'edit', icon: 'pencil', label: 'Edit', onPress: isText ? () => setPanel('textedit') : () => soon('Edit') },
-    { key: 'motion', icon: 'motion', label: 'Motion', onPress: () => soon('Motion') },
-    { key: 'keyframe', icon: 'keyframe', label: 'Keyframe', onPress: () => soon('Keyframe') },
+    { key: 'edit', icon: 'pencil', label: 'Edit', onPress: isText ? () => setPanel('textedit') : () => setPanel('filter') },
+    { key: 'motion', icon: 'motion', label: 'Motion', onPress: isText ? () => soon('Motion') : () => setPanel('motion') },
+    { key: 'keyframe', icon: 'keyframe', label: 'Keyframe', onPress: isText ? () => soon('Keyframe') : () => setPanel('keyframe') },
     { key: 'curve', icon: 'curve', label: 'Curve', onPress: () => soon('Curve'), disabled: true },
-    { key: 'lock', icon: 'lock', label: 'Lock', onPress: () => soon('Lock') },
     { key: 'duplicate', icon: 'duplicate', label: 'Duplicate', onPress: duplicateSelected },
     { key: 'delete', icon: 'trash', label: 'Delete', onPress: removeSelected },
   ];

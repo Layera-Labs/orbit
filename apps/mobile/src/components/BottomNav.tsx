@@ -30,7 +30,7 @@ export function BottomNav({
       <Pressable style={styles.fab} onPress={onCreate}>
         <VIcon name="plus" size={26} color="#fff" strokeWidth={2.6} />
       </Pressable>
-      <Pressable style={styles.tab} onPress={() => soon('Templates')}>
+      <Pressable style={styles.tab} onPress={onDiscover}>
         <VIcon name="templates" size={24} color={vela.lightMuted} />
       </Pressable>
       <Pressable style={styles.tab} onPress={() => soon('Profile')}>
