@@ -106,6 +106,24 @@ export interface ClipFilter {
   intensity?: number;
 }
 
+/** Ken-Burns style camera move applied over a clip's duration. */
+export type MotionType =
+  | 'none'
+  | 'zoomIn'
+  | 'zoomOut'
+  | 'panLeft'
+  | 'panRight'
+  | 'panUp'
+  | 'panDown'
+  | 'kenBurns';
+
+/** Per-clip motion (zoom / pan animated across the clip window). */
+export interface Motion {
+  type: MotionType;
+  /** 0..1 strength of the move (default 0.5). */
+  intensity?: number;
+}
+
 /** Per-export output overrides (resolution / fps / bitrate / audio-only). */
 export interface ExportOutput {
   width?: number;
@@ -145,6 +163,8 @@ export interface VisualTrackClip {
   blur?: number;
   /** Playback speed multiplier (1 = normal). */
   speed?: number;
+  /** Ken-Burns camera move animated over the clip (preview + export). */
+  motion?: Motion;
   /** Transition INTO this clip from the previous base-track clip. */
   transitionIn?: Transition;
 }

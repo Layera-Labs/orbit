@@ -9,7 +9,7 @@ import { DEFAULT_SERVER } from '../constants';
 import { createProject, projectDuration } from '../model/project';
 import * as ops from '../model/editor-ops';
 import { MIN_CLIP, newId } from '../model/editor-ops';
-import { FULL_FRAME, type AudioTrackClip, type ClipFilter, type ExportOutput, type Rect, type TextOverlay, type Transition, type VideoProject, type VisualTrackClip } from '../model/types';
+import { FULL_FRAME, type AudioTrackClip, type ClipFilter, type ExportOutput, type Motion, type Rect, type TextOverlay, type Transition, type VideoProject, type VisualTrackClip } from '../model/types';
 
 /** Sentinel track id for the text/caption lane (overlays live on project.overlays, not tracks). */
 export const OVERLAY_TRACK = '__overlays__';
@@ -38,7 +38,7 @@ function progressLabel(p: ExportProgress): string {
 
 export type Screen = 'projects' | 'discover' | 'editor' | 'quick';
 /** Editor sheets/panels — mirrors Vela's `panel` state machine. */
-export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition' | 'speed' | 'volume' | 'fx';
+export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition' | 'speed' | 'volume' | 'fx' | 'motion';
 export interface EditorPrefs {
   mainTrack: 'Quick' | 'Pro';
   linkage: boolean;
@@ -124,6 +124,8 @@ interface EditorState {
   applyClipFilter: (filter: ClipFilter | undefined) => void;
   /** Apply a Gaussian blur (FX) to the effects target. */
   applyClipBlur: (blur: number) => void;
+  /** Apply a Ken-Burns motion preset to the effects target. */
+  applyClipMotion: (motion: Motion | undefined) => void;
   /** Apply speed to the effects target. */
   applyClipSpeed: (speed: number) => void;
   /** Apply volume to the selected clip (audio or video), else the base clip at playhead. */
@@ -493,6 +495,12 @@ export const useEditor = create<EditorState>((set, get) => ({
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipBlur(p, t.trackId, t.clipId, blur));
+    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+  },
+  applyClipMotion: (motion) => {
+    const t = effectsTarget();
+    if (!t) return;
+    get().apply((p) => ops.setClipMotion(p, t.trackId, t.clipId, motion));
     set({ selected: { trackId: t.trackId, clipId: t.clipId } });
   },
   applyClipSpeed: (speed) => {

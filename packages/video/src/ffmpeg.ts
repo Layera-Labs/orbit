@@ -12,6 +12,7 @@
 import { FULL_FRAME, type AudioTrack, type ExportOutput, type VideoProject, type VisualTrack } from './types';
 import { projectDuration, transitionDuration } from './project';
 import { atempoChain, filterToFFmpeg } from './filters';
+import { hasMotion, motionToZoompan } from './motion';
 
 export interface BuildFFmpegOptions {
   outputPath: string;
@@ -232,6 +233,11 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
     const fmt = c.type === 'image' ? 'rgba' : fade ? 'yuva420p' : 'yuv420p';
     let chain = `${prep}${grade}scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1,fps=${fps},format=${fmt}`;
     if (c.blur && c.blur > 0) chain += `,gblur=sigma=${r3(c.blur * 20)}`;
+    if (hasMotion(c.motion)) {
+      // zoompan re-times to a 0-based PTS, so re-anchor the clip's timeline start.
+      const zp = motionToZoompan(c.motion, Math.round(c.duration * fps), rw, rh, fps);
+      if (zp) chain += `,${zp},setpts=PTS-STARTPTS+${r3(S)}/TB`;
+    }
     if (fade?.fin) chain += `,fade=t=in:st=${r3(S)}:d=${fade.fin}:alpha=1`;
     if (fade?.fout) chain += `,fade=t=out:st=${r3(E - fade.fout)}:d=${fade.fout}:alpha=1`;
     segments.push(`[${vIn[i]}:v]${chain}[v${i}]`);

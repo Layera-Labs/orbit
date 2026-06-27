@@ -26,7 +26,7 @@ import { VSlider } from './VSlider';
 import { ColorSheet } from './ColorSheet';
 import { FontPickerSheet } from './FontPickerSheet';
 import { FILTER_LIST } from '../filters/registry';
-import type { ClipFilter, ExportOutput, TextAlign, TransitionType } from '../model/types';
+import type { ClipFilter, ExportOutput, Motion, MotionType, TextAlign, TransitionType } from '../model/types';
 import { projectDuration } from '../model/project';
 import { clipAtTime } from '../model/editor-ops';
 import type { VisualTrackClip } from '../model/types';
@@ -765,6 +765,56 @@ function FxSheet() {
   );
 }
 
+const MOTION_PRESETS: { type: MotionType; label: string }[] = [
+  { type: 'none', label: 'None' },
+  { type: 'zoomIn', label: 'Zoom In' },
+  { type: 'zoomOut', label: 'Zoom Out' },
+  { type: 'panLeft', label: 'Pan Left' },
+  { type: 'panRight', label: 'Pan Right' },
+  { type: 'panUp', label: 'Pan Up' },
+  { type: 'panDown', label: 'Pan Down' },
+  { type: 'kenBurns', label: 'Ken Burns' },
+];
+
+function MotionSheet() {
+  const setPanel = useEditor((s) => s.setPanel);
+  const applyClipMotion = useEditor((s) => s.applyClipMotion);
+  const [motion, setMotion] = useState<Motion>(() => effectsTarget()?.clip.motion ?? { type: 'none', intensity: 0.5 });
+  const close = () => setPanel(null);
+  const setType = (type: MotionType) => {
+    const next = { type, intensity: motion.intensity ?? 0.5 };
+    setMotion(next);
+    applyClipMotion(next);
+  };
+  const setIntensity = (intensity: number) => {
+    const next = { ...motion, intensity };
+    setMotion(next);
+    applyClipMotion(next);
+  };
+  return (
+    <BottomSheet onClose={close} style={{ gap: 16 }} dim="#0002">
+      <View style={s.rowBetween}>
+        <Text style={s.sheetTitle}>Motion</Text>
+        <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
+      </View>
+      <View style={s.motionGrid}>
+        {MOTION_PRESETS.map((p) => (
+          <Pressable key={p.type} onPress={() => setType(p.type)} style={[s.motionChip, motion.type === p.type && s.chipOn]}>
+            <Text style={[s.chipText, motion.type === p.type && { color: '#111' }]}>{p.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      {motion.type !== 'none' ? (
+        <View style={s.intensityRow}>
+          <Text style={s.intensityLabel}>Strength</Text>
+          <View style={{ flex: 1 }}><VSlider value={motion.intensity ?? 0.5} min={0.1} max={1} onChange={(v) => setIntensity(Math.round(v * 100) / 100)} /></View>
+          <Text style={s.intensityVal}>{Math.round((motion.intensity ?? 0.5) * 100)}%</Text>
+        </View>
+      ) : null}
+    </BottomSheet>
+  );
+}
+
 // ---- Export progress -----------------------------------------------------
 
 function ExportProgressModal() {
@@ -800,6 +850,7 @@ export function EditorSheets() {
       {panel === 'speed' && <SpeedSheet />}
       {panel === 'volume' && <VolumeSheet />}
       {panel === 'fx' && <FxSheet />}
+      {panel === 'motion' && <MotionSheet />}
       <ExportProgressModal />
     </>
   );
@@ -902,6 +953,9 @@ const s = StyleSheet.create({
   chip: { flex: 1, height: 40, borderRadius: 10, backgroundColor: vela.card3, alignItems: 'center', justifyContent: 'center' },
   chipOn: { backgroundColor: vela.select },
   chipText: { color: '#fff', fontFamily: font.semibold, fontSize: 14 },
+
+  motionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  motionChip: { backgroundColor: vela.card2, borderRadius: 18, paddingVertical: 9, paddingHorizontal: 16 },
 
   filterSheet: { gap: 14 },
   fTabOn: { color: '#fff', fontFamily: font.bold, fontSize: 16 },

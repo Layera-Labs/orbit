@@ -12,6 +12,8 @@ export type {
   Transition,
   TransitionType,
   ClipFilter,
+  Motion,
+  MotionType,
   ExportOutput,
   Rect,
   VisualTrackClip,
@@ -24,6 +26,7 @@ export type {
 export { FULL_FRAME } from './types';
 export { FILTER_PRESETS, NEUTRAL, resolveFilter, filterToFFmpeg, atempoChain, isNeutral } from './filters';
 export type { FilterParams } from './filters';
+export { hasMotion, motionStateAt, motionToZoompan, motionIntensity, ZOOM_DELTA, PAN_ZOOM } from './motion';
 export { createProject, projectDuration, transitionDuration } from './project';
 export { buildFFmpegArgs } from './ffmpeg';
 export type { BuildFFmpegOptions } from './ffmpeg';

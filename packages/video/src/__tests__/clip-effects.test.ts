@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildFFmpegArgs } from '../ffmpeg';
 import { atempoChain, filterToFFmpeg, resolveFilter } from '../filters';
+import { hasMotion, motionStateAt, motionToZoompan } from '../motion';
 import type { VideoProject } from '../types';
 
 describe('filters.ts', () => {
@@ -104,6 +105,78 @@ describe('engine applies per-clip FX (blur)', () => {
     const none: VideoProject = { ...project, tracks: [{ id: 'base', kind: 'visual', clips: [{ id: 'v0', type: 'video', src: 'a.mp4', start: 0, duration: 4, trimIn: 0 }] }] };
     const a = buildFFmpegArgs(none, { outputPath: '/tmp/o.mp4', baseImage: '/tmp/bg.png', hasAudio: () => true });
     expect(a[a.indexOf('-filter_complex') + 1]).not.toContain('gblur');
+  });
+});
+
+describe('motion.ts', () => {
+  it('none / zero intensity → no motion, identity state', () => {
+    expect(hasMotion(undefined)).toBe(false);
+    expect(hasMotion({ type: 'none' })).toBe(false);
+    expect(hasMotion({ type: 'zoomIn', intensity: 0 })).toBe(false);
+    expect(motionStateAt({ type: 'zoomIn' }, 0)).toEqual({ scale: 1, tx: 0, ty: 0 });
+  });
+
+  it('zoomIn scale grows from 1 over progress', () => {
+    expect(motionStateAt({ type: 'zoomIn', intensity: 1 }, 0).scale).toBeCloseTo(1);
+    expect(motionStateAt({ type: 'zoomIn', intensity: 1 }, 1).scale).toBeCloseTo(1.3); // 1 + ZOOM_DELTA
+  });
+
+  it('zoomOut scale shrinks toward 1', () => {
+    expect(motionStateAt({ type: 'zoomOut', intensity: 1 }, 0).scale).toBeCloseTo(1.3);
+    expect(motionStateAt({ type: 'zoomOut', intensity: 1 }, 1).scale).toBeCloseTo(1);
+  });
+
+  it('pan presets keep a constant base zoom and slide horizontally', () => {
+    const a = motionStateAt({ type: 'panRight', intensity: 1 }, 0);
+    const b = motionStateAt({ type: 'panRight', intensity: 1 }, 1);
+    expect(a.scale).toBeCloseTo(b.scale); // constant zoom
+    expect(a.tx).not.toBeCloseTo(b.tx); // pans
+  });
+
+  it('zoompan filter uses output-frame on counter and given size/fps', () => {
+    const zp = motionToZoompan({ type: 'zoomIn', intensity: 1 }, 60, 1080, 1920, 30);
+    expect(zp).toContain('zoompan=');
+    expect(zp).toContain('on/59'); // frames-1
+    expect(zp).toContain('d=1:s=1080x1920:fps=30');
+  });
+
+  it('zoompan is empty for no-op motion', () => {
+    expect(motionToZoompan({ type: 'none' }, 60, 1080, 1920, 30)).toBe('');
+  });
+});
+
+describe('engine applies per-clip motion (zoompan + re-anchored PTS)', () => {
+  const project: VideoProject = {
+    id: 'p',
+    schemaVersion: 2,
+    width: 1080,
+    height: 1920,
+    fps: 30,
+    background: { type: 'color', color: '#000000' },
+    clips: [],
+    overlays: [],
+    audio: [],
+    tracks: [
+      {
+        id: 'base',
+        kind: 'visual',
+        clips: [
+          { id: 'a', type: 'video', src: 'a.mp4', start: 0, duration: 2, trimIn: 0 },
+          { id: 'b', type: 'video', src: 'b.mp4', start: 2, duration: 2, trimIn: 0, motion: { type: 'zoomIn', intensity: 1 } },
+        ],
+      },
+    ],
+  };
+  const args = buildFFmpegArgs(project, { outputPath: '/tmp/o.mp4', baseImage: '/tmp/bg.png', hasAudio: () => true });
+  const graph = args[args.indexOf('-filter_complex') + 1];
+
+  it('injects zoompan for the clip with motion only', () => {
+    expect(graph).toContain('zoompan=');
+    expect((graph.match(/zoompan=/g) ?? []).length).toBe(1);
+  });
+
+  it('re-anchors the clip PTS to its timeline start after zoompan', () => {
+    expect(graph).toContain('setpts=PTS-STARTPTS+2/TB'); // clip b starts at t=2
   });
 });
 

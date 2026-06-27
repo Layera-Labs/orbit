@@ -9,6 +9,7 @@ import type {
   AudioTrack,
   AudioTrackClip,
   ClipFilter,
+  Motion,
   Rect,
   TextOverlay,
   Track,
@@ -265,6 +266,10 @@ export function setClipBlur(p: VideoProject, trackId: string, clipId: string, bl
 
 export function setClipSpeed(p: VideoProject, trackId: string, clipId: string, speed: number): VideoProject {
   return patchVisualClip(p, trackId, clipId, { speed: Math.max(0.25, Math.min(4, speed)) });
+}
+
+export function setClipMotion(p: VideoProject, trackId: string, clipId: string, motion: Motion | undefined): VideoProject {
+  return patchVisualClip(p, trackId, clipId, { motion: motion && motion.type !== 'none' ? motion : undefined });
 }
 
 export function setClipTransition(p: VideoProject, trackId: string, clipId: string, transitionIn: Transition | undefined): VideoProject {
