@@ -815,6 +815,62 @@ function MotionSheet() {
   );
 }
 
+const CUTOUT_SWATCHES = ['#00d400', '#0047ff', '#ffffff', '#000000'];
+
+function CutoutSheet() {
+  const setPanel = useEditor((s) => s.setPanel);
+  const applyClipCutout = useEditor((s) => s.applyClipCutout);
+  const [cut, setCut] = useState(() => effectsTarget()?.clip.cutout);
+  const [showColor, setShowColor] = useState(false);
+  const close = () => setPanel(null);
+  const on = !!cut;
+  const update = (next: typeof cut) => {
+    setCut(next);
+    applyClipCutout(next);
+  };
+  const toggle = () => update(on ? undefined : { color: '#00d400', similarity: 0.3, smoothness: 0.1 });
+  const patch = (p: Partial<NonNullable<typeof cut>>) => update({ color: cut?.color ?? '#00d400', similarity: cut?.similarity ?? 0.3, smoothness: cut?.smoothness ?? 0.1, ...p });
+  return (
+    <BottomSheet onClose={close} style={{ gap: 16 }} dim="#0002">
+      <View style={s.rowBetween}>
+        <Text style={s.sheetTitle}>Remove Background</Text>
+        <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
+      </View>
+      <View style={s.chipRow}>
+        <Pressable onPress={toggle} style={[s.chip, on && s.chipOn]}>
+          <Text style={[s.chipText, on && { color: '#111' }]}>{on ? 'On' : 'Off'}</Text>
+        </Pressable>
+      </View>
+      {on ? (
+        <>
+          <View style={s.rowBetween}>
+            <Text style={s.intensityLabel}>Key colour</Text>
+            <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+              {CUTOUT_SWATCHES.map((c) => (
+                <Pressable key={c} onPress={() => patch({ color: c })} style={[s.cutSwatch, { backgroundColor: c }, cut?.color === c && s.cutSwatchOn]} />
+              ))}
+              <Pressable onPress={() => setShowColor(true)} style={[s.cutSwatch, { backgroundColor: cut?.color ?? '#00d400', borderColor: '#fff', borderWidth: 1 }]}>
+                <VIcon name="color" size={16} color="#fff" />
+              </Pressable>
+            </View>
+          </View>
+          <View style={s.intensityRow}>
+            <Text style={s.intensityLabel}>Tolerance</Text>
+            <View style={{ flex: 1 }}><VSlider value={cut?.similarity ?? 0.3} min={0.05} max={0.9} onChange={(v) => patch({ similarity: Math.round(v * 100) / 100 })} /></View>
+            <Text style={s.intensityVal}>{Math.round((cut?.similarity ?? 0.3) * 100)}%</Text>
+          </View>
+          <View style={s.intensityRow}>
+            <Text style={s.intensityLabel}>Feather</Text>
+            <View style={{ flex: 1 }}><VSlider value={cut?.smoothness ?? 0.1} min={0} max={0.5} onChange={(v) => patch({ smoothness: Math.round(v * 100) / 100 })} /></View>
+            <Text style={s.intensityVal}>{Math.round((cut?.smoothness ?? 0.1) * 100)}%</Text>
+          </View>
+        </>
+      ) : null}
+      {showColor ? <ColorSheet value={cut?.color ?? '#00d400'} onChange={(hex) => patch({ color: hex })} onClose={() => setShowColor(false)} /> : null}
+    </BottomSheet>
+  );
+}
+
 // ---- Export progress -----------------------------------------------------
 
 function ExportProgressModal() {
@@ -851,6 +907,7 @@ export function EditorSheets() {
       {panel === 'volume' && <VolumeSheet />}
       {panel === 'fx' && <FxSheet />}
       {panel === 'motion' && <MotionSheet />}
+      {panel === 'cutout' && <CutoutSheet />}
       <ExportProgressModal />
     </>
   );
@@ -956,6 +1013,8 @@ const s = StyleSheet.create({
 
   motionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   motionChip: { backgroundColor: vela.card2, borderRadius: 18, paddingVertical: 9, paddingHorizontal: 16 },
+  cutSwatch: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  cutSwatchOn: { borderWidth: 2, borderColor: '#fff' },
 
   filterSheet: { gap: 14 },
   fTabOn: { color: '#fff', fontFamily: font.bold, fontSize: 16 },

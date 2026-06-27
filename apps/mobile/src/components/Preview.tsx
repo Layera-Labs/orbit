@@ -11,8 +11,8 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import { type GestureResponderEvent, Pressable, StyleSheet, Text, View } from 'react-native';
-import { Blur, Canvas, ColorMatrix, Fill, Group, Image as SkImg, rect, useImage } from '@shopify/react-native-skia';
-import { useSharedValue } from 'react-native-reanimated';
+import { Blur, Canvas, ColorMatrix, Fill, Group, Image as SkImg, ImageShader, type SkImage, Shader, Skia, rect, useImage } from '@shopify/react-native-skia';
+import { type SharedValue, useSharedValue } from 'react-native-reanimated';
 import { useClipFrame } from '../preview/useClipFrame';
 import { motionTransform } from '../preview/motion';
 import { ensureFontsLoaded, useFontsVersion } from '../text/fonts';
@@ -26,6 +26,47 @@ import { OVERLAY_TRACK, useEditor } from '../store/editorStore';
 
 const TICK_MS = 50;
 const posterCache = new Map<string, string>();
+
+// Chroma-key (cutout): mirror of the engine `colorkey` — pixels near `keyColor`
+// are made transparent so lower layers show through. Approximation of ffmpeg's
+// keyer (exact tolerances differ), keyed live to match the export visually.
+const CHROMA = Skia.RuntimeEffect.Make(`
+uniform shader image;
+uniform float3 keyColor;
+uniform float similarity;
+uniform float smoothness;
+half4 main(float2 xy) {
+  half4 c = image.eval(xy);
+  float d = distance(float3(c.rgb), keyColor);
+  float ka = smoothstep(similarity, similarity + smoothness + 0.001, d);
+  float a = ka * c.a;
+  return half4(c.rgb * a, a);
+}`)!;
+
+/** Hex (#rgb / #rrggbb) → normalized 0..1 RGB (defaults to green). */
+function hexToRgb01(hex: string): [number, number, number] {
+  let h = (hex || '').replace('#', '').trim();
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  if (h.length !== 6 || /[^0-9a-fA-F]/.test(h)) return [0, 0.83, 0];
+  return [parseInt(h.slice(0, 2), 16) / 255, parseInt(h.slice(2, 4), 16) / 255, parseInt(h.slice(4, 6), 16) / 255];
+}
+
+/** Draw `image` with a chroma key (cutout) into the given canvas rect. */
+function ChromaImage({ image, x, y, w, h, fit, cutout }: {
+  image: SkImage | SharedValue<SkImage | null>;
+  x: number; y: number; w: number; h: number;
+  fit: 'contain' | 'cover';
+  cutout: NonNullable<VisualTrackClip['cutout']>;
+}) {
+  const [r, g, b] = hexToRgb01(cutout.color);
+  return (
+    <Fill>
+      <Shader source={CHROMA} uniforms={{ keyColor: [r, g, b], similarity: cutout.similarity ?? 0.3, smoothness: cutout.smoothness ?? 0.1 }}>
+        <ImageShader image={image} fit={fit} rect={rect(x, y, w, h)} tx="decal" ty="decal" />
+      </Shader>
+    </Fill>
+  );
+}
 
 /** Skia/expo-video want a URI; our media srcs are bare file paths. */
 function toUri(p?: string | null): string | null {
@@ -63,10 +104,14 @@ function BaseVideo({ clip, width, height, isPlaying, playheadSec }: { clip: Visu
   const mt = motionTransform(clip.motion, clip.start, clip.duration, playheadSec, width, height);
   return (
     <Group transform={mt} origin={{ x: width / 2, y: height / 2 }}>
-      <SkImg image={frame} x={0} y={0} width={width} height={height} fit="contain">
-        {cm ? <ColorMatrix matrix={cm} /> : null}
-        {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
-      </SkImg>
+      {clip.cutout && frame ? (
+        <ChromaImage image={frame} x={0} y={0} w={width} h={height} fit="contain" cutout={clip.cutout} />
+      ) : (
+        <SkImg image={frame} x={0} y={0} width={width} height={height} fit="contain">
+          {cm ? <ColorMatrix matrix={cm} /> : null}
+          {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
+        </SkImg>
+      )}
     </Group>
   );
 }
@@ -79,10 +124,14 @@ function BaseImage({ clip, width, height, playheadSec }: { clip: VisualTrackClip
   if (!img) return null;
   return (
     <Group transform={mt} origin={{ x: width / 2, y: height / 2 }}>
-      <SkImg image={img} x={0} y={0} width={width} height={height} fit="contain">
-        {cm ? <ColorMatrix matrix={cm} /> : null}
-        {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
-      </SkImg>
+      {clip.cutout ? (
+        <ChromaImage image={img} x={0} y={0} w={width} h={height} fit="contain" cutout={clip.cutout} />
+      ) : (
+        <SkImg image={img} x={0} y={0} width={width} height={height} fit="contain">
+          {cm ? <ColorMatrix matrix={cm} /> : null}
+          {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
+        </SkImg>
+      )}
     </Group>
   );
 }
@@ -118,10 +167,14 @@ function OverlayLayer({ clip, width, height, playheadSec }: { clip: VisualTrackC
   return (
     <Group clip={rect(x, y, w, h)}>
       <Group transform={mt} origin={{ x: x + w / 2, y: y + h / 2 }}>
-        <SkImg image={img} x={x} y={y} width={w} height={h} fit="cover">
-          {cm ? <ColorMatrix matrix={cm} /> : null}
-          {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
-        </SkImg>
+        {clip.cutout ? (
+          <ChromaImage image={img} x={x} y={y} w={w} h={h} fit="cover" cutout={clip.cutout} />
+        ) : (
+          <SkImg image={img} x={x} y={y} width={w} height={h} fit="cover">
+            {cm ? <ColorMatrix matrix={cm} /> : null}
+            {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
+          </SkImg>
+        )}
       </Group>
     </Group>
   );

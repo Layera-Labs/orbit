@@ -13,6 +13,7 @@ import { FULL_FRAME, type AudioTrack, type ExportOutput, type VideoProject, type
 import { projectDuration, transitionDuration } from './project';
 import { atempoChain, filterToFFmpeg } from './filters';
 import { hasMotion, motionToZoompan } from './motion';
+import { chromaToFFmpeg } from './cutout';
 
 export interface BuildFFmpegOptions {
   outputPath: string;
@@ -230,8 +231,11 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
     const prep = c.type === 'video' ? `trim=start=${c.trimIn ?? 0}:duration=${srcDur},${shift},` : `setpts=PTS-STARTPTS+${S}/TB,`;
     const grade = filterToFFmpeg(c.filter);
     const fade = fadeMap.get(c.id);
-    const fmt = c.type === 'image' ? 'rgba' : fade ? 'yuva420p' : 'yuv420p';
+    const key = chromaToFFmpeg(c.cutout);
+    // colorkey needs an alpha plane; force rgba when keying (overlay handles it).
+    const fmt = c.type === 'image' || key ? 'rgba' : fade ? 'yuva420p' : 'yuv420p';
     let chain = `${prep}${grade}scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1,fps=${fps},format=${fmt}`;
+    if (key) chain += `,${key}`;
     if (c.blur && c.blur > 0) chain += `,gblur=sigma=${r3(c.blur * 20)}`;
     if (hasMotion(c.motion)) {
       // zoompan re-times to a 0-based PTS, so re-anchor the clip's timeline start.
