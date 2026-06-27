@@ -250,19 +250,13 @@ function RowBg({ height }: { height: number }) {
 }
 
 /** Scrolling clip layer for a row (transparent; sits on top of the RowBg). */
-function ClipLane({ row, scrollW, pxPerSec, selected, scrollRef }: { row: RowDef; scrollW: number; pxPerSec: number; selected: ReturnType<typeof useEditor.getState>['selected']; scrollRef: RefObject<ScrollView | null> }) {
+function ClipLane({ row, pxPerSec, selected, scrollRef }: { row: RowDef; pxPerSec: number; selected: ReturnType<typeof useEditor.getState>['selected']; scrollRef: RefObject<ScrollView | null> }) {
   const select = useEditor((s) => s.select);
   const setPanel = useEditor((s) => s.setPanel);
   const lastEnd = row.clips.reduce((m, { clip }) => Math.max(m, clip.start + clip.duration), 0);
   return (
     <View style={{ height: row.height }}>
-      {row.clips.length === 0 ? (
-        <Pressable onPress={row.add} style={[styles.emptyTap, { width: scrollW }]}>
-          <Text style={styles.emptyHint} numberOfLines={1}>
-            {row.empty}
-          </Text>
-        </Pressable>
-      ) : row.kind === 'sound' ? (
+      {row.clips.length === 0 ? null : row.kind === 'sound' ? (
         row.clips.map(({ clip }) => <SoundBlock key={clip.id} clip={clip} pxPerSec={pxPerSec} />)
       ) : (
         row.clips.map(({ clip, trackId }) => (
@@ -385,11 +379,30 @@ export function Timeline() {
               <Ruler end={end} pxPerSec={pxPerSec} />
               <View style={{ gap: LANE_GAP }}>
                 {rows.map((r) => (
-                  <ClipLane key={r.key} row={r} scrollW={scrollW} pxPerSec={pxPerSec} selected={selected} scrollRef={scrollRef} />
+                  <ClipLane key={r.key} row={r} pxPerSec={pxPerSec} selected={selected} scrollRef={scrollRef} />
                 ))}
               </View>
             </View>
           </ScrollView>
+
+          {/* Fixed empty-row hints — pinned left so they never scroll under the
+              gutter (box-none lets drags fall through to the ScrollView). */}
+          <View style={[StyleSheet.absoluteFill, { paddingLeft: PLAYHEAD_X }]} pointerEvents="box-none">
+            <View style={{ height: RULER_H }} />
+            <View style={{ gap: LANE_GAP }}>
+              {rows.map((r) => (
+                <View key={r.key} style={{ height: r.height, justifyContent: 'center' }} pointerEvents="box-none">
+                  {r.clips.length === 0 ? (
+                    <Pressable onPress={r.add} style={styles.emptyTap}>
+                      <Text style={styles.emptyHint} numberOfLines={1}>
+                        {r.empty}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          </View>
 
           {/* Fixed white playhead near the left of the scroll area */}
           <View style={[styles.playhead, { left: PLAYHEAD_X }]} pointerEvents="none">
@@ -414,7 +427,7 @@ const styles = StyleSheet.create({
   tickMinor: { width: 1, height: 4, backgroundColor: '#3a3a42' },
 
   rowBg: { borderRadius: 7, backgroundColor: vela.emptyTrack },
-  emptyTap: { height: '100%', justifyContent: 'center' },
+  emptyTap: { alignSelf: 'flex-start', paddingVertical: 6 },
   emptyHint: { color: vela.muted4, fontSize: 13, paddingLeft: 12 },
 
   clip: { position: 'absolute', top: 0, borderRadius: 7, overflow: 'hidden', backgroundColor: '#2a2a30', borderWidth: 2, borderColor: 'transparent' },
