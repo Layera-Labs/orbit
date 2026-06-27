@@ -6,10 +6,12 @@
  * scrolling area (ruler + lanes) under a fixed white playhead (scroll = scrub).
  * Each row shows a dark "empty track" bar; clips ride on top, absolutely
  * positioned by their ABSOLUTE start. A selected clip drags by the body (move in
- * time) or yellow edge handles (trim); scroll locks while a clip is selected.
+ * time) or yellow edge handles (trim); those gestures block the scroll on touch
+ * (blocksExternalGesture), so you can still scroll the timeline (drag empty area
+ * / ruler) to the end while a clip stays selected.
  * The Sound lane is a read-only waveform mirror of the main clips' audio.
  */
-import { useEffect, useRef, useState } from 'react';
+import { type RefObject, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   Image,
@@ -17,12 +19,11 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, ScrollView } from 'react-native-gesture-handler';
 import { mono, vela } from '../constants';
 import { VIcon, type VIconName } from './VIcon';
 import { MIN_CLIP } from '../model/editor-ops';
@@ -116,7 +117,7 @@ function Waveform({ seed, width, color }: { seed: string; width: number; color: 
   );
 }
 
-function ClipView({ clip, trackId, kind, height, selected, pxPerSec }: { clip: ClipLike; trackId: string; kind: RowKind; height: number; selected: boolean; pxPerSec: number }) {
+function ClipView({ clip, trackId, kind, height, selected, pxPerSec, scrollRef }: { clip: ClipLike; trackId: string; kind: RowKind; height: number; selected: boolean; pxPerSec: number; scrollRef: RefObject<ScrollView | null> }) {
   const select = useEditor((s) => s.select);
   const setClipStart = useEditor((s) => s.setClipStart);
   const trimClip = useEditor((s) => s.trimClip);
@@ -131,9 +132,18 @@ function ClipView({ clip, trackId, kind, height, selected, pxPerSec }: { clip: C
   function begin() {
     startRef.current = { start: clip.start, trimIn: clip.trimIn ?? 0, duration: clip.duration };
   }
-  const bodyPan = Gesture.Pan().runOnJS(true).onBegin(begin).onUpdate((e) => setClipStart(trackId, clip.id, startRef.current.start + e.translationX / pxPerSec));
+  // A drag/trim on the clip wins over the timeline ScrollView (so it doesn't
+  // scrub); touching empty timeline still scrolls — letting you scroll to the
+  // end while a clip stays selected.
+  const bodyPan = Gesture.Pan()
+    .runOnJS(true)
+    .blocksExternalGesture(scrollRef)
+    .activeOffsetX([-6, 6])
+    .onBegin(begin)
+    .onUpdate((e) => setClipStart(trackId, clip.id, startRef.current.start + e.translationX / pxPerSec));
   const leftPan = Gesture.Pan()
     .runOnJS(true)
+    .blocksExternalGesture(scrollRef)
     .onBegin(begin)
     .onUpdate((e) => {
       const ds = e.translationX / pxPerSec;
@@ -143,6 +153,7 @@ function ClipView({ clip, trackId, kind, height, selected, pxPerSec }: { clip: C
     });
   const rightPan = Gesture.Pan()
     .runOnJS(true)
+    .blocksExternalGesture(scrollRef)
     .onBegin(begin)
     .onUpdate((e) => {
       const ds = e.translationX / pxPerSec;
@@ -240,7 +251,7 @@ function RowBg({ height }: { height: number }) {
 }
 
 /** Scrolling clip layer for a row (transparent; sits on top of the RowBg). */
-function ClipLane({ row, scrollW, pxPerSec, selected }: { row: RowDef; scrollW: number; pxPerSec: number; selected: ReturnType<typeof useEditor.getState>['selected'] }) {
+function ClipLane({ row, scrollW, pxPerSec, selected, scrollRef }: { row: RowDef; scrollW: number; pxPerSec: number; selected: ReturnType<typeof useEditor.getState>['selected']; scrollRef: RefObject<ScrollView | null> }) {
   const select = useEditor((s) => s.select);
   const setPanel = useEditor((s) => s.setPanel);
   const lastEnd = row.clips.reduce((m, { clip }) => Math.max(m, clip.start + clip.duration), 0);
@@ -256,7 +267,7 @@ function ClipLane({ row, scrollW, pxPerSec, selected }: { row: RowDef; scrollW: 
         row.clips.map(({ clip }) => <SoundBlock key={clip.id} clip={clip} pxPerSec={pxPerSec} />)
       ) : (
         row.clips.map(({ clip, trackId }) => (
-          <ClipView key={clip.id} clip={clip} trackId={trackId} kind={row.kind} height={row.height} selected={selected?.trackId === trackId && selected?.clipId === clip.id} pxPerSec={pxPerSec} />
+          <ClipView key={clip.id} clip={clip} trackId={trackId} kind={row.kind} height={row.height} selected={selected?.trackId === trackId && selected?.clipId === clip.id} pxPerSec={pxPerSec} scrollRef={scrollRef} />
         ))
       )}
       {/* Transition chips between adjacent main-track clips */}
@@ -315,7 +326,9 @@ export function Timeline() {
   ];
 
   const end = project ? projectDuration(project) : 0;
-  const scrollEnabled = !selected && !isPlaying;
+  // Scroll stays enabled while a clip is selected — clip drag/trim gestures
+  // block the scroll on touch (see ClipView), so both coexist.
+  const scrollEnabled = !isPlaying;
   const scrollW = Math.max(1, viewW - GUTTER_W);
   // leave room past the content for the white "+" add tile on the video row.
   const contentW = Math.max(1, end * pxPerSec + ADD_TILE_W + 8);
@@ -373,7 +386,7 @@ export function Timeline() {
               <Ruler end={end} pxPerSec={pxPerSec} />
               <View style={{ gap: LANE_GAP }}>
                 {rows.map((r) => (
-                  <ClipLane key={r.key} row={r} scrollW={scrollW} pxPerSec={pxPerSec} selected={selected} />
+                  <ClipLane key={r.key} row={r} scrollW={scrollW} pxPerSec={pxPerSec} selected={selected} scrollRef={scrollRef} />
                 ))}
               </View>
             </View>
