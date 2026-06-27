@@ -14,6 +14,7 @@ import { projectDuration, transitionDuration } from './project';
 import { atempoChain, filterToFFmpeg } from './filters';
 import { hasMotion, motionToZoompan } from './motion';
 import { chromaToFFmpeg } from './cutout';
+import { maskToFFmpeg } from './mask';
 import { animatesOpacity, animatesPosition, hasKeyframes, keyframeExpr } from './keyframes';
 
 export interface BuildFFmpegOptions {
@@ -238,8 +239,9 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
     const kfPosition = hasKeyframes(kfs) && animatesPosition(kfs!);
     // static opacity (keyframes override when they animate opacity).
     const staticOpacity = !kfOpacity && c.opacity != null && c.opacity < 0.999 ? Math.max(0, c.opacity) : null;
-    // alpha plane needed for keying, animated/static opacity, OR fades.
-    const fmt = c.type === 'image' || key || kfOpacity || staticOpacity != null ? 'rgba' : fade ? 'yuva420p' : 'yuv420p';
+    const maskChain = maskToFFmpeg(c.mask, rw, rh);
+    // alpha plane needed for keying, animated/static opacity, a mask, OR fades.
+    const fmt = c.type === 'image' || key || kfOpacity || staticOpacity != null || maskChain ? 'rgba' : fade ? 'yuva420p' : 'yuv420p';
     let chain = `${prep}${grade}scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1,fps=${fps},format=${fmt}`;
     if (key) chain += `,${key}`;
     if (c.blur && c.blur > 0) chain += `,gblur=sigma=${r3(c.blur * 20)}`;
@@ -255,6 +257,8 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
     } else if (staticOpacity != null) {
       chain += `,colorchannelmixer=aa=${r3(staticOpacity)}`;
     }
+    // mask runs after opacity so alpha(X,Y) already carries the opacity.
+    if (maskChain) chain += `,${maskChain}`;
     if (fade?.fin) chain += `,fade=t=in:st=${r3(S)}:d=${fade.fin}:alpha=1`;
     if (fade?.fout) chain += `,fade=t=out:st=${r3(E - fade.fout)}:d=${fade.fout}:alpha=1`;
     segments.push(`[${vIn[i]}:v]${chain}[v${i}]`);

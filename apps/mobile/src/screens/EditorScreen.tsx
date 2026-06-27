@@ -115,7 +115,7 @@ export function EditorScreen() {
     { key: 'blending', icon: 'blending', label: 'Blending', soon: true },
     { key: 'opacity', icon: 'opacity', label: 'Opacity', soon: true },
     { key: 'position', icon: 'position', label: 'Position', soon: true },
-    { key: 'mask', icon: 'mask', label: 'Mask', soon: true },
+    { key: 'mask', icon: 'mask', label: 'Mask', onPress: () => setPanel('mask') },
     { key: 'copy', icon: 'duplicate', label: 'Copy', onPress: duplicateSelected },
   ];
   const audioTools: Tool[] = [
@@ -132,6 +132,7 @@ export function EditorScreen() {
     { key: 'motion', icon: 'motion', label: 'Motion', onPress: () => setPanel('motion') },
     { key: 'keyframe', icon: 'keyframe', label: 'Keyframe', onPress: () => setPanel('keyframe') },
     { key: 'cutout', icon: 'cutout', label: 'Cutout', onPress: () => setPanel('cutout') },
+    { key: 'mask', icon: 'mask', label: 'Mask', onPress: () => setPanel('mask') },
     { key: 'speed', icon: 'speed', label: 'Speed', onPress: () => setPanel('speed') },
     { key: 'volume', icon: 'volume', label: 'Volume', onPress: () => setPanel('volume') },
     { key: 'pip', icon: 'fullscreen', label: 'PiP', onPress: togglePiP },

@@ -3,6 +3,7 @@ import { buildFFmpegArgs } from '../ffmpeg';
 import { atempoChain, filterToFFmpeg, resolveFilter } from '../filters';
 import { hasMotion, motionStateAt, motionToZoompan } from '../motion';
 import { chromaToFFmpeg, hexToRgb } from '../cutout';
+import { maskToFFmpeg } from '../mask';
 import { animatesOpacity, animatesPosition, hasKeyframes, keyframeExpr, sampleKeyframes } from '../keyframes';
 import type { Keyframe, VideoProject } from '../types';
 
@@ -329,6 +330,40 @@ describe('engine applies static opacity', () => {
   it('opacity of 1 (or unset) adds no alpha multiply', () => {
     expect(graph(mk(1))).not.toContain('colorchannelmixer');
     expect(graph(mk(undefined))).not.toContain('colorchannelmixer');
+  });
+});
+
+describe('mask.ts', () => {
+  it('rectangle mask keys the alpha inside the box', () => {
+    const m = maskToFFmpeg({ shape: 'rectangle', cx: 0.5, cy: 0.5, rx: 0.25, ry: 0.25 }, 1000, 2000);
+    expect(m).toContain('geq=');
+    expect(m).toContain('lte(abs(X-500),250)');
+    expect(m).toContain('lte(abs(Y-1000),500)');
+  });
+  it('circle mask uses an ellipse test', () => {
+    const m = maskToFFmpeg({ shape: 'circle', cx: 0.5, cy: 0.5, rx: 0.5, ry: 0.5 }, 1000, 1000);
+    expect(m).toContain('lte((X-500)^2/');
+  });
+  it('invert wraps the condition in not()', () => {
+    expect(maskToFFmpeg({ shape: 'rectangle', cx: 0.5, cy: 0.5, rx: 0.2, ry: 0.2, invert: true }, 100, 100)).toContain("a='if(not(");
+  });
+  it('no/zero mask → empty', () => {
+    expect(maskToFFmpeg(undefined, 100, 100)).toBe('');
+    expect(maskToFFmpeg({ shape: 'circle', cx: 0.5, cy: 0.5, rx: 0, ry: 0.2 }, 100, 100)).toBe('');
+  });
+});
+
+describe('engine applies a clip mask (rgba + geq)', () => {
+  const project: VideoProject = {
+    id: 'p', schemaVersion: 2, width: 1080, height: 1920, fps: 30,
+    background: { type: 'color', color: '#000000' }, clips: [], overlays: [], audio: [],
+    tracks: [{ id: 'base', kind: 'visual', clips: [{ id: 'v0', type: 'video', src: 'a.mp4', start: 0, duration: 4, trimIn: 0, mask: { shape: 'circle', cx: 0.5, cy: 0.5, rx: 0.4, ry: 0.4 } }] }],
+  };
+  const args = buildFFmpegArgs(project, { outputPath: '/tmp/o.mp4', baseImage: '/tmp/bg.png', hasAudio: () => true });
+  const graph = args[args.indexOf('-filter_complex') + 1];
+  it('forces rgba and injects the mask geq', () => {
+    expect(graph).toContain('format=rgba');
+    expect(graph).toMatch(/geq=r='r\(X,Y\)'.*a='if\(lte\(\(X-/);
   });
 });
 
