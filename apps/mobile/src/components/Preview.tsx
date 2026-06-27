@@ -14,6 +14,7 @@ import { type GestureResponderEvent, Pressable, StyleSheet, Text, View } from 'r
 import { Blur, Canvas, ColorMatrix, Fill, Group, Image as SkImg, rect, useImage } from '@shopify/react-native-skia';
 import { useSharedValue } from 'react-native-reanimated';
 import { useClipFrame } from '../preview/useClipFrame';
+import { motionTransform } from '../preview/motion';
 import { ensureFontsLoaded, useFontsVersion } from '../text/fonts';
 import { colorMatrix } from '../filters/registry';
 import { mono, ratioLabel } from '../constants';
@@ -59,29 +60,35 @@ function BaseVideo({ clip, width, height, isPlaying, playheadSec }: { clip: Visu
   }, [playheadSec, clip.start, clip.trimIn, clip.speed]);
   const frame = useClipFrame(toUri(clip.src), playing, timeSV);
   const cm = colorMatrix(clip.filter);
+  const mt = motionTransform(clip.motion, clip.start, clip.duration, playheadSec, width, height);
   return (
-    <SkImg image={frame} x={0} y={0} width={width} height={height} fit="contain">
-      {cm ? <ColorMatrix matrix={cm} /> : null}
-      {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
-    </SkImg>
+    <Group transform={mt} origin={{ x: width / 2, y: height / 2 }}>
+      <SkImg image={frame} x={0} y={0} width={width} height={height} fit="contain">
+        {cm ? <ColorMatrix matrix={cm} /> : null}
+        {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
+      </SkImg>
+    </Group>
   );
 }
 
 /** Active base IMAGE clip. */
-function BaseImage({ clip, width, height }: { clip: VisualTrackClip; width: number; height: number }) {
+function BaseImage({ clip, width, height, playheadSec }: { clip: VisualTrackClip; width: number; height: number; playheadSec: number }) {
   const img = useImage(toUri(clip.src));
   const cm = colorMatrix(clip.filter);
+  const mt = motionTransform(clip.motion, clip.start, clip.duration, playheadSec, width, height);
   if (!img) return null;
   return (
-    <SkImg image={img} x={0} y={0} width={width} height={height} fit="contain">
-      {cm ? <ColorMatrix matrix={cm} /> : null}
-      {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
-    </SkImg>
+    <Group transform={mt} origin={{ x: width / 2, y: height / 2 }}>
+      <SkImg image={img} x={0} y={0} width={width} height={height} fit="contain">
+        {cm ? <ColorMatrix matrix={cm} /> : null}
+        {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
+      </SkImg>
+    </Group>
   );
 }
 
 /** A positioned overlay layer (image live; video as a poster frame). */
-function OverlayLayer({ clip, width, height }: { clip: VisualTrackClip; width: number; height: number }) {
+function OverlayLayer({ clip, width, height, playheadSec }: { clip: VisualTrackClip; width: number; height: number; playheadSec: number }) {
   const r = clip.rect ?? { x: 0, y: 0, w: 1, h: 1 };
   const x = r.x * width;
   const y = r.y * height;
@@ -106,12 +113,16 @@ function OverlayLayer({ clip, width, height }: { clip: VisualTrackClip; width: n
 
   const img = useImage(toUri(posterUri));
   const cm = colorMatrix(clip.filter);
+  const mt = motionTransform(clip.motion, clip.start, clip.duration, playheadSec, w, h);
   if (!img) return null;
   return (
     <Group clip={rect(x, y, w, h)}>
-      <SkImg image={img} x={x} y={y} width={w} height={h} fit="cover">
-        {cm ? <ColorMatrix matrix={cm} /> : null}
-      </SkImg>
+      <Group transform={mt} origin={{ x: x + w / 2, y: y + h / 2 }}>
+        <SkImg image={img} x={x} y={y} width={w} height={h} fit="cover">
+          {cm ? <ColorMatrix matrix={cm} /> : null}
+          {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
+        </SkImg>
+      </Group>
     </Group>
   );
 }
@@ -210,11 +221,11 @@ export function Preview({ width, height }: { width: number; height: number }) {
           {baseActive?.type === 'video' ? (
             <BaseVideo key={baseActive.id} clip={baseActive} width={width} height={height} isPlaying={isPlaying} playheadSec={playheadSec} />
           ) : baseActive?.type === 'image' ? (
-            <BaseImage key={baseActive.id} clip={baseActive} width={width} height={height} />
+            <BaseImage key={baseActive.id} clip={baseActive} width={width} height={height} playheadSec={playheadSec} />
           ) : null}
         </Group>
         {activeOverlays.map(({ clip }) => (
-          <OverlayLayer key={clip.id} clip={clip} width={width} height={height} />
+          <OverlayLayer key={clip.id} clip={clip} width={width} height={height} playheadSec={playheadSec} />
         ))}
       </Canvas>
 
