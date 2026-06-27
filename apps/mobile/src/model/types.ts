@@ -184,6 +184,8 @@ export interface VisualTrackClip {
   filter?: ClipFilter;
   /** Gaussian blur amount, 0..1 (FX). */
   blur?: number;
+  /** Static layer opacity, 0..1 (default 1). */
+  opacity?: number;
   /** Playback speed multiplier (1 = normal). */
   speed?: number;
   /** Ken-Burns camera move animated over the clip (preview + export). */

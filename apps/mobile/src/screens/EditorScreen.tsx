@@ -135,9 +135,10 @@ export function EditorScreen() {
     { key: 'speed', icon: 'speed', label: 'Speed', onPress: () => setPanel('speed') },
     { key: 'volume', icon: 'volume', label: 'Volume', onPress: () => setPanel('volume') },
     { key: 'pip', icon: 'fullscreen', label: 'PiP', onPress: togglePiP },
+    { key: 'position', icon: 'position', label: 'Position', onPress: () => setPanel('position') },
     { key: 'up', icon: 'chevronUp', label: 'Up', onPress: () => moveSelectedLayer(1) },
     { key: 'down', icon: 'chevronDown', label: 'Down', onPress: () => moveSelectedLayer(-1) },
-    { key: 'opacity', icon: 'opacity', label: 'Opacity', soon: true },
+    { key: 'opacity', icon: 'opacity', label: 'Opacity', onPress: () => setPanel('opacity') },
     { key: 'copy', icon: 'duplicate', label: 'Copy', onPress: duplicateSelected },
     { key: 'delete', icon: 'trash', label: 'Delete', onPress: removeSelected, danger: true },
   ];

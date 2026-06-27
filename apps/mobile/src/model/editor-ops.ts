@@ -266,6 +266,10 @@ export function setClipBlur(p: VideoProject, trackId: string, clipId: string, bl
   return patchVisualClip(p, trackId, clipId, { blur: Math.max(0, Math.min(1, blur)) });
 }
 
+export function setClipOpacity(p: VideoProject, trackId: string, clipId: string, opacity: number): VideoProject {
+  return patchVisualClip(p, trackId, clipId, { opacity: Math.max(0, Math.min(1, opacity)) });
+}
+
 export function setClipSpeed(p: VideoProject, trackId: string, clipId: string, speed: number): VideoProject {
   return patchVisualClip(p, trackId, clipId, { speed: Math.max(0.25, Math.min(4, speed)) });
 }

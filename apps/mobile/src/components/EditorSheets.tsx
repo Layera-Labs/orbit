@@ -1030,6 +1030,77 @@ function KeyframeSheet() {
   );
 }
 
+function OpacitySheet() {
+  const setPanel = useEditor((s) => s.setPanel);
+  const applyClipOpacity = useEditor((s) => s.applyClipOpacity);
+  const [op, setOp] = useState(() => effectsTarget()?.clip.opacity ?? 1);
+  const close = () => setPanel(null);
+  const set = (v: number) => {
+    setOp(v);
+    applyClipOpacity(v);
+  };
+  return (
+    <BottomSheet onClose={close} style={{ gap: 16 }} dim="#0002">
+      <View style={s.rowBetween}>
+        <Text style={s.sheetTitle}>Opacity</Text>
+        <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
+      </View>
+      <View style={s.intensityRow}>
+        <Text style={s.intensityLabel}>Opacity</Text>
+        <View style={{ flex: 1 }}><VSlider value={op} min={0} max={1} onChange={(v) => set(Math.round(v * 100) / 100)} /></View>
+        <Text style={s.intensityVal}>{Math.round(op * 100)}%</Text>
+      </View>
+    </BottomSheet>
+  );
+}
+
+function PositionSheet() {
+  const setPanel = useEditor((s) => s.setPanel);
+  const applyClipRect = useEditor((s) => s.applyClipRect);
+  const r0 = effectsTarget()?.clip.rect ?? { x: 0, y: 0, w: 1, h: 1 };
+  const [r, setR] = useState(r0);
+  const close = () => setPanel(null);
+  // Resize keeps the rect centred and clamped on-canvas.
+  const setSize = (size: number) => {
+    const cx = r.x + r.w / 2;
+    const cy = r.y + r.h / 2;
+    const w = Math.max(0.1, Math.min(1, size));
+    const h = Math.max(0.1, Math.min(1, size));
+    const nr = { x: Math.max(0, Math.min(1 - w, cx - w / 2)), y: Math.max(0, Math.min(1 - h, cy - h / 2)), w, h };
+    setR(nr);
+    applyClipRect(nr);
+  };
+  const setPos = (axis: 'x' | 'y', v: number) => {
+    const nr = { ...r, [axis]: Math.max(0, Math.min(1 - (axis === 'x' ? r.w : r.h), v)) };
+    setR(nr);
+    applyClipRect(nr);
+  };
+  const size = Math.max(r.w, r.h);
+  return (
+    <BottomSheet onClose={close} style={{ gap: 14 }} dim="#0002">
+      <View style={s.rowBetween}>
+        <Text style={s.sheetTitle}>Position</Text>
+        <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
+      </View>
+      <View style={s.intensityRow}>
+        <Text style={s.intensityLabel}>X</Text>
+        <View style={{ flex: 1 }}><VSlider value={r.x} min={0} max={Math.max(0.001, 1 - r.w)} onChange={(v) => setPos('x', Math.round(v * 100) / 100)} /></View>
+        <Text style={s.intensityVal}>{Math.round(r.x * 100)}%</Text>
+      </View>
+      <View style={s.intensityRow}>
+        <Text style={s.intensityLabel}>Y</Text>
+        <View style={{ flex: 1 }}><VSlider value={r.y} min={0} max={Math.max(0.001, 1 - r.h)} onChange={(v) => setPos('y', Math.round(v * 100) / 100)} /></View>
+        <Text style={s.intensityVal}>{Math.round(r.y * 100)}%</Text>
+      </View>
+      <View style={s.intensityRow}>
+        <Text style={s.intensityLabel}>Size</Text>
+        <View style={{ flex: 1 }}><VSlider value={size} min={0.1} max={1} onChange={(v) => setSize(Math.round(v * 100) / 100)} /></View>
+        <Text style={s.intensityVal}>{Math.round(size * 100)}%</Text>
+      </View>
+    </BottomSheet>
+  );
+}
+
 // ---- Export progress -----------------------------------------------------
 
 function ExportProgressModal() {
@@ -1069,6 +1140,8 @@ export function EditorSheets() {
       {panel === 'cutout' && <CutoutSheet />}
       {panel === 'trim' && <TrimSheet />}
       {panel === 'keyframe' && <KeyframeSheet />}
+      {panel === 'opacity' && <OpacitySheet />}
+      {panel === 'position' && <PositionSheet />}
       <ExportProgressModal />
     </>
   );

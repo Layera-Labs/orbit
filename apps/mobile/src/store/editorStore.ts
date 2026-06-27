@@ -40,7 +40,7 @@ function progressLabel(p: ExportProgress): string {
 
 export type Screen = 'projects' | 'discover' | 'editor' | 'quick';
 /** Editor sheets/panels — mirrors Vela's `panel` state machine. */
-export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition' | 'speed' | 'volume' | 'fx' | 'motion' | 'cutout' | 'trim' | 'keyframe';
+export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition' | 'speed' | 'volume' | 'fx' | 'motion' | 'cutout' | 'trim' | 'keyframe' | 'opacity' | 'position';
 export interface EditorPrefs {
   mainTrack: 'Quick' | 'Pro';
   linkage: boolean;
@@ -138,6 +138,10 @@ interface EditorState {
   applyClipFilter: (filter: ClipFilter | undefined) => void;
   /** Apply a Gaussian blur (FX) to the effects target. */
   applyClipBlur: (blur: number) => void;
+  /** Apply static opacity to the effects target. */
+  applyClipOpacity: (opacity: number) => void;
+  /** Apply a placement rect to the effects target (Position tool). */
+  applyClipRect: (rect: Rect) => void;
   /** Apply a Ken-Burns motion preset to the effects target. */
   applyClipMotion: (motion: Motion | undefined) => void;
   /** Apply / clear a chroma-key cutout on the effects target. */
@@ -598,6 +602,18 @@ export const useEditor = create<EditorState>((set, get) => ({
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipBlur(p, t.trackId, t.clipId, blur));
+    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+  },
+  applyClipOpacity: (opacity) => {
+    const t = effectsTarget();
+    if (!t) return;
+    get().apply((p) => ops.setClipOpacity(p, t.trackId, t.clipId, opacity));
+    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+  },
+  applyClipRect: (rect) => {
+    const t = effectsTarget();
+    if (!t) return;
+    get().apply((p) => ops.setClipRect(p, t.trackId, t.clipId, rect));
     set({ selected: { trackId: t.trackId, clipId: t.clipId } });
   },
   applyClipMotion: (motion) => {
