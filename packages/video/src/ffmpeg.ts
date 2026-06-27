@@ -14,6 +14,7 @@ import { projectDuration, transitionDuration } from './project';
 import { atempoChain, filterToFFmpeg } from './filters';
 import { hasMotion, motionToZoompan } from './motion';
 import { chromaToFFmpeg } from './cutout';
+import { animatesOpacity, animatesPosition, hasKeyframes, keyframeExpr } from './keyframes';
 
 export interface BuildFFmpegOptions {
   outputPath: string;
@@ -232,8 +233,11 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
     const grade = filterToFFmpeg(c.filter);
     const fade = fadeMap.get(c.id);
     const key = chromaToFFmpeg(c.cutout);
-    // colorkey needs an alpha plane; force rgba when keying (overlay handles it).
-    const fmt = c.type === 'image' || key ? 'rgba' : fade ? 'yuva420p' : 'yuv420p';
+    const kfs = c.keyframes;
+    const kfOpacity = hasKeyframes(kfs) && animatesOpacity(kfs!);
+    const kfPosition = hasKeyframes(kfs) && animatesPosition(kfs!);
+    // alpha plane needed for keying, animated opacity, OR fades.
+    const fmt = c.type === 'image' || key || kfOpacity ? 'rgba' : fade ? 'yuva420p' : 'yuv420p';
     let chain = `${prep}${grade}scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1,fps=${fps},format=${fmt}`;
     if (key) chain += `,${key}`;
     if (c.blur && c.blur > 0) chain += `,gblur=sigma=${r3(c.blur * 20)}`;
@@ -242,10 +246,17 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
       const zp = motionToZoompan(c.motion, Math.round(c.duration * fps), rw, rh, fps);
       if (zp) chain += `,${zp},setpts=PTS-STARTPTS+${r3(S)}/TB`;
     }
+    if (kfOpacity) {
+      // bake per-frame opacity into the alpha plane (T = timeline seconds).
+      const a = keyframeExpr(kfs!, 'opacity', S, c.duration, 'T', 255);
+      chain += `,geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='clip(${a},0,255)'`;
+    }
     if (fade?.fin) chain += `,fade=t=in:st=${r3(S)}:d=${fade.fin}:alpha=1`;
     if (fade?.fout) chain += `,fade=t=out:st=${r3(E - fade.fout)}:d=${fade.fout}:alpha=1`;
     segments.push(`[${vIn[i]}:v]${chain}[v${i}]`);
-    segments.push(`${prev}[v${i}]overlay=${rx}:${ry}:enable='between(t,${S},${E})':eof_action=pass[c${i}]`);
+    const ox = kfPosition ? `'${keyframeExpr(kfs!, 'x', S, c.duration, 't', W)}'` : `${rx}`;
+    const oy = kfPosition ? `'${keyframeExpr(kfs!, 'y', S, c.duration, 't', H)}'` : `${ry}`;
+    segments.push(`${prev}[v${i}]overlay=${ox}:${oy}:enable='between(t,${S},${E})':eof_action=pass[c${i}]`);
     prev = `[c${i}]`;
   });
 
