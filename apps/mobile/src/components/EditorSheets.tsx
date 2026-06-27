@@ -871,6 +871,68 @@ function CutoutSheet() {
   );
 }
 
+function TrimSheet() {
+  const setPanel = useEditor((s) => s.setPanel);
+  const trimClip = useEditor((s) => s.trimClip);
+  const mediaDurations = useEditor((s) => s.mediaDurations);
+  const t = effectsTarget();
+  const clip = t?.clip;
+  const srcDur = clip ? mediaDurations[clip.src] : undefined;
+  const isImage = clip?.type === 'image';
+  // Video clips are bounded by the source length; images can run any length.
+  const maxDur = isImage ? 30 : srcDur ?? 60;
+  const [trimIn, setTrimIn] = useState(() => clip?.trimIn ?? 0);
+  const [dur, setDur] = useState(() => clip?.duration ?? 1);
+  const close = () => setPanel(null);
+  if (!t || !clip) {
+    return (
+      <BottomSheet onClose={close} style={{ gap: 16 }} dim="#0002">
+        <Text style={s.sheetTitle}>Trim</Text>
+        <Text style={s.intensityLabel}>Select a clip to trim.</Text>
+      </BottomSheet>
+    );
+  }
+  const maxIn = isImage ? 0 : Math.max(0, (srcDur ?? maxDur) - 0.1);
+  const setIn = (v: number) => {
+    const ni = Math.max(0, Math.min(maxIn, v));
+    setTrimIn(ni);
+    // keep the out-point within source bounds when shifting the in-point
+    const room = srcDur ? srcDur - ni : maxDur;
+    const nd = Math.min(dur, Math.max(0.1, room));
+    setDur(nd);
+    trimClip(t.trackId, t.clipId, { trimIn: ni, duration: nd });
+  };
+  const setDuration = (v: number) => {
+    const room = !isImage && srcDur ? srcDur - trimIn : maxDur;
+    const nd = Math.max(0.1, Math.min(room, v));
+    setDur(nd);
+    trimClip(t.trackId, t.clipId, { duration: nd });
+  };
+  return (
+    <BottomSheet onClose={close} style={{ gap: 16 }} dim="#0002">
+      <View style={s.rowBetween}>
+        <Text style={s.sheetTitle}>Trim</Text>
+        <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
+      </View>
+      {!isImage ? (
+        <View style={s.intensityRow}>
+          <Text style={s.intensityLabel}>Start</Text>
+          <View style={{ flex: 1 }}><VSlider value={trimIn} min={0} max={Math.max(0.1, maxIn)} onChange={(v) => setIn(Math.round(v * 10) / 10)} /></View>
+          <Text style={s.intensityVal}>{trimIn.toFixed(1)}s</Text>
+        </View>
+      ) : null}
+      <View style={s.intensityRow}>
+        <Text style={s.intensityLabel}>Duration</Text>
+        <View style={{ flex: 1 }}><VSlider value={dur} min={0.1} max={Math.max(0.2, maxDur)} onChange={(v) => setDuration(Math.round(v * 10) / 10)} /></View>
+        <Text style={s.intensityVal}>{dur.toFixed(1)}s</Text>
+      </View>
+      <Text style={s.trimReadout}>
+        {isImage ? `Shows for ${dur.toFixed(1)}s` : `Source ${trimIn.toFixed(1)}s → ${(trimIn + dur).toFixed(1)}s${srcDur ? ` of ${srcDur.toFixed(1)}s` : ''}`}
+      </Text>
+    </BottomSheet>
+  );
+}
+
 // ---- Export progress -----------------------------------------------------
 
 function ExportProgressModal() {
@@ -908,6 +970,7 @@ export function EditorSheets() {
       {panel === 'fx' && <FxSheet />}
       {panel === 'motion' && <MotionSheet />}
       {panel === 'cutout' && <CutoutSheet />}
+      {panel === 'trim' && <TrimSheet />}
       <ExportProgressModal />
     </>
   );
@@ -1015,6 +1078,7 @@ const s = StyleSheet.create({
   motionChip: { backgroundColor: vela.card2, borderRadius: 18, paddingVertical: 9, paddingHorizontal: 16 },
   cutSwatch: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   cutSwatchOn: { borderWidth: 2, borderColor: '#fff' },
+  trimReadout: { color: vela.muted2, fontFamily: mono.regular, fontSize: 12, textAlign: 'center' },
 
   filterSheet: { gap: 14 },
   fTabOn: { color: '#fff', fontFamily: font.bold, fontSize: 16 },

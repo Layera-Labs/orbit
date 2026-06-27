@@ -85,7 +85,7 @@ export function EditorScreen() {
   // clip/overlay REPLACES it with that element's contextual tools (CapCut-style).
   const base: Tool[] = [
     { key: 'filter', icon: 'filter', label: 'Filter', onPress: () => setPanel('filter') },
-    { key: 'trim', icon: 'trim', label: 'Trim', soon: true },
+    { key: 'trim', icon: 'trim', label: 'Trim', onPress: () => setPanel('trim') },
     { key: 'fx', icon: 'fx', label: 'FX', onPress: () => setPanel('fx') },
     { key: 'motion', icon: 'motion', label: 'Motion', onPress: () => setPanel('motion') },
     { key: 'split', icon: 'split', label: 'Split', onPress: splitAtPlayhead, disabled: clipCount === 0 },
@@ -118,6 +118,7 @@ export function EditorScreen() {
   ];
   const visualTools: Tool[] = [
     { key: 'split', icon: 'split', label: 'Split', onPress: splitAtPlayhead },
+    { key: 'trim', icon: 'trim', label: 'Trim', onPress: () => setPanel('trim') },
     { key: 'filter', icon: 'filter', label: 'Filter', onPress: () => setPanel('filter') },
     { key: 'fx', icon: 'fx', label: 'FX', onPress: () => setPanel('fx') },
     { key: 'motion', icon: 'motion', label: 'Motion', onPress: () => setPanel('motion') },
