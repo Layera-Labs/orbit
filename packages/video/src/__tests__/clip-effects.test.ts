@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { buildFFmpegArgs } from '../ffmpeg';
 import { atempoChain, filterToFFmpeg, resolveFilter } from '../filters';
 import { hasMotion, motionStateAt, motionToZoompan } from '../motion';
+import { chromaToFFmpeg, hexToRgb } from '../cutout';
 import type { VideoProject } from '../types';
 
 describe('filters.ts', () => {
@@ -177,6 +178,44 @@ describe('engine applies per-clip motion (zoompan + re-anchored PTS)', () => {
 
   it('re-anchors the clip PTS to its timeline start after zoompan', () => {
     expect(graph).toContain('setpts=PTS-STARTPTS+2/TB'); // clip b starts at t=2
+  });
+});
+
+describe('cutout.ts', () => {
+  it('parses hex (#rgb / #rrggbb) to 0..255', () => {
+    expect(hexToRgb('#00d400')).toEqual([0, 212, 0]);
+    expect(hexToRgb('#fff')).toEqual([255, 255, 255]);
+  });
+
+  it('builds a colorkey filter from the key colour + tolerances', () => {
+    expect(chromaToFFmpeg({ color: '#00d400', similarity: 0.3, smoothness: 0.1 }))
+      .toBe('colorkey=color=0x00d400:similarity=0.3:blend=0.1');
+  });
+
+  it('no colour → empty (no-op)', () => {
+    expect(chromaToFFmpeg(undefined)).toBe('');
+    expect(chromaToFFmpeg({ color: '' })).toBe('');
+  });
+});
+
+describe('engine applies a chroma-key cutout (rgba + colorkey)', () => {
+  const project: VideoProject = {
+    id: 'p', schemaVersion: 2, width: 1080, height: 1920, fps: 30,
+    background: { type: 'color', color: '#000000' }, clips: [], overlays: [], audio: [],
+    tracks: [
+      { id: 'base', kind: 'visual', clips: [{ id: 'bg', type: 'video', src: 'bg.mp4', start: 0, duration: 2, trimIn: 0 }] },
+      { id: 'ov', kind: 'visual', clips: [{ id: 'fg', type: 'video', src: 'fg.mp4', start: 0, duration: 2, trimIn: 0, cutout: { color: '#00d400' } }] },
+    ],
+  };
+  const args = buildFFmpegArgs(project, { outputPath: '/tmp/o.mp4', baseImage: '/tmp/bg.png', hasAudio: () => true });
+  const graph = args[args.indexOf('-filter_complex') + 1];
+
+  it('forces rgba and applies colorkey on the keyed clip', () => {
+    expect(graph).toContain('format=rgba,colorkey=color=0x00d400');
+  });
+
+  it('leaves the un-keyed base clip as yuv420p', () => {
+    expect(graph).toContain('format=yuv420p');
   });
 });
 
