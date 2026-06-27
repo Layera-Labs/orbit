@@ -60,6 +60,10 @@ export function EditorScreen() {
   const setPlaying = useEditor((s) => s.setPlaying);
   const setPlayhead = useEditor((s) => s.setPlayhead);
   const setPanel = useEditor((s) => s.setPanel);
+  const undo = useEditor((s) => s.undo);
+  const redo = useEditor((s) => s.redo);
+  const canUndo = useEditor((s) => s.past.length > 0);
+  const canRedo = useEditor((s) => s.future.length > 0);
 
   if (!project) return null;
 
@@ -94,16 +98,20 @@ export function EditorScreen() {
     { key: 'speed', icon: 'speed', label: 'Speed', onPress: () => setPanel('speed') },
     { key: 'volume', icon: 'volume', label: 'Volume', onPress: () => setPanel('volume') },
   ];
-  // Full text toolset (CapCut). Split/Delete/Copy are real; the rest are soon.
+  // Full text toolset (CapCut). Font/Size/Color/Format/Spacing/Style all open
+  // the live Text-edit sheet (where those controls live); the rest are real or
+  // genuinely not built yet.
+  const editText = () => setPanel('textedit');
   const textTools: Tool[] = [
-    { key: 'font', icon: 'font', label: 'Font', soon: true },
-    { key: 'size', icon: 'fontsize', label: 'Size', soon: true },
+    { key: 'edit', icon: 'pencil', label: 'Edit', onPress: editText },
+    { key: 'font', icon: 'font', label: 'Font', onPress: editText },
+    { key: 'size', icon: 'fontsize', label: 'Size', onPress: editText },
     { key: 'split', icon: 'split', label: 'Split', onPress: splitAtPlayhead },
     { key: 'delete', icon: 'trash', label: 'Delete', onPress: removeSelected, danger: true },
-    { key: 'color', icon: 'color', label: 'Color', soon: true },
-    { key: 'format', icon: 'format', label: 'Format', soon: true },
-    { key: 'spacing', icon: 'spacing', label: 'Spacing', soon: true },
-    { key: 'style', icon: 'style', label: 'Style', soon: true },
+    { key: 'color', icon: 'color', label: 'Color', onPress: editText },
+    { key: 'format', icon: 'format', label: 'Format', onPress: editText },
+    { key: 'spacing', icon: 'spacing', label: 'Spacing', onPress: editText },
+    { key: 'style', icon: 'style', label: 'Style', onPress: editText },
     { key: 'blending', icon: 'blending', label: 'Blending', soon: true },
     { key: 'opacity', icon: 'opacity', label: 'Opacity', soon: true },
     { key: 'position', icon: 'position', label: 'Position', soon: true },
@@ -204,11 +212,11 @@ export function EditorScreen() {
           <Pressable onPress={() => setPanel('prefs')} hitSlop={10}>
             <VIcon name="prefs" size={20} color="#fff" />
           </Pressable>
-          <Pressable onPress={() => soonAlert('Undo')} hitSlop={8}>
-            <VIcon d="M9 14l-4-4 4-4M5 10h7a5 5 0 015 5v1" size={19} color={vela.muted2} />
+          <Pressable onPress={undo} disabled={!canUndo} hitSlop={8}>
+            <VIcon d="M9 14l-4-4 4-4M5 10h7a5 5 0 015 5v1" size={19} color={canUndo ? '#fff' : vela.muted2} />
           </Pressable>
-          <Pressable onPress={() => soonAlert('Redo')} hitSlop={8}>
-            <VIcon d="M15 14l4-4-4-4M19 10h-7a5 5 0 00-5 5v1" size={19} color={vela.muted2} />
+          <Pressable onPress={redo} disabled={!canRedo} hitSlop={8}>
+            <VIcon d="M15 14l4-4-4-4M19 10h-7a5 5 0 00-5 5v1" size={19} color={canRedo ? '#fff' : vela.muted2} />
           </Pressable>
         </View>
       </View>
