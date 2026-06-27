@@ -231,6 +231,7 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
     const fade = fadeMap.get(c.id);
     const fmt = c.type === 'image' ? 'rgba' : fade ? 'yuva420p' : 'yuv420p';
     let chain = `${prep}${grade}scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1,fps=${fps},format=${fmt}`;
+    if (c.blur && c.blur > 0) chain += `,gblur=sigma=${r3(c.blur * 20)}`;
     if (fade?.fin) chain += `,fade=t=in:st=${r3(S)}:d=${fade.fin}:alpha=1`;
     if (fade?.fout) chain += `,fade=t=out:st=${r3(E - fade.fout)}:d=${fade.fout}:alpha=1`;
     segments.push(`[${vIn[i]}:v]${chain}[v${i}]`);
