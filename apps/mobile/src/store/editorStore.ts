@@ -70,6 +70,9 @@ interface EditorState {
   playheadSec: number;
   pxPerSec: number;
   isPlaying: boolean;
+  /** Undo / redo history of project snapshots for the open project (not persisted). */
+  past: VideoProject[];
+  future: VideoProject[];
 
   // editor sheets + prefs + export
   panel: EditorPanel | null;
@@ -104,6 +107,9 @@ interface EditorState {
   setPoster: (uri: string) => void;
   setMediaDuration: (src: string, sec: number) => void;
   setPanel: (panel: EditorPanel | null) => void;
+  /** Undo / redo the last project mutation. */
+  undo: () => void;
+  redo: () => void;
   setPref: <K extends keyof EditorPrefs>(key: K, value: EditorPrefs[K]) => void;
   exportToPhotos: (output?: ExportOutput) => Promise<void>;
   shareExport: (output?: ExportOutput) => Promise<void>;
@@ -152,6 +158,12 @@ interface EditorState {
   setSourceDims: (width: number, height: number) => void;
 }
 
+// Undo history: coalesce a burst of mutations (e.g. a drag's per-frame updates)
+// within this window into a single entry; cap total snapshots.
+const HISTORY_COALESCE_MS = 450;
+const HISTORY_MAX = 60;
+let lastHistoryAt = 0;
+
 export const useEditor = create<EditorState>((set, get) => ({
   screen: 'projects',
   projects: [],
@@ -166,6 +178,8 @@ export const useEditor = create<EditorState>((set, get) => ({
   playheadSec: 0,
   pxPerSec: DEFAULT_PX_PER_SEC,
   isPlaying: false,
+  past: [],
+  future: [],
   panel: null,
   prefs: { mainTrack: 'Quick', linkage: true, snapping: false, previewFps: 30 },
   exporting: false,
@@ -196,6 +210,8 @@ export const useEditor = create<EditorState>((set, get) => ({
       playheadSec: 0,
       isPlaying: false,
       pxPerSec: DEFAULT_PX_PER_SEC,
+      past: [],
+      future: [],
       panel: null,
       screen: 'editor',
     });
@@ -218,6 +234,8 @@ export const useEditor = create<EditorState>((set, get) => ({
       playheadSec: 0,
       isPlaying: false,
       pxPerSec: DEFAULT_PX_PER_SEC,
+      past: [],
+      future: [],
       panel: null,
       screen: 'editor',
     });
@@ -238,6 +256,8 @@ export const useEditor = create<EditorState>((set, get) => ({
       playheadSec: 0,
       isPlaying: false,
       pxPerSec: DEFAULT_PX_PER_SEC,
+      past: [],
+      future: [],
       panel: null,
       screen: 'editor',
     });
@@ -264,6 +284,8 @@ export const useEditor = create<EditorState>((set, get) => ({
       playheadSec: 0,
       isPlaying: false,
       pxPerSec: DEFAULT_PX_PER_SEC,
+      past: [],
+      future: [],
       panel: null,
       screen: 'editor',
     });
@@ -370,11 +392,32 @@ export const useEditor = create<EditorState>((set, get) => ({
   mainTrackId: () => get().project?.tracks?.find((t) => t.kind === 'visual')?.id ?? null,
 
   apply: (fn) => {
-    const { project, projectId, name, posterUri, mediaDurations } = get();
+    const { project, projectId, name, posterUri, mediaDurations, past } = get();
     if (!project || !projectId) return;
     const next = fn(project);
-    set({ project: next });
+    const now = Date.now();
+    // Push the pre-mutation state, coalescing rapid successive mutations (drags).
+    const coalesce = past.length > 0 && now - lastHistoryAt < HISTORY_COALESCE_MS;
+    lastHistoryAt = now;
+    set({ project: next, past: coalesce ? past : [...past, project].slice(-HISTORY_MAX), future: [] });
     saveProject({ id: projectId, name, updatedAt: Date.now(), project: next, posterUri, mediaDurations });
+  },
+
+  undo: () => {
+    const { past, future, project, projectId, name, posterUri, mediaDurations } = get();
+    if (!past.length || !project || !projectId) return;
+    const previous = past[past.length - 1];
+    lastHistoryAt = 0;
+    set({ past: past.slice(0, -1), future: [...future, project], project: previous, selected: null });
+    saveProject({ id: projectId, name, updatedAt: Date.now(), project: previous, posterUri, mediaDurations });
+  },
+  redo: () => {
+    const { past, future, project, projectId, name, posterUri, mediaDurations } = get();
+    if (!future.length || !project || !projectId) return;
+    const upcoming = future[future.length - 1];
+    lastHistoryAt = 0;
+    set({ future: future.slice(0, -1), past: [...past, project], project: upcoming, selected: null });
+    saveProject({ id: projectId, name, updatedAt: Date.now(), project: upcoming, posterUri, mediaDurations });
   },
 
   importVisual: (clips) => {

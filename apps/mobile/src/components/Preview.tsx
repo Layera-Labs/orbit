@@ -10,7 +10,8 @@
  * layers (P4/P5). The server export is the true composite.
  */
 import { useEffect, useRef, useState } from 'react';
-import { type GestureResponderEvent, Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Blur, Canvas, ColorMatrix, Fill, Group, Image as SkImg, ImageShader, LinearGradient, type SkImage, Shader, Skia, rect, useImage, vec } from '@shopify/react-native-skia';
 import { type SharedValue, useSharedValue } from 'react-native-reanimated';
 import { useClipFrame } from '../preview/useClipFrame';
@@ -216,6 +217,8 @@ export function Preview({ width, height }: { width: number; height: number }) {
   const setPlaying = useEditor((s) => s.setPlaying);
   const select = useEditor((s) => s.select);
   const selected = useEditor((s) => s.selected);
+  const setClipRect = useEditor((s) => s.setClipRect);
+  const dragRect = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const fontsVersion = useFontsVersion();
   const startedAt = useRef(0);
 
@@ -269,9 +272,9 @@ export function Preview({ width, height }: { width: number; height: number }) {
 
   // Tap an element in the preview to SELECT it (top→bottom): sticker/PiP overlays
   // by rect, then captions by a y-band, then the base clip; empty area deselects.
-  function onTapPreview(e: GestureResponderEvent) {
-    const nx = e.nativeEvent.locationX / width;
-    const ny = e.nativeEvent.locationY / height;
+  function onTapPreview(px: number, py: number) {
+    const nx = px / width;
+    const ny = py / height;
     for (let i = activeOverlays.length - 1; i >= 0; i--) {
       const { clip, trackId } = activeOverlays[i];
       const r = clip.rect ?? { x: 0, y: 0, w: 1, h: 1 };
@@ -294,8 +297,32 @@ export function Preview({ width, height }: { width: number; height: number }) {
     select(null);
   }
 
+  // Drag a selected PiP/overlay clip to reposition it on the canvas; a tap
+  // (no movement) selects. Dragging the base clip does nothing.
+  const dragPan = Gesture.Pan()
+    .runOnJS(true)
+    .onBegin(() => {
+      dragRect.current = null;
+      const sel = useEditor.getState().selected;
+      if (!sel || !base || sel.trackId === base.id) return;
+      const tr = (project?.tracks ?? []).find((t) => t.id === sel.trackId);
+      const c = tr?.clips.find((x) => x.id === sel.clipId) as VisualTrackClip | undefined;
+      if (c?.rect) dragRect.current = { ...c.rect };
+    })
+    .onUpdate((e) => {
+      const r = dragRect.current;
+      const sel = useEditor.getState().selected;
+      if (!r || !sel) return;
+      const nx = Math.max(0, Math.min(1 - r.w, r.x + e.translationX / width));
+      const ny = Math.max(0, Math.min(1 - r.h, r.y + e.translationY / height));
+      setClipRect(sel.trackId, sel.clipId, { ...r, x: nx, y: ny });
+    });
+  const tap = Gesture.Tap().runOnJS(true).maxDistance(10).onEnd((e) => onTapPreview(e.x, e.y));
+  const gesture = Gesture.Race(dragPan, tap);
+
   return (
-    <Pressable style={[styles.frame, { width, height }]} onPress={onTapPreview}>
+    <GestureDetector gesture={gesture}>
+      <View style={[styles.frame, { width, height }]}>
       <Canvas style={{ width, height }}>
         <BackgroundFill bg={project?.background} width={width} height={height} />
         <Group opacity={baseOp}>
@@ -333,7 +360,8 @@ export function Preview({ width, height }: { width: number; height: number }) {
           </View>
         ))}
       </View>
-    </Pressable>
+      </View>
+    </GestureDetector>
   );
 }
 
