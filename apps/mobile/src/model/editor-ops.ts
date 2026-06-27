@@ -10,6 +10,7 @@ import type {
   AudioTrackClip,
   ChromaKey,
   ClipFilter,
+  ClipMask,
   Keyframe,
   Motion,
   Rect,
@@ -268,6 +269,10 @@ export function setClipBlur(p: VideoProject, trackId: string, clipId: string, bl
 
 export function setClipOpacity(p: VideoProject, trackId: string, clipId: string, opacity: number): VideoProject {
   return patchVisualClip(p, trackId, clipId, { opacity: Math.max(0, Math.min(1, opacity)) });
+}
+
+export function setClipMask(p: VideoProject, trackId: string, clipId: string, mask: ClipMask | undefined): VideoProject {
+  return patchVisualClip(p, trackId, clipId, { mask });
 }
 
 export function setClipSpeed(p: VideoProject, trackId: string, clipId: string, speed: number): VideoProject {

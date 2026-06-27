@@ -127,6 +127,17 @@ export interface ChromaKey {
   smoothness?: number;
 }
 
+/** Shape mask revealing only part of a layer (coords normalized within clip). */
+export type MaskShape = 'rectangle' | 'circle';
+export interface ClipMask {
+  shape: MaskShape;
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  invert?: boolean;
+}
+
 /** Ken-Burns style camera move applied over a clip's duration. */
 export type MotionType =
   | 'none'
@@ -186,6 +197,8 @@ export interface VisualTrackClip {
   blur?: number;
   /** Static layer opacity, 0..1 (default 1). */
   opacity?: number;
+  /** Shape mask revealing only part of the layer (preview + export). */
+  mask?: ClipMask;
   /** Playback speed multiplier (1 = normal). */
   speed?: number;
   /** Ken-Burns camera move animated over the clip (preview + export). */

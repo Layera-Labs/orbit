@@ -26,7 +26,7 @@ import { VSlider } from './VSlider';
 import { ColorSheet } from './ColorSheet';
 import { FontPickerSheet } from './FontPickerSheet';
 import { FILTER_LIST } from '../filters/registry';
-import type { ClipFilter, ExportOutput, Keyframe, Motion, MotionType, TextAlign, TransitionType } from '../model/types';
+import type { ClipFilter, ClipMask, ExportOutput, Keyframe, MaskShape, Motion, MotionType, TextAlign, TransitionType } from '../model/types';
 import { FULL_FRAME } from '../model/types';
 import { sampleKeyframes } from '../preview/keyframes';
 import { projectDuration } from '../model/project';
@@ -1101,6 +1101,70 @@ function PositionSheet() {
   );
 }
 
+const DEFAULT_MASK: ClipMask = { shape: 'rectangle', cx: 0.5, cy: 0.5, rx: 0.35, ry: 0.35, invert: false };
+
+function MaskSheet() {
+  const setPanel = useEditor((s) => s.setPanel);
+  const applyClipMask = useEditor((s) => s.applyClipMask);
+  const [mask, setMask] = useState<ClipMask | undefined>(() => effectsTarget()?.clip.mask);
+  const close = () => setPanel(null);
+  const on = !!mask;
+  const update = (m: ClipMask | undefined) => {
+    setMask(m);
+    applyClipMask(m);
+  };
+  const patch = (p: Partial<ClipMask>) => update({ ...(mask ?? DEFAULT_MASK), ...p });
+  return (
+    <BottomSheet onClose={close} style={{ gap: 14 }} dim="#0002">
+      <View style={s.rowBetween}>
+        <Text style={s.sheetTitle}>Mask</Text>
+        <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
+      </View>
+      <View style={s.chipRow}>
+        <Pressable onPress={() => update(on ? undefined : DEFAULT_MASK)} style={[s.chip, on && s.chipOn]}>
+          <Text style={[s.chipText, on && { color: '#111' }]}>{on ? 'On' : 'Off'}</Text>
+        </Pressable>
+        {on
+          ? (['rectangle', 'circle'] as MaskShape[]).map((sh) => (
+              <Pressable key={sh} onPress={() => patch({ shape: sh })} style={[s.chip, mask!.shape === sh && s.chipOn]}>
+                <Text style={[s.chipText, mask!.shape === sh && { color: '#111' }]}>{sh === 'rectangle' ? 'Rect' : 'Circle'}</Text>
+              </Pressable>
+            ))
+          : null}
+        {on ? (
+          <Pressable onPress={() => patch({ invert: !mask!.invert })} style={[s.chip, mask!.invert && s.chipOn]}>
+            <Text style={[s.chipText, mask!.invert && { color: '#111' }]}>Invert</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      {on ? (
+        <>
+          <View style={s.intensityRow}>
+            <Text style={s.intensityLabel}>Width</Text>
+            <View style={{ flex: 1 }}><VSlider value={mask!.rx} min={0.05} max={0.5} onChange={(v) => patch({ rx: Math.round(v * 100) / 100 })} /></View>
+            <Text style={s.intensityVal}>{Math.round(mask!.rx * 200)}%</Text>
+          </View>
+          <View style={s.intensityRow}>
+            <Text style={s.intensityLabel}>Height</Text>
+            <View style={{ flex: 1 }}><VSlider value={mask!.ry} min={0.05} max={0.5} onChange={(v) => patch({ ry: Math.round(v * 100) / 100 })} /></View>
+            <Text style={s.intensityVal}>{Math.round(mask!.ry * 200)}%</Text>
+          </View>
+          <View style={s.intensityRow}>
+            <Text style={s.intensityLabel}>X</Text>
+            <View style={{ flex: 1 }}><VSlider value={mask!.cx} min={0} max={1} onChange={(v) => patch({ cx: Math.round(v * 100) / 100 })} /></View>
+            <Text style={s.intensityVal}>{Math.round(mask!.cx * 100)}%</Text>
+          </View>
+          <View style={s.intensityRow}>
+            <Text style={s.intensityLabel}>Y</Text>
+            <View style={{ flex: 1 }}><VSlider value={mask!.cy} min={0} max={1} onChange={(v) => patch({ cy: Math.round(v * 100) / 100 })} /></View>
+            <Text style={s.intensityVal}>{Math.round(mask!.cy * 100)}%</Text>
+          </View>
+        </>
+      ) : null}
+    </BottomSheet>
+  );
+}
+
 // ---- Export progress -----------------------------------------------------
 
 function ExportProgressModal() {
@@ -1142,6 +1206,7 @@ export function EditorSheets() {
       {panel === 'keyframe' && <KeyframeSheet />}
       {panel === 'opacity' && <OpacitySheet />}
       {panel === 'position' && <PositionSheet />}
+      {panel === 'mask' && <MaskSheet />}
       <ExportProgressModal />
     </>
   );

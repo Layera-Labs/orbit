@@ -68,6 +68,22 @@ function clipKfOpacity(clip: VisualTrackClip, playheadSec: number): number {
   return sampleKeyframes(clip.keyframes!, (playheadSec - clip.start) / Math.max(0.001, clip.duration)).opacity;
 }
 
+/** Skia clip (rect or oval path) + invert for a clip's shape mask, in canvas px. */
+function maskClipFor(mask: VisualTrackClip['mask'], x: number, y: number, w: number, h: number) {
+  if (!mask || mask.rx <= 0 || mask.ry <= 0) return null;
+  const cx = x + mask.cx * w;
+  const cy = y + mask.cy * h;
+  const hw = mask.rx * w;
+  const hh = mask.ry * h;
+  const box = rect(cx - hw, cy - hh, hw * 2, hh * 2);
+  if (mask.shape === 'circle') {
+    const path = Skia.Path.Make();
+    path.addOval(box);
+    return { clip: path, invertClip: !!mask.invert };
+  }
+  return { clip: box, invertClip: !!mask.invert };
+}
+
 /** Hex (#rgb / #rrggbb) → normalized 0..1 RGB (defaults to green). */
 function hexToRgb01(hex: string): [number, number, number] {
   let h = (hex || '').replace('#', '').trim();
@@ -127,16 +143,19 @@ function BaseVideo({ clip, width, height, isPlaying, playheadSec }: { clip: Visu
   const frame = useClipFrame(toUri(clip.src), playing, timeSV);
   const cm = colorMatrix(clip.filter);
   const mt = motionTransform(clip.motion, clip.start, clip.duration, playheadSec, width, height);
+  const mc = maskClipFor(clip.mask, 0, 0, width, height);
+  const content =
+    clip.cutout && frame ? (
+      <ChromaImage image={frame} x={0} y={0} w={width} h={height} fit="contain" cutout={clip.cutout} />
+    ) : (
+      <SkImg image={frame} x={0} y={0} width={width} height={height} fit="contain">
+        {cm ? <ColorMatrix matrix={cm} /> : null}
+        {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
+      </SkImg>
+    );
   return (
     <Group transform={mt} origin={{ x: width / 2, y: height / 2 }} opacity={clipKfOpacity(clip, playheadSec)}>
-      {clip.cutout && frame ? (
-        <ChromaImage image={frame} x={0} y={0} w={width} h={height} fit="contain" cutout={clip.cutout} />
-      ) : (
-        <SkImg image={frame} x={0} y={0} width={width} height={height} fit="contain">
-          {cm ? <ColorMatrix matrix={cm} /> : null}
-          {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
-        </SkImg>
-      )}
+      {mc ? <Group clip={mc.clip} invertClip={mc.invertClip}>{content}</Group> : content}
     </Group>
   );
 }
@@ -146,17 +165,19 @@ function BaseImage({ clip, width, height, playheadSec }: { clip: VisualTrackClip
   const img = useImage(toUri(clip.src));
   const cm = colorMatrix(clip.filter);
   const mt = motionTransform(clip.motion, clip.start, clip.duration, playheadSec, width, height);
+  const mc = maskClipFor(clip.mask, 0, 0, width, height);
   if (!img) return null;
+  const content = clip.cutout ? (
+    <ChromaImage image={img} x={0} y={0} w={width} h={height} fit="contain" cutout={clip.cutout} />
+  ) : (
+    <SkImg image={img} x={0} y={0} width={width} height={height} fit="contain">
+      {cm ? <ColorMatrix matrix={cm} /> : null}
+      {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
+    </SkImg>
+  );
   return (
     <Group transform={mt} origin={{ x: width / 2, y: height / 2 }} opacity={clipKfOpacity(clip, playheadSec)}>
-      {clip.cutout ? (
-        <ChromaImage image={img} x={0} y={0} w={width} h={height} fit="contain" cutout={clip.cutout} />
-      ) : (
-        <SkImg image={img} x={0} y={0} width={width} height={height} fit="contain">
-          {cm ? <ColorMatrix matrix={cm} /> : null}
-          {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
-        </SkImg>
-      )}
+      {mc ? <Group clip={mc.clip} invertClip={mc.invertClip}>{content}</Group> : content}
     </Group>
   );
 }
@@ -192,18 +213,20 @@ function OverlayLayer({ clip, width, height, playheadSec }: { clip: VisualTrackC
   const img = useImage(toUri(posterUri));
   const cm = colorMatrix(clip.filter);
   const mt = motionTransform(clip.motion, clip.start, clip.duration, playheadSec, w, h);
+  const mc = maskClipFor(clip.mask, x, y, w, h);
   if (!img) return null;
+  const content = clip.cutout ? (
+    <ChromaImage image={img} x={x} y={y} w={w} h={h} fit="cover" cutout={clip.cutout} />
+  ) : (
+    <SkImg image={img} x={x} y={y} width={w} height={h} fit="cover">
+      {cm ? <ColorMatrix matrix={cm} /> : null}
+      {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
+    </SkImg>
+  );
   return (
     <Group clip={rect(x, y, w, h)} opacity={op}>
       <Group transform={mt} origin={{ x: x + w / 2, y: y + h / 2 }}>
-        {clip.cutout ? (
-          <ChromaImage image={img} x={x} y={y} w={w} h={h} fit="cover" cutout={clip.cutout} />
-        ) : (
-          <SkImg image={img} x={x} y={y} width={w} height={h} fit="cover">
-            {cm ? <ColorMatrix matrix={cm} /> : null}
-            {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
-          </SkImg>
-        )}
+        {mc ? <Group clip={mc.clip} invertClip={mc.invertClip}>{content}</Group> : content}
       </Group>
     </Group>
   );
