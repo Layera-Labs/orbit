@@ -123,6 +123,22 @@ export interface ChromaKey {
   smoothness?: number;
 }
 
+/**
+ * A keyframe on a visual clip: a full snapshot of animatable values at a point
+ * in the clip's local time. With ≥2 keyframes the renderer interpolates linearly
+ * between adjacent ones. Preview (Skia opacity + rect override) and export
+ * (ffmpeg overlay x/y expressions + alpha geq) read the SAME keyframes.
+ */
+export interface Keyframe {
+  /** Time within the clip, 0..1 (fraction of duration). */
+  t: number;
+  /** 0..1 layer opacity. */
+  opacity: number;
+  /** Normalized top-left position on the canvas (0..1), for PiP/overlay clips. */
+  x: number;
+  y: number;
+}
+
 /** Ken-Burns style camera move applied over a clip's duration. */
 export type MotionType =
   | 'none'
@@ -200,6 +216,8 @@ export interface VisualTrackClip {
   motion?: Motion;
   /** Chroma-key background removal (green-screen / solid colour). */
   cutout?: ChromaKey;
+  /** Keyframes animating opacity + position over the clip (≥2 to animate). */
+  keyframes?: Keyframe[];
   /** Transition INTO this clip from the previous base-track clip (crossfade etc.). */
   transitionIn?: Transition;
 }

@@ -3,7 +3,8 @@ import { buildFFmpegArgs } from '../ffmpeg';
 import { atempoChain, filterToFFmpeg, resolveFilter } from '../filters';
 import { hasMotion, motionStateAt, motionToZoompan } from '../motion';
 import { chromaToFFmpeg, hexToRgb } from '../cutout';
-import type { VideoProject } from '../types';
+import { animatesOpacity, animatesPosition, hasKeyframes, keyframeExpr, sampleKeyframes } from '../keyframes';
+import type { Keyframe, VideoProject } from '../types';
 
 describe('filters.ts', () => {
   it('neutral filters produce no chain', () => {
@@ -216,6 +217,72 @@ describe('engine applies a chroma-key cutout (rgba + colorkey)', () => {
 
   it('leaves the un-keyed base clip as yuv420p', () => {
     expect(graph).toContain('format=yuv420p');
+  });
+});
+
+describe('keyframes.ts', () => {
+  const kfs: Keyframe[] = [
+    { t: 0, opacity: 0, x: 0, y: 0 },
+    { t: 1, opacity: 1, x: 0.5, y: 0.25 },
+  ];
+
+  it('hasKeyframes needs ≥2', () => {
+    expect(hasKeyframes(undefined)).toBe(false);
+    expect(hasKeyframes([{ t: 0, opacity: 1, x: 0, y: 0 }])).toBe(false);
+    expect(hasKeyframes(kfs)).toBe(true);
+  });
+
+  it('samples linearly between keyframes', () => {
+    expect(sampleKeyframes(kfs, 0.5)).toEqual({ opacity: 0.5, x: 0.25, y: 0.125 });
+    expect(sampleKeyframes(kfs, 0).opacity).toBe(0);
+    expect(sampleKeyframes(kfs, 1).x).toBe(0.5);
+  });
+
+  it('holds flat before first / after last', () => {
+    expect(sampleKeyframes(kfs, -1).opacity).toBe(0);
+    expect(sampleKeyframes(kfs, 2).x).toBe(0.5);
+  });
+
+  it('detects which channels animate', () => {
+    expect(animatesOpacity(kfs)).toBe(true);
+    expect(animatesPosition(kfs)).toBe(true);
+    expect(animatesOpacity([{ t: 0, opacity: 1, x: 0, y: 0 }, { t: 1, opacity: 1, x: 0.5, y: 0 }])).toBe(false);
+    expect(animatesPosition([{ t: 0, opacity: 0, x: 0.2, y: 0 }, { t: 1, opacity: 1, x: 0.2, y: 0 }])).toBe(false);
+  });
+
+  it('builds a piecewise-linear expr scaled + offset to the timeline', () => {
+    // clip start 2s, dur 4s → keyframes at t=2 and t=6 of timeline; x scaled by 1000px.
+    const e = keyframeExpr(kfs, 'x', 2, 4, 't', 1000);
+    expect(e).toContain('lt(t,2)'); // before first → hold
+    expect(e).toContain('lt(t,6)'); // segment up to last
+    expect(e).toContain('500'); // x=0.5 × 1000
+  });
+});
+
+describe('engine bakes keyframes (overlay x/y expr + alpha geq)', () => {
+  const project: VideoProject = {
+    id: 'p', schemaVersion: 2, width: 1080, height: 1920, fps: 30,
+    background: { type: 'color', color: '#000000' }, clips: [], overlays: [], audio: [],
+    tracks: [
+      { id: 'base', kind: 'visual', clips: [{ id: 'bg', type: 'video', src: 'bg.mp4', start: 0, duration: 4, trimIn: 0 }] },
+      { id: 'ov', kind: 'visual', clips: [{
+        id: 'fg', type: 'image', src: 'fg.png', start: 0, duration: 4,
+        rect: { x: 0.1, y: 0.1, w: 0.3, h: 0.3 },
+        keyframes: [{ t: 0, opacity: 1, x: 0.1, y: 0.1 }, { t: 1, opacity: 0, x: 0.6, y: 0.6 }],
+      }] },
+    ],
+  };
+  const args = buildFFmpegArgs(project, { outputPath: '/tmp/o.mp4', baseImage: '/tmp/bg.png', hasAudio: () => true });
+  const graph = args[args.indexOf('-filter_complex') + 1];
+
+  it('animates overlay position via x/y expressions', () => {
+    expect(graph).toContain("overlay='if(lt(t,");
+    expect(graph).toContain('648'); // x=0.6 × 1080 at the last keyframe
+  });
+
+  it('bakes opacity into the alpha plane via geq', () => {
+    expect(graph).toContain("geq=r='r(X,Y)'");
+    expect(graph).toContain("a='clip(if(lt(T,");
   });
 });
 

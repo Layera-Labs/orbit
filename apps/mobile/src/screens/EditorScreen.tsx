@@ -122,6 +122,7 @@ export function EditorScreen() {
     { key: 'filter', icon: 'filter', label: 'Filter', onPress: () => setPanel('filter') },
     { key: 'fx', icon: 'fx', label: 'FX', onPress: () => setPanel('fx') },
     { key: 'motion', icon: 'motion', label: 'Motion', onPress: () => setPanel('motion') },
+    { key: 'keyframe', icon: 'keyframe', label: 'Keyframe', onPress: () => setPanel('keyframe') },
     { key: 'cutout', icon: 'cutout', label: 'Cutout', onPress: () => setPanel('cutout') },
     { key: 'speed', icon: 'speed', label: 'Speed', onPress: () => setPanel('speed') },
     { key: 'volume', icon: 'volume', label: 'Volume', onPress: () => setPanel('volume') },

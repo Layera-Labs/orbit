@@ -15,6 +15,7 @@ import { Blur, Canvas, ColorMatrix, Fill, Group, Image as SkImg, ImageShader, ty
 import { type SharedValue, useSharedValue } from 'react-native-reanimated';
 import { useClipFrame } from '../preview/useClipFrame';
 import { motionTransform } from '../preview/motion';
+import { hasKeyframes, sampleKeyframes } from '../preview/keyframes';
 import { ensureFontsLoaded, useFontsVersion } from '../text/fonts';
 import { colorMatrix } from '../filters/registry';
 import { mono, ratioLabel } from '../constants';
@@ -42,6 +43,12 @@ half4 main(float2 xy) {
   float a = ka * c.a;
   return half4(c.rgb * a, a);
 }`)!;
+
+/** Interpolated layer opacity from a clip's keyframes at the playhead (1 if none). */
+function clipKfOpacity(clip: VisualTrackClip, playheadSec: number): number {
+  if (!hasKeyframes(clip.keyframes)) return 1;
+  return sampleKeyframes(clip.keyframes!, (playheadSec - clip.start) / Math.max(0.001, clip.duration)).opacity;
+}
 
 /** Hex (#rgb / #rrggbb) → normalized 0..1 RGB (defaults to green). */
 function hexToRgb01(hex: string): [number, number, number] {
@@ -103,7 +110,7 @@ function BaseVideo({ clip, width, height, isPlaying, playheadSec }: { clip: Visu
   const cm = colorMatrix(clip.filter);
   const mt = motionTransform(clip.motion, clip.start, clip.duration, playheadSec, width, height);
   return (
-    <Group transform={mt} origin={{ x: width / 2, y: height / 2 }}>
+    <Group transform={mt} origin={{ x: width / 2, y: height / 2 }} opacity={clipKfOpacity(clip, playheadSec)}>
       {clip.cutout && frame ? (
         <ChromaImage image={frame} x={0} y={0} w={width} h={height} fit="contain" cutout={clip.cutout} />
       ) : (
@@ -123,7 +130,7 @@ function BaseImage({ clip, width, height, playheadSec }: { clip: VisualTrackClip
   const mt = motionTransform(clip.motion, clip.start, clip.duration, playheadSec, width, height);
   if (!img) return null;
   return (
-    <Group transform={mt} origin={{ x: width / 2, y: height / 2 }}>
+    <Group transform={mt} origin={{ x: width / 2, y: height / 2 }} opacity={clipKfOpacity(clip, playheadSec)}>
       {clip.cutout ? (
         <ChromaImage image={img} x={0} y={0} w={width} h={height} fit="contain" cutout={clip.cutout} />
       ) : (
@@ -139,10 +146,14 @@ function BaseImage({ clip, width, height, playheadSec }: { clip: VisualTrackClip
 /** A positioned overlay layer (image live; video as a poster frame). */
 function OverlayLayer({ clip, width, height, playheadSec }: { clip: VisualTrackClip; width: number; height: number; playheadSec: number }) {
   const r = clip.rect ?? { x: 0, y: 0, w: 1, h: 1 };
-  const x = r.x * width;
-  const y = r.y * height;
+  const kf = hasKeyframes(clip.keyframes)
+    ? sampleKeyframes(clip.keyframes!, (playheadSec - clip.start) / Math.max(0.001, clip.duration))
+    : null;
+  const x = (kf ? kf.x : r.x) * width;
+  const y = (kf ? kf.y : r.y) * height;
   const w = r.w * width;
   const h = r.h * height;
+  const op = kf ? kf.opacity : 1;
 
   const [posterUri, setPosterUri] = useState<string | null>(clip.type === 'image' ? clip.src : posterCache.get(clip.src) ?? null);
   useEffect(() => {
@@ -165,7 +176,7 @@ function OverlayLayer({ clip, width, height, playheadSec }: { clip: VisualTrackC
   const mt = motionTransform(clip.motion, clip.start, clip.duration, playheadSec, w, h);
   if (!img) return null;
   return (
-    <Group clip={rect(x, y, w, h)}>
+    <Group clip={rect(x, y, w, h)} opacity={op}>
       <Group transform={mt} origin={{ x: x + w / 2, y: y + h / 2 }}>
         {clip.cutout ? (
           <ChromaImage image={img} x={x} y={y} w={w} h={h} fit="cover" cutout={clip.cutout} />

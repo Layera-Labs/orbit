@@ -26,7 +26,9 @@ import { VSlider } from './VSlider';
 import { ColorSheet } from './ColorSheet';
 import { FontPickerSheet } from './FontPickerSheet';
 import { FILTER_LIST } from '../filters/registry';
-import type { ClipFilter, ExportOutput, Motion, MotionType, TextAlign, TransitionType } from '../model/types';
+import type { ClipFilter, ExportOutput, Keyframe, Motion, MotionType, TextAlign, TransitionType } from '../model/types';
+import { FULL_FRAME } from '../model/types';
+import { sampleKeyframes } from '../preview/keyframes';
 import { projectDuration } from '../model/project';
 import { clipAtTime } from '../model/editor-ops';
 import type { VisualTrackClip } from '../model/types';
@@ -933,6 +935,90 @@ function TrimSheet() {
   );
 }
 
+function KeyframeSheet() {
+  const setPanel = useEditor((s) => s.setPanel);
+  const applyClipKeyframes = useEditor((s) => s.applyClipKeyframes);
+  const playheadSec = useEditor((s) => s.playheadSec);
+  const t = effectsTarget();
+  const clip = t?.clip;
+  const [kfs, setKfs] = useState<Keyframe[]>(() => clip?.keyframes ?? []);
+  const close = () => setPanel(null);
+  if (!t || !clip) {
+    return (
+      <BottomSheet onClose={close} style={{ gap: 16 }} dim="#0002">
+        <Text style={s.sheetTitle}>Keyframes</Text>
+        <Text style={s.intensityLabel}>Select a clip to animate.</Text>
+      </BottomSheet>
+    );
+  }
+  const localT = Math.max(0, Math.min(1, (playheadSec - clip.start) / Math.max(0.001, clip.duration)));
+  const r = clip.rect ?? FULL_FRAME;
+  const push = (next: Keyframe[]) => {
+    const ks = [...next].sort((a, b) => a.t - b.t);
+    setKfs(ks);
+    applyClipKeyframes(ks.length ? ks : undefined);
+  };
+  const addAtPlayhead = () => {
+    const base = kfs.length ? sampleKeyframes(kfs, localT) : { opacity: 1, x: r.x, y: r.y };
+    const without = kfs.filter((k) => Math.abs(k.t - localT) > 0.01);
+    push([...without, { t: localT, opacity: base.opacity, x: base.x, y: base.y }]);
+  };
+  // The keyframe nearest the playhead is the one the sliders edit (CapCut-style).
+  const idx = kfs.length ? kfs.reduce((b, k, i) => (Math.abs(k.t - localT) < Math.abs(kfs[b].t - localT) ? i : b), 0) : -1;
+  const sel = idx >= 0 ? kfs[idx] : null;
+  const editSel = (patch: Partial<Keyframe>) => idx >= 0 && push(kfs.map((k, i) => (i === idx ? { ...k, ...patch } : k)));
+  return (
+    <BottomSheet onClose={close} style={{ gap: 14 }} dim="#0002">
+      <View style={s.rowBetween}>
+        <Text style={s.sheetTitle}>Keyframes</Text>
+        <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
+      </View>
+      <View style={s.rowBetween}>
+        <Pressable onPress={addAtPlayhead} style={s.kfAddBtn}>
+          <VIcon name="keyframe" size={16} color="#111" />
+          <Text style={s.kfAddText}>Add at playhead</Text>
+        </Pressable>
+        {kfs.length ? (
+          <Pressable onPress={() => push([])} hitSlop={8}><Text style={s.kfClear}>Clear all</Text></Pressable>
+        ) : null}
+      </View>
+      {kfs.length ? (
+        <View style={s.kfTrack}>
+          {kfs.map((k, i) => (
+            <View key={i} style={[s.kfDiamond, i === idx && s.kfDiamondOn, { left: `${k.t * 100}%` }]} />
+          ))}
+          <View style={[s.kfPlayhead, { left: `${localT * 100}%` }]} />
+        </View>
+      ) : (
+        <Text style={s.intensityLabel}>Add 2+ keyframes to animate opacity + position. Scrub the playhead, change a value, add a keyframe.</Text>
+      )}
+      {sel ? (
+        <>
+          <Text style={s.kfEditing}>Editing keyframe at {Math.round(sel.t * 100)}%</Text>
+          <View style={s.intensityRow}>
+            <Text style={s.intensityLabel}>Opacity</Text>
+            <View style={{ flex: 1 }}><VSlider value={sel.opacity} min={0} max={1} onChange={(v) => editSel({ opacity: Math.round(v * 100) / 100 })} /></View>
+            <Text style={s.intensityVal}>{Math.round(sel.opacity * 100)}%</Text>
+          </View>
+          <View style={s.intensityRow}>
+            <Text style={s.intensityLabel}>X</Text>
+            <View style={{ flex: 1 }}><VSlider value={sel.x} min={-0.5} max={1} onChange={(v) => editSel({ x: Math.round(v * 100) / 100 })} /></View>
+            <Text style={s.intensityVal}>{Math.round(sel.x * 100)}%</Text>
+          </View>
+          <View style={s.intensityRow}>
+            <Text style={s.intensityLabel}>Y</Text>
+            <View style={{ flex: 1 }}><VSlider value={sel.y} min={-0.5} max={1} onChange={(v) => editSel({ y: Math.round(v * 100) / 100 })} /></View>
+            <Text style={s.intensityVal}>{Math.round(sel.y * 100)}%</Text>
+          </View>
+          <Pressable onPress={() => push(kfs.filter((_, i) => i !== idx))} hitSlop={6}>
+            <Text style={s.kfRemove}>Remove this keyframe</Text>
+          </Pressable>
+        </>
+      ) : null}
+    </BottomSheet>
+  );
+}
+
 // ---- Export progress -----------------------------------------------------
 
 function ExportProgressModal() {
@@ -971,6 +1057,7 @@ export function EditorSheets() {
       {panel === 'motion' && <MotionSheet />}
       {panel === 'cutout' && <CutoutSheet />}
       {panel === 'trim' && <TrimSheet />}
+      {panel === 'keyframe' && <KeyframeSheet />}
       <ExportProgressModal />
     </>
   );
@@ -1079,6 +1166,15 @@ const s = StyleSheet.create({
   cutSwatch: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   cutSwatchOn: { borderWidth: 2, borderColor: '#fff' },
   trimReadout: { color: vela.muted2, fontFamily: mono.regular, fontSize: 12, textAlign: 'center' },
+  kfAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: vela.select, borderRadius: 18, paddingVertical: 8, paddingHorizontal: 14 },
+  kfAddText: { color: '#111', fontFamily: font.semibold, fontSize: 14 },
+  kfClear: { color: vela.muted2, fontFamily: font.medium, fontSize: 13 },
+  kfTrack: { height: 26, backgroundColor: vela.card2, borderRadius: 13, marginVertical: 4, justifyContent: 'center' },
+  kfDiamond: { position: 'absolute', width: 12, height: 12, marginLeft: -6, backgroundColor: vela.muted2, transform: [{ rotate: '45deg' }], top: 7 },
+  kfDiamondOn: { backgroundColor: vela.select },
+  kfPlayhead: { position: 'absolute', width: 2, height: 26, marginLeft: -1, backgroundColor: '#fff' },
+  kfEditing: { color: vela.textLight, fontFamily: font.medium, fontSize: 13 },
+  kfRemove: { color: vela.danger, fontFamily: font.medium, fontSize: 13, textAlign: 'center', paddingTop: 4 },
 
   filterSheet: { gap: 14 },
   fTabOn: { color: '#fff', fontFamily: font.bold, fontSize: 16 },
