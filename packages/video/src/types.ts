@@ -156,6 +156,8 @@ export interface VisualTrackClip {
   muted?: boolean;
   /** Colour grade applied to this clip (preview + export). */
   filter?: ClipFilter;
+  /** Gaussian blur amount, 0..1 (FX). */
+  blur?: number;
   /** Playback speed multiplier (1 = normal; 2 = 2× faster). */
   speed?: number;
   /** Transition INTO this clip from the previous base-track clip (crossfade etc.). */

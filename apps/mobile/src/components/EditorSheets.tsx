@@ -734,6 +734,37 @@ function VolumeSheet() {
   );
 }
 
+function FxSheet() {
+  const setPanel = useEditor((s) => s.setPanel);
+  const applyClipBlur = useEditor((s) => s.applyClipBlur);
+  const [blur, setBlur] = useState(() => effectsTarget()?.clip.blur ?? 0);
+  const close = () => setPanel(null);
+  const set = (v: number) => {
+    setBlur(v);
+    applyClipBlur(v);
+  };
+  return (
+    <BottomSheet onClose={close} style={{ gap: 16 }} dim="#0002">
+      <View style={s.rowBetween}>
+        <Text style={s.sheetTitle}>FX</Text>
+        <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
+      </View>
+      <View style={s.intensityRow}>
+        <Text style={s.intensityLabel}>Blur</Text>
+        <View style={{ flex: 1 }}><VSlider value={blur} min={0} max={1} onChange={(v) => set(Math.round(v * 100) / 100)} /></View>
+        <Text style={s.intensityVal}>{Math.round(blur * 100)}%</Text>
+      </View>
+      <View style={s.chipRow}>
+        {[0, 0.25, 0.5, 1].map((v) => (
+          <Pressable key={v} onPress={() => set(v)} style={[s.chip, blur === v && s.chipOn]}>
+            <Text style={[s.chipText, blur === v && { color: '#111' }]}>{v === 0 ? 'None' : `${Math.round(v * 100)}%`}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </BottomSheet>
+  );
+}
+
 // ---- Export progress -----------------------------------------------------
 
 function ExportProgressModal() {
@@ -768,6 +799,7 @@ export function EditorSheets() {
       {panel === 'transition' && <TransitionSheet />}
       {panel === 'speed' && <SpeedSheet />}
       {panel === 'volume' && <VolumeSheet />}
+      {panel === 'fx' && <FxSheet />}
       <ExportProgressModal />
     </>
   );

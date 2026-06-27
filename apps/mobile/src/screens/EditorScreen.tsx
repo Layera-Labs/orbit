@@ -86,7 +86,7 @@ export function EditorScreen() {
   const base: Tool[] = [
     { key: 'filter', icon: 'filter', label: 'Filter', onPress: () => setPanel('filter') },
     { key: 'trim', icon: 'trim', label: 'Trim', soon: true },
-    { key: 'fx', icon: 'fx', label: 'FX', soon: true },
+    { key: 'fx', icon: 'fx', label: 'FX', onPress: () => setPanel('fx') },
     { key: 'split', icon: 'split', label: 'Split', onPress: splitAtPlayhead, disabled: clipCount === 0 },
     { key: 'cutout', icon: 'cutout', label: 'Cutout', soon: true },
     { key: 'quality', icon: 'quality', label: 'Quality', onPress: () => setPanel('settings') },
@@ -118,6 +118,7 @@ export function EditorScreen() {
   const visualTools: Tool[] = [
     { key: 'split', icon: 'split', label: 'Split', onPress: splitAtPlayhead },
     { key: 'filter', icon: 'filter', label: 'Filter', onPress: () => setPanel('filter') },
+    { key: 'fx', icon: 'fx', label: 'FX', onPress: () => setPanel('fx') },
     { key: 'speed', icon: 'speed', label: 'Speed', onPress: () => setPanel('speed') },
     { key: 'volume', icon: 'volume', label: 'Volume', onPress: () => setPanel('volume') },
     { key: 'pip', icon: 'fullscreen', label: 'PiP', onPress: togglePiP },

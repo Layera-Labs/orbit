@@ -259,6 +259,10 @@ export function setClipFilter(p: VideoProject, trackId: string, clipId: string, 
   return patchVisualClip(p, trackId, clipId, { filter });
 }
 
+export function setClipBlur(p: VideoProject, trackId: string, clipId: string, blur: number): VideoProject {
+  return patchVisualClip(p, trackId, clipId, { blur: Math.max(0, Math.min(1, blur)) });
+}
+
 export function setClipSpeed(p: VideoProject, trackId: string, clipId: string, speed: number): VideoProject {
   return patchVisualClip(p, trackId, clipId, { speed: Math.max(0.25, Math.min(4, speed)) });
 }
