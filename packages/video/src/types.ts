@@ -109,6 +109,20 @@ export interface ClipFilter {
   intensity?: number;
 }
 
+/**
+ * Chroma-key background removal: pixels close to `color` become transparent so
+ * lower layers show through. Preview (Skia runtime shader) and export (ffmpeg
+ * `colorkey`) read the SAME color + tolerances.
+ */
+export interface ChromaKey {
+  /** Background colour to remove, hex (e.g. '#00d400'). */
+  color: string;
+  /** Match tolerance, 0..1 (default 0.3). */
+  similarity?: number;
+  /** Edge blend / feather, 0..1 (default 0.1). */
+  smoothness?: number;
+}
+
 /** Ken-Burns style camera move applied over a clip's duration. */
 export type MotionType =
   | 'none'
@@ -184,6 +198,8 @@ export interface VisualTrackClip {
   speed?: number;
   /** Ken-Burns camera move animated over the clip (preview + export). */
   motion?: Motion;
+  /** Chroma-key background removal (green-screen / solid colour). */
+  cutout?: ChromaKey;
   /** Transition INTO this clip from the previous base-track clip (crossfade etc.). */
   transitionIn?: Transition;
 }

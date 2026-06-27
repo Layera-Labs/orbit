@@ -8,6 +8,7 @@
 import type {
   AudioTrack,
   AudioTrackClip,
+  ChromaKey,
   ClipFilter,
   Motion,
   Rect,
@@ -270,6 +271,10 @@ export function setClipSpeed(p: VideoProject, trackId: string, clipId: string, s
 
 export function setClipMotion(p: VideoProject, trackId: string, clipId: string, motion: Motion | undefined): VideoProject {
   return patchVisualClip(p, trackId, clipId, { motion: motion && motion.type !== 'none' ? motion : undefined });
+}
+
+export function setClipCutout(p: VideoProject, trackId: string, clipId: string, cutout: ChromaKey | undefined): VideoProject {
+  return patchVisualClip(p, trackId, clipId, { cutout: cutout && cutout.color ? cutout : undefined });
 }
 
 export function setClipTransition(p: VideoProject, trackId: string, clipId: string, transitionIn: Transition | undefined): VideoProject {
