@@ -4,12 +4,13 @@
  * The base visual track draws through Skia: the active VIDEO clip is decoded
  * per-frame by `useVideo` (one decoder — only the active clip's sub-component is
  * mounted, keyed by id) and an active IMAGE clip via `useImage`. Higher visual
- * tracks render as positioned overlay layers (image live; overlay video as a
- * poster frame). Text captions stay as RN <Text> over the Canvas. A JS transport
+ * tracks render as positioned overlay layers (image via useImage; overlay video
+ * decoded live by its own useClipFrame). Text captions stay as RN <Text> over
+ * the Canvas. A JS transport
  * clock advances the playhead; per-clip filters/transitions slot into the Skia
  * layers (P4/P5). The server export is the true composite.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Blur, Canvas, ColorMatrix, Fill, Group, Image as SkImg, ImageShader, LinearGradient, type SkImage, Shader, Skia, rect, useImage, vec } from '@shopify/react-native-skia';
@@ -24,11 +25,9 @@ import { mono, ratioLabel } from '../constants';
 import { clipAtTime } from '../model/editor-ops';
 import { projectDuration } from '../model/project';
 import type { Background, TextOverlay, VisualTrack, VisualTrackClip } from '../model/types';
-import { videoThumbnail } from '../storage/media';
 import { OVERLAY_TRACK, useEditor } from '../store/editorStore';
 
 const TICK_MS = 50;
-const posterCache = new Map<string, string>();
 
 // Chroma-key (cutout): mirror of the engine `colorkey` — pixels near `keyColor`
 // are made transparent so lower layers show through. Approximation of ffmpeg's
@@ -183,8 +182,10 @@ function BaseImage({ clip, width, height, playheadSec }: { clip: VisualTrackClip
   );
 }
 
-/** A positioned overlay layer (image live; video as a poster frame). */
-function OverlayLayer({ clip, width, height, playheadSec }: { clip: VisualTrackClip; width: number; height: number; playheadSec: number }) {
+type OverlayGeom = { x: number; y: number; w: number; h: number; op: number; mt: ReturnType<typeof motionTransform>; mc: ReturnType<typeof maskClipFor> };
+
+/** Pure placement/opacity/motion/mask geometry for an overlay clip at the playhead. */
+function overlayGeom(clip: VisualTrackClip, width: number, height: number, playheadSec: number): OverlayGeom {
   const r = clip.rect ?? { x: 0, y: 0, w: 1, h: 1 };
   const kf = hasKeyframes(clip.keyframes)
     ? sampleKeyframes(clip.keyframes!, (playheadSec - clip.start) / Math.max(0.001, clip.duration))
@@ -194,32 +195,17 @@ function OverlayLayer({ clip, width, height, playheadSec }: { clip: VisualTrackC
   const w = r.w * width;
   const h = r.h * height;
   const op = kf ? kf.opacity : clip.opacity ?? 1;
+  return { x, y, w, h, op, mt: motionTransform(clip.motion, clip.start, clip.duration, playheadSec, w, h), mc: maskClipFor(clip.mask, x, y, w, h) };
+}
 
-  const [posterUri, setPosterUri] = useState<string | null>(clip.type === 'image' ? clip.src : posterCache.get(clip.src) ?? null);
-  useEffect(() => {
-    let alive = true;
-    if (clip.type === 'video' && !posterCache.has(clip.src)) {
-      videoThumbnail(clip.src, clip.trimIn ?? 0).then((t) => {
-        if (t) {
-          posterCache.set(clip.src, t);
-          if (alive) setPosterUri(t);
-        }
-      });
-    }
-    return () => {
-      alive = false;
-    };
-  }, [clip.src, clip.type, clip.type === 'video' ? clip.trimIn : 0]);
-
-  const img = useImage(toUri(posterUri));
+/** Shared overlay compositing (rect clip + opacity + blend + motion + mask + fx) given a resolved image. */
+function OverlayFrame({ clip, geom, image }: { clip: VisualTrackClip; geom: OverlayGeom; image: SkImage | SharedValue<SkImage | null> }) {
+  const { x, y, w, h, op, mt, mc } = geom;
   const cm = colorMatrix(clip.filter);
-  const mt = motionTransform(clip.motion, clip.start, clip.duration, playheadSec, w, h);
-  const mc = maskClipFor(clip.mask, x, y, w, h);
-  if (!img) return null;
   const content = clip.cutout ? (
-    <ChromaImage image={img} x={x} y={y} w={w} h={h} fit="cover" cutout={clip.cutout} />
+    <ChromaImage image={image} x={x} y={y} w={w} h={h} fit="cover" cutout={clip.cutout} />
   ) : (
-    <SkImg image={img} x={x} y={y} width={w} height={h} fit="cover">
+    <SkImg image={image} x={x} y={y} width={w} height={h} fit="cover">
       {cm ? <ColorMatrix matrix={cm} /> : null}
       {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
     </SkImg>
@@ -231,6 +217,30 @@ function OverlayLayer({ clip, width, height, playheadSec }: { clip: VisualTrackC
       </Group>
     </Group>
   );
+}
+
+/** Overlay VIDEO clip — decoded live (its own useClipFrame), like the base. */
+function OverlayVideoLayer({ clip, width, height, isPlaying, playheadSec }: { clip: VisualTrackClip; width: number; height: number; isPlaying: boolean; playheadSec: number }) {
+  const playing = useSharedValue(isPlaying);
+  const timeSV = useSharedValue(0);
+  useEffect(() => {
+    playing.value = isPlaying;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying]);
+  useEffect(() => {
+    const sp = clip.speed && clip.speed > 0 ? clip.speed : 1;
+    timeSV.value = (clip.trimIn ?? 0) + Math.max(0, (playheadSec - clip.start) * sp);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playheadSec, clip.start, clip.trimIn, clip.speed]);
+  const frame = useClipFrame(toUri(clip.src), playing, timeSV);
+  return <OverlayFrame clip={clip} geom={overlayGeom(clip, width, height, playheadSec)} image={frame} />;
+}
+
+/** Overlay IMAGE / sticker clip. */
+function OverlayImageLayer({ clip, width, height, playheadSec }: { clip: VisualTrackClip; width: number; height: number; playheadSec: number }) {
+  const img = useImage(toUri(clip.src));
+  if (!img) return null;
+  return <OverlayFrame clip={clip} geom={overlayGeom(clip, width, height, playheadSec)} image={img} />;
 }
 
 export function Preview({ width, height }: { width: number; height: number }) {
@@ -356,9 +366,13 @@ export function Preview({ width, height }: { width: number; height: number }) {
             <BaseImage key={baseActive.id} clip={baseActive} width={width} height={height} playheadSec={playheadSec} />
           ) : null}
         </Group>
-        {activeOverlays.map(({ clip }) => (
-          <OverlayLayer key={clip.id} clip={clip} width={width} height={height} playheadSec={playheadSec} />
-        ))}
+        {activeOverlays.map(({ clip }) =>
+          clip.type === 'video' ? (
+            <OverlayVideoLayer key={clip.id} clip={clip} width={width} height={height} isPlaying={isPlaying} playheadSec={playheadSec} />
+          ) : (
+            <OverlayImageLayer key={clip.id} clip={clip} width={width} height={height} playheadSec={playheadSec} />
+          ),
+        )}
       </Canvas>
 
       {!baseActive && total === 0 ? (
