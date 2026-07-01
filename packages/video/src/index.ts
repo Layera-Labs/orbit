@@ -16,6 +16,7 @@ export type {
   ClipMask,
   MaskShape,
   BlendMode,
+  VolumePoint,
   Keyframe,
   Motion,
   MotionType,
@@ -35,6 +36,7 @@ export { hasMotion, motionStateAt, motionToZoompan, motionIntensity, ZOOM_DELTA,
 export { chromaToFFmpeg, hexToRgb } from './cutout';
 export { maskToFFmpeg } from './mask';
 export { blendToFFmpeg, blendToSkia, BLEND_MODES } from './blend';
+export { hasVolumeCurve, sampleVolume, volumeCurveExpr } from './curve';
 export { hasKeyframes, sampleKeyframes, keyframeExpr, animatesOpacity, animatesPosition } from './keyframes';
 export { createProject, projectDuration, transitionDuration } from './project';
 export { buildFFmpegArgs } from './ffmpeg';

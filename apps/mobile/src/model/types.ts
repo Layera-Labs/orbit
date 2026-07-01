@@ -141,6 +141,12 @@ export interface ClipMask {
 /** Layer blend mode against the layers below (default normal/over). */
 export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'difference' | 'add';
 
+/** A point on a volume envelope: `t` is 0..1 of the clip duration, `v` is gain (0..2). */
+export interface VolumePoint {
+  t: number;
+  v: number;
+}
+
 /** Ken-Burns style camera move applied over a clip's duration. */
 export type MotionType =
   | 'none'
@@ -193,6 +199,8 @@ export interface VisualTrackClip {
   /** Placement on the canvas (default full-frame). */
   rect?: Rect;
   volume?: number;
+  /** Volume envelope over the clip (≥2 points; overrides `volume`). */
+  volumeCurve?: VolumePoint[];
   muted?: boolean;
   /** Colour grade (preview + export). */
   filter?: ClipFilter;
@@ -224,6 +232,8 @@ export interface AudioTrackClip {
   duration: number;
   trimIn?: number;
   volume?: number;
+  /** Volume envelope over the clip (≥2 points; overrides `volume`). */
+  volumeCurve?: VolumePoint[];
 }
 
 export interface VisualTrack {

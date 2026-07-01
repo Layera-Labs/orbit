@@ -5,6 +5,7 @@ import { hasMotion, motionStateAt, motionToZoompan } from '../motion';
 import { chromaToFFmpeg, hexToRgb } from '../cutout';
 import { maskToFFmpeg } from '../mask';
 import { blendToFFmpeg, blendToSkia } from '../blend';
+import { hasVolumeCurve, sampleVolume, volumeCurveExpr } from '../curve';
 import { animatesOpacity, animatesPosition, hasKeyframes, keyframeExpr, sampleKeyframes } from '../keyframes';
 import type { Keyframe, VideoProject } from '../types';
 
@@ -402,6 +403,43 @@ describe('engine applies a blend mode (crop → blend → overlay)', () => {
     const p2: VideoProject = { ...project, tracks: [project.tracks![0], { id: 'ov', kind: 'visual', clips: [{ ...(project.tracks![1] as any).clips[0], blend: undefined }] }] };
     const a = buildFFmpegArgs(p2, { outputPath: '/tmp/o.mp4', baseImage: '/tmp/bg.png', hasAudio: () => true });
     expect(a[a.indexOf('-filter_complex') + 1]).not.toContain('blend=all_mode');
+  });
+});
+
+describe('curve.ts (volume envelope)', () => {
+  const fadeIn: import('../types').VolumePoint[] = [{ t: 0, v: 0 }, { t: 1, v: 1 }];
+  it('needs >= 2 points', () => {
+    expect(hasVolumeCurve(undefined)).toBe(false);
+    expect(hasVolumeCurve([{ t: 0, v: 1 }])).toBe(false);
+    expect(hasVolumeCurve(fadeIn)).toBe(true);
+  });
+  it('samples a linear fade', () => {
+    expect(sampleVolume(fadeIn, 0)).toBeCloseTo(0);
+    expect(sampleVolume(fadeIn, 0.5)).toBeCloseTo(0.5);
+    expect(sampleVolume(fadeIn, 1)).toBeCloseTo(1);
+  });
+  it('builds a piecewise volume expr mapped to absolute time', () => {
+    const e = volumeCurveExpr(fadeIn, 2, 4, 't'); // clip at t=2..6
+    expect(e).toContain('if(lt(t,');
+    expect(e).toContain('/4'); // span = tb-ta = 4s
+  });
+});
+
+describe('engine applies a volume envelope', () => {
+  const project: VideoProject = {
+    id: 'p', schemaVersion: 2, width: 1080, height: 1920, fps: 30,
+    background: { type: 'color', color: '#000000' }, clips: [], overlays: [],
+    audio: [{ id: 'm', src: 'm.mp3', start: 0, duration: 4, volume: 1, volumeCurve: [{ t: 0, v: 0 }, { t: 1, v: 1 }] } as any],
+    tracks: [
+      { id: 'base', kind: 'visual', clips: [{ id: 'v0', type: 'video', src: 'a.mp4', start: 0, duration: 4, trimIn: 0 }] },
+      { id: 'aud', kind: 'audio', clips: [{ id: 'a0', src: 'm.mp3', start: 0, duration: 4, volume: 1, volumeCurve: [{ t: 0, v: 0 }, { t: 1, v: 1 }] }] },
+    ],
+  };
+  const args = buildFFmpegArgs(project, { outputPath: '/tmp/o.mp4', baseImage: '/tmp/bg.png', hasAudio: () => true });
+  const graph = args[args.indexOf('-filter_complex') + 1];
+  it('uses a per-frame volume expression instead of a constant', () => {
+    expect(graph).toContain("volume='if(lt(t,");
+    expect(graph).toContain(':eval=frame');
   });
 });
 

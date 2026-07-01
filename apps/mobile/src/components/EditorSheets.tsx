@@ -26,7 +26,7 @@ import { VSlider } from './VSlider';
 import { ColorSheet } from './ColorSheet';
 import { FontPickerSheet } from './FontPickerSheet';
 import { FILTER_LIST } from '../filters/registry';
-import type { BlendMode, ClipFilter, ClipMask, ExportOutput, Keyframe, MaskShape, Motion, MotionType, TextAlign, TransitionType } from '../model/types';
+import type { BlendMode, ClipFilter, ClipMask, ExportOutput, Keyframe, MaskShape, Motion, MotionType, TextAlign, TransitionType, VolumePoint } from '../model/types';
 import { FULL_FRAME } from '../model/types';
 import { sampleKeyframes } from '../preview/keyframes';
 import { projectDuration } from '../model/project';
@@ -1265,6 +1265,78 @@ function BlendSheet() {
   );
 }
 
+const CURVE_PRESETS: { key: string; label: string; pts: VolumePoint[] | undefined }[] = [
+  { key: 'flat', label: 'Flat', pts: undefined },
+  { key: 'in', label: 'Fade In', pts: [{ t: 0, v: 0 }, { t: 0.25, v: 1 }, { t: 1, v: 1 }] },
+  { key: 'out', label: 'Fade Out', pts: [{ t: 0, v: 1 }, { t: 0.75, v: 1 }, { t: 1, v: 0 }] },
+  { key: 'inout', label: 'In + Out', pts: [{ t: 0, v: 0 }, { t: 0.15, v: 1 }, { t: 0.85, v: 1 }, { t: 1, v: 0 }] },
+  { key: 'duck', label: 'Duck', pts: [{ t: 0, v: 1 }, { t: 0.3, v: 0.25 }, { t: 0.7, v: 0.25 }, { t: 1, v: 1 }] },
+  { key: 'swell', label: 'Swell', pts: [{ t: 0, v: 0.3 }, { t: 0.5, v: 1.4 }, { t: 1, v: 0.3 }] },
+];
+
+/** A tiny SVG-free graph of a volume envelope (0..1 gain band). */
+function CurveGraph({ pts }: { pts: VolumePoint[] }) {
+  const W = 260;
+  const H = 60;
+  const gy = (v: number) => H - Math.max(0, Math.min(1, v / 2)) * H;
+  const dots = [...pts].sort((a, b) => a.t - b.t);
+  return (
+    <View style={{ width: W, height: H, alignSelf: 'center', backgroundColor: vela.card2, borderRadius: 8, overflow: 'hidden' }}>
+      {dots.map((p, i) => {
+        if (i === 0) return null;
+        const a = dots[i - 1];
+        const x1 = a.t * W;
+        const y1 = gy(a.v);
+        const x2 = p.t * W;
+        const y2 = gy(p.v);
+        const len = Math.hypot(x2 - x1, y2 - y1);
+        const ang = (Math.atan2(y2 - y1, x2 - x1) * 180) / Math.PI;
+        return <View key={i} style={{ position: 'absolute', left: x1, top: y1, width: len, height: 2, backgroundColor: vela.accent, transform: [{ translateY: -1 }, { rotateZ: `${ang}deg` }], transformOrigin: 'left center' }} />;
+      })}
+      {dots.map((p, i) => (
+        <View key={`d${i}`} style={{ position: 'absolute', left: p.t * W - 3, top: gy(p.v) - 3, width: 6, height: 6, borderRadius: 3, backgroundColor: '#fff' }} />
+      ))}
+    </View>
+  );
+}
+
+function CurveSheet() {
+  const setPanel = useEditor((s) => s.setPanel);
+  const applyClipVolumeCurve = useEditor((s) => s.applyClipVolumeCurve);
+  const initial = (() => {
+    const { selected, project } = useEditor.getState();
+    const tr = project?.tracks?.find((t) => t.id === selected?.trackId);
+    const c = tr?.clips.find((x) => x.id === selected?.clipId) as { volumeCurve?: VolumePoint[] } | undefined;
+    return c?.volumeCurve;
+  })();
+  const [pts, setPts] = useState<VolumePoint[] | undefined>(initial);
+  const close = () => setPanel(null);
+  const set = (p: VolumePoint[] | undefined) => {
+    setPts(p);
+    applyClipVolumeCurve(p);
+  };
+  const flat: VolumePoint[] = [{ t: 0, v: 1 }, { t: 1, v: 1 }];
+  return (
+    <BottomSheet onClose={close} style={{ gap: 16 }} dim="#0002">
+      <View style={s.rowBetween}>
+        <Text style={s.sheetTitle}>Volume Curve</Text>
+        <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
+      </View>
+      <CurveGraph pts={pts && pts.length >= 2 ? pts : flat} />
+      <View style={s.motionGrid}>
+        {CURVE_PRESETS.map((p) => {
+          const on = p.pts ? JSON.stringify(pts) === JSON.stringify(p.pts) : !pts;
+          return (
+            <Pressable key={p.key} onPress={() => set(p.pts)} style={[s.motionChip, on && s.chipOn]}>
+              <Text style={[s.chipText, on && { color: '#111' }]}>{p.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    </BottomSheet>
+  );
+}
+
 // ---- Export progress -----------------------------------------------------
 
 function ExportProgressModal() {
@@ -1309,6 +1381,7 @@ export function EditorSheets() {
       {panel === 'mask' && <MaskSheet />}
       {panel === 'voiceover' && <VoiceoverSheet />}
       {panel === 'blend' && <BlendSheet />}
+      {panel === 'curve' && <CurveSheet />}
       <ExportProgressModal />
     </>
   );
