@@ -24,6 +24,34 @@ export const GRADIENT_PRESETS: BgPreset[] = [
   { id: 'plum', label: 'Plum', bg: { type: 'gradient', from: '#42275a', to: '#734b6d', angle: 135 } },
 ];
 
+// ---- Emojis (OpenMoji, CC BY-SA 4.0) — crisp 618px PNGs via jsDelivr --------
+
+const OPENMOJI = 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@15.0.0/color';
+/** OpenMoji image URL for a hex code (uppercase, FE0F dropped). `size`: 72 | 618. */
+export function openmojiUrl(code: string, size: 72 | 618 = 618): string {
+  return `${OPENMOJI}/${size}x${size}/${code}.png`;
+}
+
+/** Curated emoji set — [hexcode, label]. Codes are OpenMoji filenames. */
+export const EMOJIS: { code: string; label: string }[] = [
+  ['1F600', 'grinning'], ['1F602', 'joy'], ['1F60D', 'heart eyes'], ['1F60E', 'cool'],
+  ['1F618', 'kiss'], ['1F970', 'smiling hearts'], ['1F929', 'star struck'], ['1F914', 'thinking'],
+  ['1F644', 'eye roll'], ['1F62D', 'sob'], ['1F621', 'rage'], ['1F925', 'lying'],
+  ['1F634', 'sleeping'], ['1F971', 'yawn'], ['1F92F', 'mind blown'], ['1F973', 'party'],
+  ['1F60F', 'smirk'], ['1F97A', 'pleading'], ['1F44D', 'thumbs up'], ['1F44E', 'thumbs down'],
+  ['1F44F', 'clap'], ['1F64C', 'raised hands'], ['1F4AA', 'muscle'], ['1F64F', 'pray'],
+  ['1F44B', 'wave'], ['270C', 'victory'], ['1F918', 'rock on'], ['1F91D', 'handshake'],
+  ['2764', 'red heart'], ['1F9E1', 'orange heart'], ['1F49B', 'yellow heart'], ['1F49A', 'green heart'],
+  ['1F499', 'blue heart'], ['1F49C', 'purple heart'], ['1F494', 'broken heart'], ['1F525', 'fire'],
+  ['2B50', 'star'], ['2728', 'sparkles', ], ['1F4A5', 'boom'], ['1F4AF', '100'],
+  ['1F389', 'tada'], ['1F38A', 'confetti'], ['1F381', 'gift'], ['1F380', 'ribbon'],
+  ['1F44C', 'ok'], ['1F440', 'eyes'], ['1F921', 'clown'], ['1F480', 'skull'],
+  ['1F47B', 'ghost'], ['1F916', 'robot'], ['1F63A', 'cat'], ['1F436', 'dog'],
+  ['1F984', 'unicorn'], ['1F308', 'rainbow'], ['2600', 'sun'], ['1F327', 'rain'],
+  ['1F340', 'clover'], ['1F339', 'rose'], ['1F355', 'pizza'], ['1F354', 'burger'],
+  ['1F382', 'cake'], ['2615', 'coffee'], ['1F37A', 'beer'], ['1F3C6', 'trophy'],
+].map(([code, label]) => ({ code, label }));
+
 /** Solid colour palette. */
 export const SOLID_PRESETS: BgPreset[] = [
   '#000000', '#ffffff', '#101018', '#1f2933', '#6d4aff', '#2f7bff', '#15b8a6', '#f2c14e', '#ff6b6b', '#ff8fab', '#c04af0', '#0e7c66',

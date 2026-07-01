@@ -455,7 +455,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       np = ops.addTrack(np, 'visual', trackId);
       let start = at;
       for (const c of clips) {
-        np = ops.addVisualClip(np, trackId, { ...c, start, rect: DEFAULT_PIP });
+        np = ops.addVisualClip(np, trackId, { ...c, start, rect: c.rect ?? DEFAULT_PIP });
         start += c.duration;
       }
       return np;
