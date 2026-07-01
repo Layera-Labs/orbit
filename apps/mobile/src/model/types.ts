@@ -79,6 +79,7 @@ export interface AudioClip {
 export type Background =
   | { type: 'color'; color: string }
   | { type: 'gradient'; from: string; to: string; angle?: number }
+  | { type: 'image'; src: string }
   | { type: 'blur'; amount?: number };
 
 export type TransitionType = 'cut' | 'fade' | 'dissolve' | 'slide' | 'wipe' | 'zoom';

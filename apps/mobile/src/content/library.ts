@@ -5,8 +5,9 @@
  * it's dual-rendered (Skia preview + ffmpeg overlay) with zero engine work.
  */
 import { Alert } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { newId } from '../model/editor-ops';
-import { downloadToMedia } from '../storage/media';
+import { copyIntoMedia, downloadToMedia } from '../storage/media';
 import { useEditor } from '../store/editorStore';
 import type { VisualTrackClip } from '../model/types';
 
@@ -24,5 +25,32 @@ export async function addStickerFromUrl(url: string): Promise<void> {
     useEditor.getState().importOverlay([clip]);
   } catch (e) {
     Alert.alert('Add failed', e instanceof Error ? e.message : String(e));
+  }
+}
+
+/** Download a remote image and set it as the project background. */
+export async function setBackgroundFromUrl(url: string): Promise<void> {
+  try {
+    const src = await downloadToMedia(url, 'jpg');
+    useEditor.getState().applyBackground({ type: 'image', src });
+  } catch (e) {
+    Alert.alert('Background failed', e instanceof Error ? e.message : String(e));
+  }
+}
+
+/** Pick a photo from the library and set it as the project background. */
+export async function setBackgroundFromPhoto(): Promise<void> {
+  const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+  if (!perm.granted) {
+    Alert.alert('Permission needed', 'Allow photo library access to use a photo background.');
+    return;
+  }
+  const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
+  if (res.canceled || !res.assets?.length) return;
+  try {
+    const src = copyIntoMedia(res.assets[0].uri, 'jpg');
+    useEditor.getState().applyBackground({ type: 'image', src });
+  } catch (e) {
+    Alert.alert('Background failed', e instanceof Error ? e.message : String(e));
   }
 }

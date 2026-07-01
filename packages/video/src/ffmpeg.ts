@@ -216,7 +216,10 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
     return idx++;
   });
 
-  const segments: string[] = [`[${baseIdx}:v]scale=${W}:${H},setsar=1,fps=${fps},format=yuv420p[base]`];
+  // Colour/gradient backgrounds are rasterized at exactly W×H (stretch = identity);
+  // an image background is an arbitrary photo, so cover-scale + crop it to fill.
+  const baseScale = project.background?.type === 'image' ? `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H}` : `scale=${W}:${H}`;
+  const segments: string[] = [`[${baseIdx}:v]${baseScale},setsar=1,fps=${fps},format=yuv420p[base]`];
 
   // ---- composite visual clips over the base (bottom→top) ----
   let prev = '[base]';
