@@ -4,6 +4,7 @@ import { atempoChain, filterToFFmpeg, resolveFilter } from '../filters';
 import { hasMotion, motionStateAt, motionToZoompan } from '../motion';
 import { chromaToFFmpeg, hexToRgb } from '../cutout';
 import { maskToFFmpeg } from '../mask';
+import { blendToFFmpeg, blendToSkia } from '../blend';
 import { animatesOpacity, animatesPosition, hasKeyframes, keyframeExpr, sampleKeyframes } from '../keyframes';
 import type { Keyframe, VideoProject } from '../types';
 
@@ -364,6 +365,43 @@ describe('engine applies a clip mask (rgba + geq)', () => {
   it('forces rgba and injects the mask geq', () => {
     expect(graph).toContain('format=rgba');
     expect(graph).toMatch(/geq=r='r\(X,Y\)'.*a='if\(lte\(\(X-/);
+  });
+});
+
+describe('blend.ts', () => {
+  it('maps modes to ffmpeg all_mode / Skia names', () => {
+    expect(blendToFFmpeg('screen')).toBe('screen');
+    expect(blendToFFmpeg('add')).toBe('addition');
+    expect(blendToFFmpeg('normal')).toBeNull();
+    expect(blendToFFmpeg(undefined)).toBeNull();
+    expect(blendToSkia('add')).toBe('plus');
+    expect(blendToSkia('multiply')).toBe('multiply');
+    expect(blendToSkia('normal')).toBeNull();
+  });
+});
+
+describe('engine applies a blend mode (crop → blend → overlay)', () => {
+  const project: VideoProject = {
+    id: 'p', schemaVersion: 2, width: 1080, height: 1920, fps: 30,
+    background: { type: 'color', color: '#000000' }, clips: [], overlays: [], audio: [],
+    tracks: [
+      { id: 'base', kind: 'visual', clips: [{ id: 'bg', type: 'video', src: 'bg.mp4', start: 0, duration: 4, trimIn: 0 }] },
+      { id: 'ov', kind: 'visual', clips: [{ id: 'fg', type: 'video', src: 'fg.mp4', start: 0, duration: 4, trimIn: 0, rect: { x: 0.25, y: 0.25, w: 0.5, h: 0.5 }, blend: 'screen' }] },
+    ],
+  };
+  const args = buildFFmpegArgs(project, { outputPath: '/tmp/o.mp4', baseImage: '/tmp/bg.png', hasAudio: () => true });
+  const graph = args[args.indexOf('-filter_complex') + 1];
+
+  it('splits the base, blends the cropped region, and overlays it back', () => {
+    expect(graph).toContain('blend=all_mode=screen');
+    expect(graph).toContain('alphamerge');
+    expect(graph).toMatch(/crop=\d+:\d+:\d+:\d+,format=rgba/);
+  });
+
+  it('a normal (unset) blend uses the plain overlay path', () => {
+    const p2: VideoProject = { ...project, tracks: [project.tracks![0], { id: 'ov', kind: 'visual', clips: [{ ...(project.tracks![1] as any).clips[0], blend: undefined }] }] };
+    const a = buildFFmpegArgs(p2, { outputPath: '/tmp/o.mp4', baseImage: '/tmp/bg.png', hasAudio: () => true });
+    expect(a[a.indexOf('-filter_complex') + 1]).not.toContain('blend=all_mode');
   });
 });
 

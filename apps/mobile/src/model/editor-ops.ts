@@ -8,6 +8,7 @@
 import type {
   AudioTrack,
   AudioTrackClip,
+  BlendMode,
   ChromaKey,
   ClipFilter,
   ClipMask,
@@ -273,6 +274,10 @@ export function setClipOpacity(p: VideoProject, trackId: string, clipId: string,
 
 export function setClipMask(p: VideoProject, trackId: string, clipId: string, mask: ClipMask | undefined): VideoProject {
   return patchVisualClip(p, trackId, clipId, { mask });
+}
+
+export function setClipBlend(p: VideoProject, trackId: string, clipId: string, blend: BlendMode): VideoProject {
+  return patchVisualClip(p, trackId, clipId, { blend: blend === 'normal' ? undefined : blend });
 }
 
 export function setClipSpeed(p: VideoProject, trackId: string, clipId: string, speed: number): VideoProject {

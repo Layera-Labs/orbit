@@ -9,7 +9,7 @@ import { DEFAULT_SERVER } from '../constants';
 import { createProject, projectDuration } from '../model/project';
 import * as ops from '../model/editor-ops';
 import { MIN_CLIP, newId } from '../model/editor-ops';
-import { FULL_FRAME, type AudioTrackClip, type ChromaKey, type ClipFilter, type ClipMask, type ExportOutput, type Keyframe, type Motion, type Rect, type TextOverlay, type Transition, type VideoProject, type VisualTrackClip } from '../model/types';
+import { FULL_FRAME, type AudioTrackClip, type BlendMode, type ChromaKey, type ClipFilter, type ClipMask, type ExportOutput, type Keyframe, type Motion, type Rect, type TextOverlay, type Transition, type VideoProject, type VisualTrackClip } from '../model/types';
 
 /** Sentinel track id for the text/caption lane (overlays live on project.overlays, not tracks). */
 export const OVERLAY_TRACK = '__overlays__';
@@ -40,7 +40,7 @@ function progressLabel(p: ExportProgress): string {
 
 export type Screen = 'projects' | 'discover' | 'editor' | 'quick';
 /** Editor sheets/panels — mirrors Vela's `panel` state machine. */
-export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition' | 'speed' | 'volume' | 'fx' | 'motion' | 'cutout' | 'trim' | 'keyframe' | 'opacity' | 'position' | 'mask' | 'voiceover';
+export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition' | 'speed' | 'volume' | 'fx' | 'motion' | 'cutout' | 'trim' | 'keyframe' | 'opacity' | 'position' | 'mask' | 'voiceover' | 'blend';
 export interface EditorPrefs {
   mainTrack: 'Quick' | 'Pro';
   linkage: boolean;
@@ -144,6 +144,8 @@ interface EditorState {
   applyClipRect: (rect: Rect) => void;
   /** Apply / clear a shape mask on the effects target. */
   applyClipMask: (mask: ClipMask | undefined) => void;
+  /** Apply a blend mode to the effects target. */
+  applyClipBlend: (blend: BlendMode) => void;
   /** Apply a Ken-Burns motion preset to the effects target. */
   applyClipMotion: (motion: Motion | undefined) => void;
   /** Apply / clear a chroma-key cutout on the effects target. */
@@ -622,6 +624,12 @@ export const useEditor = create<EditorState>((set, get) => ({
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipMask(p, t.trackId, t.clipId, mask));
+    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+  },
+  applyClipBlend: (blend) => {
+    const t = effectsTarget();
+    if (!t) return;
+    get().apply((p) => ops.setClipBlend(p, t.trackId, t.clipId, blend));
     set({ selected: { trackId: t.trackId, clipId: t.clipId } });
   },
   applyClipMotion: (motion) => {
