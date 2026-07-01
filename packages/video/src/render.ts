@@ -28,8 +28,13 @@ export async function renderProject(project: VideoProject, opts: RenderOptions):
   try {
     // Clip-less legacy projects AND every multi-track project render their
     // background as a full-duration base canvas to composite onto.
+    const resolveSrcEarly = opts.resolveSrc ?? ((s) => s);
     let baseImage: string | undefined;
-    if (project.clips.length === 0 || project.tracks !== undefined) {
+    if (project.background?.type === 'image' && project.background.src) {
+      // Image background: composite the resolved image file itself as the base
+      // (buildMultiTrackArgs cover-scales it to the output frame).
+      baseImage = resolveSrcEarly(project.background.src);
+    } else if (project.clips.length === 0 || project.tracks !== undefined) {
       baseImage = join(dir, 'background.png');
       await writeFile(baseImage, rasterizeSVG(backgroundToSVG(project.background, project.width, project.height)));
     }
