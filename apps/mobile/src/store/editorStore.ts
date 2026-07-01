@@ -76,6 +76,8 @@ interface EditorState {
 
   // editor sheets + prefs + export
   panel: EditorPanel | null;
+  /** Which tab the content library opens on. */
+  libraryTab: 'stickers' | 'emoji' | 'backgrounds';
   prefs: EditorPrefs;
   exporting: boolean;
   exportMsg: string;
@@ -107,6 +109,8 @@ interface EditorState {
   setPoster: (uri: string) => void;
   setMediaDuration: (src: string, sec: number) => void;
   setPanel: (panel: EditorPanel | null) => void;
+  /** Open the content library on a specific tab. */
+  openLibrary: (tab: 'stickers' | 'emoji' | 'backgrounds') => void;
   /** Undo / redo the last project mutation. */
   undo: () => void;
   redo: () => void;
@@ -193,6 +197,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   past: [],
   future: [],
   panel: null,
+  libraryTab: 'emoji',
   prefs: { mainTrack: 'Quick', linkage: true, snapping: false, previewFps: 30 },
   exporting: false,
   exportMsg: '',
@@ -359,6 +364,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   setPanel: (panel) => set({ panel }),
+  openLibrary: (libraryTab) => set({ libraryTab, panel: 'library' }),
   setPref: (key, value) => set((s) => ({ prefs: { ...s.prefs, [key]: value } })),
 
   exportToPhotos: async (output) => {

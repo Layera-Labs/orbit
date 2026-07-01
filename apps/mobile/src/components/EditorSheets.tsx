@@ -27,7 +27,7 @@ import { VSlider } from './VSlider';
 import { ColorSheet } from './ColorSheet';
 import { FontPickerSheet } from './FontPickerSheet';
 import { FILTER_LIST } from '../filters/registry';
-import { EMOJIS, GRADIENT_PRESETS, SOLID_PRESETS, openmojiUrl } from '../content/catalog';
+import { EMOJIS, GRADIENT_PRESETS, SOLID_PRESETS, STICKERS, openmojiUrl } from '../content/catalog';
 import { addStickerFromUrl } from '../content/library';
 import type { BlendMode, ClipFilter, ClipMask, ExportOutput, Keyframe, MaskShape, Motion, MotionType, TextAlign, TransitionType, VolumePoint } from '../model/types';
 import { FULL_FRAME } from '../model/types';
@@ -231,14 +231,15 @@ function GridSheet({ title, items, tall }: { title: string; items: GridItem[]; t
 
 function InsertSheet() {
   const setPanel = useEditor((s) => s.setPanel);
+  const openLibrary = useEditor((s) => s.openLibrary);
   const addText = useEditor((s) => s.addText);
   const items: GridItem[] = [
     { label: 'Photos', bg: '#37b6f0', icon: 'photos', onPress: () => { setPanel(null); void pickAndAddMedia(); } },
     { label: 'Audio', bg: '#6d4aff', icon: 'audio', onPress: () => setPanel('audio') },
     { label: 'Text', bg: '#15b8a6', icon: 'text', onPress: () => { setPanel(null); addText(); } },
-    { label: 'Sticker', bg: '#c04af0', icon: 'sticker', onPress: () => { setPanel(null); void pickAndAddOverlay(); } },
-    { label: 'Library', bg: '#ff5a5f', icon: 'templates', onPress: () => setPanel('library') },
-    { label: 'Record', bg: '#ff8a3d', icon: 'record', onPress: () => soon('Record') },
+    { label: 'Sticker', bg: '#c04af0', icon: 'sticker', onPress: () => openLibrary('stickers') },
+    { label: 'Library', bg: '#ff5a5f', icon: 'templates', onPress: () => openLibrary('emoji') },
+    { label: 'Upload', bg: '#ff8a3d', icon: 'image', onPress: () => { setPanel(null); void pickAndAddOverlay(); } },
   ];
   return <GridSheet title="Add to timeline" items={items} />;
 }
@@ -1346,7 +1347,7 @@ function ContentLibrarySheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const applyBackground = useEditor((s) => s.applyBackground);
   const bg = useEditor((s) => s.project?.background);
-  const [tab, setTab] = useState<LibraryTab>('emoji');
+  const [tab, setTab] = useState<LibraryTab>(useEditor.getState().libraryTab);
   const close = () => setPanel(null);
   const TABS: { key: LibraryTab; label: string }[] = [
     { key: 'stickers', label: 'Stickers' },
@@ -1387,20 +1388,16 @@ function ContentLibrarySheet() {
             ))}
           </View>
         </ScrollView>
-      ) : tab === 'emoji' ? (
+      ) : (
         <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
           <View style={s.libGrid}>
-            {EMOJIS.map((e) => (
+            {(tab === 'emoji' ? EMOJIS : STICKERS).map((e) => (
               <Pressable key={e.code} onPress={() => { close(); void addStickerFromUrl(openmojiUrl(e.code, 618)); }} style={s.emojiCell}>
                 <Image source={{ uri: openmojiUrl(e.code, 72) }} style={{ width: 44, height: 44 }} resizeMode="contain" />
               </Pressable>
             ))}
           </View>
         </ScrollView>
-      ) : (
-        <View style={{ height: 200, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={s.intensityLabel}>Loading…</Text>
-        </View>
       )}
     </BottomSheet>
   );

@@ -52,6 +52,22 @@ export const EMOJIS: { code: string; label: string }[] = [
   ['1F382', 'cake'], ['2615', 'coffee'], ['1F37A', 'beer'], ['1F3C6', 'trophy'],
 ].map(([code, label]) => ({ code, label }));
 
+/** Curated sticker/graphic set (OpenMoji symbols + objects) — [hexcode, label]. */
+export const STICKERS: { code: string; label: string }[] = [
+  ['2728', 'sparkles'], ['2B50', 'star'], ['1F31F', 'glow star'], ['1F4AB', 'dizzy'],
+  ['26A1', 'bolt'], ['1F525', 'fire'], ['1F4A5', 'boom'], ['1F4A2', 'anger'],
+  ['1F389', 'tada'], ['1F38A', 'confetti'], ['1F388', 'balloon'], ['1F381', 'gift'],
+  ['2764', 'heart'], ['1F496', 'sparkle heart'], ['1F495', 'two hearts'], ['1F498', 'cupid'],
+  ['1F4AF', '100'], ['1F451', 'crown'], ['1F48E', 'gem'], ['1F3C6', 'trophy'],
+  ['1F947', 'gold medal'], ['1F308', 'rainbow'], ['2600', 'sun'], ['2B50', 'star2'],
+  ['1F319', 'moon'], ['2601', 'cloud'], ['1F4A7', 'droplet'], ['2744', 'snowflake'],
+  ['1F3B5', 'note'], ['1F3B6', 'notes'], ['1F4F8', 'camera'], ['1F3AC', 'clapper'],
+  ['1F4AC', 'speech'], ['1F4AD', 'thought'], ['1F4A1', 'idea'], ['1F514', 'bell'],
+  ['2705', 'check'], ['274C', 'cross'], ['2757', 'bang'], ['2753', 'question'],
+  ['27A1', 'arrow'], ['1F44B', 'wave'], ['1F440', 'eyes'], ['1F44D', 'thumbs up'],
+  ['1F339', 'rose'], ['1F338', 'blossom'], ['1F340', 'clover'], ['1F984', 'unicorn'],
+].map(([code, label]) => ({ code, label }));
+
 /** Solid colour palette. */
 export const SOLID_PRESETS: BgPreset[] = [
   '#000000', '#ffffff', '#101018', '#1f2933', '#6d4aff', '#2f7bff', '#15b8a6', '#f2c14e', '#ff6b6b', '#ff8fab', '#c04af0', '#0e7c66',
