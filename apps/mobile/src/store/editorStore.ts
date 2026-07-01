@@ -40,7 +40,7 @@ function progressLabel(p: ExportProgress): string {
 
 export type Screen = 'projects' | 'discover' | 'editor' | 'quick';
 /** Editor sheets/panels — mirrors Vela's `panel` state machine. */
-export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition' | 'speed' | 'volume' | 'fx' | 'motion' | 'cutout' | 'trim' | 'keyframe' | 'opacity' | 'position' | 'mask' | 'voiceover' | 'blend' | 'curve';
+export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition' | 'speed' | 'volume' | 'fx' | 'motion' | 'cutout' | 'trim' | 'keyframe' | 'opacity' | 'position' | 'mask' | 'voiceover' | 'blend' | 'curve' | 'library';
 export interface EditorPrefs {
   mainTrack: 'Quick' | 'Pro';
   linkage: boolean;
@@ -158,6 +158,8 @@ interface EditorState {
   applyClipVolume: (volume: number) => void;
   /** Apply / clear a volume envelope on the selected clip (audio or video). */
   applyClipVolumeCurve: (curve: VolumePoint[] | undefined) => void;
+  /** Set the project background (color / gradient / image). */
+  applyBackground: (background: VideoProject['background']) => void;
   setSelectedSpeed: (speed: number) => void;
   setSelectedVolume: (volume: number) => void;
   setSelectedTransition: (transition: Transition | undefined) => void;
@@ -681,6 +683,9 @@ export const useEditor = create<EditorState>((set, get) => ({
     const tt = target;
     get().apply((p) => ops.setClipVolumeCurve(p, tt.trackId, tt.clipId, curve));
     set({ selected: tt });
+  },
+  applyBackground: (background) => {
+    get().apply((p) => ops.setBackground(p, background));
   },
   setSelectedSpeed: (speed) => {
     const s = get().selected;
