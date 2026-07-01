@@ -328,6 +328,10 @@ export function setProjectRatio(p: VideoProject, width: number, height: number):
   return { ...p, width, height };
 }
 
+export function setBackground(p: VideoProject, background: VideoProject['background']): VideoProject {
+  return { ...p, background };
+}
+
 // ---------------------------------------------------------------------------
 // text overlays (rendered as a "caption" lane; not part of `tracks`)
 // ---------------------------------------------------------------------------

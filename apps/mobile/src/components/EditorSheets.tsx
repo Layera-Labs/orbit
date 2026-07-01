@@ -26,6 +26,7 @@ import { VSlider } from './VSlider';
 import { ColorSheet } from './ColorSheet';
 import { FontPickerSheet } from './FontPickerSheet';
 import { FILTER_LIST } from '../filters/registry';
+import { GRADIENT_PRESETS, SOLID_PRESETS } from '../content/catalog';
 import type { BlendMode, ClipFilter, ClipMask, ExportOutput, Keyframe, MaskShape, Motion, MotionType, TextAlign, TransitionType, VolumePoint } from '../model/types';
 import { FULL_FRAME } from '../model/types';
 import { sampleKeyframes } from '../preview/keyframes';
@@ -234,7 +235,7 @@ function InsertSheet() {
     { label: 'Audio', bg: '#6d4aff', icon: 'audio', onPress: () => setPanel('audio') },
     { label: 'Text', bg: '#15b8a6', icon: 'text', onPress: () => { setPanel(null); addText(); } },
     { label: 'Sticker', bg: '#c04af0', icon: 'sticker', onPress: () => { setPanel(null); void pickAndAddOverlay(); } },
-    { label: 'Effects', bg: '#ff5a5f', icon: 'effects', onPress: () => soon('Effects') },
+    { label: 'Library', bg: '#ff5a5f', icon: 'templates', onPress: () => setPanel('library') },
     { label: 'Record', bg: '#ff8a3d', icon: 'record', onPress: () => soon('Record') },
   ];
   return <GridSheet title="Add to timeline" items={items} />;
@@ -1337,6 +1338,62 @@ function CurveSheet() {
   );
 }
 
+type LibraryTab = 'stickers' | 'emoji' | 'backgrounds';
+
+function ContentLibrarySheet() {
+  const setPanel = useEditor((s) => s.setPanel);
+  const applyBackground = useEditor((s) => s.applyBackground);
+  const bg = useEditor((s) => s.project?.background);
+  const [tab, setTab] = useState<LibraryTab>('backgrounds');
+  const close = () => setPanel(null);
+  const TABS: { key: LibraryTab; label: string }[] = [
+    { key: 'stickers', label: 'Stickers' },
+    { key: 'emoji', label: 'Emoji' },
+    { key: 'backgrounds', label: 'Backgrounds' },
+  ];
+  const bgActive = (p: (typeof GRADIENT_PRESETS)[number]) =>
+    bg?.type === p.bg.type && (bg.type === 'color' ? bg.color === (p.bg as { color: string }).color : (bg as { from: string }).from === (p.bg as { from: string }).from);
+  return (
+    <BottomSheet onClose={close} style={{ gap: 14 }} dim="#0002">
+      <View style={s.rowBetween}>
+        <View style={{ flexDirection: 'row', gap: 22 }}>
+          {TABS.map((t) => (
+            <Pressable key={t.key} onPress={() => setTab(t.key)}>
+              <Text style={tab === t.key ? s.fTabOn : s.fTabOff}>{t.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
+      </View>
+
+      {tab === 'backgrounds' ? (
+        <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ gap: 12, paddingBottom: 8 }}>
+          <Text style={s.libSection}>Gradients</Text>
+          <View style={s.libGrid}>
+            {GRADIENT_PRESETS.map((p) => (
+              <Pressable key={p.id} onPress={() => applyBackground(p.bg)} style={[s.libCell, bgActive(p) && s.libCellOn]}>
+                <LinearGradient colors={[(p.bg as { from: string }).from, (p.bg as { to: string }).to]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.libSwatch} />
+              </Pressable>
+            ))}
+          </View>
+          <Text style={s.libSection}>Solid</Text>
+          <View style={s.libGrid}>
+            {SOLID_PRESETS.map((p) => (
+              <Pressable key={p.id} onPress={() => applyBackground(p.bg)} style={[s.libCell, bgActive(p) && s.libCellOn]}>
+                <View style={[s.libSwatch, { backgroundColor: (p.bg as { color: string }).color, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }]} />
+              </Pressable>
+            ))}
+          </View>
+        </ScrollView>
+      ) : (
+        <View style={{ height: 200, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={s.intensityLabel}>Loading…</Text>
+        </View>
+      )}
+    </BottomSheet>
+  );
+}
+
 // ---- Export progress -----------------------------------------------------
 
 function ExportProgressModal() {
@@ -1382,6 +1439,7 @@ export function EditorSheets() {
       {panel === 'voiceover' && <VoiceoverSheet />}
       {panel === 'blend' && <BlendSheet />}
       {panel === 'curve' && <CurveSheet />}
+      {panel === 'library' && <ContentLibrarySheet />}
       <ExportProgressModal />
     </>
   );
@@ -1494,6 +1552,11 @@ const s = StyleSheet.create({
   recBtn: { width: 76, height: 76, borderRadius: 38, backgroundColor: vela.danger, alignItems: 'center', justifyContent: 'center' },
   recBtnOn: { backgroundColor: '#7a1f1f' },
   voHint: { color: vela.muted2, fontFamily: font.medium, fontSize: 13 },
+  libSection: { color: vela.muted2, fontFamily: font.semibold, fontSize: 12, marginTop: 4 },
+  libGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  libCell: { width: 68, height: 68, borderRadius: 12, overflow: 'hidden', padding: 2 },
+  libCellOn: { borderWidth: 2, borderColor: vela.select },
+  libSwatch: { flex: 1, borderRadius: 10 },
   kfAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: vela.select, borderRadius: 18, paddingVertical: 8, paddingHorizontal: 14 },
   kfAddText: { color: '#111', fontFamily: font.semibold, fontSize: 14 },
   kfClear: { color: vela.muted2, fontFamily: font.medium, fontSize: 13 },
