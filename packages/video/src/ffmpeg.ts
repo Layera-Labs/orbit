@@ -16,6 +16,7 @@ import { hasMotion, motionToZoompan } from './motion';
 import { chromaToFFmpeg } from './cutout';
 import { maskToFFmpeg } from './mask';
 import { blendToFFmpeg } from './blend';
+import { hasVolumeCurve, volumeCurveExpr } from './curve';
 import { animatesOpacity, animatesPosition, hasKeyframes, keyframeExpr } from './keyframes';
 
 export interface BuildFFmpegOptions {
@@ -298,11 +299,14 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
 
   // ---- audio: positioned audio clips + each video clip's own audio, mixed ----
   const aLabels: string[] = [];
+  // gain: a per-frame volume expression when a curve is set, else a constant.
+  const gain = (curve: typeof audioClips[number]['volumeCurve'], vol: number | undefined, start: number, duration: number) =>
+    hasVolumeCurve(curve) ? `volume='${volumeCurveExpr(curve!, start, duration)}':eval=frame` : `volume=${vol ?? 1}`;
   audioClips.forEach((a, i) => {
     if (!hasAudio(resolve(a.src))) return;
     const ms = Math.max(0, Math.round(a.start * 1000));
     segments.push(
-      `[${aIn[i]}:a]atrim=start=${a.trimIn ?? 0}:duration=${a.duration},asetpts=PTS-STARTPTS,adelay=${ms}:all=1,volume=${a.volume ?? 1}[aa${i}]`,
+      `[${aIn[i]}:a]atrim=start=${a.trimIn ?? 0}:duration=${a.duration},asetpts=PTS-STARTPTS,adelay=${ms}:all=1,${gain(a.volumeCurve, a.volume, a.start, a.duration)}[aa${i}]`,
     );
     aLabels.push(`[aa${i}]`);
   });
@@ -314,7 +318,7 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
     const tempo = atempoChain(sp);
     const tempoPart = tempo ? `${tempo},` : '';
     segments.push(
-      `[${vIn[i]}:a]atrim=start=${c.trimIn ?? 0}:duration=${srcDur},asetpts=PTS-STARTPTS,${tempoPart}adelay=${ms}:all=1,volume=${c.volume ?? 1}[va${i}]`,
+      `[${vIn[i]}:a]atrim=start=${c.trimIn ?? 0}:duration=${srcDur},asetpts=PTS-STARTPTS,${tempoPart}adelay=${ms}:all=1,${gain(c.volumeCurve, c.volume, c.start, c.duration)}[va${i}]`,
     );
     aLabels.push(`[va${i}]`);
   });
