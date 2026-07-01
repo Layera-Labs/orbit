@@ -15,6 +15,7 @@ import type {
   Keyframe,
   Motion,
   Rect,
+  VolumePoint,
   TextOverlay,
   Track,
   Transition,
@@ -309,6 +310,17 @@ export function setClipVolume(p: VideoProject, trackId: string, clipId: string, 
     trackId,
     (cs) => cs.map((c) => (c.id === clipId ? { ...c, volume: v } : c)),
     (cs) => cs.map((c) => (c.id === clipId ? { ...c, volume: v } : c)),
+  );
+}
+
+/** Set a volume envelope on a visual (video) OR audio clip. Clears when < 2 points. */
+export function setClipVolumeCurve(p: VideoProject, trackId: string, clipId: string, curve: VolumePoint[] | undefined): VideoProject {
+  const vc = curve && curve.length >= 2 ? curve : undefined;
+  return updateClips(
+    p,
+    trackId,
+    (cs) => cs.map((c) => (c.id === clipId ? { ...c, volumeCurve: vc } : c)),
+    (cs) => cs.map((c) => (c.id === clipId ? { ...c, volumeCurve: vc } : c)),
   );
 }
 

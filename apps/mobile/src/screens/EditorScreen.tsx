@@ -124,6 +124,7 @@ export function EditorScreen() {
   const audioTools: Tool[] = [
     { key: 'split', icon: 'split', label: 'Split', onPress: splitAtPlayhead },
     { key: 'volume', icon: 'volume', label: 'Volume', onPress: () => setPanel('volume') },
+    { key: 'curve', icon: 'curve', label: 'Curve', onPress: () => setPanel('curve') },
     { key: 'copy', icon: 'duplicate', label: 'Copy', onPress: duplicateSelected },
     { key: 'delete', icon: 'trash', label: 'Delete', onPress: removeSelected, danger: true },
   ];
@@ -139,6 +140,7 @@ export function EditorScreen() {
     { key: 'blending', icon: 'blending', label: 'Blend', onPress: () => setPanel('blend') },
     { key: 'speed', icon: 'speed', label: 'Speed', onPress: () => setPanel('speed') },
     { key: 'volume', icon: 'volume', label: 'Volume', onPress: () => setPanel('volume') },
+    { key: 'curve', icon: 'curve', label: 'Curve', onPress: () => setPanel('curve') },
     { key: 'pip', icon: 'fullscreen', label: 'PiP', onPress: togglePiP },
     { key: 'position', icon: 'position', label: 'Position', onPress: () => setPanel('position') },
     { key: 'up', icon: 'chevronUp', label: 'Up', onPress: () => moveSelectedLayer(1) },

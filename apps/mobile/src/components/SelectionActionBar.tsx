@@ -31,7 +31,7 @@ export function SelectionActionBar() {
     { key: 'edit', icon: 'pencil', label: 'Edit', onPress: isText ? () => setPanel('textedit') : () => setPanel('filter') },
     { key: 'motion', icon: 'motion', label: 'Motion', onPress: isText ? () => soon('Motion') : () => setPanel('motion') },
     { key: 'keyframe', icon: 'keyframe', label: 'Keyframe', onPress: isText ? () => soon('Keyframe') : () => setPanel('keyframe') },
-    { key: 'curve', icon: 'curve', label: 'Curve', onPress: () => soon('Curve'), disabled: true },
+    { key: 'curve', icon: 'curve', label: 'Curve', onPress: isText ? () => soon('Curve') : () => setPanel('curve') },
     { key: 'duplicate', icon: 'duplicate', label: 'Duplicate', onPress: duplicateSelected },
     { key: 'delete', icon: 'trash', label: 'Delete', onPress: removeSelected },
   ];

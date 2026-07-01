@@ -157,6 +157,12 @@ export interface ClipMask {
   invert?: boolean;
 }
 
+/** A point on a volume envelope: `t` is 0..1 of the clip duration, `v` is gain (0..2). */
+export interface VolumePoint {
+  t: number;
+  v: number;
+}
+
 /**
  * Layer blend mode. Composited by blending the clip with the layer(s) below it
  * within its rect + time window. Preview uses the Skia blend mode; export blends
@@ -233,6 +239,8 @@ export interface VisualTrackClip {
   rect?: Rect;
   /** 0..1 gain on the clip's own audio. */
   volume?: number;
+  /** Volume envelope over the clip (≥2 points; overrides `volume` when set). */
+  volumeCurve?: VolumePoint[];
   muted?: boolean;
   /** Colour grade applied to this clip (preview + export). */
   filter?: ClipFilter;
@@ -265,6 +273,8 @@ export interface AudioTrackClip {
   duration: number;
   trimIn?: number;
   volume?: number;
+  /** Volume envelope over the clip (≥2 points; overrides `volume` when set). */
+  volumeCurve?: VolumePoint[];
 }
 
 export interface VisualTrack {
