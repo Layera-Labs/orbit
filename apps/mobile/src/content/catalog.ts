@@ -24,6 +24,16 @@ export const GRADIENT_PRESETS: BgPreset[] = [
   { id: 'plum', label: 'Plum', bg: { type: 'gradient', from: '#42275a', to: '#734b6d', angle: 135 } },
 ];
 
+// ---- Image backgrounds (sample set; users can also pick their own photo) ----
+
+const BG_SEEDS = ['peaks', 'forest', 'shore', 'dusk', 'bloom', 'aurora', 'sand', 'city'];
+/** Sample background images (stable Picsum seeds). `thumb` for the grid, `full` for the canvas. */
+export const BG_IMAGES: { id: string; thumb: string; full: string }[] = BG_SEEDS.map((seed) => ({
+  id: seed,
+  thumb: `https://picsum.photos/seed/orbitbg-${seed}/200/356`,
+  full: `https://picsum.photos/seed/orbitbg-${seed}/1080/1920`,
+}));
+
 // ---- Emojis (OpenMoji, CC BY-SA 4.0) — crisp 618px PNGs via jsDelivr --------
 
 const OPENMOJI = 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@15.0.0/color';

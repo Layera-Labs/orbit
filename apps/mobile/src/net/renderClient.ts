@@ -71,6 +71,7 @@ export async function exportProject(
   for (const t of project.tracks ?? []) for (const c of t.clips) if (isLocal(c.src)) localSrcs.add(c.src);
   for (const c of project.clips) if (isLocal(c.src)) localSrcs.add(c.src);
   for (const a of project.audio) if (isLocal(a.src)) localSrcs.add(a.src);
+  if (project.background?.type === 'image' && isLocal(project.background.src)) localSrcs.add(project.background.src);
 
   const tokens = new Map<string, string>();
   let i = 0;
@@ -82,6 +83,7 @@ export async function exportProject(
 
   const resolved: VideoProject = {
     ...project,
+    background: project.background?.type === 'image' ? { ...project.background, src: swap(project.background.src) } : project.background,
     clips: project.clips.map((c) => ({ ...c, src: swap(c.src) })),
     audio: project.audio.map((a) => ({ ...a, src: swap(a.src) })),
     tracks: project.tracks?.map((t) =>

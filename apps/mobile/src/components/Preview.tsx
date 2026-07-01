@@ -45,8 +45,12 @@ half4 main(float2 xy) {
   return half4(c.rgb * a, a);
 }`)!;
 
-/** The project background (solid or gradient) — mirrors the engine's resvg bg. */
+/** The project background (solid / gradient / image) — mirrors the engine bg. */
 function BackgroundFill({ bg, width, height }: { bg: Background | undefined; width: number; height: number }) {
+  const bgImg = useImage(bg?.type === 'image' ? toUri(bg.src) : null);
+  if (bg?.type === 'image') {
+    return bgImg ? <SkImg image={bgImg} x={0} y={0} width={width} height={height} fit="cover" /> : <Fill color="#000000" />;
+  }
   if (bg?.type === 'gradient') {
     const a = ((bg.angle ?? 0) * Math.PI) / 180;
     const cx = width / 2;

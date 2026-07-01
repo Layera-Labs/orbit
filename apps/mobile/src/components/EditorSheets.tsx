@@ -27,8 +27,8 @@ import { VSlider } from './VSlider';
 import { ColorSheet } from './ColorSheet';
 import { FontPickerSheet } from './FontPickerSheet';
 import { FILTER_LIST } from '../filters/registry';
-import { EMOJIS, GRADIENT_PRESETS, SOLID_PRESETS, STICKERS, openmojiUrl } from '../content/catalog';
-import { addStickerFromUrl } from '../content/library';
+import { BG_IMAGES, EMOJIS, GRADIENT_PRESETS, SOLID_PRESETS, STICKERS, openmojiUrl } from '../content/catalog';
+import { addStickerFromUrl, setBackgroundFromPhoto, setBackgroundFromUrl } from '../content/library';
 import type { BlendMode, ClipFilter, ClipMask, ExportOutput, Keyframe, MaskShape, Motion, MotionType, TextAlign, TransitionType, VolumePoint } from '../model/types';
 import { FULL_FRAME } from '../model/types';
 import { sampleKeyframes } from '../preview/keyframes';
@@ -1387,6 +1387,17 @@ function ContentLibrarySheet() {
               </Pressable>
             ))}
           </View>
+          <Text style={s.libSection}>Images</Text>
+          <View style={s.libGrid}>
+            <Pressable onPress={() => { close(); void setBackgroundFromPhoto(); }} style={[s.libCell, s.bgPhotoCell]}>
+              <VIcon name="photos" size={22} color="#fff" />
+            </Pressable>
+            {BG_IMAGES.map((im) => (
+              <Pressable key={im.id} onPress={() => void setBackgroundFromUrl(im.full)} style={s.libCell}>
+                <Image source={{ uri: im.thumb }} style={s.libSwatch} resizeMode="cover" />
+              </Pressable>
+            ))}
+          </View>
         </ScrollView>
       ) : (
         <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
@@ -1567,6 +1578,7 @@ const s = StyleSheet.create({
   libCellOn: { borderWidth: 2, borderColor: vela.select },
   libSwatch: { flex: 1, borderRadius: 10 },
   emojiCell: { width: 56, height: 56, borderRadius: 12, backgroundColor: vela.card2, alignItems: 'center', justifyContent: 'center' },
+  bgPhotoCell: { alignItems: 'center', justifyContent: 'center', backgroundColor: vela.card2 },
   kfAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: vela.select, borderRadius: 18, paddingVertical: 8, paddingHorizontal: 14 },
   kfAddText: { color: '#111', fontFamily: font.semibold, fontSize: 14 },
   kfClear: { color: vela.muted2, fontFamily: font.medium, fontSize: 13 },
