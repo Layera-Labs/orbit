@@ -9,6 +9,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -26,7 +27,8 @@ import { VSlider } from './VSlider';
 import { ColorSheet } from './ColorSheet';
 import { FontPickerSheet } from './FontPickerSheet';
 import { FILTER_LIST } from '../filters/registry';
-import { GRADIENT_PRESETS, SOLID_PRESETS } from '../content/catalog';
+import { EMOJIS, GRADIENT_PRESETS, SOLID_PRESETS, openmojiUrl } from '../content/catalog';
+import { addStickerFromUrl } from '../content/library';
 import type { BlendMode, ClipFilter, ClipMask, ExportOutput, Keyframe, MaskShape, Motion, MotionType, TextAlign, TransitionType, VolumePoint } from '../model/types';
 import { FULL_FRAME } from '../model/types';
 import { sampleKeyframes } from '../preview/keyframes';
@@ -1344,7 +1346,7 @@ function ContentLibrarySheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const applyBackground = useEditor((s) => s.applyBackground);
   const bg = useEditor((s) => s.project?.background);
-  const [tab, setTab] = useState<LibraryTab>('backgrounds');
+  const [tab, setTab] = useState<LibraryTab>('emoji');
   const close = () => setPanel(null);
   const TABS: { key: LibraryTab; label: string }[] = [
     { key: 'stickers', label: 'Stickers' },
@@ -1381,6 +1383,16 @@ function ContentLibrarySheet() {
             {SOLID_PRESETS.map((p) => (
               <Pressable key={p.id} onPress={() => applyBackground(p.bg)} style={[s.libCell, bgActive(p) && s.libCellOn]}>
                 <View style={[s.libSwatch, { backgroundColor: (p.bg as { color: string }).color, borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' }]} />
+              </Pressable>
+            ))}
+          </View>
+        </ScrollView>
+      ) : tab === 'emoji' ? (
+        <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
+          <View style={s.libGrid}>
+            {EMOJIS.map((e) => (
+              <Pressable key={e.code} onPress={() => { close(); void addStickerFromUrl(openmojiUrl(e.code, 618)); }} style={s.emojiCell}>
+                <Image source={{ uri: openmojiUrl(e.code, 72) }} style={{ width: 44, height: 44 }} resizeMode="contain" />
               </Pressable>
             ))}
           </View>
@@ -1557,6 +1569,7 @@ const s = StyleSheet.create({
   libCell: { width: 68, height: 68, borderRadius: 12, overflow: 'hidden', padding: 2 },
   libCellOn: { borderWidth: 2, borderColor: vela.select },
   libSwatch: { flex: 1, borderRadius: 10 },
+  emojiCell: { width: 56, height: 56, borderRadius: 12, backgroundColor: vela.card2, alignItems: 'center', justifyContent: 'center' },
   kfAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: vela.select, borderRadius: 18, paddingVertical: 8, paddingHorizontal: 14 },
   kfAddText: { color: '#111', fontFamily: font.semibold, fontSize: 14 },
   kfClear: { color: vela.muted2, fontFamily: font.medium, fontSize: 13 },

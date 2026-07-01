@@ -27,6 +27,15 @@ export function copyIntoMedia(srcUri: string, fallbackExt: string): string {
   return dest.uri;
 }
 
+/** Download a remote asset (CDN sticker/emoji/bg) into the media dir; returns its `file://` URI. */
+export async function downloadToMedia(url: string, fallbackExt: string): Promise<string> {
+  ensureDirs();
+  const ext = extFromUri(url, fallbackExt);
+  const dest = new File(mediaDir, `${newId('m')}.${ext}`);
+  await File.downloadFileAsync(url, dest);
+  return dest.uri;
+}
+
 /** Best-effort thumbnail for a video at `timeSec`; undefined on failure. */
 export async function videoThumbnail(uri: string, timeSec = 0): Promise<string | undefined> {
   try {
