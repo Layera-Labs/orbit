@@ -15,6 +15,7 @@ import { atempoChain, filterToFFmpeg } from './filters';
 import { hasMotion, motionToZoompan } from './motion';
 import { chromaToFFmpeg } from './cutout';
 import { maskToFFmpeg } from './mask';
+import { blendToFFmpeg } from './blend';
 import { animatesOpacity, animatesPosition, hasKeyframes, keyframeExpr } from './keyframes';
 
 export interface BuildFFmpegOptions {
@@ -262,9 +263,23 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
     if (fade?.fin) chain += `,fade=t=in:st=${r3(S)}:d=${fade.fin}:alpha=1`;
     if (fade?.fout) chain += `,fade=t=out:st=${r3(E - fade.fout)}:d=${fade.fout}:alpha=1`;
     segments.push(`[${vIn[i]}:v]${chain}[v${i}]`);
-    const ox = kfPosition ? `'${keyframeExpr(kfs!, 'x', S, c.duration, 't', W)}'` : `${rx}`;
-    const oy = kfPosition ? `'${keyframeExpr(kfs!, 'y', S, c.duration, 't', H)}'` : `${ry}`;
-    segments.push(`${prev}[v${i}]overlay=${ox}:${oy}:enable='between(t,${S},${E})':eof_action=pass[c${i}]`);
+    const blendMode = blendToFFmpeg(c.blend);
+    if (blendMode) {
+      // Blend the clip with the base region under its rect, then overlay the
+      // blended patch back (time-gated). Clip alpha (mask/cutout/opacity) is
+      // preserved via alphamerge so it still composites correctly.
+      segments.push(`${prev}split[bk${i}][bcs${i}]`);
+      segments.push(`[bcs${i}]crop=${rw}:${rh}:${rx}:${ry},format=rgba[bc${i}]`);
+      segments.push(`[v${i}]format=rgba,split[vc${i}][vas${i}]`);
+      segments.push(`[vas${i}]alphaextract[va${i}]`);
+      segments.push(`[bc${i}][vc${i}]blend=all_mode=${blendMode}:eof_action=pass[blr${i}]`);
+      segments.push(`[blr${i}][va${i}]alphamerge[bl${i}]`);
+      segments.push(`[bk${i}][bl${i}]overlay=${rx}:${ry}:enable='between(t,${S},${E})':eof_action=pass[c${i}]`);
+    } else {
+      const ox = kfPosition ? `'${keyframeExpr(kfs!, 'x', S, c.duration, 't', W)}'` : `${rx}`;
+      const oy = kfPosition ? `'${keyframeExpr(kfs!, 'y', S, c.duration, 't', H)}'` : `${ry}`;
+      segments.push(`${prev}[v${i}]overlay=${ox}:${oy}:enable='between(t,${S},${E})':eof_action=pass[c${i}]`);
+    }
     prev = `[c${i}]`;
   });
 

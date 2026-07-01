@@ -15,6 +15,7 @@ export type {
   ChromaKey,
   ClipMask,
   MaskShape,
+  BlendMode,
   Keyframe,
   Motion,
   MotionType,
@@ -33,6 +34,7 @@ export type { FilterParams } from './filters';
 export { hasMotion, motionStateAt, motionToZoompan, motionIntensity, ZOOM_DELTA, PAN_ZOOM } from './motion';
 export { chromaToFFmpeg, hexToRgb } from './cutout';
 export { maskToFFmpeg } from './mask';
+export { blendToFFmpeg, blendToSkia, BLEND_MODES } from './blend';
 export { hasKeyframes, sampleKeyframes, keyframeExpr, animatesOpacity, animatesPosition } from './keyframes';
 export { createProject, projectDuration, transitionDuration } from './project';
 export { buildFFmpegArgs } from './ffmpeg';

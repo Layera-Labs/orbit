@@ -138,6 +138,9 @@ export interface ClipMask {
   invert?: boolean;
 }
 
+/** Layer blend mode against the layers below (default normal/over). */
+export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'difference' | 'add';
+
 /** Ken-Burns style camera move applied over a clip's duration. */
 export type MotionType =
   | 'none'
@@ -199,6 +202,8 @@ export interface VisualTrackClip {
   opacity?: number;
   /** Shape mask revealing only part of the layer (preview + export). */
   mask?: ClipMask;
+  /** Layer blend mode against the layers below (default normal/over). */
+  blend?: BlendMode;
   /** Playback speed multiplier (1 = normal). */
   speed?: number;
   /** Ken-Burns camera move animated over the clip (preview + export). */

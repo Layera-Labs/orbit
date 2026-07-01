@@ -16,6 +16,7 @@ import { Blur, Canvas, ColorMatrix, Fill, Group, Image as SkImg, ImageShader, Li
 import { type SharedValue, useSharedValue } from 'react-native-reanimated';
 import { useClipFrame } from '../preview/useClipFrame';
 import { motionTransform } from '../preview/motion';
+import { blendToSkia } from '../preview/blend';
 import { hasKeyframes, sampleKeyframes } from '../preview/keyframes';
 import { ensureFontsLoaded, useFontsVersion } from '../text/fonts';
 import { colorMatrix } from '../filters/registry';
@@ -154,7 +155,7 @@ function BaseVideo({ clip, width, height, isPlaying, playheadSec }: { clip: Visu
       </SkImg>
     );
   return (
-    <Group transform={mt} origin={{ x: width / 2, y: height / 2 }} opacity={clipKfOpacity(clip, playheadSec)}>
+    <Group transform={mt} origin={{ x: width / 2, y: height / 2 }} opacity={clipKfOpacity(clip, playheadSec)} blendMode={blendToSkia(clip.blend)}>
       {mc ? <Group clip={mc.clip} invertClip={mc.invertClip}>{content}</Group> : content}
     </Group>
   );
@@ -176,7 +177,7 @@ function BaseImage({ clip, width, height, playheadSec }: { clip: VisualTrackClip
     </SkImg>
   );
   return (
-    <Group transform={mt} origin={{ x: width / 2, y: height / 2 }} opacity={clipKfOpacity(clip, playheadSec)}>
+    <Group transform={mt} origin={{ x: width / 2, y: height / 2 }} opacity={clipKfOpacity(clip, playheadSec)} blendMode={blendToSkia(clip.blend)}>
       {mc ? <Group clip={mc.clip} invertClip={mc.invertClip}>{content}</Group> : content}
     </Group>
   );
@@ -224,7 +225,7 @@ function OverlayLayer({ clip, width, height, playheadSec }: { clip: VisualTrackC
     </SkImg>
   );
   return (
-    <Group clip={rect(x, y, w, h)} opacity={op}>
+    <Group clip={rect(x, y, w, h)} opacity={op} blendMode={blendToSkia(clip.blend)}>
       <Group transform={mt} origin={{ x: x + w / 2, y: y + h / 2 }}>
         {mc ? <Group clip={mc.clip} invertClip={mc.invertClip}>{content}</Group> : content}
       </Group>

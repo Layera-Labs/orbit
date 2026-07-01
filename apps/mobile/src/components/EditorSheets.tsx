@@ -26,7 +26,7 @@ import { VSlider } from './VSlider';
 import { ColorSheet } from './ColorSheet';
 import { FontPickerSheet } from './FontPickerSheet';
 import { FILTER_LIST } from '../filters/registry';
-import type { ClipFilter, ClipMask, ExportOutput, Keyframe, MaskShape, Motion, MotionType, TextAlign, TransitionType } from '../model/types';
+import type { BlendMode, ClipFilter, ClipMask, ExportOutput, Keyframe, MaskShape, Motion, MotionType, TextAlign, TransitionType } from '../model/types';
 import { FULL_FRAME } from '../model/types';
 import { sampleKeyframes } from '../preview/keyframes';
 import { projectDuration } from '../model/project';
@@ -1228,6 +1228,43 @@ function VoiceoverSheet() {
   );
 }
 
+const BLEND_OPTS: { mode: BlendMode; label: string }[] = [
+  { mode: 'normal', label: 'Normal' },
+  { mode: 'multiply', label: 'Multiply' },
+  { mode: 'screen', label: 'Screen' },
+  { mode: 'overlay', label: 'Overlay' },
+  { mode: 'darken', label: 'Darken' },
+  { mode: 'lighten', label: 'Lighten' },
+  { mode: 'difference', label: 'Difference' },
+  { mode: 'add', label: 'Add' },
+];
+
+function BlendSheet() {
+  const setPanel = useEditor((s) => s.setPanel);
+  const applyClipBlend = useEditor((s) => s.applyClipBlend);
+  const [mode, setMode] = useState<BlendMode>(() => effectsTarget()?.clip.blend ?? 'normal');
+  const close = () => setPanel(null);
+  const set = (m: BlendMode) => {
+    setMode(m);
+    applyClipBlend(m);
+  };
+  return (
+    <BottomSheet onClose={close} style={{ gap: 16 }} dim="#0002">
+      <View style={s.rowBetween}>
+        <Text style={s.sheetTitle}>Blending</Text>
+        <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
+      </View>
+      <View style={s.motionGrid}>
+        {BLEND_OPTS.map((b) => (
+          <Pressable key={b.mode} onPress={() => set(b.mode)} style={[s.motionChip, mode === b.mode && s.chipOn]}>
+            <Text style={[s.chipText, mode === b.mode && { color: '#111' }]}>{b.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </BottomSheet>
+  );
+}
+
 // ---- Export progress -----------------------------------------------------
 
 function ExportProgressModal() {
@@ -1271,6 +1308,7 @@ export function EditorSheets() {
       {panel === 'position' && <PositionSheet />}
       {panel === 'mask' && <MaskSheet />}
       {panel === 'voiceover' && <VoiceoverSheet />}
+      {panel === 'blend' && <BlendSheet />}
       <ExportProgressModal />
     </>
   );
