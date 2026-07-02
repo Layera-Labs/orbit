@@ -28,7 +28,10 @@ import { ColorSheet } from './ColorSheet';
 import { FontPickerSheet } from './FontPickerSheet';
 import { FILTER_LIST } from '../filters/registry';
 import { BG_IMAGES, EMOJIS, GRADIENT_PRESETS, SOLID_PRESETS, STICKERS, openmojiUrl } from '../content/catalog';
-import { addStickerFromUrl, setBackgroundFromPhoto, setBackgroundFromUrl } from '../content/library';
+import { addStickerFromUrl, addStockItem, setBackgroundFromPhoto, setBackgroundFromUrl } from '../content/library';
+import { getStockKey, setStockKey, type StockProvider } from '../content/keys';
+import { searchStock, isMissingKey, type StockItem, type StockKind } from '../content/stock';
+import { Linking } from 'react-native';
 import type { BlendMode, ClipFilter, ClipMask, ExportOutput, Keyframe, MaskShape, Motion, MotionType, TextAlign, TransitionType, VolumePoint } from '../model/types';
 import { FULL_FRAME } from '../model/types';
 import { sampleKeyframes } from '../preview/keyframes';
@@ -326,6 +329,16 @@ function PrefsSheet() {
           ))}
         </View>
       </View>
+
+      <Text style={s.prefsSection}>Stock media</Text>
+      <Pressable style={[s.prefsCard, s.prefRow]} onPress={() => setPanel('keys')}>
+        <VIcon name="lock" size={22} color={vela.textDim} />
+        <View style={{ flex: 1 }}>
+          <Text style={s.prefName}>Stock API Keys</Text>
+          <Text style={s.prefSub}>Your Unsplash / Pexels keys for stock photos & videos.</Text>
+        </View>
+        <VIcon name="chevronRight" size={20} color={vela.muted3} />
+      </Pressable>
     </BottomSheet>
   );
 }
@@ -1341,7 +1354,91 @@ function CurveSheet() {
   );
 }
 
-type LibraryTab = 'stickers' | 'emoji' | 'backgrounds';
+function StockTab({ onPick }: { onPick: () => void }) {
+  const setPanel = useEditor((s) => s.setPanel);
+  const [provider, setProvider] = useState<StockProvider>('unsplash');
+  const [kind, setKind] = useState<StockKind>('image');
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<StockItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [needKey, setNeedKey] = useState<StockProvider | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const effKind: StockKind = provider === 'unsplash' ? 'image' : kind; // Unsplash = images only
+
+  const run = async () => {
+    if (!query.trim()) return;
+    setLoading(true);
+    setErr(null);
+    setNeedKey(null);
+    try {
+      setResults(await searchStock(provider, query.trim(), effKind));
+    } catch (e) {
+      setResults([]);
+      if (isMissingKey(e)) setNeedKey(provider);
+      else setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <View style={{ gap: 12 }}>
+      <View style={s.chipRow}>
+        {(['unsplash', 'pexels'] as StockProvider[]).map((p) => (
+          <Pressable key={p} onPress={() => setProvider(p)} style={[s.chip, provider === p && s.chipOn]}>
+            <Text style={[s.chipText, provider === p && { color: '#111' }]}>{p === 'unsplash' ? 'Unsplash' : 'Pexels'}</Text>
+          </Pressable>
+        ))}
+        {provider === 'pexels'
+          ? (['image', 'video'] as StockKind[]).map((k) => (
+              <Pressable key={k} onPress={() => setKind(k)} style={[s.chip, effKind === k && s.chipOn]}>
+                <Text style={[s.chipText, effKind === k && { color: '#111' }]}>{k === 'image' ? 'Photos' : 'Videos'}</Text>
+              </Pressable>
+            ))
+          : null}
+      </View>
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <TextInput
+          style={[s.keyInput, { flex: 1 }]}
+          value={query}
+          onChangeText={setQuery}
+          onSubmitEditing={run}
+          returnKeyType="search"
+          placeholder={`Search ${provider}…`}
+          placeholderTextColor={vela.muted3}
+          autoCapitalize="none"
+        />
+        <Pressable onPress={run} style={s.stockSearchBtn}><VIcon name="search" size={20} color="#fff" /></Pressable>
+      </View>
+
+      {needKey ? (
+        <Pressable onPress={() => setPanel('keys')} style={s.stockPrompt}>
+          <Text style={s.prefName}>Add your {needKey === 'unsplash' ? 'Unsplash' : 'Pexels'} API key</Text>
+          <Text style={s.prefSub}>Stock search uses your own key. Tap to add it →</Text>
+        </Pressable>
+      ) : err ? (
+        <Text style={[s.prefSub, { color: vela.danger }]}>{err}</Text>
+      ) : null}
+
+      <ScrollView style={{ maxHeight: 320 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
+        {loading ? (
+          <View style={{ height: 120, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={vela.accent} /></View>
+        ) : (
+          <View style={s.libGrid}>
+            {results.map((it) => (
+              <Pressable key={it.id} onPress={() => { onPick(); void addStockItem(it); }} style={s.stockCell}>
+                <Image source={{ uri: it.thumb }} style={s.libSwatch} resizeMode="cover" />
+                {it.kind === 'video' ? <View style={s.stockVideoBadge}><VIcon name="play" size={12} color="#fff" /></View> : null}
+              </Pressable>
+            ))}
+          </View>
+        )}
+      </ScrollView>
+    </View>
+  );
+}
+
+type LibraryTab = 'stickers' | 'emoji' | 'backgrounds' | 'stock';
 
 function ContentLibrarySheet() {
   const setPanel = useEditor((s) => s.setPanel);
@@ -1353,6 +1450,7 @@ function ContentLibrarySheet() {
     { key: 'stickers', label: 'Stickers' },
     { key: 'emoji', label: 'Emoji' },
     { key: 'backgrounds', label: 'Backgrounds' },
+    { key: 'stock', label: 'Stock' },
   ];
   const bgActive = (p: (typeof GRADIENT_PRESETS)[number]) =>
     bg?.type === p.bg.type && (bg.type === 'color' ? bg.color === (p.bg as { color: string }).color : (bg as { from: string }).from === (p.bg as { from: string }).from);
@@ -1399,6 +1497,8 @@ function ContentLibrarySheet() {
             ))}
           </View>
         </ScrollView>
+      ) : tab === 'stock' ? (
+        <StockTab onPick={close} />
       ) : (
         <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
           <View style={s.libGrid}>
@@ -1409,6 +1509,56 @@ function ContentLibrarySheet() {
             ))}
           </View>
         </ScrollView>
+      )}
+    </BottomSheet>
+  );
+}
+
+function KeyRow({ provider, label, url, initial, onSave }: { provider: StockProvider; label: string; url: string; initial: string; onSave: (p: StockProvider, v: string) => void }) {
+  const [val, setVal] = useState(initial);
+  return (
+    <View style={{ gap: 6 }}>
+      <View style={s.rowBetween}>
+        <Text style={s.intensityLabel}>{label}</Text>
+        <Pressable onPress={() => void Linking.openURL(url)} hitSlop={8}><Text style={s.keyLink}>Get a key ›</Text></Pressable>
+      </View>
+      <TextInput
+        style={s.keyInput}
+        value={val}
+        onChangeText={setVal}
+        onEndEditing={() => onSave(provider, val)}
+        placeholder={`${label} API key`}
+        placeholderTextColor={vela.muted3}
+        autoCapitalize="none"
+        autoCorrect={false}
+        secureTextEntry
+      />
+    </View>
+  );
+}
+
+function KeysSheet() {
+  const setPanel = useEditor((s) => s.setPanel);
+  const close = () => setPanel(null);
+  const [initial, setInitial] = useState<{ unsplash: string; pexels: string } | null>(null);
+  useEffect(() => {
+    (async () => setInitial({ unsplash: (await getStockKey('unsplash')) ?? '', pexels: (await getStockKey('pexels')) ?? '' }))();
+  }, []);
+  const save = (p: StockProvider, v: string) => void setStockKey(p, v);
+  return (
+    <BottomSheet onClose={close} style={{ gap: 16 }} dim="#0004">
+      <View style={s.rowBetween}>
+        <Text style={s.sheetTitle}>Stock API Keys</Text>
+        <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
+      </View>
+      <Text style={s.keyNote}>Bring your own keys. Stored in this device's keychain and sent only to the provider — never to Orbit's servers.</Text>
+      {initial ? (
+        <>
+          <KeyRow provider="unsplash" label="Unsplash" url="https://unsplash.com/developers" initial={initial.unsplash} onSave={save} />
+          <KeyRow provider="pexels" label="Pexels" url="https://www.pexels.com/api/" initial={initial.pexels} onSave={save} />
+        </>
+      ) : (
+        <View style={{ height: 120, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={vela.accent} /></View>
       )}
     </BottomSheet>
   );
@@ -1460,6 +1610,7 @@ export function EditorSheets() {
       {panel === 'blend' && <BlendSheet />}
       {panel === 'curve' && <CurveSheet />}
       {panel === 'library' && <ContentLibrarySheet />}
+      {panel === 'keys' && <KeysSheet />}
       <ExportProgressModal />
     </>
   );
@@ -1579,6 +1730,13 @@ const s = StyleSheet.create({
   libSwatch: { flex: 1, borderRadius: 10 },
   emojiCell: { width: 56, height: 56, borderRadius: 12, backgroundColor: vela.card2, alignItems: 'center', justifyContent: 'center' },
   bgPhotoCell: { alignItems: 'center', justifyContent: 'center', backgroundColor: vela.card2 },
+  keyNote: { color: vela.muted2, fontFamily: font.medium, fontSize: 12, lineHeight: 17 },
+  keyLink: { color: vela.action, fontFamily: font.semibold, fontSize: 13 },
+  keyInput: { backgroundColor: vela.card2, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, color: '#fff', fontFamily: mono.regular, fontSize: 14 },
+  stockSearchBtn: { width: 46, borderRadius: 10, backgroundColor: vela.accent, alignItems: 'center', justifyContent: 'center' },
+  stockPrompt: { backgroundColor: vela.card2, borderRadius: 12, padding: 14, gap: 3 },
+  stockCell: { width: 104, height: 104, borderRadius: 12, overflow: 'hidden', backgroundColor: vela.card2 },
+  stockVideoBadge: { position: 'absolute', right: 6, bottom: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
   kfAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: vela.select, borderRadius: 18, paddingVertical: 8, paddingHorizontal: 14 },
   kfAddText: { color: '#111', fontFamily: font.semibold, fontSize: 14 },
   kfClear: { color: vela.muted2, fontFamily: font.medium, fontSize: 13 },

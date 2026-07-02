@@ -40,7 +40,7 @@ function progressLabel(p: ExportProgress): string {
 
 export type Screen = 'projects' | 'discover' | 'editor' | 'quick';
 /** Editor sheets/panels — mirrors Vela's `panel` state machine. */
-export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition' | 'speed' | 'volume' | 'fx' | 'motion' | 'cutout' | 'trim' | 'keyframe' | 'opacity' | 'position' | 'mask' | 'voiceover' | 'blend' | 'curve' | 'library';
+export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition' | 'speed' | 'volume' | 'fx' | 'motion' | 'cutout' | 'trim' | 'keyframe' | 'opacity' | 'position' | 'mask' | 'voiceover' | 'blend' | 'curve' | 'library' | 'keys';
 export interface EditorPrefs {
   mainTrack: 'Quick' | 'Pro';
   linkage: boolean;
@@ -77,7 +77,7 @@ interface EditorState {
   // editor sheets + prefs + export
   panel: EditorPanel | null;
   /** Which tab the content library opens on. */
-  libraryTab: 'stickers' | 'emoji' | 'backgrounds';
+  libraryTab: 'stickers' | 'emoji' | 'backgrounds' | 'stock';
   prefs: EditorPrefs;
   exporting: boolean;
   exportMsg: string;
@@ -110,7 +110,7 @@ interface EditorState {
   setMediaDuration: (src: string, sec: number) => void;
   setPanel: (panel: EditorPanel | null) => void;
   /** Open the content library on a specific tab. */
-  openLibrary: (tab: 'stickers' | 'emoji' | 'backgrounds') => void;
+  openLibrary: (tab: 'stickers' | 'emoji' | 'backgrounds' | 'stock') => void;
   /** Undo / redo the last project mutation. */
   undo: () => void;
   redo: () => void;
