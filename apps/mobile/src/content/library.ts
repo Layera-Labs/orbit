@@ -10,6 +10,10 @@ import { newId } from '../model/editor-ops';
 import { copyIntoMedia, downloadToMedia } from '../storage/media';
 import { useEditor } from '../store/editorStore';
 import type { VisualTrackClip } from '../model/types';
+import { triggerUnsplashDownload, type StockItem } from './stock';
+
+const STOCK_IMAGE_DUR = 4;
+const STOCK_VIDEO_FALLBACK_DUR = 5;
 
 const STICKER_DUR = 4;
 
@@ -35,6 +39,24 @@ export async function setBackgroundFromUrl(url: string): Promise<void> {
     useEditor.getState().applyBackground({ type: 'image', src });
   } catch (e) {
     Alert.alert('Background failed', e instanceof Error ? e.message : String(e));
+  }
+}
+
+/** Add a stock image/video to the main track (downloads it into media first). */
+export async function addStockItem(item: StockItem): Promise<void> {
+  try {
+    void triggerUnsplashDownload(item); // Unsplash ToS — fire and forget
+    if (item.kind === 'video') {
+      const src = await downloadToMedia(item.full, 'mp4');
+      const duration = item.duration && item.duration > 0 ? item.duration : STOCK_VIDEO_FALLBACK_DUR;
+      useEditor.getState().setMediaDuration(src, duration);
+      useEditor.getState().importVisual([{ id: newId('v'), type: 'video', src, start: 0, duration, trimIn: 0, volume: 1 }]);
+    } else {
+      const src = await downloadToMedia(item.full, 'jpg');
+      useEditor.getState().importVisual([{ id: newId('img'), type: 'image', src, start: 0, duration: STOCK_IMAGE_DUR }]);
+    }
+  } catch (e) {
+    Alert.alert('Add failed', e instanceof Error ? e.message : String(e));
   }
 }
 
