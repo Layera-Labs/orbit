@@ -8,6 +8,7 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { LinearGradient } from 'expo-linear-gradient';
 import { font, mono, vela } from '../constants';
 import { VIcon } from '../components/VIcon';
+import { OrbitMark } from '../components/OrbitMark';
 import { BottomNav } from '../components/BottomNav';
 import { CreateSheet } from './CreateSheet';
 import { useEditor } from '../store/editorStore';
@@ -28,29 +29,20 @@ export function DiscoverScreen() {
   return (
     <View style={styles.root}>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 130 }}>
-        {/* gradient hero header */}
-        <LinearGradient colors={['#b07a4e', '#7d93a8']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.hero}>
+        {/* warm-dark showcase hero (distinct from the light Home) */}
+        <LinearGradient colors={['#241d13', '#0f0d0a']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={styles.hero}>
           <View style={{ height: 54 }} />
           <View style={styles.heroTop}>
             <Text style={styles.h1}>Discover</Text>
-            <View style={styles.heroIcons}>
-              <VIcon name="picture" size={22} color="#fff" strokeWidth={2} />
-              <VIcon name="crop" size={22} color="#fff" strokeWidth={2} />
-            </View>
+            <OrbitMark size={30} />
           </View>
           <Pressable style={styles.search} onPress={() => soon('Search')}>
             <VIcon name="search" size={19} color={vela.lightMuted} strokeWidth={2.2} />
-            <Text style={styles.searchText}>Search templates &amp; effects</Text>
+            <Text style={styles.searchText}>Search templates</Text>
           </Pressable>
           <View style={styles.heroBody}>
-            <Text style={styles.heroTitle}>Carousel{'\n'}Style</Text>
-            <Text style={styles.heroSub}>Craft scroll-stopping social posts in minutes.</Text>
-          </View>
-          <View style={styles.dots}>
-            <View style={[styles.dot, styles.dotOn]} />
-            <View style={styles.dot} />
-            <View style={styles.dot} />
-            <View style={styles.dot} />
+            <Text style={styles.heroTitle}>Start from a <Text style={{ color: vela.accent }}>template</Text></Text>
+            <Text style={styles.heroSub}>Ready-made looks — open one and make it yours.</Text>
           </View>
         </LinearGradient>
 
@@ -65,16 +57,6 @@ export function DiscoverScreen() {
             </Pressable>
           ))}
         </ScrollView>
-
-        {/* partner promo */}
-        <Pressable style={styles.flux} onPress={() => soon('Flux Studio')}>
-          <View style={styles.fluxLogo}><Text style={styles.fluxLogoText}>Flux</Text></View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.fluxTitle}>Flux Studio: Photo &amp; Graphic</Text>
-            <Text style={styles.fluxSub}>A quick &amp; pro design app</Text>
-          </View>
-          <View style={styles.fluxBtn}><Text style={styles.fluxBtnText}>Try Now</Text></View>
-        </Pressable>
 
         {/* templates grid */}
         <Text style={styles.sectionH}>Templates <Text style={{ color: vela.lightMuted }}>{BUILTIN_TEMPLATES.length}</Text></Text>
@@ -96,7 +78,7 @@ export function DiscoverScreen() {
             <View style={styles.grid}>
               {userTemplates.map((tpl) => (
                 <Pressable key={tpl.id} style={styles.gridCell} onPress={() => newProjectFromStoredTemplate(tpl)}>
-                  <LinearGradient colors={['#2a2a2a', '#4a4030']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gridCard}>
+                  <LinearGradient colors={[vela.ink3, vela.ink]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gridCard}>
                     <Text style={styles.recentTag}>{ratioOf(tpl.project)} · saved</Text>
                     <Text style={styles.gridName} numberOfLines={1}>{tpl.name}</Text>
                   </LinearGradient>
@@ -112,9 +94,9 @@ export function DiscoverScreen() {
       <CreateSheet
         visible={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreate={() => {
+        onCreate={(w, h) => {
           setCreateOpen(false);
-          newProject('Untitled', 1080, 1920);
+          newProject('Untitled', w, h);
         }}
       />
     </View>
@@ -124,18 +106,14 @@ export function DiscoverScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: vela.homeBg },
 
-  hero: { paddingBottom: 18 },
+  hero: { paddingBottom: 26, borderBottomLeftRadius: 26, borderBottomRightRadius: 26 },
   heroTop: { paddingHorizontal: 22, paddingTop: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   h1: { fontFamily: font.extrabold, fontSize: 30, color: '#fff', letterSpacing: -0.6 },
-  heroIcons: { flexDirection: 'row', gap: 12 },
-  search: { marginHorizontal: 22, marginTop: 14, height: 46, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.92)', flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
+  search: { marginHorizontal: 22, marginTop: 14, height: 46, borderRadius: 14, backgroundColor: vela.lightCard, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
   searchText: { color: vela.lightMuted, fontSize: 16, fontFamily: font.medium },
-  heroBody: { paddingHorizontal: 22, marginTop: 18 },
-  heroTitle: { fontFamily: font.extrabold, fontStyle: 'italic', fontSize: 34, color: '#fff', lineHeight: 33 },
-  heroSub: { color: 'rgba(255,255,255,0.85)', fontSize: 13, marginTop: 10, maxWidth: 200, fontFamily: font.medium },
-  dots: { flexDirection: 'row', gap: 6, justifyContent: 'center', marginTop: 16 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.5)' },
-  dotOn: { width: 18, backgroundColor: '#fff' },
+  heroBody: { paddingHorizontal: 22, marginTop: 20 },
+  heroTitle: { fontFamily: font.extrabold, fontSize: 30, color: '#fff', lineHeight: 34 },
+  heroSub: { color: 'rgba(255,255,255,0.72)', fontSize: 13.5, marginTop: 10, maxWidth: 240, fontFamily: font.medium },
 
   catRow: { gap: 14, paddingHorizontal: 22, paddingTop: 20, paddingBottom: 6 },
   cat: { width: 124 },
@@ -143,15 +121,7 @@ const styles = StyleSheet.create({
   catTag: { fontFamily: mono.regular, fontSize: 10, color: 'rgba(255,255,255,0.85)' },
   catName: { textAlign: 'center', marginTop: 9, fontFamily: font.bold, fontSize: 14.5, color: vela.ink },
 
-  flux: { marginHorizontal: 22, marginTop: 18, height: 80, borderRadius: 16, backgroundColor: '#eef0fb', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, gap: 14 },
-  fluxLogo: { width: 46, height: 46, borderRadius: 13, backgroundColor: '#111', alignItems: 'center', justifyContent: 'center' },
-  fluxLogoText: { color: '#fff', fontFamily: font.extrabold, fontSize: 13, fontStyle: 'italic' },
-  fluxTitle: { fontFamily: font.extrabold, fontSize: 16, color: vela.ink },
-  fluxSub: { color: vela.lightMuted, fontSize: 13, marginTop: 2, fontFamily: font.medium },
-  fluxBtn: { backgroundColor: '#111', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 9 },
-  fluxBtnText: { color: '#fff', fontFamily: font.bold, fontSize: 13 },
-
-  sectionH: { paddingHorizontal: 22, paddingTop: 18, fontFamily: font.extrabold, fontSize: 18, color: vela.ink },
+  sectionH: { paddingHorizontal: 22, paddingTop: 22, fontFamily: font.extrabold, fontSize: 18, color: vela.ink },
   recentTag: { fontFamily: mono.regular, fontSize: 11, color: 'rgba(255,255,255,0.7)' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 22, paddingTop: 14, gap: 14, justifyContent: 'space-between' },
   gridCell: { width: '47%' },

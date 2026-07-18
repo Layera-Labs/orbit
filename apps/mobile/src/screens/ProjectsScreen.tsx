@@ -246,9 +246,9 @@ export function ProjectsScreen() {
       <CreateSheet
         visible={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreate={() => {
+        onCreate={(w, h) => {
           setCreateOpen(false);
-          newProject('Untitled', 1080, 1920);
+          newProject('Untitled', w, h);
         }}
       />
 
