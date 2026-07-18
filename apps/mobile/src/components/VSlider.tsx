@@ -14,7 +14,7 @@ export function VSlider({
   max,
   step,
   onChange,
-  fill = vela.action,
+  fill = vela.accent,
 }: {
   value: number;
   min: number;
@@ -46,15 +46,31 @@ export function VSlider({
         <View style={styles.track}>
           <View style={[styles.fill, { width: `${pct * 100}%`, backgroundColor: fill }]} />
         </View>
-        <View style={[styles.knob, { left: `${pct * 100}%` }]} />
+        <View style={[styles.knob, { left: `${pct * 100}%`, borderColor: fill }]} />
       </View>
     </GestureDetector>
   );
 }
 
 const styles = StyleSheet.create({
-  hit: { height: 36, justifyContent: 'center' },
-  track: { height: 4, borderRadius: 2, backgroundColor: vela.toggleOff, overflow: 'hidden' },
-  fill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 2 },
-  knob: { position: 'absolute', top: '50%', marginTop: -9, marginLeft: -9, width: 18, height: 18, borderRadius: 9, backgroundColor: '#fff' },
+  hit: { height: 40, justifyContent: 'center' },
+  track: { height: 6, borderRadius: 3, backgroundColor: vela.toggleOff, overflow: 'hidden' },
+  fill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 3 },
+  // White knob with a self-colored (fill) ring + a tight downward shadow.
+  knob: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: -11,
+    marginLeft: -11,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#fff',
+    borderWidth: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
 });
