@@ -6,7 +6,7 @@
  * menu (Rename / Move to Trash real, the rest soon).
  */
 import { useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { font, mono, vela, ratioLabel } from '../constants';
 import { projectDuration } from '../model/project';
 import { VIcon } from '../components/VIcon';
@@ -147,6 +147,7 @@ export function ProjectsScreen() {
   const [createOpen, setCreateOpen] = useState(false);
   const [menuProject, setMenuProject] = useState<StoredProject | null>(null);
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   function promptServer() {
     Alert.prompt(
@@ -163,7 +164,10 @@ export function ProjectsScreen() {
 
   const folderOf = (p: StoredProject) => p.folder ?? 'Default';
   const now = Date.now();
-  const visible = activeFolder ? projects.filter((p) => folderOf(p) === activeFolder) : projects;
+  const q = query.trim().toLowerCase();
+  const searching = q.length > 0;
+  const visible = (activeFolder ? projects.filter((p) => folderOf(p) === activeFolder) : projects)
+    .filter((p) => !searching || p.name.toLowerCase().includes(q));
   const recent = visible.filter((p) => now - p.updatedAt < 30 * DAY);
   const older = visible.filter((p) => now - p.updatedAt >= 30 * DAY);
 
@@ -191,10 +195,20 @@ export function ProjectsScreen() {
         </View>
 
         {/* search */}
-        <Pressable style={styles.search} onPress={() => soon('Search')}>
+        <View style={styles.search}>
           <VIcon name="search" size={19} color={vela.lightMuted} strokeWidth={2.2} />
-          <Text style={styles.searchText}>Search your projects</Text>
-        </Pressable>
+          <TextInput
+            style={styles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search your projects"
+            placeholderTextColor={vela.lightMuted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+          />
+        </View>
 
         {/* folders */}
         <Text style={styles.sectionH}>Folders</Text>
@@ -226,6 +240,11 @@ export function ProjectsScreen() {
           <View style={styles.empty}>
             <Text style={styles.emptyText}>No projects yet.</Text>
             <Text style={styles.emptyHint}>Tap the + below to start editing.</Text>
+          </View>
+        ) : searching && visible.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyText}>No matches</Text>
+            <Text style={styles.emptyHint}>Nothing named “{query.trim()}”.</Text>
           </View>
         ) : null}
 
@@ -265,7 +284,7 @@ const styles = StyleSheet.create({
   roundBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: vela.lightCard, alignItems: 'center', justifyContent: 'center' },
 
   search: { marginHorizontal: 22, marginTop: 16, height: 46, borderRadius: 14, backgroundColor: vela.lightSurface, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
-  searchText: { color: vela.lightMuted, fontSize: 16, fontFamily: font.medium },
+  searchInput: { flex: 1, color: vela.ink, fontSize: 16, fontFamily: font.medium, height: '100%' },
 
   tabCount: { color: vela.lightMuted },
 

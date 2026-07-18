@@ -6,10 +6,16 @@
 import type { Background, TextOverlay } from '../model/types';
 import { font } from '../constants';
 
+/** Discover section a template belongs to. */
+export type TemplateCategory = 'Titles' | 'Social' | 'Music' | 'Celebrate';
+
+export const TEMPLATE_CATEGORIES: TemplateCategory[] = ['Titles', 'Social', 'Music', 'Celebrate'];
+
 export interface EditorTemplate {
   id: string;
   name: string;
   tag: string;
+  category: TemplateCategory;
   /** Discover card gradient. */
   colors: readonly [string, string];
   width: number;
@@ -34,6 +40,7 @@ export const BUILTIN_TEMPLATES: EditorTemplate[] = [
     id: 'quote',
     name: 'Quote Card',
     tag: 'quote',
+    category: 'Social',
     colors: ['#2a2018', '#5a4632'],
     width: 1080,
     height: 1080,
@@ -47,6 +54,7 @@ export const BUILTIN_TEMPLATES: EditorTemplate[] = [
     id: 'title',
     name: 'Bold Title',
     tag: 'intro',
+    category: 'Titles',
     colors: ['#171208', '#a97f2c'],
     width: 1080,
     height: 1920,
@@ -60,6 +68,7 @@ export const BUILTIN_TEMPLATES: EditorTemplate[] = [
     id: 'lyric',
     name: 'Lyric Video',
     tag: 'music',
+    category: 'Music',
     colors: ['#1a0d10', '#54202a'],
     width: 1080,
     height: 1920,
@@ -70,6 +79,7 @@ export const BUILTIN_TEMPLATES: EditorTemplate[] = [
     id: 'caption',
     name: 'Caption Reel',
     tag: 'social',
+    category: 'Social',
     colors: ['#141210', '#2a2620'],
     width: 1080,
     height: 1920,
@@ -80,6 +90,7 @@ export const BUILTIN_TEMPLATES: EditorTemplate[] = [
     id: 'birthday',
     name: 'Birthday',
     tag: 'b-day',
+    category: 'Celebrate',
     colors: ['#3a1e12', '#b8702e'],
     width: 1080,
     height: 1920,
@@ -93,6 +104,7 @@ export const BUILTIN_TEMPLATES: EditorTemplate[] = [
     id: 'sale',
     name: 'Big Drop',
     tag: 'promo',
+    category: 'Social',
     colors: ['#0c0b0a', '#c99a3a'],
     width: 1080,
     height: 1920,
@@ -106,6 +118,7 @@ export const BUILTIN_TEMPLATES: EditorTemplate[] = [
     id: 'podcast',
     name: 'Podcast',
     tag: 'audio',
+    category: 'Music',
     colors: ['#171310', '#3a3024'],
     width: 1080,
     height: 1080,
@@ -119,6 +132,7 @@ export const BUILTIN_TEMPLATES: EditorTemplate[] = [
     id: 'minimal',
     name: 'Minimal',
     tag: 'clean',
+    category: 'Titles',
     colors: ['#15130f', '#2b2620'],
     width: 1080,
     height: 1920,
