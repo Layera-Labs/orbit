@@ -41,24 +41,23 @@ export const mono = {
 } as const;
 
 /**
- * Orbit design tokens. One signature palette: a deep teal primary + warm gold
- * used strictly for editing-selection, on warm near-black surfaces. Purple and
- * blue are retired. Token NAMES are kept stable so existing call sites inherit
- * the new values; only the values change.
+ * Orbit design tokens. One signature palette: a warm gold accent on warm
+ * near-black surfaces (gold + black). Purple, blue and teal are retired. Token
+ * NAMES are kept stable so existing call sites inherit the new values.
  *
- * Roles (one meaning each): `accent`/`action` (teal) = primary action + "option
- * ON"; `select` (gold) = clip selected for editing. Text on a teal fill uses
- * `onAccent` (dark ink), since teal is a light-valued accent.
+ * One gold does every job — primary action, "option ON", and editing-selection
+ * (`accent`/`action`/`select` are the same gold). Text/icons on a gold fill use
+ * `onAccent` (near-black ink), since gold is a light-valued accent.
  */
 export const vela = {
-  // Brand — teal signature + complementary gold
-  accent: '#16a58f', // teal — primary brand / active / all CTAs
-  action: '#16a58f', // teal — same primary (blue retired)
-  accentDim: '#0e7d70', // deeper teal — pressed / audio track
-  accentSoft: 'rgba(22,165,143,0.14)', // low-opacity teal tint
-  onAccent: '#042420', // dark ink for text/icons on a teal fill
-  select: '#f2c14e', // gold — selected clip / filmstrip border (editing only)
-  audio: '#0e7d70', // audio track fill (deep teal)
+  // Brand — gold on black
+  accent: '#e3ac3d', // gold — primary brand / active / all CTAs / selection
+  action: '#e3ac3d', // gold — same primary
+  accentDim: '#b98a2b', // deeper gold — pressed
+  accentSoft: 'rgba(227,172,61,0.16)', // low-opacity gold tint
+  onAccent: '#1c1503', // near-black ink for text/icons on a gold fill
+  select: '#e3ac3d', // gold — selected clip / filmstrip border
+  audio: '#a9812c', // audio track fill (deep gold)
   danger: '#ff453a',
 
   // Editor (dark) — warm near-black, 3-step elevation ladder
@@ -77,8 +76,8 @@ export const vela = {
 
   // Timeline surfaces (tokenised — no more hardcoded hex in Timeline.tsx)
   clipBg: '#221f1b',
-  wave: '#4fcbb8', // audio waveform (teal)
-  waveSound: '#e2c56b', // sound waveform (gold)
+  wave: '#edc258', // audio waveform (gold)
+  waveSound: '#c9b078', // sound waveform (muted gold)
   soundBlock: '#2a2617',
   tickMinor: '#2a2620',
 
@@ -104,9 +103,9 @@ export const vela = {
   lightMuted2: '#a9a49a',
   lightMuted3: '#b4afa5',
   lightBorder: '#e6e2d9',
-  folderFrom: '#cbe8e1',
-  folderTo: '#a6d7cc',
-  folderDot: '#16a58f',
+  folderFrom: '#f0e2bf',
+  folderTo: '#e6d199',
+  folderDot: '#e3ac3d',
 } as const;
 
 /** Spacing scale (px). */
@@ -128,7 +127,7 @@ export const elev = {
 /**
  * Legacy `theme` object — kept as a thin alias over the Orbit tokens so the two
  * screens still reading `theme.*` (QuickGenerate, NewProjectModal) render the
- * warm-teal system, not the old slate, until their bespoke reskin. Prefer
+ * warm gold-on-black system, not the old slate, until their bespoke reskin. Prefer
  * importing `vela`/`sp`/`r`/`elev` directly in new code.
  */
 export const theme = {

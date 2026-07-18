@@ -453,7 +453,7 @@ const styles = StyleSheet.create({
   handleBar: { width: 3, height: 18, borderRadius: 2, backgroundColor: '#111' },
 
   playhead: { position: 'absolute', top: 0, bottom: 0, alignItems: 'center', marginLeft: -1 },
-  // Bespoke two-tone playhead: brand-teal knob on an always-visible white rail.
+  // Bespoke two-tone playhead: brand-gold knob on an always-visible white rail.
   playheadKnob: { width: 12, height: 12, borderRadius: 6, backgroundColor: vela.accent, borderWidth: 1.5, borderColor: '#fff' },
   playheadLine: { flex: 1, width: 2, backgroundColor: '#fff' },
 });
