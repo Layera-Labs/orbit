@@ -7,7 +7,6 @@
  */
 import { useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { font, mono, vela, ratioLabel } from '../constants';
 import { projectDuration } from '../model/project';
 import { VIcon } from '../components/VIcon';
@@ -40,7 +39,9 @@ function ProjectRow({ p, onOpen, onMenu }: { p: StoredProject; onOpen: () => voi
         {p.posterUri ? (
           <Image source={{ uri: p.posterUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
         ) : (
-          <LinearGradient colors={['#cdb89e', '#8d7256']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: vela.lightSurface, alignItems: 'center', justifyContent: 'center' }]}>
+            <VIcon name="picture" size={22} color={vela.lightMuted3} />
+          </View>
         )}
         <Text style={styles.posterTime}>{fmtTime(projectDuration(p.project))}</Text>
       </View>
@@ -53,7 +54,7 @@ function ProjectRow({ p, onOpen, onMenu }: { p: StoredProject; onOpen: () => voi
       </View>
       <View style={{ alignItems: 'flex-end' }}>
         <Pressable hitSlop={10} onPress={onMenu}>
-          <Text style={styles.dots}>···</Text>
+          <VIcon name="dots" size={18} color={vela.lightMuted} />
         </Pressable>
         <Text style={styles.rowDate}>{fmtDate(p.updatedAt)}</Text>
       </View>
@@ -129,9 +130,6 @@ function ProjectMenu({ p, onClose }: { p: StoredProject; onClose: () => void }) 
             <Pressable style={styles.menuRow} onPress={it.onPress}>
               <VIcon d={it.d} size={24} color={it.color} />
               <Text style={[styles.menuRowText, { color: it.color }]}>{it.label}</Text>
-              {it.pro ? (
-                <View style={styles.proPill}><Text style={styles.proPillText}>♔ PRO</Text></View>
-              ) : null}
             </Pressable>
           </View>
         ))}
@@ -148,7 +146,6 @@ export function ProjectsScreen() {
   const serverUrl = useEditor((s) => s.serverUrl);
   const setServerUrl = useEditor((s) => s.setServerUrl);
   const [createOpen, setCreateOpen] = useState(false);
-  const [promoOpen, setPromoOpen] = useState(true);
   const [menuProject, setMenuProject] = useState<StoredProject | null>(null);
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
 
@@ -200,51 +197,21 @@ export function ProjectsScreen() {
           <Text style={styles.searchText}>Search your projects</Text>
         </Pressable>
 
-        {/* promo */}
-        {promoOpen ? (
-          <LinearGradient colors={['#1a1340', '#3a2a8a', '#6d4aff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.promo}>
-            <View style={styles.promoLogo}><Text style={styles.promoLogoText}>Ob</Text></View>
-            <View style={{ marginLeft: 14, flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.promoTitle}>Orbit for Desktop</Text>
-                <View style={styles.promoBadge}><Text style={styles.promoBadgeText}>NEW</Text></View>
-              </View>
-              <Text style={styles.promoSub}>Edit on the big screen — early access</Text>
-            </View>
-            <Pressable style={styles.promoClose} onPress={() => setPromoOpen(false)} hitSlop={8}>
-              <Text style={styles.promoCloseText}>✕</Text>
-            </Pressable>
-            <Pressable style={styles.promoCta} onPress={() => soon('Desktop access')}>
-              <Text style={styles.promoCtaText}>Get access</Text>
-            </Pressable>
-          </LinearGradient>
-        ) : null}
-
-        {/* tabs */}
-        <View style={styles.tabs}>
-          <Pressable>
-            <Text style={styles.tabOn}>Projects <Text style={styles.tabCount}>{projects.length}</Text></Text>
-            <View style={styles.tabUnderline} />
-          </Pressable>
-          <Pressable onPress={() => soon('Works')}><Text style={styles.tabOff}>Works 0</Text></Pressable>
-          <Pressable onPress={() => soon('Templates')}><Text style={styles.tabOff}>Templates 0</Text></Pressable>
-          <Pressable onPress={() => soon('Assets')}><Text style={styles.tabOff}>Assets 0</Text></Pressable>
-        </View>
-        <View style={styles.divider} />
-
         {/* folders */}
         <Text style={styles.sectionH}>Folders</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.folderRow}>
-          {folders.map((f) => (
-            <Pressable key={f.name} style={styles.folder} onPress={() => setActiveFolder(activeFolder === f.name ? null : f.name)}>
-              <LinearGradient colors={activeFolder === f.name ? ['#9fc8ff', '#6d4aff'] : ['#bfe0ff', '#9fc8ff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.folderCard}>
-                <View style={styles.folderTab} />
-                <VIcon d={f.d} size={30} color={activeFolder === f.name ? '#fff' : '#4a86d6'} strokeWidth={2} />
-              </LinearGradient>
-              <Text style={[styles.folderName, activeFolder === f.name && { color: vela.accent }]}>{f.name}</Text>
-              <Text style={styles.folderItems}>{f.count} {f.count === 1 ? 'Item' : 'Items'}</Text>
-            </Pressable>
-          ))}
+          {folders.map((f) => {
+            const on = activeFolder === f.name;
+            return (
+              <Pressable key={f.name} style={styles.folder} onPress={() => setActiveFolder(on ? null : f.name)}>
+                <View style={[styles.folderCard, on && styles.folderCardOn]}>
+                  <VIcon d={f.d} size={30} color={on ? vela.accent : vela.ink3} strokeWidth={2} />
+                </View>
+                <Text style={[styles.folderName, on && { color: vela.accent }]}>{f.name}</Text>
+                <Text style={styles.folderItems}>{f.count} {f.count === 1 ? 'Item' : 'Items'}</Text>
+              </Pressable>
+            );
+          })}
         </ScrollView>
 
         {/* projects */}
@@ -252,7 +219,7 @@ export function ProjectsScreen() {
           <Text style={styles.sectionH}>Projects <Text style={styles.tabCount}>{projects.length}</Text></Text>
           <Pressable onPress={() => soon('Edit')} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Text style={styles.editLink}>Edit</Text>
-            <VIcon name="list" size={20} color="#888" strokeWidth={2} />
+            <VIcon name="list" size={20} color={vela.lightMuted} strokeWidth={2} />
           </Pressable>
         </View>
 
@@ -296,35 +263,18 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 22, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   h1: { fontFamily: font.extrabold, fontSize: 30, color: vela.ink, letterSpacing: -0.6 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  roundBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 3, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  roundBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: vela.lightCard, alignItems: 'center', justifyContent: 'center' },
 
   search: { marginHorizontal: 22, marginTop: 16, height: 46, borderRadius: 14, backgroundColor: vela.lightSurface, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
   searchText: { color: vela.lightMuted, fontSize: 16, fontFamily: font.medium },
 
-  promo: { marginHorizontal: 22, marginTop: 16, height: 96, borderRadius: 18, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, overflow: 'hidden' },
-  promoLogo: { width: 50, height: 50, borderRadius: 13, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  promoLogoText: { fontFamily: font.extrabold, color: vela.accent, fontSize: 20, letterSpacing: -1 },
-  promoTitle: { color: '#fff', fontFamily: font.extrabold, fontSize: 17 },
-  promoBadge: { backgroundColor: vela.accent, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, marginLeft: 6 },
-  promoBadgeText: { color: '#fff', fontSize: 9, fontFamily: font.bold },
-  promoSub: { color: 'rgba(255,255,255,0.7)', fontSize: 12.5, marginTop: 3, fontFamily: font.medium },
-  promoClose: { position: 'absolute', right: 14, top: 14, width: 20, height: 20, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
-  promoCloseText: { color: '#fff', fontSize: 11 },
-  promoCta: { position: 'absolute', right: 16, bottom: 14, backgroundColor: '#fff', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 6 },
-  promoCtaText: { color: '#1a1340', fontFamily: font.bold, fontSize: 12 },
-
-  tabs: { flexDirection: 'row', gap: 22, paddingHorizontal: 22, marginTop: 22 },
-  tabOn: { fontFamily: font.bold, fontSize: 17, color: vela.ink, paddingBottom: 8 },
-  tabOff: { fontFamily: font.bold, fontSize: 17, color: vela.lightMuted3, paddingBottom: 8 },
   tabCount: { color: vela.lightMuted },
-  tabUnderline: { position: 'absolute', left: 0, bottom: 0, width: 26, height: 3, backgroundColor: vela.accent, borderRadius: 2 },
-  divider: { height: 1, backgroundColor: vela.lightBorder },
 
   sectionH: { paddingHorizontal: 22, paddingTop: 20, paddingBottom: 6, fontFamily: font.extrabold, fontSize: 18, color: vela.ink },
-  folderRow: { gap: 16, paddingHorizontal: 22, paddingBottom: 6 },
+  folderRow: { gap: 16, paddingHorizontal: 22, paddingBottom: 6, paddingTop: 4 },
   folder: { width: 118 },
-  folderCard: { height: 92, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  folderTab: { position: 'absolute', top: -7, left: 14, width: 40, height: 14, backgroundColor: '#9fc8ff', borderTopLeftRadius: 6, borderTopRightRadius: 6 },
+  folderCard: { height: 92, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: vela.lightSurface },
+  folderCardOn: { backgroundColor: vela.accentSoft, borderWidth: 1.5, borderColor: vela.accent },
   folderName: { textAlign: 'center', marginTop: 9, fontFamily: font.bold, fontSize: 15, color: vela.ink },
   folderItems: { textAlign: 'center', fontSize: 12, color: '#a0a0a8', marginTop: 1 },
 
@@ -339,7 +289,6 @@ const styles = StyleSheet.create({
   rowFolder: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
   folderDot: { width: 14, height: 14, borderRadius: 4, backgroundColor: vela.folderDot },
   rowFolderText: { color: vela.lightMuted, fontSize: 13.5, fontFamily: font.medium },
-  dots: { color: '#cfcfd6', fontSize: 18, letterSpacing: 1, paddingHorizontal: 4 },
   rowDate: { color: vela.lightMuted2, fontSize: 13, marginTop: 14 },
 
   empty: { alignItems: 'center', marginTop: 50, gap: 6 },
@@ -356,6 +305,4 @@ const styles = StyleSheet.create({
   menuItemDivider: { height: 1, backgroundColor: vela.lightSurface, marginVertical: 6 },
   menuRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 15 },
   menuRowText: { fontSize: 18, fontFamily: font.semibold },
-  proPill: { marginLeft: 'auto', backgroundColor: '#2b2b30', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 3 },
-  proPillText: { color: vela.select, fontSize: 11, fontFamily: font.extrabold },
 });
