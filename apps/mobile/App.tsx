@@ -50,10 +50,12 @@ export default function App() {
   }
 
   const isEditor = screen === 'editor';
+  // Light status-bar text on the dark-topped screens; dark on the light Home.
+  const darkTop = isEditor || screen === 'quick' || screen === 'discover';
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar style={isEditor ? 'light' : 'dark'} />
+      <StatusBar style={darkTop ? 'light' : 'dark'} />
       {isEditor ? (
         <EditorScreen />
       ) : screen === 'quick' ? (

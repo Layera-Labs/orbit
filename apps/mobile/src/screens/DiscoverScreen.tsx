@@ -106,7 +106,7 @@ export function DiscoverScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: vela.homeBg },
 
-  hero: { paddingBottom: 26, borderBottomLeftRadius: 26, borderBottomRightRadius: 26 },
+  hero: { paddingBottom: 26 },
   heroTop: { paddingHorizontal: 22, paddingTop: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   h1: { fontFamily: font.extrabold, fontSize: 30, color: '#fff', letterSpacing: -0.6 },
   search: { marginHorizontal: 22, marginTop: 14, height: 46, borderRadius: 14, backgroundColor: vela.lightCard, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
