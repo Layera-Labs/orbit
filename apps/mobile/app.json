@@ -23,6 +23,10 @@
       "bundleIdentifier": "com.anonymous.orbit-video"
     },
     "userInterfaceStyle": "dark",
+    "assetBundlePatterns": [
+      "assets/content/**",
+      "**/*"
+    ],
     "plugins": [
       "expo-asset",
       "expo-video",
