@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
-import { DEFAULT_SERVER, theme } from '../constants';
+import { DEFAULT_SERVER, font, vela } from '../constants';
+import { VIcon } from '../components/VIcon';
 import { useEditor } from '../store/editorStore';
 
 type Mode = 'quote' | 'ai';
@@ -46,7 +47,7 @@ export function QuickGenerateScreen() {
           width: 1080,
           height: 1920,
           fps: 30,
-          background: { type: 'gradient', from: '#0f172a', to: '#334155', angle: 180 },
+          background: { type: 'gradient', from: '#1a1712', to: '#0c0b0a', angle: 180 },
           clips: [],
           overlays: [
             {
@@ -83,8 +84,9 @@ export function QuickGenerateScreen() {
 
   return (
     <ScrollView contentContainerStyle={styles.root}>
-      <Pressable onPress={() => go('projects')} hitSlop={10}>
-        <Text style={styles.back}>‹ Projects</Text>
+      <Pressable onPress={() => go('projects')} hitSlop={10} style={styles.backRow}>
+        <VIcon name="back" size={20} color={vela.accent} />
+        <Text style={styles.back}>Projects</Text>
       </Pressable>
       <Text style={styles.title}>Quick generate</Text>
 
@@ -96,7 +98,7 @@ export function QuickGenerateScreen() {
         autoCapitalize="none"
         autoCorrect={false}
         placeholder="http://<mac-ip>:8787"
-        placeholderTextColor={theme.muted}
+        placeholderTextColor={vela.muted3}
       />
 
       <View style={styles.tabs}>
@@ -115,11 +117,11 @@ export function QuickGenerateScreen() {
         value={text}
         onChangeText={setText}
         multiline
-        placeholderTextColor={theme.muted}
+        placeholderTextColor={vela.muted3}
       />
 
       <Pressable style={[styles.btn, busy && styles.btnOff]} onPress={render} disabled={busy}>
-        {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Render video</Text>}
+        {busy ? <ActivityIndicator color={vela.onAccent} /> : <Text style={styles.btnText}>Render video</Text>}
       </Pressable>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
@@ -130,20 +132,21 @@ export function QuickGenerateScreen() {
 }
 
 const styles = StyleSheet.create({
-  root: { padding: 20, paddingTop: 64, backgroundColor: theme.bg, minHeight: '100%', gap: 12 },
-  back: { color: theme.accent, fontSize: 16, fontWeight: '600' },
-  title: { color: theme.text, fontSize: 28, fontWeight: '700', marginBottom: 8 },
-  label: { color: theme.subtext, fontSize: 13, marginTop: 8 },
-  input: { backgroundColor: theme.surface, color: theme.text, borderRadius: 10, padding: 12, fontSize: 16 },
+  root: { padding: 20, paddingTop: 64, backgroundColor: vela.editorBg, minHeight: '100%', gap: 12 },
+  backRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  back: { color: vela.accent, fontSize: 16, fontFamily: font.semibold },
+  title: { color: vela.textLight, fontSize: 28, fontFamily: font.extrabold, marginBottom: 8 },
+  label: { color: vela.muted, fontSize: 13, marginTop: 8, fontFamily: font.medium },
+  input: { backgroundColor: vela.card, color: vela.textLight, borderRadius: 12, padding: 14, fontSize: 16, fontFamily: font.regular },
   multiline: { minHeight: 80, textAlignVertical: 'top' },
   tabs: { flexDirection: 'row', gap: 8, marginTop: 8 },
-  tab: { flex: 1, padding: 12, borderRadius: 10, backgroundColor: theme.surface, alignItems: 'center' },
-  tabOn: { backgroundColor: theme.accent },
-  tabText: { color: theme.subtext, fontWeight: '600' },
-  tabTextOn: { color: theme.accentText },
-  btn: { backgroundColor: theme.accent, borderRadius: 12, padding: 16, alignItems: 'center', marginTop: 12 },
+  tab: { flex: 1, padding: 12, borderRadius: 12, backgroundColor: vela.card, alignItems: 'center' },
+  tabOn: { backgroundColor: vela.accentSoft },
+  tabText: { color: vela.muted, fontFamily: font.semibold },
+  tabTextOn: { color: vela.accent },
+  btn: { backgroundColor: vela.accent, borderRadius: 14, padding: 16, alignItems: 'center', marginTop: 12 },
   btnOff: { opacity: 0.6 },
-  btnText: { color: theme.accentText, fontSize: 17, fontWeight: '700' },
-  error: { color: theme.danger, marginTop: 8 },
+  btnText: { color: vela.onAccent, fontSize: 17, fontFamily: font.bold },
+  error: { color: vela.danger, marginTop: 8, fontFamily: font.medium },
   video: { width: '100%', aspectRatio: 9 / 16, borderRadius: 12, marginTop: 16, backgroundColor: '#000' },
 });

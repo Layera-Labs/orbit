@@ -124,30 +124,5 @@ export const elev = {
   float: { shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 8 },
 } as const;
 
-/**
- * Legacy `theme` object — kept as a thin alias over the Orbit tokens so the two
- * screens still reading `theme.*` (QuickGenerate, NewProjectModal) render the
- * warm gold-on-black system, not the old slate, until their bespoke reskin. Prefer
- * importing `vela`/`sp`/`r`/`elev` directly in new code.
- */
-export const theme = {
-  bg: vela.editorBg,
-  surface: vela.card,
-  surface2: vela.sheet,
-  text: vela.textLight,
-  subtext: vela.muted,
-  muted: vela.muted2,
-  accent: vela.accent,
-  accentText: vela.onAccent,
-  danger: vela.danger,
-  border: vela.divider,
-  editorBg: vela.editorBg,
-  track: vela.clipBg,
-  trackBorder: vela.toolbarBorder,
-  font,
-  mono,
-  vela,
-};
-
 /** Default render-service URL (sim shares the Mac's network on localhost). */
 export const DEFAULT_SERVER = 'http://localhost:8787';
