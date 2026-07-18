@@ -90,6 +90,7 @@ const ICONS = {
   search: { circles: [[11, 11, 7]], paths: ['M20 20l-4-4'], sw: 2.2 },
   templates: { paths: ['M4 8l4 4 4-7 4 7 4-4-2 11H6z'], sw: 2 },
   profile: { circles: [[12, 9, 3.2]], paths: ['M5 20a7 7 0 0114 0'], sw: 2 },
+  crown: { paths: ['M4 8.5l3.4 3L12 5l4.6 6.5 3.4-3L18.5 19h-13zM6 19h12'], sw: 1.9 },
 
   // ---- home / discover headers ----
   crop: { paths: ['M4 8V5h3M20 8V5h-3M4 16v3h3M20 16v3h-3'], sw: 2 },
