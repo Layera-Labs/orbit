@@ -192,7 +192,7 @@ export function EditorScreen() {
             <VIcon name="save" size={19} color="#fff" />
           </Pressable>
           <Pressable style={styles.exportTile} onPress={() => setPanel('export')}>
-            <VIcon name="export" size={19} color="#fff" />
+            <VIcon name="export" size={19} color={vela.onAccent} />
           </Pressable>
         </View>
       </View>
@@ -229,10 +229,10 @@ export function EditorScreen() {
             <VIcon name="prefs" size={20} color="#fff" />
           </Pressable>
           <Pressable onPress={undo} disabled={!canUndo} hitSlop={8}>
-            <VIcon d="M9 14l-4-4 4-4M5 10h7a5 5 0 015 5v1" size={19} color={canUndo ? '#fff' : vela.muted2} />
+            <VIcon name="undo" size={19} color={canUndo ? '#fff' : vela.muted3} />
           </Pressable>
           <Pressable onPress={redo} disabled={!canRedo} hitSlop={8}>
-            <VIcon d="M15 14l4-4-4-4M19 10h-7a5 5 0 00-5 5v1" size={19} color={canRedo ? '#fff' : vela.muted2} />
+            <VIcon name="redo" size={19} color={canRedo ? '#fff' : vela.muted3} />
           </Pressable>
         </View>
       </View>
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
 
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   whiteFrame: { backgroundColor: '#fff', borderRadius: 6, padding: 7 },
-  fullscreenBtn: { position: 'absolute', right: 24, bottom: 6, width: 34, height: 34, borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
+  fullscreenBtn: { position: 'absolute', right: 24, bottom: 6, width: 34, height: 34, borderRadius: 9, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
   fsRoot: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
   fsClose: { position: 'absolute', top: 52, right: 20, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
 
