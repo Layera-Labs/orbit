@@ -471,9 +471,9 @@ function ExportSheet() {
         </View>
         <View style={s.exportBody}>
           <View style={s.rowBetween}>
-            <View style={s.rowBaseline}>
+            <View style={[s.rowBaseline, { flex: 1, minWidth: 0, marginRight: 12 }]}>
               <Text style={s.exportH}>Export Settings</Text>
-              <Text style={s.exportHmono}>{quality === 'Manual' ? `${RES_STEPS[resIdx].label} / ${fps}fps` : 'Auto'}</Text>
+              <Text style={[s.exportHmono, { flexShrink: 1 }]} numberOfLines={1}>{quality === 'Manual' ? `${RES_STEPS[resIdx].label} / ${fps}fps` : 'Auto'}</Text>
             </View>
             <View style={s.segment}>
               {(['Auto', 'Manual'] as const).map((q) => (
