@@ -28,7 +28,8 @@ import { ColorSheet } from './ColorSheet';
 import { FontPickerSheet } from './FontPickerSheet';
 import { FILTER_LIST } from '../filters/registry';
 import { BG_IMAGES, EMOJIS, GRADIENT_PRESETS, SOLID_PRESETS, STICKERS, openmojiUrl } from '../content/catalog';
-import { addStickerFromUrl, addStockItem, setBackgroundFromPhoto, setBackgroundFromUrl } from '../content/library';
+import { BUNDLED_BG, BUNDLED_EMOJI, BUNDLED_STICKER } from '../content/assets';
+import { addBundledSticker, addStickerFromUrl, addStockItem, setBackgroundFromPhoto, setBackgroundFromUrl, setBundledBackground } from '../content/library';
 import { getStockKey, setStockKey, type StockProvider } from '../content/keys';
 import { searchStock, isMissingKey, type StockItem, type StockKind } from '../content/stock';
 import { Linking } from 'react-native';
@@ -1490,6 +1491,12 @@ function ContentLibrarySheet() {
             <Pressable onPress={() => { close(); void setBackgroundFromPhoto(); }} style={[s.libCell, s.bgPhotoCell]}>
               <VIcon name="photos" size={22} color="#fff" />
             </Pressable>
+            {/* Bundled (offline) backgrounds first, then the network sample set. */}
+            {BUNDLED_BG.map((b) => (
+              <Pressable key={b.id} onPress={() => void setBundledBackground(b.module)} style={s.libCell}>
+                <Image source={b.module} style={s.libSwatch} resizeMode="cover" />
+              </Pressable>
+            ))}
             {BG_IMAGES.map((im) => (
               <Pressable key={im.id} onPress={() => void setBackgroundFromUrl(im.full)} style={s.libCell}>
                 <Image source={{ uri: im.thumb }} style={s.libSwatch} resizeMode="cover" />
@@ -1502,11 +1509,24 @@ function ContentLibrarySheet() {
       ) : (
         <ScrollView style={{ maxHeight: 380 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 8 }}>
           <View style={s.libGrid}>
-            {(tab === 'emoji' ? EMOJIS : STICKERS).map((e) => (
-              <Pressable key={e.code} onPress={() => { close(); void addStickerFromUrl(openmojiUrl(e.code, 618)); }} style={s.emojiCell}>
-                <Image source={{ uri: openmojiUrl(e.code, 72) }} style={{ width: 44, height: 44 }} resizeMode="contain" />
-              </Pressable>
-            ))}
+            {(() => {
+              const bundled = tab === 'emoji' ? BUNDLED_EMOJI : BUNDLED_STICKER;
+              const catalog = tab === 'emoji' ? EMOJIS : STICKERS;
+              // Bundled (offline) items first so the first screen works with no network.
+              const ordered = [...catalog.filter((e) => bundled[e.code]), ...catalog.filter((e) => !bundled[e.code])];
+              return ordered.map((e, i) => {
+                const mod = bundled[e.code];
+                return (
+                  <Pressable
+                    key={`${e.code}-${i}`}
+                    onPress={() => { close(); if (mod) void addBundledSticker(mod); else void addStickerFromUrl(openmojiUrl(e.code, 618)); }}
+                    style={s.emojiCell}
+                  >
+                    <Image source={mod ?? { uri: openmojiUrl(e.code, 72) }} style={{ width: 44, height: 44 }} resizeMode="contain" />
+                  </Pressable>
+                );
+              });
+            })()}
           </View>
         </ScrollView>
       )}
