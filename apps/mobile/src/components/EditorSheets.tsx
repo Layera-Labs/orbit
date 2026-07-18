@@ -48,11 +48,10 @@ const soon = (label: string) => Alert.alert('Coming soon', `${label} is coming s
 
 // ---- shared bits ---------------------------------------------------------
 
-function VToggle({ value, onChange, offColor = vela.toggleOff }: { value: boolean; onChange?: () => void; offColor?: string }) {
-  const knob = value ? '#fff' : offColor === '#fff' ? vela.textDim : '#fff';
+function VToggle({ value, onChange }: { value: boolean; onChange?: () => void }) {
   return (
-    <Pressable onPress={onChange} style={[s.tgTrack, { backgroundColor: value ? vela.action : offColor }]}>
-      <View style={[s.tgKnob, { backgroundColor: knob, left: value ? 22 : 2 }]} />
+    <Pressable onPress={onChange} style={[s.tgTrack, { backgroundColor: value ? vela.accent : vela.toggleOff }]}>
+      <View style={[s.tgKnob, { backgroundColor: '#fff', left: value ? 22 : 2 }]} />
     </Pressable>
   );
 }
@@ -74,15 +73,6 @@ function FullSheet({ onClose, children }: { onClose: () => void; children: React
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <View style={s.full}>{children}</View>
     </Modal>
-  );
-}
-
-function StaticSlider({ fill, knobSize = 18 }: { fill: number; knobSize?: number }) {
-  return (
-    <View style={s.sliderTrack}>
-      <View style={[s.sliderFill, { width: `${Math.round(fill * 100)}%` }]} />
-      <View style={[s.sliderKnob, { width: knobSize, height: knobSize, borderRadius: knobSize / 2, left: `${Math.round(fill * 100)}%`, marginLeft: -knobSize / 2 }]} />
-    </View>
   );
 }
 
@@ -110,7 +100,7 @@ function VideoSettingsSheet() {
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.ratioRow}>
         {options.map((r) => {
           const on = r.width === project.width && r.height === project.height;
-          const fg = on ? '#111' : vela.textDim;
+          const fg = on ? vela.accent : vela.textDim;
           return (
             <Pressable key={r.key} style={[s.ratioCard, on && s.ratioCardOn]} onPress={() => setRatio(r.width, r.height)}>
               <View style={[s.ratioBox, { borderColor: fg }]} />
@@ -267,7 +257,6 @@ function PrefsSheet() {
   const setPref = useEditor((s) => s.setPref);
   const setPanel = useEditor((s) => s.setPanel);
   const close = () => setPanel(null);
-  const fpsIdx = Math.max(0, FPS_STEPS.indexOf(prefs.previewFps));
 
   return (
     <BottomSheet onClose={close} style={s.prefsSheet}>
@@ -289,7 +278,7 @@ function PrefsSheet() {
           <View style={s.segment}>
             {(['Quick', 'Pro'] as const).map((m) => (
               <Pressable key={m} onPress={() => setPref('mainTrack', m)} style={[s.segItem, prefs.mainTrack === m && s.segItemOn]}>
-                <Text style={s.segText}>{m}</Text>
+                <Text style={[s.segText, prefs.mainTrack === m && { color: vela.accent }]}>{m}</Text>
               </Pressable>
             ))}
           </View>
@@ -312,7 +301,7 @@ function PrefsSheet() {
           <Text style={s.prefName}>Object Snapping</Text>
           <Text style={s.prefSub}>When off, objects snap only to edges or center.</Text>
         </View>
-        <VToggle value={prefs.snapping} onChange={() => setPref('snapping', !prefs.snapping)} offColor="#fff" />
+        <VToggle value={prefs.snapping} onChange={() => setPref('snapping', !prefs.snapping)} />
       </View>
 
       <Text style={s.prefsSection}>Preview</Text>
@@ -321,7 +310,6 @@ function PrefsSheet() {
           <VIcon name="prefFps" size={24} color={vela.textDim} />
           <Text style={s.prefName}>Preview FPS</Text>
         </View>
-        <StaticSlider fill={fpsIdx / (FPS_STEPS.length - 1)} />
         <View style={s.fpsRow}>
           {FPS_STEPS.map((v) => (
             <Pressable key={v} onPress={() => setPref('previewFps', v)}>
@@ -490,7 +478,7 @@ function ExportSheet() {
             <View style={s.segment}>
               {(['Auto', 'Manual'] as const).map((q) => (
                 <Pressable key={q} onPress={() => setQuality(q)} style={[s.segItem, quality === q && s.segItemOn]}>
-                  <Text style={s.segText}>{q}</Text>
+                  <Text style={[s.segText, quality === q && { color: vela.accent }]}>{q}</Text>
                 </Pressable>
               ))}
             </View>
@@ -498,7 +486,7 @@ function ExportSheet() {
 
           <View style={[s.rowBetween, { marginTop: 24 }]}>
             <Text style={s.exportToggleLabel}>Export Audio Only</Text>
-            <VToggle value={audioOnly} onChange={() => setAudioOnly((v) => !v)} offColor="#fff" />
+            <VToggle value={audioOnly} onChange={() => setAudioOnly((v) => !v)} />
           </View>
 
           {!audioOnly ? (
@@ -507,7 +495,7 @@ function ExportSheet() {
                 <Text style={s.exportToggleLabel}>HDR (HDR10)</Text>
                 <Text style={s.infoSub}>10-bit HEVC, BT.2020 + PQ colour</Text>
               </View>
-              <VToggle value={hdr} onChange={() => setHdr((v) => !v)} offColor="#fff" />
+              <VToggle value={hdr} onChange={() => setHdr((v) => !v)} />
             </View>
           ) : null}
 
@@ -679,9 +667,9 @@ function TransitionSheet() {
           return (
             <Pressable key={t.key} style={s.trItem} onPress={() => (t.soon ? soon(t.label) : apply(t.key))}>
               <View style={[s.trIcon, on && s.trIconOn]}>
-                <VIcon name={t.key === 'cut' ? 'close' : 'fx'} size={22} color={on ? '#111' : '#fff'} />
+                <VIcon name={t.key === 'cut' ? 'close' : 'fx'} size={22} color={on ? vela.accent : '#fff'} />
               </View>
-              <Text style={[s.trLabel, on && { color: vela.select }]}>{t.label}</Text>
+              <Text style={[s.trLabel, on && { color: vela.accent }]}>{t.label}</Text>
               {t.soon ? <View style={s.trSoon}><Text style={s.trSoonText}>soon</Text></View> : null}
             </Pressable>
           );
@@ -725,7 +713,7 @@ function SpeedSheet() {
       <View style={s.chipRow}>
         {[0.5, 1, 2, 3].map((v) => (
           <Pressable key={v} onPress={() => set(v)} style={[s.chip, speed === v && s.chipOn]}>
-            <Text style={[s.chipText, speed === v && { color: '#111' }]}>{v}×</Text>
+            <Text style={[s.chipText, speed === v && { color: vela.accent }]}>{v}×</Text>
           </Pressable>
         ))}
       </View>
@@ -789,7 +777,7 @@ function FxSheet() {
       <View style={s.chipRow}>
         {[0, 0.25, 0.5, 1].map((v) => (
           <Pressable key={v} onPress={() => set(v)} style={[s.chip, blur === v && s.chipOn]}>
-            <Text style={[s.chipText, blur === v && { color: '#111' }]}>{v === 0 ? 'None' : `${Math.round(v * 100)}%`}</Text>
+            <Text style={[s.chipText, blur === v && { color: vela.accent }]}>{v === 0 ? 'None' : `${Math.round(v * 100)}%`}</Text>
           </Pressable>
         ))}
       </View>
@@ -832,7 +820,7 @@ function MotionSheet() {
       <View style={s.motionGrid}>
         {MOTION_PRESETS.map((p) => (
           <Pressable key={p.type} onPress={() => setType(p.type)} style={[s.motionChip, motion.type === p.type && s.chipOn]}>
-            <Text style={[s.chipText, motion.type === p.type && { color: '#111' }]}>{p.label}</Text>
+            <Text style={[s.chipText, motion.type === p.type && { color: vela.accent }]}>{p.label}</Text>
           </Pressable>
         ))}
       </View>
@@ -870,7 +858,7 @@ function CutoutSheet() {
       </View>
       <View style={s.chipRow}>
         <Pressable onPress={toggle} style={[s.chip, on && s.chipOn]}>
-          <Text style={[s.chipText, on && { color: '#111' }]}>{on ? 'On' : 'Off'}</Text>
+          <Text style={[s.chipText, on && { color: vela.accent }]}>{on ? 'On' : 'Off'}</Text>
         </Pressable>
       </View>
       {on ? (
@@ -1005,7 +993,7 @@ function KeyframeSheet() {
       </View>
       <View style={s.rowBetween}>
         <Pressable onPress={addAtPlayhead} style={s.kfAddBtn}>
-          <VIcon name="keyframe" size={16} color="#111" />
+          <VIcon name="keyframe" size={16} color={vela.onAccent} />
           <Text style={s.kfAddText}>Add at playhead</Text>
         </Pressable>
         {kfs.length ? (
@@ -1141,18 +1129,18 @@ function MaskSheet() {
       </View>
       <View style={s.chipRow}>
         <Pressable onPress={() => update(on ? undefined : DEFAULT_MASK)} style={[s.chip, on && s.chipOn]}>
-          <Text style={[s.chipText, on && { color: '#111' }]}>{on ? 'On' : 'Off'}</Text>
+          <Text style={[s.chipText, on && { color: vela.accent }]}>{on ? 'On' : 'Off'}</Text>
         </Pressable>
         {on
           ? (['rectangle', 'circle'] as MaskShape[]).map((sh) => (
               <Pressable key={sh} onPress={() => patch({ shape: sh })} style={[s.chip, mask!.shape === sh && s.chipOn]}>
-                <Text style={[s.chipText, mask!.shape === sh && { color: '#111' }]}>{sh === 'rectangle' ? 'Rect' : 'Circle'}</Text>
+                <Text style={[s.chipText, mask!.shape === sh && { color: vela.accent }]}>{sh === 'rectangle' ? 'Rect' : 'Circle'}</Text>
               </Pressable>
             ))
           : null}
         {on ? (
           <Pressable onPress={() => patch({ invert: !mask!.invert })} style={[s.chip, mask!.invert && s.chipOn]}>
-            <Text style={[s.chipText, mask!.invert && { color: '#111' }]}>Invert</Text>
+            <Text style={[s.chipText, mask!.invert && { color: vela.accent }]}>Invert</Text>
           </Pressable>
         ) : null}
       </View>
@@ -1275,7 +1263,7 @@ function BlendSheet() {
       <View style={s.motionGrid}>
         {BLEND_OPTS.map((b) => (
           <Pressable key={b.mode} onPress={() => set(b.mode)} style={[s.motionChip, mode === b.mode && s.chipOn]}>
-            <Text style={[s.chipText, mode === b.mode && { color: '#111' }]}>{b.label}</Text>
+            <Text style={[s.chipText, mode === b.mode && { color: vela.accent }]}>{b.label}</Text>
           </Pressable>
         ))}
       </View>
@@ -1346,7 +1334,7 @@ function CurveSheet() {
           const on = p.pts ? JSON.stringify(pts) === JSON.stringify(p.pts) : !pts;
           return (
             <Pressable key={p.key} onPress={() => set(p.pts)} style={[s.motionChip, on && s.chipOn]}>
-              <Text style={[s.chipText, on && { color: '#111' }]}>{p.label}</Text>
+              <Text style={[s.chipText, on && { color: vela.accent }]}>{p.label}</Text>
             </Pressable>
           );
         })}
@@ -1387,13 +1375,13 @@ function StockTab({ onPick }: { onPick: () => void }) {
       <View style={s.chipRow}>
         {(['unsplash', 'pexels'] as StockProvider[]).map((p) => (
           <Pressable key={p} onPress={() => setProvider(p)} style={[s.chip, provider === p && s.chipOn]}>
-            <Text style={[s.chipText, provider === p && { color: '#111' }]}>{p === 'unsplash' ? 'Unsplash' : 'Pexels'}</Text>
+            <Text style={[s.chipText, provider === p && { color: vela.accent }]}>{p === 'unsplash' ? 'Unsplash' : 'Pexels'}</Text>
           </Pressable>
         ))}
         {provider === 'pexels'
           ? (['image', 'video'] as StockKind[]).map((k) => (
               <Pressable key={k} onPress={() => setKind(k)} style={[s.chip, effKind === k && s.chipOn]}>
-                <Text style={[s.chipText, effKind === k && { color: '#111' }]}>{k === 'image' ? 'Photos' : 'Videos'}</Text>
+                <Text style={[s.chipText, effKind === k && { color: vela.accent }]}>{k === 'image' ? 'Photos' : 'Videos'}</Text>
               </Pressable>
             ))
           : null}
@@ -1409,7 +1397,7 @@ function StockTab({ onPick }: { onPick: () => void }) {
           placeholderTextColor={vela.muted3}
           autoCapitalize="none"
         />
-        <Pressable onPress={run} style={s.stockSearchBtn}><VIcon name="search" size={20} color="#fff" /></Pressable>
+        <Pressable onPress={run} style={s.stockSearchBtn}><VIcon name="search" size={20} color={vela.onAccent} /></Pressable>
       </View>
 
       {needKey ? (
@@ -1642,23 +1630,17 @@ const s = StyleSheet.create({
   full: { flex: 1, backgroundColor: vela.editorBg },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   rowBaseline: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  sheetTitle: { color: '#fff', fontFamily: font.bold, fontSize: 17 },
-  handle: { width: 38, height: 4, borderRadius: 2, backgroundColor: '#3a3a42', alignSelf: 'center', marginBottom: 2 },
-  soonInline: { color: vela.muted2, fontSize: 10, fontFamily: font.bold },
+  sheetTitle: { color: '#fff', fontFamily: font.bold, fontSize: 18 },
+  handle: { width: 38, height: 4, borderRadius: 2, backgroundColor: vela.toggleOff, alignSelf: 'center', marginBottom: 2 },
 
   // toggle
   tgTrack: { width: 50, height: 30, borderRadius: 15, justifyContent: 'center' },
   tgKnob: { position: 'absolute', top: 2, width: 26, height: 26, borderRadius: 13 },
 
-  // slider
-  sliderTrack: { height: 4, backgroundColor: vela.toggleOff, borderRadius: 2, justifyContent: 'center' },
-  sliderFill: { position: 'absolute', left: 0, top: 0, bottom: 0, backgroundColor: vela.action, borderRadius: 2 },
-  sliderKnob: { position: 'absolute', backgroundColor: '#fff', top: '50%', marginTop: -9 },
-
   // video settings
   ratioRow: { gap: 12, paddingVertical: 2 },
   ratioCard: { width: 78, height: 78, borderRadius: 14, backgroundColor: vela.card3, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  ratioCardOn: { backgroundColor: '#fff' },
+  ratioCardOn: { backgroundColor: vela.accentSoft, borderWidth: 1.5, borderColor: vela.accent },
   ratioBox: { width: 24, height: 30, borderWidth: 2, borderRadius: 4 },
   ratioLabel: { fontSize: 13, fontFamily: font.bold },
   infoCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: vela.card3, borderRadius: 16, padding: 16, marginTop: 2 },
@@ -1666,25 +1648,23 @@ const s = StyleSheet.create({
   infoSub: { color: vela.muted2, fontSize: 12.5, marginTop: 3, maxWidth: 230 },
 
   // project menu
-  menuSheet: { backgroundColor: vela.card, gap: 0, paddingTop: 24, paddingHorizontal: 22 },
+  menuSheet: { backgroundColor: vela.sheet, gap: 0, paddingTop: 24, paddingHorizontal: 22 },
   menuHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 18 },
   menuTitle: { color: '#fff', fontFamily: font.extrabold, fontSize: 22, maxWidth: 260 },
   menuSub: { color: vela.muted5, fontSize: 15, marginTop: 5 },
   menuDivider: { height: 1, backgroundColor: vela.divider, marginBottom: 6 },
   menuRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 16 },
   menuRowText: { color: '#fff', fontSize: 18, fontFamily: font.semibold },
-  soonPill: { marginLeft: 'auto', backgroundColor: vela.card2, borderRadius: 7, paddingHorizontal: 8, paddingVertical: 3 },
-  soonPillText: { color: vela.muted2, fontSize: 10, fontFamily: font.bold },
 
   // grids
-  gridTitle: { color: '#fff', fontFamily: font.bold, fontSize: 17, textAlign: 'center', marginBottom: 4 },
+  gridTitle: { color: '#fff', fontFamily: font.bold, fontSize: 18, marginBottom: 4 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
   gridCard: { width: '31.5%', borderRadius: 18, alignItems: 'center', justifyContent: 'center', gap: 10 },
   gridLabel: { color: '#fff', fontFamily: font.semibold, fontSize: 14 },
 
   // prefs
-  prefsSheet: { backgroundColor: vela.card, maxHeight: '82%' },
-  prefsTitle: { color: '#fff', fontFamily: font.bold, fontSize: 19 },
+  prefsSheet: { backgroundColor: vela.sheet, maxHeight: '82%' },
+  prefsTitle: { color: '#fff', fontFamily: font.bold, fontSize: 18 },
   prefsSection: { color: vela.muted2, fontSize: 13, fontFamily: font.semibold },
   prefsCard: { backgroundColor: vela.card2, borderRadius: 16, padding: 16 },
   prefRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
@@ -1693,51 +1673,39 @@ const s = StyleSheet.create({
   prefSub: { color: vela.muted2, fontSize: 13, marginTop: 3 },
   segment: { flexDirection: 'row', backgroundColor: '#3a3a42', borderRadius: 11, padding: 3 },
   segItem: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 9 },
-  segItemOn: { backgroundColor: '#5a5a64' },
+  segItemOn: { backgroundColor: vela.accentSoft },
   segText: { color: '#fff', fontFamily: font.semibold, fontSize: 14 },
   fpsRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
   fpsLabel: { color: vela.muted2, fontFamily: mono.regular, fontSize: 12 },
-  fpsLabelOn: { color: '#fff' },
+  fpsLabelOn: { color: vela.accent, fontFamily: mono.bold },
 
   // filter
-  filterPreviewWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingTop: 10 },
-  filterPreviewFrame: { width: 200, height: 340, borderRadius: 6, backgroundColor: '#fff', padding: 7 },
-  filterPreviewInner: { flex: 1, borderRadius: 3 },
-  filterPanel: { backgroundColor: vela.sheet, borderTopLeftRadius: 22, borderTopRightRadius: 22, paddingVertical: 16, paddingBottom: 28 },
-  filterTabs: { flexDirection: 'row', justifyContent: 'center', gap: 40, marginBottom: 18 },
-  filterTabOn: { color: '#fff', fontFamily: font.bold, fontSize: 16 },
-  filterTabOff: { color: vela.muted3, fontFamily: font.semibold, fontSize: 16 },
-  filterCatRow: { gap: 26, paddingHorizontal: 22, paddingBottom: 14 },
-  filterCat: { color: vela.muted2, fontFamily: font.semibold, fontSize: 15 },
-  filterCatOn: { color: '#fff' },
   filterThumbRow: { gap: 12, paddingHorizontal: 18, paddingBottom: 14 },
   filterThumb: { width: 62, alignItems: 'center', gap: 6 },
   filterThumbImg: { width: 62, height: 78, borderRadius: 10, borderWidth: 2, borderColor: 'transparent' },
-  filterThumbOn: { borderColor: vela.select },
+  filterThumbOn: { borderColor: vela.accent },
   filterThumbLabel: { fontSize: 11, color: vela.muted, fontFamily: font.medium },
-  filterThumbLabelOn: { color: vela.select, fontFamily: font.bold },
+  filterThumbLabelOn: { color: vela.accent, fontFamily: font.bold },
   intensityRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 4, paddingVertical: 6 },
   intensityLabel: { color: '#fff', fontSize: 14, fontFamily: font.medium },
   intensityVal: { color: '#fff', fontFamily: mono.regular, fontSize: 14, minWidth: 34, textAlign: 'right' },
-  filterActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 28, paddingTop: 8 },
-  applyAll: { color: vela.muted, fontFamily: font.semibold, fontSize: 15 },
 
   trItem: { width: 62, alignItems: 'center', gap: 7 },
   trIcon: { width: 56, height: 56, borderRadius: 14, backgroundColor: vela.card3, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: 'transparent' },
-  trIconOn: { backgroundColor: vela.select, borderColor: vela.select },
+  trIconOn: { backgroundColor: vela.accentSoft, borderColor: vela.accent },
   trLabel: { color: vela.muted, fontSize: 12, fontFamily: font.medium },
   trSoon: { position: 'absolute', top: -3, right: 4, backgroundColor: vela.card2, borderRadius: 5, paddingHorizontal: 4, paddingVertical: 1 },
   trSoonText: { color: vela.muted2, fontSize: 8, fontFamily: font.bold },
 
   chipRow: { flexDirection: 'row', gap: 10 },
-  chip: { flex: 1, height: 40, borderRadius: 10, backgroundColor: vela.card3, alignItems: 'center', justifyContent: 'center' },
-  chipOn: { backgroundColor: vela.select },
+  chip: { flex: 1, height: 40, borderRadius: 12, backgroundColor: vela.card3, alignItems: 'center', justifyContent: 'center' },
+  chipOn: { backgroundColor: vela.accentSoft },
   chipText: { color: '#fff', fontFamily: font.semibold, fontSize: 14 },
 
   motionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  motionChip: { backgroundColor: vela.card2, borderRadius: 18, paddingVertical: 9, paddingHorizontal: 16 },
+  motionChip: { backgroundColor: vela.card3, borderRadius: 12, paddingVertical: 9, paddingHorizontal: 16 },
   cutSwatch: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  cutSwatchOn: { borderWidth: 2, borderColor: '#fff' },
+  cutSwatchOn: { borderWidth: 2, borderColor: vela.accent },
   trimReadout: { color: vela.muted2, fontFamily: mono.regular, fontSize: 12, textAlign: 'center' },
   voTime: { color: '#fff', fontFamily: mono.bold, fontSize: 30 },
   recBtn: { width: 76, height: 76, borderRadius: 38, backgroundColor: vela.danger, alignItems: 'center', justifyContent: 'center' },
@@ -1746,7 +1714,7 @@ const s = StyleSheet.create({
   libSection: { color: vela.muted2, fontFamily: font.semibold, fontSize: 12, marginTop: 4 },
   libGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   libCell: { width: 68, height: 68, borderRadius: 12, overflow: 'hidden', padding: 2 },
-  libCellOn: { borderWidth: 2, borderColor: vela.select },
+  libCellOn: { borderWidth: 2, borderColor: vela.accent },
   libSwatch: { flex: 1, borderRadius: 10 },
   emojiCell: { width: 56, height: 56, borderRadius: 12, backgroundColor: vela.card2, alignItems: 'center', justifyContent: 'center' },
   bgPhotoCell: { alignItems: 'center', justifyContent: 'center', backgroundColor: vela.card2 },
@@ -1757,12 +1725,12 @@ const s = StyleSheet.create({
   stockPrompt: { backgroundColor: vela.card2, borderRadius: 12, padding: 14, gap: 3 },
   stockCell: { width: 104, height: 104, borderRadius: 12, overflow: 'hidden', backgroundColor: vela.card2 },
   stockVideoBadge: { position: 'absolute', right: 6, bottom: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
-  kfAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: vela.select, borderRadius: 18, paddingVertical: 8, paddingHorizontal: 14 },
-  kfAddText: { color: '#111', fontFamily: font.semibold, fontSize: 14 },
+  kfAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: vela.accent, borderRadius: 12, paddingVertical: 8, paddingHorizontal: 14 },
+  kfAddText: { color: vela.onAccent, fontFamily: font.semibold, fontSize: 14 },
   kfClear: { color: vela.muted2, fontFamily: font.medium, fontSize: 13 },
   kfTrack: { height: 26, backgroundColor: vela.card2, borderRadius: 13, marginVertical: 4, justifyContent: 'center' },
   kfDiamond: { position: 'absolute', width: 12, height: 12, marginLeft: -6, backgroundColor: vela.muted2, transform: [{ rotate: '45deg' }], top: 7 },
-  kfDiamondOn: { backgroundColor: vela.select },
+  kfDiamondOn: { backgroundColor: vela.accent },
   kfPlayhead: { position: 'absolute', width: 2, height: 26, marginLeft: -1, backgroundColor: '#fff' },
   kfEditing: { color: vela.textLight, fontFamily: font.medium, fontSize: 13 },
   kfRemove: { color: vela.danger, fontFamily: font.medium, fontSize: 13, textAlign: 'center', paddingTop: 4 },
@@ -1775,21 +1743,21 @@ const s = StyleSheet.create({
   adjustVal: { color: '#fff', fontFamily: mono.regular, fontSize: 13, minWidth: 40, textAlign: 'right' },
 
   // export
-  exportTopRow: { paddingHorizontal: 22, paddingTop: 8 },
+  exportTopRow: { paddingHorizontal: 22, paddingTop: 8, alignItems: 'flex-end' },
   exportThumbWrap: { alignItems: 'center', paddingVertical: 14 },
   exportThumbFrame: { width: 148, height: 264, borderRadius: 4, backgroundColor: '#fff', padding: 5 },
   exportThumbInner: { flex: 1, borderRadius: 2 },
   exportBody: { paddingHorizontal: 22 },
   exportH: { color: '#fff', fontFamily: font.extrabold, fontSize: 17 },
   exportHmono: { color: vela.muted, fontFamily: mono.regular, fontSize: 13 },
-  exportToggleLabel: { color: '#fff', fontFamily: font.extrabold, fontSize: 19 },
+  exportToggleLabel: { color: '#fff', fontFamily: font.semibold, fontSize: 16 },
   exportField: { color: '#fff', fontFamily: font.semibold, fontSize: 17, marginTop: 22, marginBottom: 14 },
   scaleRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
   scaleLabel: { color: vela.muted2, fontSize: 13 },
-  scaleLabelOn: { color: '#fff' },
+  scaleLabelOn: { color: vela.accent, fontFamily: font.bold },
   bitrateChip: { backgroundColor: vela.card2, color: '#fff', fontFamily: mono.regular, fontSize: 15, paddingHorizontal: 16, paddingVertical: 7, borderRadius: 8 },
-  exportBtn: { height: 58, borderRadius: 14, backgroundColor: vela.action, alignItems: 'center', justifyContent: 'center', marginHorizontal: 22, marginBottom: 30 },
-  exportBtnText: { color: '#fff', fontFamily: font.bold, fontSize: 19 },
+  exportBtn: { height: 58, borderRadius: 14, backgroundColor: vela.accent, alignItems: 'center', justifyContent: 'center', marginHorizontal: 22, marginBottom: 30 },
+  exportBtnText: { color: vela.onAccent, fontFamily: font.bold, fontSize: 19 },
 
   // text edit
   teWrap: { flex: 1, justifyContent: 'flex-end' },
