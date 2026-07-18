@@ -16,7 +16,7 @@ import {
   JetBrainsMono_700Bold,
 } from '@expo-google-fonts/jetbrains-mono';
 import { useEditor } from './src/store/editorStore';
-import { theme } from './src/constants';
+import { vela } from './src/constants';
 import { ProjectsScreen } from './src/screens/ProjectsScreen';
 import { DiscoverScreen } from './src/screens/DiscoverScreen';
 import { EditorScreen } from './src/screens/EditorScreen';
@@ -46,7 +46,7 @@ export default function App() {
   // Hold a flat screen in the app's first-screen colour until fonts are ready,
   // so we never flash unstyled (system-font) text.
   if (!fontsLoaded) {
-    return <View style={{ flex: 1, backgroundColor: theme.vela.homeBg }} />;
+    return <View style={{ flex: 1, backgroundColor: vela.homeBg }} />;
   }
 
   const isEditor = screen === 'editor';
