@@ -203,7 +203,7 @@ function ProjectMenuSheet() {
 
 // ---- Insert / Audio grids ------------------------------------------------
 
-interface GridItem { label: string; bg: string; icon: VIconName; onPress: () => void; }
+interface GridItem { label: string; icon: VIconName; onPress: () => void; }
 
 function GridSheet({ title, items, tall }: { title: string; items: GridItem[]; tall?: boolean }) {
   const setPanel = useEditor((s) => s.setPanel);
@@ -213,8 +213,8 @@ function GridSheet({ title, items, tall }: { title: string; items: GridItem[]; t
       <Text style={s.gridTitle}>{title}</Text>
       <View style={s.grid}>
         {items.map((it) => (
-          <Pressable key={it.label} style={[s.gridCard, { backgroundColor: it.bg, height: tall ? 128 : 104 }]} onPress={it.onPress}>
-            <VIcon name={it.icon} size={tall ? 34 : 28} color="#fff" strokeWidth={1.9} />
+          <Pressable key={it.label} style={[s.gridCard, { backgroundColor: vela.card2, height: tall ? 128 : 104 }]} onPress={it.onPress}>
+            <VIcon name={it.icon} size={tall ? 34 : 28} color={vela.accent} strokeWidth={1.9} />
             <Text style={s.gridLabel}>{it.label}</Text>
           </Pressable>
         ))}
@@ -228,12 +228,12 @@ function InsertSheet() {
   const openLibrary = useEditor((s) => s.openLibrary);
   const addText = useEditor((s) => s.addText);
   const items: GridItem[] = [
-    { label: 'Photos', bg: '#37b6f0', icon: 'photos', onPress: () => { setPanel(null); void pickAndAddMedia(); } },
-    { label: 'Audio', bg: '#6d4aff', icon: 'audio', onPress: () => setPanel('audio') },
-    { label: 'Text', bg: '#15b8a6', icon: 'text', onPress: () => { setPanel(null); addText(); } },
-    { label: 'Sticker', bg: '#c04af0', icon: 'sticker', onPress: () => openLibrary('stickers') },
-    { label: 'Library', bg: '#ff5a5f', icon: 'templates', onPress: () => openLibrary('emoji') },
-    { label: 'Upload', bg: '#ff8a3d', icon: 'image', onPress: () => { setPanel(null); void pickAndAddOverlay(); } },
+    { label: 'Photos', icon: 'photos', onPress: () => { setPanel(null); void pickAndAddMedia(); } },
+    { label: 'Audio', icon: 'audio', onPress: () => setPanel('audio') },
+    { label: 'Text', icon: 'text', onPress: () => { setPanel(null); addText(); } },
+    { label: 'Sticker', icon: 'sticker', onPress: () => openLibrary('stickers') },
+    { label: 'Library', icon: 'templates', onPress: () => openLibrary('emoji') },
+    { label: 'Upload', icon: 'image', onPress: () => { setPanel(null); void pickAndAddOverlay(); } },
   ];
   return <GridSheet title="Add to timeline" items={items} />;
 }
@@ -241,9 +241,9 @@ function InsertSheet() {
 function AudioSheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const items: GridItem[] = [
-    { label: 'Music', bg: '#6d4aff', icon: 'audio', onPress: () => { setPanel(null); void pickAndAddAudio(); } },
-    { label: 'Sound FX', bg: '#c04af0', icon: 'soundfx', onPress: () => soon('Sound FX') },
-    { label: 'Record', bg: '#ff5a5f', icon: 'record', onPress: () => soon('Record') },
+    { label: 'Music', icon: 'audio', onPress: () => { setPanel(null); void pickAndAddAudio(); } },
+    { label: 'Sound FX', icon: 'soundfx', onPress: () => soon('Sound FX') },
+    { label: 'Record', icon: 'record', onPress: () => soon('Record') },
   ];
   return <GridSheet title="Insert audio" items={items} tall />;
 }
