@@ -23,6 +23,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { font, mono, vela, RATIOS, ratioLabel } from '../constants';
 import { VIcon, type VIconName } from './VIcon';
+import { BottomSheet } from './BottomSheet';
 import { VSlider } from './VSlider';
 import { ColorSheet } from './ColorSheet';
 import { FontPickerSheet } from './FontPickerSheet';
@@ -53,18 +54,6 @@ function VToggle({ value, onChange }: { value: boolean; onChange?: () => void })
     <Pressable onPress={onChange} style={[s.tgTrack, { backgroundColor: value ? vela.accent : vela.toggleOff }]}>
       <View style={[s.tgKnob, { backgroundColor: '#fff', left: value ? 22 : 2 }]} />
     </Pressable>
-  );
-}
-
-function BottomSheet({ onClose, children, style, dim }: { onClose: () => void; children: React.ReactNode; style?: object; dim?: string }) {
-  return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={[s.backdrop, dim ? { backgroundColor: dim } : null]} onPress={onClose}>
-        <Pressable style={[s.sheet, style]} onPress={() => {}}>
-          {children}
-        </Pressable>
-      </Pressable>
-    </Modal>
   );
 }
 

@@ -11,6 +11,7 @@ import { font, mono, vela, ratioLabel } from '../constants';
 import { projectDuration } from '../model/project';
 import { VIcon } from '../components/VIcon';
 import { BottomNav } from '../components/BottomNav';
+import { BottomSheet } from '../components/BottomSheet';
 import { useEditor } from '../store/editorStore';
 import type { StoredProject } from '../storage/projects';
 import { CreateSheet } from './CreateSheet';
@@ -114,27 +115,25 @@ function ProjectMenu({ p, onClose }: { p: StoredProject; onClose: () => void }) 
   ];
 
   return (
-    <Pressable style={styles.menuBackdrop} onPress={onClose}>
-      <Pressable style={styles.menuSheet} onPress={() => {}}>
-        <View style={styles.menuHeader}>
-          <View>
-            <Text style={styles.menuTitle} numberOfLines={1}>{p.name}</Text>
-            <Text style={styles.menuSub}>{ratioLabel(p.project.width, p.project.height)}</Text>
-          </View>
-          <VIcon name="pencil" size={24} color={vela.ink2} />
+    <BottomSheet onClose={onClose} style={styles.menuSheet} dim="rgba(20,20,30,0.32)">
+      <View style={styles.menuHeader}>
+        <View>
+          <Text style={styles.menuTitle} numberOfLines={1}>{p.name}</Text>
+          <Text style={styles.menuSub}>{ratioLabel(p.project.width, p.project.height)}</Text>
         </View>
-        <View style={styles.menuDivider} />
-        {items.map((it) => (
-          <View key={it.label}>
-            {it.div ? <View style={styles.menuItemDivider} /> : null}
-            <Pressable style={styles.menuRow} onPress={it.onPress}>
-              <VIcon d={it.d} size={24} color={it.color} />
-              <Text style={[styles.menuRowText, { color: it.color }]}>{it.label}</Text>
-            </Pressable>
-          </View>
-        ))}
-      </Pressable>
-    </Pressable>
+        <VIcon name="pencil" size={24} color={vela.ink2} />
+      </View>
+      <View style={styles.menuDivider} />
+      {items.map((it) => (
+        <View key={it.label}>
+          {it.div ? <View style={styles.menuItemDivider} /> : null}
+          <Pressable style={styles.menuRow} onPress={it.onPress}>
+            <VIcon d={it.d} size={24} color={it.color} />
+            <Text style={[styles.menuRowText, { color: it.color }]}>{it.label}</Text>
+          </Pressable>
+        </View>
+      ))}
+    </BottomSheet>
   );
 }
 
@@ -296,8 +295,7 @@ const styles = StyleSheet.create({
   emptyHint: { color: vela.lightMuted, fontSize: 13 },
 
   // project menu
-  menuBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,20,30,0.32)', justifyContent: 'flex-end' },
-  menuSheet: { backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 30 },
+  menuSheet: { backgroundColor: vela.lightCard, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 30, gap: 0 },
   menuHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 18 },
   menuTitle: { fontFamily: font.extrabold, fontSize: 22, color: vela.ink2, maxWidth: 260 },
   menuSub: { color: vela.lightMuted, fontSize: 14, marginTop: 4 },
