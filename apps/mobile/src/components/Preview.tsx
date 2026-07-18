@@ -395,6 +395,10 @@ export function Preview({ width, height }: { width: number; height: number }) {
                 textAlign: o.align ?? 'center',
                 fontFamily: o.fontFamily,
                 width: '90%',
+                // Default legibility floor so captions read over any footage.
+                textShadowColor: 'rgba(0,0,0,0.45)',
+                textShadowOffset: { width: 0, height: 1 },
+                textShadowRadius: 3,
               }}
             >
               {o.text}
@@ -409,6 +413,6 @@ export function Preview({ width, height }: { width: number; height: number }) {
 
 const styles = StyleSheet.create({
   frame: { backgroundColor: '#000', borderRadius: 4, overflow: 'hidden', alignItems: 'center', justifyContent: 'center' },
-  empty: { position: 'absolute', bottom: 10, color: 'rgba(255,255,255,0.6)', fontSize: 10, fontFamily: mono.regular },
+  empty: { position: 'absolute', bottom: 10, color: 'rgba(255,255,255,0.85)', fontSize: 11, fontFamily: mono.regular },
   textOverlay: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
 });

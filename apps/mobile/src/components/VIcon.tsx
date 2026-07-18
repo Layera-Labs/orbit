@@ -50,6 +50,8 @@ const ICONS = {
   next: { mode: 'fill', paths: ['M6 5v14l9-7zM17 5h2v14h-2z'] },
   prefs: { circles: [[7, 8, 2], [17, 16, 2]], paths: ['M9 8h11M4 16h11'], sw: 2 },
   fullscreen: { paths: ['M9 3H4v5M15 3h5v5M9 21H4v-5M15 21h5v-5'], sw: 2 },
+  undo: { paths: ['M9 14l-4-4 4-4', 'M5 10h8a5 5 0 015 5v1'], sw: 2 },
+  redo: { paths: ['M15 14l4-4-4-4', 'M19 10h-8a5 5 0 00-5 5v1'], sw: 2 },
 
   // ---- bottom toolbar (tools) ----
   filter: { paths: ['M8 7a4 4 0 100 8 4 4 0 000-8zM14 9a4 4 0 100 8 4 4 0 000-8z'], sw: 1.7 },

@@ -23,7 +23,7 @@ import {
   View,
 } from 'react-native';
 import { Gesture, GestureDetector, ScrollView } from 'react-native-gesture-handler';
-import { mono, vela } from '../constants';
+import { font, mono, vela } from '../constants';
 import { VIcon, type VIconName } from './VIcon';
 import { MIN_CLIP } from '../model/editor-ops';
 import { projectDuration } from '../model/project';
@@ -166,7 +166,7 @@ function ClipView({ clip, trackId, kind, height, selected, pxPerSec, scrollRef }
       {kind === 'visual' ? (
         <Filmstrip clip={v} height={height} />
       ) : kind === 'audio' ? (
-        <Waveform seed={clip.id} width={width} color="#c79bff" />
+        <Waveform seed={clip.id} width={width} color={vela.wave} />
       ) : (
         <View style={styles.textFill}>
           <Text numberOfLines={1} style={styles.textLabel}>
@@ -213,7 +213,7 @@ function SoundBlock({ clip, pxPerSec }: { clip: ClipLike; pxPerSec: number }) {
   const width = Math.max(20, clip.duration * pxPerSec);
   return (
     <View style={[styles.soundBlock, { left, width }]} pointerEvents="none">
-      <Waveform seed={`${clip.id}snd`} width={width} color="#c7b46a" />
+      <Waveform seed={`${clip.id}snd`} width={width} color={vela.waveSound} />
     </View>
   );
 }
@@ -276,14 +276,14 @@ function ClipLane({ row, pxPerSec, selected, scrollRef }: { row: RowDef; pxPerSe
                   setPanel('transition');
                 }}
               >
-                <VIcon name={hasT ? 'fx' : 'plus'} size={12} color={hasT ? '#111' : '#fff'} />
+                <VIcon name={hasT ? 'fx' : 'plus'} size={12} color={hasT ? vela.onAccent : '#fff'} />
               </Pressable>
             );
           })
         : null}
       {row.addTile && row.clips.length > 0 ? (
         <Pressable onPress={row.add} style={[styles.addTile, { left: lastEnd * pxPerSec + 4, height: row.height }]}>
-          <VIcon name="plus" size={22} color="#111" />
+          <VIcon name="plus" size={22} color={vela.onAccent} />
         </Pressable>
       ) : null}
     </View>
@@ -424,35 +424,36 @@ const styles = StyleSheet.create({
   ruler: { height: RULER_H, justifyContent: 'flex-end' },
   tickLabel: { color: vela.muted3, fontSize: 9, marginBottom: 1, fontFamily: mono.regular },
   tickMajor: { width: 1.5, height: 8, backgroundColor: vela.muted3 },
-  tickMinor: { width: 1, height: 4, backgroundColor: '#3a3a42' },
+  tickMinor: { width: 1, height: 4, backgroundColor: vela.tickMinor },
 
   rowBg: { borderRadius: 7, backgroundColor: vela.emptyTrack },
   emptyTap: { alignSelf: 'flex-start', paddingVertical: 6 },
-  emptyHint: { color: vela.muted4, fontSize: 13, paddingLeft: 12 },
+  emptyHint: { color: vela.muted2, fontSize: 13, paddingLeft: 12 },
 
-  clip: { position: 'absolute', top: 0, borderRadius: 7, overflow: 'hidden', backgroundColor: '#2a2a30', borderWidth: 2, borderColor: 'transparent' },
+  clip: { position: 'absolute', top: 0, borderRadius: 7, overflow: 'hidden', backgroundColor: vela.clipBg, borderWidth: 2, borderColor: 'transparent' },
   audioClip: { backgroundColor: vela.audio },
   textClip: { backgroundColor: vela.accent, justifyContent: 'center' },
   clipOn: { borderColor: vela.select },
   filmstrip: { flexDirection: 'row', height: '100%', overflow: 'hidden' },
-  thumbFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: '#2a2a30' },
+  thumbFallback: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', backgroundColor: vela.clipBg },
   textFill: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
-  textLabel: { color: '#fff', fontSize: 11, fontFamily: 'HankenGrotesk_700Bold' },
+  textLabel: { color: vela.onAccent, fontSize: 11, fontFamily: font.bold },
   waveform: { ...StyleSheet.absoluteFillObject, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', paddingHorizontal: 2 },
-  soundBlock: { position: 'absolute', top: 0, bottom: 0, borderRadius: 7, overflow: 'hidden', backgroundColor: '#34321f' },
-  badge: { position: 'absolute', top: 2, left: 4, backgroundColor: '#000a', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 },
-  badgeText: { color: '#fff', fontSize: 9, fontFamily: 'HankenGrotesk_700Bold' },
+  soundBlock: { position: 'absolute', top: 0, bottom: 0, borderRadius: 7, overflow: 'hidden', backgroundColor: vela.soundBlock },
+  badge: { position: 'absolute', top: 2, left: 4, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 },
+  badgeText: { color: '#fff', fontSize: 9, fontFamily: font.bold },
   durTag: { position: 'absolute', bottom: 2, right: 4, backgroundColor: '#000a', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 },
   durText: { color: '#fff', fontSize: 9, fontFamily: mono.medium },
-  addTile: { position: 'absolute', top: 0, width: ADD_TILE_W, backgroundColor: '#fff', borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
-  trChip: { position: 'absolute', width: 22, height: 20, borderRadius: 6, backgroundColor: '#000a', alignItems: 'center', justifyContent: 'center', zIndex: 6, borderWidth: 1, borderColor: '#fff6' },
-  trChipOn: { backgroundColor: vela.select, borderColor: vela.select },
+  addTile: { position: 'absolute', top: 0, width: ADD_TILE_W, backgroundColor: vela.accent, borderRadius: 6, alignItems: 'center', justifyContent: 'center' },
+  trChip: { position: 'absolute', width: 26, height: 22, borderRadius: 7, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center', zIndex: 6 },
+  trChipOn: { backgroundColor: vela.accent },
   handle: { position: 'absolute', top: 0, bottom: 0, width: HANDLE_W, backgroundColor: vela.select, alignItems: 'center', justifyContent: 'center' },
   handleLeft: { left: 0, borderTopLeftRadius: 6, borderBottomLeftRadius: 6 },
   handleRight: { right: 0, borderTopRightRadius: 6, borderBottomRightRadius: 6 },
   handleBar: { width: 3, height: 18, borderRadius: 2, backgroundColor: '#111' },
 
   playhead: { position: 'absolute', top: 0, bottom: 0, alignItems: 'center', marginLeft: -1 },
-  playheadKnob: { width: 12, height: 12, borderRadius: 6, backgroundColor: '#fff' },
+  // Bespoke two-tone playhead: brand-teal knob on an always-visible white rail.
+  playheadKnob: { width: 12, height: 12, borderRadius: 6, backgroundColor: vela.accent, borderWidth: 1.5, borderColor: '#fff' },
   playheadLine: { flex: 1, width: 2, backgroundColor: '#fff' },
 });
