@@ -677,6 +677,12 @@ export const useEditor = create<EditorState>((set, get) => ({
     set({ selected: { trackId: t.trackId, clipId: t.clipId } });
   },
   applyClipMotion: (motion) => {
+    const sel = get().selected;
+    if (sel && sel.trackId === OVERLAY_TRACK) {
+      const id = sel.clipId;
+      get().apply((p) => ops.updateOverlay(p, id, { motion: motion && motion.type !== 'none' ? motion : undefined }));
+      return;
+    }
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipMotion(p, t.trackId, t.clipId, motion));
@@ -689,6 +695,13 @@ export const useEditor = create<EditorState>((set, get) => ({
     set({ selected: { trackId: t.trackId, clipId: t.clipId } });
   },
   applyClipKeyframes: (keyframes) => {
+    const sel = get().selected;
+    if (sel && sel.trackId === OVERLAY_TRACK) {
+      const id = sel.clipId;
+      const kfs = keyframes && keyframes.length ? [...keyframes].sort((a, b) => a.t - b.t) : undefined;
+      get().apply((p) => ops.updateOverlay(p, id, { keyframes: kfs }));
+      return;
+    }
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipKeyframes(p, t.trackId, t.clipId, keyframes));
@@ -809,4 +822,11 @@ export function effectsTarget(): { trackId: string; clipId: string; clip: Visual
     if (clip) return { trackId: base.id, clipId: clip.id, clip };
   }
   return null;
+}
+
+/** The selected text overlay (caption), or null when the selection isn't text. */
+export function selectedOverlay(): TextOverlay | null {
+  const { selected, project } = useEditor.getState();
+  if (!selected || selected.trackId !== OVERLAY_TRACK) return null;
+  return (project?.overlays ?? []).find((o) => o.id === selected.clipId) ?? null;
 }

@@ -56,6 +56,10 @@ export interface TextOverlay {
   /** Optional caption background box. */
   box?: { color: string; opacity?: number; padding?: number };
   animation?: 'none' | 'fade';
+  /** Ken-Burns camera move animated over the caption window (preview + export). */
+  motion?: Motion;
+  /** Keyframes animating opacity + position over the caption (≥2 to animate). */
+  keyframes?: Keyframe[];
 }
 
 export type Overlay = TextOverlay;

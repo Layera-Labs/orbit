@@ -9,8 +9,6 @@ import { font, vela } from '../constants';
 import { VIcon, type VIconName } from './VIcon';
 import { OVERLAY_TRACK, useEditor } from '../store/editorStore';
 
-const soon = (label: string) => Alert.alert('Coming soon', `${label} is coming soon.`);
-
 interface Action {
   key: string;
   icon: VIconName;
@@ -29,9 +27,10 @@ export function SelectionActionBar() {
   const isText = selected.trackId === OVERLAY_TRACK;
   const actions: Action[] = [
     { key: 'edit', icon: 'pencil', label: 'Edit', onPress: isText ? () => setPanel('textedit') : () => setPanel('filter') },
-    { key: 'motion', icon: 'motion', label: 'Motion', onPress: isText ? () => soon('Motion') : () => setPanel('motion') },
-    { key: 'keyframe', icon: 'keyframe', label: 'Keyframe', onPress: isText ? () => soon('Keyframe') : () => setPanel('keyframe') },
-    { key: 'curve', icon: 'curve', label: 'Curve', onPress: isText ? () => soon('Curve') : () => setPanel('curve') },
+    { key: 'motion', icon: 'motion', label: 'Motion', onPress: () => setPanel('motion') },
+    { key: 'keyframe', icon: 'keyframe', label: 'Keyframe', onPress: () => setPanel('keyframe') },
+    // Curve = playback-speed remap; it has no meaning for a text caption.
+    { key: 'curve', icon: 'curve', label: 'Curve', disabled: isText, onPress: isText ? () => Alert.alert('Not available', 'Speed curves apply to video and audio, not text.') : () => setPanel('curve') },
     { key: 'duplicate', icon: 'duplicate', label: 'Duplicate', onPress: duplicateSelected },
     { key: 'delete', icon: 'trash', label: 'Delete', onPress: removeSelected },
   ];

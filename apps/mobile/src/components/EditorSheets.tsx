@@ -43,7 +43,7 @@ import type { VisualTrackClip } from '../model/types';
 import { copyIntoMedia, videoThumbnail } from '../storage/media';
 import { pickAndAddAudio, pickAndAddMedia, pickAndAddOverlay } from '../media/pick';
 import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
-import { effectsTarget, useEditor } from '../store/editorStore';
+import { effectsTarget, selectedOverlay, useEditor } from '../store/editorStore';
 
 const soon = (label: string) => Alert.alert('Coming soon', `${label} is coming soon.`);
 
@@ -788,7 +788,7 @@ const MOTION_PRESETS: { type: MotionType; label: string }[] = [
 function MotionSheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const applyClipMotion = useEditor((s) => s.applyClipMotion);
-  const [motion, setMotion] = useState<Motion>(() => effectsTarget()?.clip.motion ?? { type: 'none', intensity: 0.5 });
+  const [motion, setMotion] = useState<Motion>(() => selectedOverlay()?.motion ?? effectsTarget()?.clip.motion ?? { type: 'none', intensity: 0.5 });
   const close = () => setPanel(null);
   const setType = (type: MotionType) => {
     const next = { type, intensity: motion.intensity ?? 0.5 };
@@ -946,20 +946,26 @@ function KeyframeSheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const applyClipKeyframes = useEditor((s) => s.applyClipKeyframes);
   const playheadSec = useEditor((s) => s.playheadSec);
+  const ov = selectedOverlay();
   const t = effectsTarget();
-  const clip = t?.clip;
-  const [kfs, setKfs] = useState<Keyframe[]>(() => clip?.keyframes ?? []);
+  // Unify the keyframe subject across a visual clip and a text overlay.
+  const subject = ov
+    ? { start: ov.start, duration: Math.max(0.001, ov.end - ov.start), baseX: ov.x, baseY: ov.y, keyframes: ov.keyframes }
+    : t?.clip
+      ? { start: t.clip.start, duration: t.clip.duration, baseX: (t.clip.rect ?? FULL_FRAME).x, baseY: (t.clip.rect ?? FULL_FRAME).y, keyframes: t.clip.keyframes }
+      : null;
+  const [kfs, setKfs] = useState<Keyframe[]>(() => subject?.keyframes ?? []);
   const close = () => setPanel(null);
-  if (!t || !clip) {
+  if (!subject) {
     return (
       <BottomSheet onClose={close} style={{ gap: 16 }} dim="#0002">
         <Text style={s.sheetTitle}>Keyframes</Text>
-        <Text style={s.intensityLabel}>Select a clip to animate.</Text>
+        <Text style={s.intensityLabel}>Select a clip or caption to animate.</Text>
       </BottomSheet>
     );
   }
-  const localT = Math.max(0, Math.min(1, (playheadSec - clip.start) / Math.max(0.001, clip.duration)));
-  const r = clip.rect ?? FULL_FRAME;
+  const localT = Math.max(0, Math.min(1, (playheadSec - subject.start) / Math.max(0.001, subject.duration)));
+  const r = { x: subject.baseX, y: subject.baseY };
   const push = (next: Keyframe[]) => {
     const ks = [...next].sort((a, b) => a.t - b.t);
     setKfs(ks);
