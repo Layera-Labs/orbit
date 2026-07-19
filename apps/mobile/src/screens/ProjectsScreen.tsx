@@ -9,10 +9,11 @@ import { useState } from 'react';
 import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { font, mono, vela, ratioLabel } from '../constants';
 import { projectDuration } from '../model/project';
-import { VIcon } from '../components/VIcon';
+import { VIcon, type VIconName } from '../components/VIcon';
 import { BottomNav } from '../components/BottomNav';
 import { BottomSheet } from '../components/BottomSheet';
 import { useEditor } from '../store/editorStore';
+import type { ViewMode } from '../storage/settings';
 import type { StoredProject } from '../storage/projects';
 import { CreateSheet } from './CreateSheet';
 
@@ -60,6 +61,43 @@ function ProjectRow({ p, onOpen, onMenu }: { p: StoredProject; onOpen: () => voi
         <Text style={styles.rowDate}>{fmtDate(p.updatedAt)}</Text>
       </View>
     </Pressable>
+  );
+}
+
+function ProjectGridCard({ p, cols, onOpen, onMenu }: { p: StoredProject; cols: 2 | 3; onOpen: () => void; onMenu: () => void }) {
+  return (
+    <Pressable style={cols === 3 ? styles.gridItem3 : styles.gridItem} onPress={onOpen} onLongPress={onMenu}>
+      <View style={styles.gridPoster}>
+        {p.posterUri ? (
+          <Image source={{ uri: p.posterUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        ) : (
+          <View style={[StyleSheet.absoluteFill, { backgroundColor: vela.lightSurface, alignItems: 'center', justifyContent: 'center' }]}>
+            <VIcon name="picture" size={cols === 3 ? 18 : 22} color={vela.lightMuted3} />
+          </View>
+        )}
+        <Text style={styles.posterTime}>{fmtTime(projectDuration(p.project))}</Text>
+      </View>
+      <Text style={[styles.gridCardName, cols === 3 && { fontSize: 12.5 }]} numberOfLines={1}>{p.name}</Text>
+    </Pressable>
+  );
+}
+
+function ViewOptionsSheet({ current, onPick, onClose }: { current: ViewMode; onPick: (m: ViewMode) => void; onClose: () => void }) {
+  const opts: { mode: ViewMode; label: string; icon: VIconName }[] = [
+    { mode: 'list', label: 'View as List', icon: 'list' },
+    { mode: 'grid2', label: 'View as Grid (2 columns)', icon: 'grid' },
+    { mode: 'grid3', label: 'View as Grid (3 columns)', icon: 'grid' },
+  ];
+  return (
+    <BottomSheet onClose={onClose} style={styles.lightSheet} dim="rgba(20,20,30,0.32)">
+      {opts.map((o) => (
+        <Pressable key={o.mode} style={styles.viewRow} onPress={() => onPick(o.mode)}>
+          <VIcon name={o.icon} size={22} color={vela.ink2} />
+          <Text style={styles.viewLabel}>{o.label}</Text>
+          {current === o.mode ? <VIcon name="check" size={20} color={vela.accent} strokeWidth={2.6} /> : null}
+        </Pressable>
+      ))}
+    </BottomSheet>
   );
 }
 
@@ -144,10 +182,13 @@ export function ProjectsScreen() {
   const go = useEditor((s) => s.go);
   const serverUrl = useEditor((s) => s.serverUrl);
   const setServerUrl = useEditor((s) => s.setServerUrl);
+  const viewMode = useEditor((s) => s.viewMode);
+  const setViewMode = useEditor((s) => s.setViewMode);
   const [createOpen, setCreateOpen] = useState(false);
   const [menuProject, setMenuProject] = useState<StoredProject | null>(null);
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [viewSheet, setViewSheet] = useState(false);
 
   function promptServer() {
     Alert.prompt(
@@ -177,6 +218,23 @@ export function ProjectsScreen() {
     count: projects.filter((p) => folderOf(p) === name).length,
     d: name === 'Imported' ? FOLDER_IMPORTED : FOLDER_DEFAULT,
   }));
+
+  const cols = viewMode === 'grid3' ? 3 : viewMode === 'grid2' ? 2 : 0;
+  const renderGroup = (label: string, items: StoredProject[]) => {
+    if (!items.length) return null;
+    return (
+      <View key={label}>
+        <Text style={styles.groupLabel}>{label}</Text>
+        {cols === 0 ? (
+          items.map((p) => <ProjectRow key={p.id} p={p} onOpen={() => openProject(p.id)} onMenu={() => setMenuProject(p)} />)
+        ) : (
+          <View style={styles.gridWrap}>
+            {items.map((p) => <ProjectGridCard key={p.id} p={p} cols={cols} onOpen={() => openProject(p.id)} onMenu={() => setMenuProject(p)} />)}
+          </View>
+        )}
+      </View>
+    );
+  };
 
   return (
     <View style={styles.root}>
@@ -230,10 +288,12 @@ export function ProjectsScreen() {
         {/* projects */}
         <View style={styles.projectsHeader}>
           <Text style={styles.sectionH}>Projects <Text style={styles.tabCount}>{projects.length}</Text></Text>
-          <Pressable onPress={() => soon('Edit')} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Text style={styles.editLink}>Edit</Text>
-            <VIcon name="list" size={20} color={vela.lightMuted} strokeWidth={2} />
-          </Pressable>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+            <Pressable onPress={() => soon('Edit')}><Text style={styles.editLink}>Edit</Text></Pressable>
+            <Pressable onPress={() => setViewSheet(true)} hitSlop={8}>
+              <VIcon name={viewMode === 'list' ? 'list' : 'grid'} size={20} color={vela.ink3} strokeWidth={2} />
+            </Pressable>
+          </View>
         </View>
 
         {projects.length === 0 ? (
@@ -248,16 +308,13 @@ export function ProjectsScreen() {
           </View>
         ) : null}
 
-        {recent.length ? <Text style={styles.groupLabel}>PAST 30 DAYS</Text> : null}
-        {recent.map((p) => (
-          <ProjectRow key={p.id} p={p} onOpen={() => openProject(p.id)} onMenu={() => setMenuProject(p)} />
-        ))}
-
-        {older.length ? <Text style={styles.groupLabel}>OLDER</Text> : null}
-        {older.map((p) => (
-          <ProjectRow key={p.id} p={p} onOpen={() => openProject(p.id)} onMenu={() => setMenuProject(p)} />
-        ))}
+        {renderGroup('PAST 30 DAYS', recent)}
+        {renderGroup('OLDER', older)}
       </ScrollView>
+
+      {viewSheet ? (
+        <ViewOptionsSheet current={viewMode} onPick={(m) => { setViewMode(m); setViewSheet(false); }} onClose={() => setViewSheet(false)} />
+      ) : null}
 
       <BottomNav active="home" onHome={() => {}} onDiscover={() => go('discover')} onCreate={() => setCreateOpen(true)} />
 
@@ -312,6 +369,18 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', marginTop: 50, gap: 6 },
   emptyText: { color: vela.ink2, fontSize: 16, fontFamily: font.semibold },
   emptyHint: { color: vela.lightMuted, fontSize: 13 },
+
+  // grid views
+  gridWrap: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 22, paddingTop: 4, gap: 14 },
+  gridItem: { width: '47%' },
+  gridItem3: { width: '30.4%' },
+  gridPoster: { width: '100%', aspectRatio: 3 / 4, borderRadius: 12, overflow: 'hidden', backgroundColor: vela.lightSurface },
+  gridCardName: { fontFamily: font.semibold, fontSize: 14, color: vela.ink, marginTop: 7 },
+
+  // view-options sheet
+  lightSheet: { backgroundColor: vela.lightCard, paddingHorizontal: 22, paddingTop: 18, paddingBottom: 28, gap: 0 },
+  viewRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 16 },
+  viewLabel: { flex: 1, fontFamily: font.semibold, fontSize: 17, color: vela.ink2 },
 
   // project menu
   menuSheet: { backgroundColor: vela.lightCard, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 30, gap: 0 },

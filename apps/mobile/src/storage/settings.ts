@@ -2,9 +2,14 @@
 import { File, Paths } from 'expo-file-system';
 import { DEFAULT_SERVER } from '../constants';
 
+export type ViewMode = 'list' | 'grid2' | 'grid3';
+
 export interface Settings {
   serverUrl: string;
+  viewMode: ViewMode;
 }
+
+const DEFAULTS: Settings = { serverUrl: DEFAULT_SERVER, viewMode: 'list' };
 
 function settingsFile(): File {
   return new File(Paths.document, 'settings.json');
@@ -13,11 +18,11 @@ function settingsFile(): File {
 export function loadSettings(): Settings {
   try {
     const f = settingsFile();
-    if (f.exists) return { serverUrl: DEFAULT_SERVER, ...(JSON.parse(f.textSync()) as Partial<Settings>) };
+    if (f.exists) return { ...DEFAULTS, ...(JSON.parse(f.textSync()) as Partial<Settings>) };
   } catch {
     // fall through to defaults
   }
-  return { serverUrl: DEFAULT_SERVER };
+  return { ...DEFAULTS };
 }
 
 export function saveSettings(s: Settings): void {

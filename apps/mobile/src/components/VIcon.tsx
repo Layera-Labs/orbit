@@ -94,6 +94,7 @@ const ICONS = {
 
   // ---- home / discover headers ----
   crop: { paths: ['M4 8V5h3M20 8V5h-3M4 16v3h3M20 16v3h-3'], sw: 2 },
+  grid: { rects: [[4, 4, 7, 7, 1.5], [13, 4, 7, 7, 1.5], [4, 13, 7, 7, 1.5], [13, 13, 7, 7, 1.5]], sw: 1.8 },
   bolt: { paths: ['M13 3L5 13h6l-1 8 8-10h-6z'], sw: 2 },
   picture: { rects: [[4, 4, 16, 16, 3]], paths: ['M9 14l3-3 3 3'], sw: 2 },
   list: { paths: ['M8 7h12M8 12h12M8 17h12M3.5 7h.01M3.5 12h.01M3.5 17h.01'], sw: 2 },

@@ -24,7 +24,7 @@ import {
 } from '../storage/projects';
 import { saveUserTemplate, type StoredTemplate } from '../storage/templates';
 import type { EditorTemplate } from '../templates';
-import { loadSettings, saveSettings } from '../storage/settings';
+import { loadSettings, saveSettings, type ViewMode } from '../storage/settings';
 import { exportProject, downloadToPhotos, type ExportProgress } from '../net/renderClient';
 import { Alert, Share } from 'react-native';
 
@@ -58,6 +58,7 @@ interface EditorState {
   screen: Screen;
   projects: StoredProject[];
   serverUrl: string;
+  viewMode: ViewMode;
 
   projectId: string | null;
   name: string;
@@ -87,6 +88,7 @@ interface EditorState {
   refreshProjects: () => void;
   loadSettings: () => void;
   setServerUrl: (url: string) => void;
+  setViewMode: (m: ViewMode) => void;
   newProject: (name: string, width: number, height: number) => void;
   /** Create + open a new project seeded from a built-in template. */
   newProjectFromTemplate: (tpl: EditorTemplate) => void;
@@ -96,9 +98,11 @@ interface EditorState {
   saveAsTemplate: () => void;
   openProject: (id: string) => void;
   removeProject: (id: string) => void;
+  removeProjects: (ids: string[]) => void;
   renameProject: (id: string, name: string) => void;
   duplicateProject: (id: string) => void;
   setProjectFolder: (id: string, folder: string) => void;
+  setProjectsFolder: (ids: string[], folder: string) => void;
   closeEditor: () => void;
 
   // transient UI
@@ -184,6 +188,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   screen: 'projects',
   projects: [],
   serverUrl: DEFAULT_SERVER,
+  viewMode: 'list',
   projectId: null,
   name: '',
   posterUri: undefined,
@@ -204,11 +209,18 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   go: (screen) => set({ screen }),
   refreshProjects: () => set({ projects: listProjects() }),
-  loadSettings: () => set({ serverUrl: loadSettings().serverUrl }),
+  loadSettings: () => {
+    const s = loadSettings();
+    set({ serverUrl: s.serverUrl, viewMode: s.viewMode });
+  },
   setServerUrl: (url) => {
     const serverUrl = url.trim() || DEFAULT_SERVER;
     set({ serverUrl });
-    saveSettings({ serverUrl });
+    saveSettings({ serverUrl, viewMode: get().viewMode });
+  },
+  setViewMode: (viewMode) => {
+    set({ viewMode });
+    saveSettings({ serverUrl: get().serverUrl, viewMode });
   },
 
   newProject: (name, width, height) => {
@@ -313,6 +325,11 @@ export const useEditor = create<EditorState>((set, get) => ({
     set({ projects: listProjects() });
   },
 
+  removeProjects: (ids) => {
+    ids.forEach((id) => deleteStored(id));
+    set({ projects: listProjects() });
+  },
+
   renameProject: (id, name) => {
     const stored = loadProject(id);
     if (!stored) return;
@@ -327,6 +344,15 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (!stored) return;
     const f = folder.trim() || 'Default';
     saveProject({ ...stored, folder: f });
+    set({ projects: listProjects() });
+  },
+
+  setProjectsFolder: (ids, folder) => {
+    const f = folder.trim() || 'Default';
+    ids.forEach((id) => {
+      const stored = loadProject(id);
+      if (stored) saveProject({ ...stored, folder: f });
+    });
     set({ projects: listProjects() });
   },
 
