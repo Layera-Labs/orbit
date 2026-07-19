@@ -32,4 +32,9 @@ describe('overlayToSVG', () => {
     expect((svg.match(/<tspan/g) ?? []).length).toBe(2);
     expect(svg).not.toContain('<rect');
   });
+
+  it('emits letter-spacing (0 when unset, the value when set)', () => {
+    expect(overlayToSVG(base, 1080, 1920)).toContain('letter-spacing="0"');
+    expect(overlayToSVG({ ...base, letterSpacing: 8 }, 1080, 1920)).toContain('letter-spacing="8"');
+  });
 });
