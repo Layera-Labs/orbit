@@ -8,3 +8,5 @@ export type {
 export { GenerationService } from './service';
 export type { GenerationServiceOptions } from './service';
 export { MockMediaProvider } from './mock';
+export { ReplicateProvider } from './providers/replicate';
+export type { ReplicateProviderOptions } from './providers/replicate';

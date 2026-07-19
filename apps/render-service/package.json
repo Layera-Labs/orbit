@@ -11,8 +11,10 @@
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
+    "@orbit/billing": "workspace:*",
     "@orbit/video": "workspace:*",
     "@orbit/video-ai": "workspace:*",
+    "@orbit/video-gen": "workspace:*",
     "cors": "^2.8.6",
     "express": "^4.19.2",
     "multer": "^2.2.0"
