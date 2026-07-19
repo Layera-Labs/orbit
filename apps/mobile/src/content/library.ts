@@ -46,6 +46,17 @@ export async function addBundledSticker(module: number): Promise<void> {
   }
 }
 
+/** Add a bundled sound effect as an audio clip starting at the playhead. */
+export async function addBundledSfx(module: number, dur: number): Promise<void> {
+  try {
+    const src = await resolveModuleToMedia(module, 'wav');
+    const st = useEditor.getState();
+    st.importAudio({ id: newId('a'), src, start: st.playheadSec, duration: Math.max(0.1, dur), volume: 1 });
+  } catch (e) {
+    Alert.alert('Add failed', e instanceof Error ? e.message : String(e));
+  }
+}
+
 /** Download a remote image and set it as the project background. */
 export async function setBackgroundFromUrl(url: string): Promise<void> {
   try {

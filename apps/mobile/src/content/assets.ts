@@ -55,6 +55,24 @@ export const BUNDLED_STICKER: Record<string, number> = {
   '274C': require('../../assets/content/stickers/274C.png'),
 };
 
+/**
+ * Bundled sound effects (mono WAV), keyed by id (matches `SFX` in `catalog.ts`).
+ * Original, synthesized in-repo — public-domain (see `assets/content/README.md`).
+ */
+export const BUNDLED_SFX: Record<string, number> = {
+  pop: require('../../assets/content/sfx/pop.wav'),
+  click: require('../../assets/content/sfx/click.wav'),
+  tick: require('../../assets/content/sfx/tick.wav'),
+  ding: require('../../assets/content/sfx/ding.wav'),
+  beep: require('../../assets/content/sfx/beep.wav'),
+  chime: require('../../assets/content/sfx/chime.wav'),
+  success: require('../../assets/content/sfx/success.wav'),
+  impact: require('../../assets/content/sfx/impact.wav'),
+  whoosh: require('../../assets/content/sfx/whoosh.wav'),
+  swoosh: require('../../assets/content/sfx/swoosh.wav'),
+  riser: require('../../assets/content/sfx/riser.wav'),
+};
+
 export type BundledBg = { id: string; label: string; module: number };
 
 /** Bundled offline image backgrounds (grained directional gradients, 1080x1920). */

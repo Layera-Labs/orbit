@@ -21,3 +21,12 @@ Six grained directional-gradient JPEGs at 1080×1920, generated with ffmpeg
 (deep charcoal / teal / oxblood / ember / forest / stone). Generated in-repo, so
 they carry no third-party license. These replace the network Picsum samples for
 the offline set; curated licensed photos remain a separate follow-up.
+
+## `sfx/`
+
+Eleven short mono WAV sound effects (pop / click / tick / ding / beep / chime /
+success / impact / whoosh / swoosh / riser), **synthesized entirely in-repo**
+from sine/harmonic/noise math — see `scripts/generate-sfx.mjs`. There is no
+third-party audio here, so they carry no license restriction and are released as
+public-domain (CC0). Registry: `SFX` in `catalog.ts` + `BUNDLED_SFX` in
+`assets.ts`. Regenerate with `node scripts/generate-sfx.mjs`.

@@ -28,9 +28,9 @@ import { VSlider } from './VSlider';
 import { ColorSheet } from './ColorSheet';
 import { FontPickerSheet } from './FontPickerSheet';
 import { FILTER_LIST } from '../filters/registry';
-import { BG_IMAGES, EMOJIS, GRADIENT_PRESETS, SOLID_PRESETS, STICKERS, openmojiUrl } from '../content/catalog';
-import { BUNDLED_BG, BUNDLED_EMOJI, BUNDLED_STICKER } from '../content/assets';
-import { addBundledSticker, addStickerFromUrl, addStockItem, setBackgroundFromPhoto, setBackgroundFromUrl, setBundledBackground } from '../content/library';
+import { BG_IMAGES, EMOJIS, GRADIENT_PRESETS, SFX, SOLID_PRESETS, STICKERS, openmojiUrl } from '../content/catalog';
+import { BUNDLED_BG, BUNDLED_EMOJI, BUNDLED_SFX, BUNDLED_STICKER } from '../content/assets';
+import { addBundledSfx, addBundledSticker, addStickerFromUrl, addStockItem, setBackgroundFromPhoto, setBackgroundFromUrl, setBundledBackground } from '../content/library';
 import { getStockKey, setStockKey, type StockProvider } from '../content/keys';
 import { searchStock, isMissingKey, type StockItem, type StockKind } from '../content/stock';
 import { Linking } from 'react-native';
@@ -42,7 +42,7 @@ import { clipAtTime, newId } from '../model/editor-ops';
 import type { VisualTrackClip } from '../model/types';
 import { copyIntoMedia, videoThumbnail } from '../storage/media';
 import { pickAndAddAudio, pickAndAddMedia, pickAndAddOverlay } from '../media/pick';
-import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioRecorder } from 'expo-audio';
+import { RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync, useAudioPlayer, useAudioRecorder } from 'expo-audio';
 import { effectsTarget, selectedOverlay, useEditor } from '../store/editorStore';
 
 const soon = (label: string) => Alert.alert('Coming soon', `${label} is coming soon.`);
@@ -1241,6 +1241,47 @@ function VoiceoverSheet() {
   );
 }
 
+function SoundFxSheet() {
+  const setPanel = useEditor((st) => st.setPanel);
+  const player = useAudioPlayer();
+  const close = () => setPanel(null);
+  useEffect(() => {
+    void setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+    return () => { try { player.remove(); } catch {} };
+    // player identity is stable for the sheet's lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const audition = (id: string) => {
+    try { player.replace(BUNDLED_SFX[id]); player.seekTo(0); player.play(); } catch {}
+  };
+  const add = (item: (typeof SFX)[number]) => {
+    void addBundledSfx(BUNDLED_SFX[item.id], item.dur);
+    setPanel(null);
+  };
+  return (
+    <BottomSheet onClose={close} style={{ gap: 8, paddingBottom: 20 }} dim="#0006">
+      <View style={s.rowBetween}>
+        <Text style={s.sheetTitle}>Sound FX</Text>
+        <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
+      </View>
+      <Text style={s.sfxHint}>Tap to preview · Add drops it at the playhead</Text>
+      <ScrollView style={{ maxHeight: 400 }} showsVerticalScrollIndicator={false}>
+        {SFX.map((item) => (
+          <View key={item.id} style={s.sfxRow}>
+            <Pressable style={s.sfxTap} onPress={() => audition(item.id)}>
+              <View style={s.sfxPlay}><VIcon name="play" size={15} color={vela.accent} /></View>
+              <Text style={s.sfxLabel}>{item.label}</Text>
+            </Pressable>
+            <Pressable hitSlop={8} onPress={() => add(item)} style={s.sfxAdd}>
+              <Text style={s.sfxAddText}>Add</Text>
+            </Pressable>
+          </View>
+        ))}
+      </ScrollView>
+    </BottomSheet>
+  );
+}
+
 const BLEND_OPTS: { mode: BlendMode; label: string }[] = [
   { mode: 'normal', label: 'Normal' },
   { mode: 'multiply', label: 'Multiply' },
@@ -1622,6 +1663,7 @@ export function EditorSheets() {
       {panel === 'position' && <PositionSheet />}
       {panel === 'mask' && <MaskSheet />}
       {panel === 'voiceover' && <VoiceoverSheet />}
+      {panel === 'soundfx' && <SoundFxSheet />}
       {panel === 'blend' && <BlendSheet />}
       {panel === 'curve' && <CurveSheet />}
       {panel === 'library' && <ContentLibrarySheet />}
@@ -1718,6 +1760,15 @@ const s = StyleSheet.create({
   recBtn: { width: 76, height: 76, borderRadius: 38, backgroundColor: vela.danger, alignItems: 'center', justifyContent: 'center' },
   recBtnOn: { backgroundColor: '#7a1f1f' },
   voHint: { color: vela.muted2, fontFamily: font.medium, fontSize: 13 },
+
+  sfxHint: { color: vela.muted2, fontFamily: font.medium, fontSize: 13 },
+  sfxRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: vela.divider },
+  sfxTap: { flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 },
+  sfxPlay: { width: 34, height: 34, borderRadius: 17, backgroundColor: vela.accentSoft, alignItems: 'center', justifyContent: 'center' },
+  sfxLabel: { color: vela.textLight, fontFamily: font.semibold, fontSize: 16 },
+  sfxAdd: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 10, backgroundColor: vela.accent },
+  sfxAddText: { color: vela.onAccent, fontFamily: font.bold, fontSize: 14 },
+
   libSection: { color: vela.muted2, fontFamily: font.semibold, fontSize: 12, marginTop: 4 },
   libGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   libCell: { width: 68, height: 68, borderRadius: 12, overflow: 'hidden', padding: 2 },
