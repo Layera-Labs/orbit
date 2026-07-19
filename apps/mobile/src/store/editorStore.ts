@@ -96,6 +96,8 @@ interface EditorState {
   newProjectFromStoredTemplate: (tpl: StoredTemplate) => void;
   /** Save the current project's structure as a reusable user template. */
   saveAsTemplate: () => void;
+  /** Save a stored project (by id) as a reusable user template. */
+  saveProjectAsTemplate: (id: string) => void;
   openProject: (id: string) => void;
   removeProject: (id: string) => void;
   removeProjects: (ids: string[]) => void;
@@ -296,6 +298,12 @@ export const useEditor = create<EditorState>((set, get) => ({
     const { project, name } = get();
     if (!project) return;
     saveUserTemplate({ id: newId('tpl'), name: `${name} (template)`, createdAt: Date.now(), project });
+  },
+
+  saveProjectAsTemplate: (id) => {
+    const stored = loadProject(id);
+    if (!stored) return;
+    saveUserTemplate({ id: newId('tpl'), name: `${stored.name} (template)`, createdAt: Date.now(), project: stored.project });
   },
 
   openProject: (id) => {
