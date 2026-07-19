@@ -78,6 +78,26 @@ export const STICKERS: { code: string; label: string }[] = [
   ['1F339', 'rose'], ['1F338', 'blossom'], ['1F340', 'clover'], ['1F984', 'unicorn'],
 ].map(([code, label]) => ({ code, label }));
 
+/**
+ * Bundled sound effects — a small original starter pack (synthesized in-repo,
+ * public-domain). Ids match `BUNDLED_SFX` in `content/assets.ts`; `dur` seconds
+ * is used to size the timeline clip. All are offline/bundled (no CDN).
+ */
+export type SfxItem = { id: string; label: string; dur: number };
+export const SFX: SfxItem[] = [
+  { id: 'pop', label: 'Pop', dur: 0.14 },
+  { id: 'click', label: 'Click', dur: 0.05 },
+  { id: 'tick', label: 'Tick', dur: 0.03 },
+  { id: 'ding', label: 'Ding', dur: 0.6 },
+  { id: 'beep', label: 'Beep', dur: 0.16 },
+  { id: 'chime', label: 'Chime', dur: 0.55 },
+  { id: 'success', label: 'Success', dur: 0.6 },
+  { id: 'impact', label: 'Impact', dur: 0.4 },
+  { id: 'whoosh', label: 'Whoosh', dur: 0.5 },
+  { id: 'swoosh', label: 'Swoosh', dur: 0.22 },
+  { id: 'riser', label: 'Riser', dur: 0.7 },
+];
+
 /** Solid colour palette. */
 export const SOLID_PRESETS: BgPreset[] = [
   '#000000', '#ffffff', '#101018', '#1f2933', '#6d4aff', '#2f7bff', '#15b8a6', '#f2c14e', '#ff6b6b', '#ff8fab', '#c04af0', '#0e7c66',
