@@ -408,6 +408,7 @@ export function Preview({ width, height }: { width: number; height: number }) {
                   fontWeight: o.bold ? '700' : '400',
                   textAlign: o.align ?? 'center',
                   fontFamily: o.fontFamily,
+                  letterSpacing: (o.letterSpacing ?? 0) * scale,
                   width: '90%',
                   // Default legibility floor so captions read over any footage.
                   textShadowColor: 'rgba(0,0,0,0.45)',

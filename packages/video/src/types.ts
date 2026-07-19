@@ -53,6 +53,8 @@ export interface TextOverlay {
   fontFamily?: string;
   align?: TextAlign;
   bold?: boolean;
+  /** Letter spacing (tracking) in px at the output resolution. */
+  letterSpacing?: number;
   /** Optional caption background box. */
   box?: { color: string; opacity?: number; padding?: number };
   animation?: 'none' | 'fade';

@@ -31,12 +31,13 @@ export function overlayToSVG(o: TextOverlay, width: number, height: number): str
   const textAnchor = align === 'left' ? 'start' : align === 'right' ? 'end' : 'middle';
   const fontWeight = o.bold ? 700 : 400;
   const fontFamily = o.fontFamily ?? 'Arial';
+  const letterSpacing = o.letterSpacing ?? 0;
 
   // Approximate caption box sized to the text (no metrics pre-render).
   let boxEl = '';
   if (o.box) {
     const maxLen = Math.max(1, ...lines.map((l) => l.length));
-    const textW = maxLen * o.fontSize * 0.58;
+    const textW = maxLen * o.fontSize * 0.58 + maxLen * letterSpacing;
     const pad = o.box.padding ?? 16;
     const boxW = textW + pad * 2;
     const boxH = lines.length * lineH + pad * 2;
@@ -54,6 +55,7 @@ export function overlayToSVG(o: TextOverlay, width: number, height: number): str
     .join('');
   const textEl =
     `<text font-family="${esc(fontFamily)}" font-size="${o.fontSize}" font-weight="${fontWeight}" ` +
+    `letter-spacing="${letterSpacing}" ` +
     `fill="${esc(o.color)}" text-anchor="${textAnchor}" dominant-baseline="middle">${tspans}</text>`;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${boxEl}${textEl}</svg>`;

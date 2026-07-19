@@ -231,8 +231,8 @@ function AudioSheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const items: GridItem[] = [
     { label: 'Music', icon: 'audio', onPress: () => { setPanel(null); void pickAndAddAudio(); } },
-    { label: 'Sound FX', icon: 'soundfx', onPress: () => soon('Sound FX') },
-    { label: 'Record', icon: 'record', onPress: () => soon('Record') },
+    { label: 'Sound FX', icon: 'soundfx', onPress: () => setPanel('soundfx') },
+    { label: 'Record', icon: 'record', onPress: () => setPanel('voiceover') },
   ];
   return <GridSheet title="Insert audio" items={items} tall />;
 }
@@ -541,7 +541,7 @@ function TextEditSheet() {
   const ov = useEditor((s) => s.project?.overlays.find((o) => o.id === selected?.clipId));
   const projW = useEditor((s) => s.project?.width ?? 1080);
   const [text, setText] = useState(ov?.text ?? '');
-  const [tool, setTool] = useState<'kb' | 'size'>('kb');
+  const [tool, setTool] = useState<'kb' | 'size' | 'spacing'>('kb');
   const [showColor, setShowColor] = useState(false);
   const [showFont, setShowFont] = useState(false);
   const inputRef = useRef<TextInput>(null);
@@ -555,6 +555,7 @@ function TextEditSheet() {
   const fontSize = ov?.fontSize ?? Math.round(projW * 0.07);
   const align = ov?.align ?? 'center';
   const bold = ov?.bold ?? false;
+  const letterSpacing = ov?.letterSpacing ?? 0;
   const cycleAlign = () => updateOverlay({ align: ALIGN_ORDER[(ALIGN_ORDER.indexOf(align) + 1) % 3] });
 
   return (
@@ -579,13 +580,21 @@ function TextEditSheet() {
                   <VIcon name="trash" size={22} color={vela.muted} />
                 </Pressable>
               </View>
-            ) : (
+            ) : tool === 'size' ? (
               <View style={s.teSizeRow}>
                 <Text style={s.teSizeLabel}>Size</Text>
                 <View style={{ flex: 1 }}>
                   <VSlider value={fontSize} min={16} max={Math.round(projW * 0.3)} step={2} onChange={(v) => updateOverlay({ fontSize: Math.round(v) })} />
                 </View>
                 <Text style={s.teSizeVal}>{Math.round(fontSize)}</Text>
+              </View>
+            ) : (
+              <View style={s.teSizeRow}>
+                <Text style={s.teSizeLabel}>Spacing</Text>
+                <View style={{ flex: 1 }}>
+                  <VSlider value={letterSpacing} min={0} max={20} step={1} onChange={(v) => updateOverlay({ letterSpacing: Math.round(v) })} />
+                </View>
+                <Text style={s.teSizeVal}>{Math.round(letterSpacing)}</Text>
               </View>
             )}
             <View style={s.teToolbar}>
@@ -602,7 +611,10 @@ function TextEditSheet() {
                 <View style={[s.teColor, { backgroundColor: color, borderWidth: 2, borderColor: '#fff' }]} />
               </Pressable>
               <Pressable onPress={cycleAlign}><VIcon name="format" size={24} color={vela.textLight} /></Pressable>
-              <Pressable onPress={() => soon('Spacing')}><VIcon name="spacing" size={24} color={vela.textLight} /></Pressable>
+              <Pressable onPress={() => setTool('spacing')} style={s.teTool}>
+                <VIcon name="spacing" size={24} color={tool === 'spacing' ? '#fff' : vela.textLight} />
+                {tool === 'spacing' ? <View style={s.teKbUnderline} /> : null}
+              </Pressable>
               <Pressable onPress={() => updateOverlay({ bold: !bold })}><VIcon name="style" size={24} color={bold ? vela.accent : vela.textLight} /></Pressable>
               <View style={s.teDivider} />
               <Pressable onPress={close}><VIcon name="check" size={24} color="#fff" /></Pressable>
