@@ -37,7 +37,7 @@ export function BottomNav({
 
   return (
     <View style={styles.wrap} pointerEvents="box-none">
-      <Glass style={styles.bar} fallbackColor={vela.lightCard} interactive>
+      <Glass style={styles.bar} fallbackColor={vela.lightCard} interactive colorScheme="light">
         <Tab icon="navHome" on={active === 'home'} onPress={onHome} />
         <Tab icon="search" on={active === 'discover'} onPress={onDiscover} sw={2.2} />
         <Tab icon="profile" onPress={() => setProfileOpen(true)} />
@@ -108,7 +108,7 @@ function ProSheet({ onClose }: { onClose: () => void }) {
           </View>
         ))}
       </View>
-      <Pressable style={s.proCta} onPress={() => Alert.alert('Orbit Pro', 'Orbit Pro isn’t available yet — it’s coming soon.')}>
+      <Pressable style={s.proCta} onPress={() => Alert.alert('Orbit Pro', 'Orbit Pro isn’t available yet. It’s coming soon.')}>
         <Text style={s.proCtaText}>Coming soon</Text>
       </Pressable>
     </BottomSheet>

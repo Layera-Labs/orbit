@@ -416,7 +416,7 @@ export function ProjectsScreen() {
 
       {selectMode ? (
         <View style={styles.actionWrap} pointerEvents="box-none">
-          <Glass style={styles.actionBar} fallbackColor={vela.lightCard} interactive>
+          <Glass style={styles.actionBar} fallbackColor={vela.lightCard} interactive colorScheme="light">
             <Pressable style={styles.actionBtn} disabled={selected.size === 0} onPress={() => setMoveOpen(true)}>
               <VIcon d="M4 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2zM9 13h6M9 13l2-2M9 13l2 2" size={23} color={selected.size ? vela.ink2 : vela.lightMuted3} strokeWidth={2} />
               <Text style={[styles.actionLabel, selected.size === 0 && styles.actionLabelOff]}>Move to</Text>

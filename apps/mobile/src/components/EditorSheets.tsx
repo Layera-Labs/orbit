@@ -1548,7 +1548,7 @@ function KeysSheet() {
         <Text style={s.sheetTitle}>Stock API Keys</Text>
         <Pressable onPress={close} hitSlop={10}><VIcon name="check" size={24} color="#fff" /></Pressable>
       </View>
-      <Text style={s.keyNote}>Bring your own keys. Stored in this device's keychain and sent only to the provider — never to Orbit's servers.</Text>
+      <Text style={s.keyNote}>Bring your own keys. Stored in this device's keychain and sent only to the provider, never to Orbit's servers.</Text>
       {initial ? (
         <>
           <KeyRow provider="unsplash" label="Unsplash" url="https://unsplash.com/developers" initial={initial.unsplash} onSave={save} />

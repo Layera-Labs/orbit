@@ -8,7 +8,7 @@
  * bars over the scrolling list), not over flat fills.
  */
 import { View, type ViewProps } from 'react-native';
-import { GlassView, isLiquidGlassAvailable, type GlassStyle } from 'expo-glass-effect';
+import { GlassView, isLiquidGlassAvailable, type GlassStyle, type GlassColorScheme } from 'expo-glass-effect';
 
 export const LIQUID_GLASS = isLiquidGlassAvailable();
 
@@ -16,6 +16,7 @@ export function Glass({
   glassStyle = 'regular',
   tint,
   interactive = false,
+  colorScheme,
   fallbackColor,
   style,
   children,
@@ -24,12 +25,18 @@ export function Glass({
   glassStyle?: GlassStyle;
   tint?: string;
   interactive?: boolean;
+  /**
+   * Pin the glass appearance instead of letting it adapt to the backdrop.
+   * The floating bars sit over a light app, so pinning `light` keeps their
+   * dark icons legible even when darker content scrolls behind them.
+   */
+  colorScheme?: GlassColorScheme;
   /** Solid surface used when liquid glass is unavailable. */
   fallbackColor: string;
 }) {
   if (LIQUID_GLASS) {
     return (
-      <GlassView style={style} glassEffectStyle={glassStyle} tintColor={tint} isInteractive={interactive} {...rest}>
+      <GlassView style={style} glassEffectStyle={glassStyle} tintColor={tint} isInteractive={interactive} colorScheme={colorScheme} {...rest}>
         {children}
       </GlassView>
     );
