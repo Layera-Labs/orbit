@@ -10,3 +10,5 @@ export type { GenerationServiceOptions } from './service';
 export { MockMediaProvider } from './mock';
 export { ReplicateProvider } from './providers/replicate';
 export type { ReplicateProviderOptions } from './providers/replicate';
+export { RunwayProvider } from './providers/runway';
+export type { RunwayProviderOptions } from './providers/runway';
