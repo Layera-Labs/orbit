@@ -288,14 +288,34 @@ function buildMultiTrackArgs(project: VideoProject, opts: BuildFFmpegOptions): s
   });
 
   // ---- text overlays on top ----
+  // The caption PNG is full-frame (WxH) with the text baked at its anchor, so it
+  // reuses the same motion/keyframe machinery as visual clips: motion zoom/pans
+  // the whole layer, keyframed opacity bakes per-frame alpha, keyframed position
+  // translates the layer by the delta from the baked anchor.
   textOverlays.forEach((o, i) => {
-    const fade = ['format=rgba'];
-    if (o.animation === 'fade') {
-      const d = 0.3;
-      fade.push(`fade=t=in:st=${o.start}:d=${d}:alpha=1`, `fade=t=out:st=${Math.max(0, o.end - d)}:d=${d}:alpha=1`);
+    const S = o.start;
+    const E = o.end;
+    const dur = Math.max(0.001, E - S);
+    const kfs = o.keyframes;
+    const kfOpacity = hasKeyframes(kfs) && animatesOpacity(kfs!);
+    const kfPosition = hasKeyframes(kfs) && animatesPosition(kfs!);
+    const chain: string[] = ['format=rgba'];
+    if (hasMotion(o.motion)) {
+      // zoompan re-times to a 0-based PTS, so re-anchor to the caption start.
+      const zp = motionToZoompan(o.motion, Math.round(dur * fps), W, H, fps);
+      if (zp) chain.push(zp, `setpts=PTS-STARTPTS+${r3(S)}/TB`);
     }
-    segments.push(`[${oIn[i]}:v]${fade.join(',')}[t${i}]`);
-    segments.push(`${prev}[t${i}]overlay=0:0:enable='between(t,${o.start},${o.end})'[tc${i}]`);
+    if (kfOpacity) {
+      const a = keyframeExpr(kfs!, 'opacity', S, dur, 'T', 255);
+      chain.push(`geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='clip(${a},0,255)'`);
+    } else if (o.animation === 'fade') {
+      const d = 0.3;
+      chain.push(`fade=t=in:st=${r3(S)}:d=${d}:alpha=1`, `fade=t=out:st=${r3(Math.max(0, E - d))}:d=${d}:alpha=1`);
+    }
+    segments.push(`[${oIn[i]}:v]${chain.join(',')}[t${i}]`);
+    const ox = kfPosition ? `'(${keyframeExpr(kfs!, 'x', S, dur, 't', W)})-${r3(o.x * W)}'` : `0`;
+    const oy = kfPosition ? `'(${keyframeExpr(kfs!, 'y', S, dur, 't', H)})-${r3(o.y * H)}'` : `0`;
+    segments.push(`${prev}[t${i}]overlay=${ox}:${oy}:enable='between(t,${r3(S)},${r3(E)})'[tc${i}]`);
     prev = `[tc${i}]`;
   });
   const vLabel = prev;
