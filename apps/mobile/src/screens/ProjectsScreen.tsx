@@ -6,7 +6,7 @@
  * menu (Rename / Move to Trash real, the rest soon).
  */
 import { useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { font, mono, vela, ratioLabel } from '../constants';
 import { projectDuration } from '../model/project';
 import { VIcon, type VIconName } from '../components/VIcon';
@@ -19,7 +19,6 @@ import type { StoredProject } from '../storage/projects';
 import { CreateSheet } from './CreateSheet';
 
 const DAY = 86400_000;
-const soon = (label: string) => Alert.alert('Coming soon', `${label} is coming soon.`);
 
 function clipCount(p: StoredProject): number {
   if (p.project.tracks?.length) return p.project.tracks.reduce((n, t) => n + t.clips.length, 0);
@@ -151,6 +150,7 @@ function ProjectMenu({ p, onClose }: { p: StoredProject; onClose: () => void }) 
   const duplicateProject = useEditor((s) => s.duplicateProject);
   const setProjectFolder = useEditor((s) => s.setProjectFolder);
   const saveProjectAsTemplate = useEditor((s) => s.saveProjectAsTemplate);
+  const shareProject = useEditor((s) => s.shareProject);
 
   function makeTemplate() {
     onClose();
@@ -194,7 +194,7 @@ function ProjectMenu({ p, onClose }: { p: StoredProject; onClose: () => void }) 
   }
   const items: MenuItem[] = [
     { label: 'Move to Folder', d: 'M4 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2zM9 13h6M9 13l2-2M9 13l2 2', color: vela.ink2, onPress: moveFolder },
-    { label: 'Share Project', d: 'M5 12v7a1 1 0 001 1h12a1 1 0 001-1v-7M12 3v13M8 7l4-4 4 4', color: vela.ink2, pro: true, onPress: () => soon('Share Project') },
+    { label: 'Share Project', d: 'M5 12v7a1 1 0 001 1h12a1 1 0 001-1v-7M12 3v13M8 7l4-4 4 4', color: vela.ink2, onPress: () => { onClose(); void shareProject(p.id); } },
     { label: 'Rename', d: 'M4 20h4L18 10l-4-4L4 16zM14 6l4 4', color: vela.ink2, onPress: rename },
     { label: 'Create Template', d: 'M12 5a3 3 0 100 6 3 3 0 000-6zM5 19a7 7 0 0110-6.3M17 14v6M14 17h6', color: vela.ink2, onPress: makeTemplate },
     { label: 'Duplicate', d: 'M8 8h12v12H8zM4 4h12v3M4 4v12h3', color: vela.ink2, div: true, onPress: () => { onClose(); duplicateProject(p.id); } },
@@ -235,6 +235,8 @@ export function ProjectsScreen() {
   const setViewMode = useEditor((s) => s.setViewMode);
   const removeProjects = useEditor((s) => s.removeProjects);
   const setProjectsFolder = useEditor((s) => s.setProjectsFolder);
+  const exporting = useEditor((s) => s.exporting);
+  const exportMsg = useEditor((s) => s.exportMsg);
   const [createOpen, setCreateOpen] = useState(false);
   const [menuProject, setMenuProject] = useState<StoredProject | null>(null);
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
@@ -446,12 +448,25 @@ export function ProjectsScreen() {
       />
 
       {menuProject ? <ProjectMenu p={menuProject} onClose={() => setMenuProject(null)} /> : null}
+
+      {exporting ? (
+        <View style={styles.busy}>
+          <View style={styles.busyCard}>
+            <ActivityIndicator color={vela.accent} />
+            <Text style={styles.busyText}>{exportMsg || 'Preparing…'}</Text>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: vela.homeBg, paddingTop: 54 },
+
+  busy: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,20,28,0.5)', alignItems: 'center', justifyContent: 'center' },
+  busyCard: { backgroundColor: vela.lightCard, borderRadius: 18, paddingHorizontal: 30, paddingVertical: 26, alignItems: 'center', gap: 14, minWidth: 200 },
+  busyText: { fontFamily: font.semibold, fontSize: 15, color: vela.ink2, textAlign: 'center' },
 
   header: { paddingHorizontal: 22, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   h1: { fontFamily: font.extrabold, fontSize: 30, color: vela.ink, letterSpacing: -0.6 },

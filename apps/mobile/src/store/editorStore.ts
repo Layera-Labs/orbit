@@ -123,6 +123,8 @@ interface EditorState {
   setPref: <K extends keyof EditorPrefs>(key: K, value: EditorPrefs[K]) => void;
   exportToPhotos: (output?: ExportOutput) => Promise<void>;
   shareExport: (output?: ExportOutput) => Promise<void>;
+  /** Export a stored project (by id, without opening it) and share the file. */
+  shareProject: (id: string, output?: ExportOutput) => Promise<void>;
 
   // helpers
   mainTrackId: () => string | null;
@@ -430,6 +432,29 @@ export const useEditor = create<EditorState>((set, get) => ({
       return;
     }
     set({ panel: null, exporting: true, exportMsg: 'Preparing…' });
+    try {
+      const url = await exportProject(serverUrl, project, (p) => set({ exportMsg: progressLabel(p) }), output);
+      const fileUri = await downloadToPhotos(url, Date.now(), (p) => set({ exportMsg: progressLabel(p) }));
+      set({ exporting: false });
+      await Share.share({ url: fileUri });
+    } catch (e) {
+      set({ exporting: false });
+      Alert.alert('Share failed', e instanceof Error ? e.message : String(e));
+    }
+  },
+
+  shareProject: async (id, output) => {
+    const { serverUrl, exporting } = get();
+    if (exporting) return;
+    const stored = loadProject(id);
+    if (!stored) return;
+    const project = ops.ensureTracks(stored.project);
+    const clipCount = (project.tracks ?? []).reduce((n, t) => n + t.clips.length, 0);
+    if (clipCount === 0 && project.overlays.length === 0) {
+      Alert.alert('Nothing to share', 'This project has no clips yet.');
+      return;
+    }
+    set({ exporting: true, exportMsg: 'Preparing…' });
     try {
       const url = await exportProject(serverUrl, project, (p) => set({ exportMsg: progressLabel(p) }), output);
       const fileUri = await downloadToPhotos(url, Date.now(), (p) => set({ exportMsg: progressLabel(p) }));
