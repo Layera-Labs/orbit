@@ -33,7 +33,7 @@ export function CreateSheet({
             <VIcon name="close" size={26} color={vela.ink2} strokeWidth={2.2} />
           </Pressable>
         </View>
-        <Text style={styles.lead}>Pick a format to start — you can change it any time in the editor.</Text>
+        <Text style={styles.lead}>Pick a format to start. You can change it any time in the editor.</Text>
 
         <View style={styles.grid}>
           {RATIOS.map((r) => (

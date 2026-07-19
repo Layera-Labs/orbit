@@ -65,7 +65,7 @@ export function DiscoverScreen() {
           </View>
           <View style={styles.heroBody}>
             <Text style={styles.heroTitle}>Start from a <Text style={{ color: vela.accent }}>template</Text></Text>
-            <Text style={styles.heroSub}>Ready-made looks — open one and make it yours.</Text>
+            <Text style={styles.heroSub}>Ready-made looks. Open one and make it yours.</Text>
           </View>
         </LinearGradient>
 
