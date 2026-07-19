@@ -26,6 +26,8 @@ import { saveUserTemplate, type StoredTemplate } from '../storage/templates';
 import type { EditorTemplate } from '../templates';
 import { loadSettings, saveSettings, type ViewMode } from '../storage/settings';
 import { exportProject, downloadToPhotos, type ExportProgress } from '../net/renderClient';
+import { generateImage as genImage, getCredits } from '../net/genClient';
+import { downloadToMedia } from '../storage/media';
 import { Alert, Share } from 'react-native';
 
 function progressLabel(p: ExportProgress): string {
@@ -78,7 +80,7 @@ interface EditorState {
   // editor sheets + prefs + export
   panel: EditorPanel | null;
   /** Which tab the content library opens on. */
-  libraryTab: 'stickers' | 'emoji' | 'backgrounds' | 'stock';
+  libraryTab: 'stickers' | 'emoji' | 'backgrounds' | 'stock' | 'generate';
   prefs: EditorPrefs;
   exporting: boolean;
   exportMsg: string;
@@ -116,7 +118,7 @@ interface EditorState {
   setMediaDuration: (src: string, sec: number) => void;
   setPanel: (panel: EditorPanel | null) => void;
   /** Open the content library on a specific tab. */
-  openLibrary: (tab: 'stickers' | 'emoji' | 'backgrounds' | 'stock') => void;
+  openLibrary: (tab: 'stickers' | 'emoji' | 'backgrounds' | 'stock' | 'generate') => void;
   /** Undo / redo the last project mutation. */
   undo: () => void;
   redo: () => void;
@@ -125,6 +127,12 @@ interface EditorState {
   shareExport: (output?: ExportOutput) => Promise<void>;
   /** Export a stored project (by id, without opening it) and share the file. */
   shareProject: (id: string, output?: ExportOutput) => Promise<void>;
+  /** Credit balance for this device (null = unknown / server unreachable). */
+  credits: number | null;
+  /** Refresh the credit balance from the render server. */
+  refreshCredits: () => Promise<void>;
+  /** Generate an image from a prompt and add it to the timeline; returns the new balance. */
+  generateImageClip: (prompt: string) => Promise<number>;
 
   // helpers
   mainTrackId: () => string | null;
@@ -203,6 +211,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   playheadSec: 0,
   pxPerSec: DEFAULT_PX_PER_SEC,
   isPlaying: false,
+  credits: null,
   past: [],
   future: [],
   panel: null,
@@ -464,6 +473,18 @@ export const useEditor = create<EditorState>((set, get) => ({
       set({ exporting: false });
       Alert.alert('Share failed', e instanceof Error ? e.message : String(e));
     }
+  },
+
+  refreshCredits: async () => {
+    set({ credits: await getCredits(get().serverUrl) });
+  },
+
+  generateImageClip: async (prompt) => {
+    const { url, balance } = await genImage(get().serverUrl, prompt);
+    const src = await downloadToMedia(url, 'jpg');
+    get().importVisual([{ id: newId('img'), type: 'image', src, start: 0, duration: 4 }]);
+    set({ credits: balance });
+    return balance;
   },
 
   mainTrackId: () => get().project?.tracks?.find((t) => t.kind === 'visual')?.id ?? null,
