@@ -322,7 +322,12 @@ export function Preview({ width, height }: { width: number; height: number }) {
       }
     }
     for (const o of captions) {
-      if (Math.abs(ny - o.y) < 0.1) {
+      // Hit-test the caption's CURRENT band: keyframes move it off its base y.
+      const kf = hasKeyframes(o.keyframes)
+        ? sampleKeyframes(o.keyframes!, Math.max(0, Math.min(1, (playheadSec - o.start) / Math.max(0.001, o.end - o.start))))
+        : null;
+      const cy = kf ? kf.y : o.y;
+      if (Math.abs(ny - cy) < 0.1) {
         select({ trackId: OVERLAY_TRACK, clipId: o.id });
         return;
       }
@@ -398,7 +403,17 @@ export function Preview({ width, height }: { width: number; height: number }) {
           return (
             <View
               key={o.id}
-              style={[styles.textOverlay, { top: o.y * height, opacity: kf ? kf.opacity : 1, transform: [{ translateX: tx }, { translateY: ty }, { scale: sc }] }]}
+              style={[
+                styles.textOverlay,
+                {
+                  top: o.y * height,
+                  opacity: kf ? kf.opacity : 1,
+                  // Pivot the Ken-Burns scale about the CANVAS centre (not the
+                  // caption's own centre) so it matches the export's zoompan.
+                  transformOrigin: [width / 2, 0.5 * height - o.y * height, 0],
+                  transform: [{ translateX: tx }, { translateY: ty }, { scale: sc }],
+                },
+              ]}
             >
               <Text
                 key={`${o.fontFamily ?? 'def'}-${fontsVersion}`}
