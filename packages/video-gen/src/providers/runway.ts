@@ -1,0 +1,122 @@
+/**
+ * Runway-backed `MediaProvider` (image generation via Gen-4). Held server-side
+ * with the developer's API token; wrapped by `GenerationService` for metering.
+ *
+ * Runway is asynchronous: a generation returns a task id, which we poll (no
+ * faster than every 5s, per Runway's guidance) until it reaches a terminal
+ * state. A thrown call is never charged (the service debits only on success).
+ * https://docs.dev.runwayml.com
+ */
+import type { GenImageRequest, GenResult, MediaProvider } from '../types';
+
+const RUNWAY_API = 'https://api.dev.runwayml.com';
+const API_VERSION = '2024-11-06';
+const DEFAULT_IMAGE_MODEL = 'gen4_image';
+/** `WIDTH:HEIGHT` — gen4_image accepts 1920:1080, 1080:1920, 1024:1024, … */
+const DEFAULT_RATIO = '1920:1080';
+const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'CANCELLED']);
+
+export interface RunwayProviderOptions {
+  /** Runway API token (the developer's key, held server-side). */
+  token?: string;
+  /** Text-to-image model (default `gen4_image`; overridable per request). */
+  imageModel?: string;
+  /** Output ratio `WIDTH:HEIGHT` for images (default `1920:1080`). */
+  ratio?: string;
+  /** API version header value. */
+  apiVersion?: string;
+  /** Poll interval (ms) — Runway asks for ≥5000. */
+  pollMs?: number;
+  /** Overall timeout (ms) for a generation. */
+  timeoutMs?: number;
+  /** Injectable fetch, for tests. */
+  fetchImpl?: typeof fetch;
+}
+
+interface Task {
+  id: string;
+  status: string;
+  output?: unknown;
+  failure?: unknown;
+  failureCode?: unknown;
+}
+
+export class RunwayProvider implements MediaProvider {
+  private token: string;
+  private imageModel: string;
+  private ratio: string;
+  private apiVersion: string;
+  private pollMs: number;
+  private timeoutMs: number;
+  private fetchImpl: typeof fetch;
+
+  constructor(opts: RunwayProviderOptions = {}) {
+    this.token = opts.token ?? '';
+    this.imageModel = opts.imageModel ?? DEFAULT_IMAGE_MODEL;
+    this.ratio = opts.ratio ?? DEFAULT_RATIO;
+    this.apiVersion = opts.apiVersion ?? API_VERSION;
+    this.pollMs = opts.pollMs ?? 5000;
+    this.timeoutMs = opts.timeoutMs ?? 180_000;
+    this.fetchImpl = opts.fetchImpl ?? fetch;
+  }
+
+  private headers(): Record<string, string> {
+    return {
+      Authorization: `Bearer ${this.token}`,
+      'X-Runway-Version': this.apiVersion,
+      'Content-Type': 'application/json',
+    };
+  }
+
+  async generateImage(req: GenImageRequest): Promise<GenResult> {
+    if (!this.token) throw new Error('RunwayProvider: missing API token');
+    const model = req.model ?? this.imageModel;
+    const res = await this.fetchImpl(`${RUNWAY_API}/v1/text_to_image`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({ promptText: req.prompt, model, ratio: this.ratio }),
+    });
+    if (!res.ok) throw new Error(`Runway ${res.status}: ${await safeText(res)}`);
+    const { id } = (await res.json()) as { id?: string };
+    if (!id) throw new Error('Runway did not return a task id');
+    const task = await this.poll(id);
+    if (task.status !== 'SUCCEEDED') {
+      throw new Error(`Runway task ${task.status}: ${String(task.failure ?? task.failureCode ?? 'unknown error')}`);
+    }
+    const url = pickUrl(task.output);
+    if (!url) throw new Error('Runway returned no output URL');
+    return { url, meta: { provider: 'runway', model, id } };
+  }
+
+  /** Poll the task until it reaches a terminal state. */
+  private async poll(id: string): Promise<Task> {
+    const deadline = Date.now() + this.timeoutMs;
+    for (;;) {
+      await sleep(this.pollMs);
+      const r = await this.fetchImpl(`${RUNWAY_API}/v1/tasks/${id}`, { headers: this.headers() });
+      if (!r.ok) throw new Error(`Runway poll ${r.status}: ${await safeText(r)}`);
+      const task = (await r.json()) as Task;
+      if (TERMINAL.has(task.status)) return task;
+      if (Date.now() > deadline) throw new Error('Runway generation timed out');
+    }
+  }
+}
+
+/** Runway task `output` is an array of URL strings. */
+function pickUrl(output: unknown): string | null {
+  if (typeof output === 'string') return output;
+  if (Array.isArray(output) && output.length && typeof output[0] === 'string') return output[0];
+  return null;
+}
+
+async function safeText(r: Response): Promise<string> {
+  try {
+    return await r.text();
+  } catch {
+    return '';
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}

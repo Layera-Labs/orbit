@@ -7,7 +7,7 @@
  *   POST /v1/upload         (multipart, field "file") → { id }   store media, return an opaque token
  *   POST /v1/render         { project }               → { url }   render a VideoProject
  *   POST /v1/generate       { prompt, music? }         → { url, template }   describe → video (needs GEMINI_API_KEY)
- *   POST /v1/generate-image { prompt }                 → { url, balance }    generate an image, debit credits (needs REPLICATE_API_TOKEN)
+ *   POST /v1/generate-image { prompt }                 → { url, balance }    generate an image, debit credits (needs RUNWAY_API_TOKEN)
  *   GET  /v1/credits                                   → { balance }         current account credit balance
  *
  * Clients can't reach phone-local files, so they upload media first and reference
@@ -32,7 +32,7 @@ import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
 import { renderProject, type ExportOutput, type VideoProject } from '@orbit/video';
 import { buildProjectFromSpec, createGeminiBrain, generateVideoSpec } from '@orbit/video-ai';
-import { GenerationService, ReplicateProvider } from '@orbit/video-gen';
+import { GenerationService, RunwayProvider } from '@orbit/video-gen';
 import { InMemoryLedgerStore, InsufficientCreditsError, Ledger, type AccountId } from '@orbit/billing';
 import { isClientSrc, makeResolveSrc } from './resolve.js';
 
@@ -69,7 +69,7 @@ export function createServer(): Express {
 
   // ---- generation + credit metering (in-memory ledger; see header) ----
   const ledger = new Ledger(new InMemoryLedgerStore());
-  const gen = new GenerationService(new ReplicateProvider({ token: process.env.REPLICATE_API_TOKEN }), ledger);
+  const gen = new GenerationService(new RunwayProvider({ token: process.env.RUNWAY_API_TOKEN }), ledger);
   const FREE_CREDITS = Number(process.env.ORBIT_FREE_CREDITS ?? 100);
   const seeded = new Set<AccountId>();
 
@@ -148,8 +148,8 @@ export function createServer(): Express {
       res.status(400).json({ error: 'request body must be { prompt }' });
       return;
     }
-    if (!process.env.REPLICATE_API_TOKEN) {
-      res.status(503).json({ error: 'server is missing REPLICATE_API_TOKEN' });
+    if (!process.env.RUNWAY_API_TOKEN) {
+      res.status(503).json({ error: 'server is missing RUNWAY_API_TOKEN' });
       return;
     }
     const account = await accountOf(req);
