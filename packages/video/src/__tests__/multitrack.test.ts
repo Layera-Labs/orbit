@@ -85,3 +85,43 @@ describe('multi-track ffmpeg builder', () => {
     expect(g).not.toContain('adelay');
   });
 });
+
+describe('animated text overlays (motion + keyframes)', () => {
+  function withCaption(overlay: VideoProject['overlays'][number]): string {
+    const p = multiTrackProject();
+    p.overlays = [overlay];
+    const args = buildFFmpegArgs(p, {
+      outputPath: '/tmp/out.mp4',
+      baseImage: '/tmp/bg.png',
+      overlayImages: { [overlay.id]: '/tmp/cap.png' },
+      hasAudio: () => true,
+    });
+    return args[args.indexOf('-filter_complex') + 1];
+  }
+  const base = { id: 'cap', type: 'text' as const, text: 'Hi', start: 2, end: 6, x: 0.5, y: 0.8, fontSize: 64, color: '#fff' };
+
+  it('zoom/pans the caption layer and re-anchors PTS to the caption start', () => {
+    const g = withCaption({ ...base, motion: { type: 'zoomIn', intensity: 0.6 } });
+    expect(g).toContain('zoompan');
+    expect(g).toContain('setpts=PTS-STARTPTS+2/TB');
+    expect(g).toContain("enable='between(t,2,6)'");
+  });
+
+  it('bakes keyframed opacity into the alpha plane', () => {
+    const g = withCaption({ ...base, keyframes: [{ t: 0, opacity: 0, x: 0.5, y: 0.8 }, { t: 1, opacity: 1, x: 0.5, y: 0.8 }] });
+    expect(g).toContain("a='clip(");
+    expect(g).toContain('geq=');
+  });
+
+  it('translates the layer by the delta from the baked anchor for position keyframes', () => {
+    const g = withCaption({ ...base, keyframes: [{ t: 0, opacity: 1, x: 0.5, y: 0.8 }, { t: 1, opacity: 1, x: 0.2, y: 0.4 }] });
+    // baked anchor x=0.5*1080=540, y=0.8*1920=1536 subtracted from the kf expression
+    expect(g).toContain(')-540');
+    expect(g).toContain(')-1536');
+  });
+
+  it('keeps a static caption at overlay 0:0 with its time gate', () => {
+    const g = withCaption({ ...base });
+    expect(g).toContain("overlay=0:0:enable='between(t,2,6)'");
+  });
+});

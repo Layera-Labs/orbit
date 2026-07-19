@@ -16,7 +16,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Blur, Canvas, ColorMatrix, Fill, Group, Image as SkImg, ImageShader, LinearGradient, type SkImage, Shader, Skia, rect, useImage, vec } from '@shopify/react-native-skia';
 import { type SharedValue, useSharedValue } from 'react-native-reanimated';
 import { useClipFrame } from '../preview/useClipFrame';
-import { motionTransform } from '../preview/motion';
+import { motionTransform, motionStateAt, hasMotion } from '../preview/motion';
 import { blendToSkia } from '../preview/blend';
 import { hasKeyframes, sampleKeyframes } from '../preview/keyframes';
 import { ensureFontsLoaded, useFontsVersion } from '../text/fonts';
@@ -384,27 +384,42 @@ export function Preview({ width, height }: { width: number; height: number }) {
       ) : null}
 
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        {captions.map((o: TextOverlay) => (
-          <View key={o.id} style={[styles.textOverlay, { top: o.y * height }]}>
-            <Text
-              key={`${o.fontFamily ?? 'def'}-${fontsVersion}`}
-              style={{
-                color: o.color,
-                fontSize: Math.max(8, o.fontSize * scale),
-                fontWeight: o.bold ? '700' : '400',
-                textAlign: o.align ?? 'center',
-                fontFamily: o.fontFamily,
-                width: '90%',
-                // Default legibility floor so captions read over any footage.
-                textShadowColor: 'rgba(0,0,0,0.45)',
-                textShadowOffset: { width: 0, height: 1 },
-                textShadowRadius: 3,
-              }}
+        {captions.map((o: TextOverlay) => {
+          // Animate the caption over its [start,end] window: keyframes drive
+          // opacity + position (delta from the baked anchor); motion adds a
+          // centered Ken-Burns scale/pan — the same math the export uses.
+          const dur = Math.max(0.001, o.end - o.start);
+          const p = Math.max(0, Math.min(1, (playheadSec - o.start) / dur));
+          const kf = hasKeyframes(o.keyframes) ? sampleKeyframes(o.keyframes!, p) : null;
+          const ms = hasMotion(o.motion) ? motionStateAt(o.motion, p) : null;
+          const tx = (ms ? ms.tx * width : 0) + (kf ? (kf.x - o.x) * width : 0);
+          const ty = (ms ? ms.ty * height : 0) + (kf ? (kf.y - o.y) * height : 0);
+          const sc = ms ? ms.scale : 1;
+          return (
+            <View
+              key={o.id}
+              style={[styles.textOverlay, { top: o.y * height, opacity: kf ? kf.opacity : 1, transform: [{ translateX: tx }, { translateY: ty }, { scale: sc }] }]}
             >
-              {o.text}
-            </Text>
-          </View>
-        ))}
+              <Text
+                key={`${o.fontFamily ?? 'def'}-${fontsVersion}`}
+                style={{
+                  color: o.color,
+                  fontSize: Math.max(8, o.fontSize * scale),
+                  fontWeight: o.bold ? '700' : '400',
+                  textAlign: o.align ?? 'center',
+                  fontFamily: o.fontFamily,
+                  width: '90%',
+                  // Default legibility floor so captions read over any footage.
+                  textShadowColor: 'rgba(0,0,0,0.45)',
+                  textShadowOffset: { width: 0, height: 1 },
+                  textShadowRadius: 3,
+                }}
+              >
+                {o.text}
+              </Text>
+            </View>
+          );
+        })}
       </View>
       </View>
     </GestureDetector>
