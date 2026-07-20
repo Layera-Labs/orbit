@@ -60,29 +60,29 @@ export async function generateImage(
   return { url: data.url, balance: data.balance ?? 0 };
 }
 
-/** Generate a video from a prompt. Returns the MP4 URL + the new credit balance. */
+/** Generate a video from a prompt. Returns the MP4 URL (+ optional sound-effect URL) + balance. */
 export async function generateVideo(
   base: string,
   prompt: string,
   size?: { width: number; height: number },
-  durationSec?: number,
-): Promise<{ url: string; balance: number }> {
+  opts?: { durationSec?: number; audio?: boolean },
+): Promise<{ url: string; audioUrl?: string; balance: number }> {
   const account = await getAccount();
   let res: Response;
   try {
     res = await fetch(`${clean(base)}/v1/generate-video`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'X-Orbit-Account': account },
-      body: JSON.stringify({ prompt, width: size?.width, height: size?.height, durationSec }),
+      body: JSON.stringify({ prompt, width: size?.width, height: size?.height, durationSec: opts?.durationSec, audio: opts?.audio }),
     });
   } catch {
     throw new GenError('no-server', 'Could not reach the render server. Check the server URL in settings.');
   }
-  const data = (await res.json().catch(() => ({}))) as { url?: string; balance?: number; error?: string };
+  const data = (await res.json().catch(() => ({}))) as { url?: string; audioUrl?: string; balance?: number; error?: string };
   if (res.status === 402) throw new GenError('out-of-credits', data.error ?? 'Out of credits.', data.balance);
   if (res.status === 503) throw new GenError('not-configured', data.error ?? 'Video generation is not configured on the render server.');
   if (!res.ok || !data.url) throw new GenError('failed', data.error ?? `Generation failed (HTTP ${res.status}).`);
-  return { url: data.url, balance: data.balance ?? 0 };
+  return { url: data.url, audioUrl: data.audioUrl, balance: data.balance ?? 0 };
 }
 
 /** Current credit balance for this device's account (null if unreachable). */

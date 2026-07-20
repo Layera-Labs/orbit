@@ -32,7 +32,7 @@ import { BG_IMAGES, EMOJIS, GRADIENT_PRESETS, SFX, SOLID_PRESETS, STICKERS, open
 import { BUNDLED_BG, BUNDLED_EMOJI, BUNDLED_SFX, BUNDLED_STICKER } from '../content/assets';
 import { addBundledSfx, addBundledSticker, addStickerFromUrl, addStockItem, setBackgroundFromPhoto, setBackgroundFromUrl, setBundledBackground } from '../content/library';
 import { getStockKey, setStockKey, type StockProvider } from '../content/keys';
-import { GenError } from '../net/genClient';
+import { AiGenerateModal } from './AiGenerateModal';
 import { searchStock, isMissingKey, type StockItem, type StockKind } from '../content/stock';
 import { Linking } from 'react-native';
 import type { BlendMode, ClipFilter, ClipMask, ExportOutput, Keyframe, MaskShape, Motion, MotionType, TextAlign, TransitionType, VolumePoint } from '../model/types';
@@ -221,7 +221,7 @@ function InsertSheet() {
     { label: 'Photos', icon: 'photos', onPress: () => { setPanel(null); void pickAndAddMedia(); } },
     { label: 'Audio', icon: 'audio', onPress: () => setPanel('audio') },
     { label: 'Text', icon: 'text', onPress: () => { setPanel(null); addText(); } },
-    { label: 'AI Image', icon: 'fx', onPress: () => openLibrary('generate') },
+    { label: 'AI Image', icon: 'fx', onPress: () => setPanel('aigen') },
     { label: 'Sticker', icon: 'sticker', onPress: () => openLibrary('stickers') },
     { label: 'Library', icon: 'templates', onPress: () => openLibrary('emoji') },
     { label: 'Upload', icon: 'image', onPress: () => { setPanel(null); void pickAndAddOverlay(); } },
@@ -1393,82 +1393,6 @@ function CurveSheet() {
   );
 }
 
-function GenerateTab({ onPick }: { onPick: () => void }) {
-  const credits = useEditor((st) => st.credits);
-  const refreshCredits = useEditor((st) => st.refreshCredits);
-  const generateImageClip = useEditor((st) => st.generateImageClip);
-  const generateVideoClip = useEditor((st) => st.generateVideoClip);
-  const [mode, setMode] = useState<'image' | 'video'>('image');
-  const [prompt, setPrompt] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  useEffect(() => {
-    void refreshCredits();
-  }, [refreshCredits]);
-  const cost = mode === 'image' ? 10 : 100;
-
-  const run = async () => {
-    const p = prompt.trim();
-    if (!p || busy) return;
-    setBusy(true);
-    setErr(null);
-    try {
-      await (mode === 'image' ? generateImageClip(p) : generateVideoClip(p));
-      onPick(); // clip added → close the sheet
-    } catch (e) {
-      if (e instanceof GenError && typeof e.balance === 'number') useEditor.setState({ credits: e.balance });
-      setErr(
-        e instanceof GenError
-          ? e.kind === 'out-of-credits'
-            ? 'You’re out of credits.'
-            : e.kind === 'not-configured'
-              ? `${mode === 'image' ? 'Image' : 'Video'} generation isn’t set up on the render server.`
-              : e.kind === 'no-server'
-                ? 'Can’t reach the render server — set its URL in Profile › Render server.'
-                : e.message
-          : e instanceof Error
-            ? e.message
-            : 'Generation failed.',
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <View style={{ gap: 12 }}>
-      <View style={s.rowBetween}>
-        <View style={s.chipRow}>
-          {(['image', 'video'] as const).map((m) => (
-            <Pressable key={m} onPress={() => setMode(m)} style={[s.chip, mode === m && s.chipOn]}>
-              <Text style={[s.chipText, mode === m && { color: vela.accent }]}>{m === 'image' ? 'Image' : 'Video'}</Text>
-            </Pressable>
-          ))}
-        </View>
-        <View style={s.creditPill}>
-          <VIcon name="bolt" size={13} color={vela.accent} strokeWidth={2.2} />
-          <Text style={s.creditText}>{credits == null ? '—' : credits}</Text>
-        </View>
-      </View>
-      <TextInput
-        style={[s.keyInput, { minHeight: 76, textAlignVertical: 'top' }]}
-        value={prompt}
-        onChangeText={setPrompt}
-        onSubmitEditing={run}
-        returnKeyType="go"
-        placeholder={mode === 'image' ? 'e.g. a neon city skyline at dusk, cinematic' : 'e.g. slow push-in on a misty forest at dawn'}
-        placeholderTextColor={vela.muted3}
-      />
-      {err ? <Text style={[s.prefSub, { color: vela.danger }]}>{err}</Text> : null}
-      <Pressable onPress={run} disabled={busy || !prompt.trim()} style={[s.genBtn, (busy || !prompt.trim()) && { opacity: 0.5 }]}>
-        {busy ? <ActivityIndicator color={vela.onAccent} /> : <VIcon name="fx" size={18} color={vela.onAccent} strokeWidth={2} />}
-        <Text style={s.genBtnText}>{busy ? (mode === 'video' ? 'Generating… (~1 min)' : 'Generating…') : `Generate · ${cost} credits`}</Text>
-      </Pressable>
-      <Text style={s.prefSub}>Runs on your render server in the project’s aspect ratio; drops onto the timeline.</Text>
-    </View>
-  );
-}
-
 function StockTab({ onPick }: { onPick: () => void }) {
   const setPanel = useEditor((s) => s.setPanel);
   const [provider, setProvider] = useState<StockProvider>('unsplash');
@@ -1562,7 +1486,6 @@ function ContentLibrarySheet() {
   const [tab, setTab] = useState<LibraryTab>(useEditor.getState().libraryTab);
   const close = () => setPanel(null);
   const TABS: { key: LibraryTab; label: string }[] = [
-    { key: 'generate', label: 'AI' },
     { key: 'stickers', label: 'Stickers' },
     { key: 'emoji', label: 'Emoji' },
     { key: 'backgrounds', label: 'Backgrounds' },
@@ -1619,8 +1542,6 @@ function ContentLibrarySheet() {
             ))}
           </View>
         </ScrollView>
-      ) : tab === 'generate' ? (
-        <GenerateTab onPick={close} />
       ) : tab === 'stock' ? (
         <StockTab onPick={close} />
       ) : (
@@ -1745,6 +1666,7 @@ export function EditorSheets() {
       {panel === 'mask' && <MaskSheet />}
       {panel === 'voiceover' && <VoiceoverSheet />}
       {panel === 'soundfx' && <SoundFxSheet />}
+      {panel === 'aigen' && <AiGenerateModal />}
       {panel === 'blend' && <BlendSheet />}
       {panel === 'curve' && <CurveSheet />}
       {panel === 'library' && <ContentLibrarySheet />}
