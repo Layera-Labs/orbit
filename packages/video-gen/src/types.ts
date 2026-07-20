@@ -19,6 +19,8 @@ export interface GenVideoRequest {
   /** Target dimensions (mapped to the nearest supported ratio). */
   width?: number;
   height?: number;
+  /** Also generate a matching sound effect (returned as `meta.audioUrl`). */
+  audio?: boolean;
 }
 
 export interface TTSRequest {

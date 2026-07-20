@@ -90,6 +90,34 @@ describe('RunwayProvider.generateVideo', () => {
     expect(videoBody.promptImage).toBe('https://r/gen.png'); // the generated image feeds the video
     expect(videoBody.ratio).toBe('720:1280'); // 9:16 → portrait video ratio
   });
+
+  it('also generates a sound effect when audio is requested', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ id: 'vid' })) // POST /v1/image_to_video
+      .mockResolvedValueOnce(jsonResponse({ id: 'vid', status: 'SUCCEEDED', output: ['https://r/v.mp4'] })) // poll video
+      .mockResolvedValueOnce(jsonResponse({ id: 'sfx' })) // POST /v1/sound_effect
+      .mockResolvedValueOnce(jsonResponse({ id: 'sfx', status: 'SUCCEEDED', output: ['https://r/s.mp3'] })); // poll sfx
+    const p = new RunwayProvider({ token: 't', pollMs: 1, fetchImpl: fetchImpl as unknown as typeof fetch });
+    const res = await p.generateVideo({ prompt: 'rain on a window', image: 'https://r/in.png', audio: true });
+    expect(res.url).toBe('https://r/v.mp4');
+    expect(res.meta?.audioUrl).toBe('https://r/s.mp3');
+    expect(String((fetchImpl.mock.calls[2] as unknown as [string])[0])).toContain('/sound_effect');
+    const sfxBody = JSON.parse((fetchImpl.mock.calls[2] as unknown as [string, RequestInit])[1].body as string);
+    expect(sfxBody.promptText).toBe('rain on a window');
+    expect(sfxBody.model).toBe('eleven_text_to_sound_v2');
+  });
+
+  it('skips the sound effect when audio is not requested', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ id: 'vid' }))
+      .mockResolvedValueOnce(jsonResponse({ id: 'vid', status: 'SUCCEEDED', output: ['https://r/v.mp4'] }));
+    const p = new RunwayProvider({ token: 't', pollMs: 1, fetchImpl: fetchImpl as unknown as typeof fetch });
+    const res = await p.generateVideo({ prompt: 'x', image: 'https://r/in.png' });
+    expect(res.meta?.audioUrl).toBeUndefined();
+    expect(fetchImpl).toHaveBeenCalledTimes(2); // no sound_effect call
+  });
 });
 
 describe('nearestRatio', () => {
