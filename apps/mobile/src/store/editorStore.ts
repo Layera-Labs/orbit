@@ -480,7 +480,9 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   generateImageClip: async (prompt) => {
-    const { url, balance } = await genImage(get().serverUrl, prompt);
+    const p = get().project;
+    const size = p ? { width: p.width, height: p.height } : undefined;
+    const { url, balance } = await genImage(get().serverUrl, prompt, size);
     const src = await downloadToMedia(url, 'jpg');
     get().importVisual([{ id: newId('img'), type: 'image', src, start: 0, duration: 4 }]);
     set({ credits: balance });

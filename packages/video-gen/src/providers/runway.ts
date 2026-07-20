@@ -12,9 +12,38 @@ import type { GenImageRequest, GenResult, MediaProvider } from '../types';
 const RUNWAY_API = 'https://api.dev.runwayml.com';
 const API_VERSION = '2024-11-06';
 const DEFAULT_IMAGE_MODEL = 'gen4_image';
-/** `WIDTH:HEIGHT` — gen4_image accepts 1920:1080, 1080:1920, 1024:1024, … */
+/** `WIDTH:HEIGHT` ratios gen4_image accepts. */
+const IMAGE_RATIOS = [
+  '1920:1080',
+  '1080:1920',
+  '1024:1024',
+  '1360:768',
+  '1080:1080',
+  '1168:880',
+  '1440:1080',
+  '1080:1440',
+  '1808:768',
+  '2112:912',
+];
 const DEFAULT_RATIO = '1920:1080';
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'CANCELLED']);
+
+/** Pick the supported `WIDTH:HEIGHT` ratio closest to the requested aspect. */
+export function nearestRatio(width: number, height: number, ratios: string[] = IMAGE_RATIOS): string {
+  if (!(width > 0) || !(height > 0)) return ratios[0];
+  const target = width / height;
+  let best = ratios[0];
+  let bestDiff = Infinity;
+  for (const r of ratios) {
+    const [w, h] = r.split(':').map(Number);
+    const diff = Math.abs(w / h - target);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = r;
+    }
+  }
+  return best;
+}
 
 export interface RunwayProviderOptions {
   /** Runway API token (the developer's key, held server-side). */
@@ -71,10 +100,13 @@ export class RunwayProvider implements MediaProvider {
   async generateImage(req: GenImageRequest): Promise<GenResult> {
     if (!this.token) throw new Error('RunwayProvider: missing API token');
     const model = req.model ?? this.imageModel;
+    // Follow the project's aspect ratio (mapped to the nearest supported one),
+    // so the generated image matches the video the user is making.
+    const ratio = req.width && req.height ? nearestRatio(req.width, req.height, IMAGE_RATIOS) : this.ratio;
     const res = await this.fetchImpl(`${RUNWAY_API}/v1/text_to_image`, {
       method: 'POST',
       headers: this.headers(),
-      body: JSON.stringify({ promptText: req.prompt, model, ratio: this.ratio }),
+      body: JSON.stringify({ promptText: req.prompt, model, ratio }),
     });
     if (!res.ok) throw new Error(`Runway ${res.status}: ${await safeText(res)}`);
     const { id } = (await res.json()) as { id?: string };
@@ -85,7 +117,7 @@ export class RunwayProvider implements MediaProvider {
     }
     const url = pickUrl(task.output);
     if (!url) throw new Error('Runway returned no output URL');
-    return { url, meta: { provider: 'runway', model, id } };
+    return { url, meta: { provider: 'runway', model, id, ratio } };
   }
 
   /** Poll the task until it reaches a terminal state. */

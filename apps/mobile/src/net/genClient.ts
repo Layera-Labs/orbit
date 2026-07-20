@@ -37,14 +37,18 @@ export class GenError extends Error {
 const clean = (base: string) => base.replace(/\/+$/, '');
 
 /** Generate an image from a prompt. Returns the asset URL + the new credit balance. */
-export async function generateImage(base: string, prompt: string): Promise<{ url: string; balance: number }> {
+export async function generateImage(
+  base: string,
+  prompt: string,
+  size?: { width: number; height: number },
+): Promise<{ url: string; balance: number }> {
   const account = await getAccount();
   let res: Response;
   try {
     res = await fetch(`${clean(base)}/v1/generate-image`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'X-Orbit-Account': account },
-      body: JSON.stringify({ prompt }),
+      body: JSON.stringify({ prompt, width: size?.width, height: size?.height }),
     });
   } catch {
     throw new GenError('no-server', 'Could not reach the render server. Check the server URL in settings.');
