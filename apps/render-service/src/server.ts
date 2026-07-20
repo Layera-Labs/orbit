@@ -167,7 +167,7 @@ export function createServer(): Express {
   });
 
   app.post('/v1/generate-video', async (req: Request, res: Response) => {
-    const body = req.body as { prompt?: string; width?: number; height?: number; durationSec?: number; image?: string; model?: string } | undefined;
+    const body = req.body as { prompt?: string; width?: number; height?: number; durationSec?: number; image?: string; model?: string; audio?: boolean } | undefined;
     if (!body?.prompt) {
       res.status(400).json({ error: 'request body must be { prompt }' });
       return;
@@ -185,8 +185,9 @@ export function createServer(): Express {
         durationSec: body.durationSec,
         image: body.image,
         model: body.model,
+        audio: body.audio,
       });
-      res.json({ url: result.url, balance: await ledger.balance(account) });
+      res.json({ url: result.url, audioUrl: result.meta?.audioUrl, balance: await ledger.balance(account) });
     } catch (err) {
       if (err instanceof InsufficientCreditsError) {
         res.status(402).json({ error: 'insufficient credits', balance: await ledger.balance(account) });

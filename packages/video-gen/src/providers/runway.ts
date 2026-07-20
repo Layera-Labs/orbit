@@ -150,7 +150,29 @@ export class RunwayProvider implements MediaProvider {
     }
     const url = pickUrl(task.output);
     if (!url) throw new Error('Runway returned no output URL');
-    return { url, meta: { provider: 'runway', model, id, ratio, duration } };
+    // Optional matching sound effect (Runway video is silent), returned so the
+    // caller can add it as a separate audio clip.
+    const audioUrl = req.audio ? await this.soundEffect(req.prompt, duration) : undefined;
+    return { url, meta: { provider: 'runway', model, id, ratio, duration, ...(audioUrl ? { audioUrl } : {}) } };
+  }
+
+  /** Generate a matching sound effect (eleven_text_to_sound_v2). Returns its URL. */
+  private async soundEffect(prompt: string, duration: number): Promise<string> {
+    const res = await this.fetchImpl(`${RUNWAY_API}/v1/sound_effect`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({ model: 'eleven_text_to_sound_v2', promptText: prompt, duration }),
+    });
+    if (!res.ok) throw new Error(`Runway sound_effect ${res.status}: ${await safeText(res)}`);
+    const { id } = (await res.json()) as { id?: string };
+    if (!id) throw new Error('Runway sound_effect did not return a task id');
+    const task = await this.poll(id);
+    if (task.status !== 'SUCCEEDED') {
+      throw new Error(`Runway sound_effect ${task.status}: ${String(task.failure ?? task.failureCode ?? 'unknown error')}`);
+    }
+    const url = pickUrl(task.output);
+    if (!url) throw new Error('Runway sound_effect returned no output URL');
+    return url;
   }
 
   /** Poll the task until it reaches a terminal state. */

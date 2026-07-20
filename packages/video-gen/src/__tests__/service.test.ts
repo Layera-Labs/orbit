@@ -27,6 +27,18 @@ describe('GenerationService', () => {
     expect(await ledger.balance('acct')).toBe(1);
   });
 
+  it('charges the muted rate for a silent video and the full rate with audio', async () => {
+    const a = setup();
+    await a.ledger.credit('acct', 1000);
+    await a.svc.generateVideo('acct', { prompt: 'a' });
+    expect(await a.ledger.balance('acct')).toBe(1000 - DEFAULT_COSTS.generate_video_muted); // 60
+
+    const b = setup();
+    await b.ledger.credit('acct', 1000);
+    await b.svc.generateVideo('acct', { prompt: 'a', audio: true });
+    expect(await b.ledger.balance('acct')).toBe(1000 - DEFAULT_COSTS.generate_video); // 100
+  });
+
   it('does not debit when the provider call fails', async () => {
     const ledger = new Ledger(new InMemoryLedgerStore());
     await ledger.credit('acct', 1000);
