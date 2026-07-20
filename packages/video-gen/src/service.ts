@@ -48,9 +48,11 @@ export class GenerationService {
 
   async generateVideo(account: AccountId, req: GenVideoRequest): Promise<GenResult> {
     if (!this.provider.generateVideo) throw new Error('provider does not support generateVideo');
-    await this.ensureAffordable(account, 'generate_video');
+    // Video with a generated sound effect costs more than a silent clip.
+    const op = req.audio ? 'generate_video' : 'generate_video_muted';
+    await this.ensureAffordable(account, op);
     const result = await this.provider.generateVideo(req);
-    await meter(this.ledger, account, 'generate_video', this.costs, { prompt: req.prompt });
+    await meter(this.ledger, account, op, this.costs, { prompt: req.prompt, audio: !!req.audio });
     return result;
   }
 

@@ -8,6 +8,7 @@ export const DEFAULT_COSTS: CostTable = {
   edit_image: 8,
   generate_image: 10,
   generate_video: 100,
+  generate_video_muted: 60,
 };
 
 /**
