@@ -57,6 +57,41 @@ describe('RunwayProvider.generateImage', () => {
   });
 });
 
+describe('RunwayProvider.generateVideo', () => {
+  it('animates a provided image (single image_to_video task)', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ id: 'v1' })) // POST /v1/image_to_video
+      .mockResolvedValueOnce(jsonResponse({ id: 'v1', status: 'SUCCEEDED', output: ['https://r/vid.mp4'] })); // poll
+    const p = new RunwayProvider({ token: 't', pollMs: 1, fetchImpl: fetchImpl as unknown as typeof fetch });
+    const res = await p.generateVideo({ prompt: 'pan across', image: 'https://r/in.png', width: 1920, height: 1080 });
+    expect(res.url).toBe('https://r/vid.mp4');
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
+    expect(String(url)).toBe('https://api.dev.runwayml.com/v1/image_to_video');
+    const body = JSON.parse(init.body as string);
+    expect(body.promptImage).toBe('https://r/in.png');
+    expect(body.model).toBe('gen4_turbo');
+    expect(body.ratio).toBe('1280:720'); // 16:9 → landscape video ratio
+  });
+
+  it('generates a source image first when none is provided', async () => {
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(jsonResponse({ id: 'img' })) // POST /v1/text_to_image
+      .mockResolvedValueOnce(jsonResponse({ id: 'img', status: 'SUCCEEDED', output: ['https://r/gen.png'] })) // poll image
+      .mockResolvedValueOnce(jsonResponse({ id: 'vid' })) // POST /v1/image_to_video
+      .mockResolvedValueOnce(jsonResponse({ id: 'vid', status: 'SUCCEEDED', output: ['https://r/gen.mp4'] })); // poll video
+    const p = new RunwayProvider({ token: 't', pollMs: 1, fetchImpl: fetchImpl as unknown as typeof fetch });
+    const res = await p.generateVideo({ prompt: 'a wave', width: 1080, height: 1920 });
+    expect(res.url).toBe('https://r/gen.mp4');
+    expect(fetchImpl).toHaveBeenCalledTimes(4);
+    expect(String((fetchImpl.mock.calls[0] as unknown as [string])[0])).toContain('/text_to_image');
+    const videoBody = JSON.parse((fetchImpl.mock.calls[2] as unknown as [string, RequestInit])[1].body as string);
+    expect(videoBody.promptImage).toBe('https://r/gen.png'); // the generated image feeds the video
+    expect(videoBody.ratio).toBe('720:1280'); // 9:16 → portrait video ratio
+  });
+});
+
 describe('nearestRatio', () => {
   it('picks the closest aspect and falls back on bad input', () => {
     expect(nearestRatio(1000, 1000)).toBe('1024:1024');

@@ -26,7 +26,7 @@ import { saveUserTemplate, type StoredTemplate } from '../storage/templates';
 import type { EditorTemplate } from '../templates';
 import { loadSettings, saveSettings, type ViewMode } from '../storage/settings';
 import { exportProject, downloadToPhotos, type ExportProgress } from '../net/renderClient';
-import { generateImage as genImage, getCredits } from '../net/genClient';
+import { generateImage as genImage, generateVideo as genVideo, getCredits } from '../net/genClient';
 import { downloadToMedia } from '../storage/media';
 import { Alert, Share } from 'react-native';
 
@@ -133,6 +133,8 @@ interface EditorState {
   refreshCredits: () => Promise<void>;
   /** Generate an image from a prompt and add it to the timeline; returns the new balance. */
   generateImageClip: (prompt: string) => Promise<number>;
+  /** Generate a video from a prompt and add it to the timeline; returns the new balance. */
+  generateVideoClip: (prompt: string) => Promise<number>;
 
   // helpers
   mainTrackId: () => string | null;
@@ -485,6 +487,18 @@ export const useEditor = create<EditorState>((set, get) => ({
     const { url, balance } = await genImage(get().serverUrl, prompt, size);
     const src = await downloadToMedia(url, 'jpg');
     get().importVisual([{ id: newId('img'), type: 'image', src, start: 0, duration: 4 }]);
+    set({ credits: balance });
+    return balance;
+  },
+
+  generateVideoClip: async (prompt) => {
+    const p = get().project;
+    const size = p ? { width: p.width, height: p.height } : undefined;
+    const { url, balance } = await genVideo(get().serverUrl, prompt, size, 5);
+    const src = await downloadToMedia(url, 'mp4');
+    const dur = 5; // gen4_turbo generates a 5s clip
+    get().setMediaDuration(src, dur);
+    get().importVisual([{ id: newId('v'), type: 'video', src, start: 0, duration: dur, trimIn: 0, volume: 1 }]);
     set({ credits: balance });
     return balance;
   },

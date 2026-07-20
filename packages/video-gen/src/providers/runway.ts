@@ -7,7 +7,7 @@
  * state. A thrown call is never charged (the service debits only on success).
  * https://docs.dev.runwayml.com
  */
-import type { GenImageRequest, GenResult, MediaProvider } from '../types';
+import type { GenImageRequest, GenResult, GenVideoRequest, MediaProvider } from '../types';
 
 const RUNWAY_API = 'https://api.dev.runwayml.com';
 const API_VERSION = '2024-11-06';
@@ -26,6 +26,9 @@ const IMAGE_RATIOS = [
   '2112:912',
 ];
 const DEFAULT_RATIO = '1920:1080';
+const DEFAULT_VIDEO_MODEL = 'gen4_turbo';
+/** `WIDTH:HEIGHT` ratios gen4_turbo (image_to_video) accepts. */
+const VIDEO_RATIOS = ['1280:720', '720:1280', '1104:832', '832:1104', '960:960', '1584:672'];
 const TERMINAL = new Set(['SUCCEEDED', 'FAILED', 'CANCELLED']);
 
 /** Pick the supported `WIDTH:HEIGHT` ratio closest to the requested aspect. */
@@ -50,6 +53,8 @@ export interface RunwayProviderOptions {
   token?: string;
   /** Text-to-image model (default `gen4_image`; overridable per request). */
   imageModel?: string;
+  /** Image-to-video model (default `gen4_turbo`; overridable per request). */
+  videoModel?: string;
   /** Output ratio `WIDTH:HEIGHT` for images (default `1920:1080`). */
   ratio?: string;
   /** API version header value. */
@@ -73,6 +78,7 @@ interface Task {
 export class RunwayProvider implements MediaProvider {
   private token: string;
   private imageModel: string;
+  private videoModel: string;
   private ratio: string;
   private apiVersion: string;
   private pollMs: number;
@@ -82,6 +88,7 @@ export class RunwayProvider implements MediaProvider {
   constructor(opts: RunwayProviderOptions = {}) {
     this.token = opts.token ?? '';
     this.imageModel = opts.imageModel ?? DEFAULT_IMAGE_MODEL;
+    this.videoModel = opts.videoModel ?? DEFAULT_VIDEO_MODEL;
     this.ratio = opts.ratio ?? DEFAULT_RATIO;
     this.apiVersion = opts.apiVersion ?? API_VERSION;
     this.pollMs = opts.pollMs ?? 5000;
@@ -118,6 +125,32 @@ export class RunwayProvider implements MediaProvider {
     const url = pickUrl(task.output);
     if (!url) throw new Error('Runway returned no output URL');
     return { url, meta: { provider: 'runway', model, id, ratio } };
+  }
+
+  async generateVideo(req: GenVideoRequest): Promise<GenResult> {
+    if (!this.token) throw new Error('RunwayProvider: missing API token');
+    // Runway animates a source image; text-to-video = generate an image first.
+    const promptImage =
+      req.image ?? (await this.generateImage({ prompt: req.prompt, width: req.width, height: req.height })).url;
+    const model = req.model ?? this.videoModel;
+    const ratio = req.width && req.height ? nearestRatio(req.width, req.height, VIDEO_RATIOS) : VIDEO_RATIOS[0];
+    // gen4_turbo supports 5s or 10s.
+    const duration = (req.durationSec ?? 5) >= 8 ? 10 : 5;
+    const res = await this.fetchImpl(`${RUNWAY_API}/v1/image_to_video`, {
+      method: 'POST',
+      headers: this.headers(),
+      body: JSON.stringify({ promptImage, promptText: req.prompt, model, ratio, duration }),
+    });
+    if (!res.ok) throw new Error(`Runway ${res.status}: ${await safeText(res)}`);
+    const { id } = (await res.json()) as { id?: string };
+    if (!id) throw new Error('Runway did not return a task id');
+    const task = await this.poll(id);
+    if (task.status !== 'SUCCEEDED') {
+      throw new Error(`Runway task ${task.status}: ${String(task.failure ?? task.failureCode ?? 'unknown error')}`);
+    }
+    const url = pickUrl(task.output);
+    if (!url) throw new Error('Runway returned no output URL');
+    return { url, meta: { provider: 'runway', model, id, ratio, duration } };
   }
 
   /** Poll the task until it reaches a terminal state. */
