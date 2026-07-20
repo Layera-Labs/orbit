@@ -7,7 +7,8 @@
  *   POST /v1/upload         (multipart, field "file") → { id }   store media, return an opaque token
  *   POST /v1/render         { project }               → { url }   render a VideoProject
  *   POST /v1/generate       { prompt, music? }         → { url, template }   describe → video (needs GEMINI_API_KEY)
- *   POST /v1/generate-image { prompt }                 → { url, balance }    generate an image, debit credits (needs RUNWAY_API_TOKEN)
+ *   POST /v1/generate-image { prompt }                 → { url, balance }    generate an image (10 credits; needs RUNWAY_API_TOKEN)
+ *   POST /v1/generate-video { prompt }                 → { url, balance }    generate a video (100 credits; needs RUNWAY_API_TOKEN)
  *   GET  /v1/credits                                   → { balance }         current account credit balance
  *
  * Clients can't reach phone-local files, so they upload media first and reference
@@ -155,6 +156,36 @@ export function createServer(): Express {
     const account = await accountOf(req);
     try {
       const result = await gen.generateImage(account, { prompt: body.prompt, width: body.width, height: body.height, model: body.model });
+      res.json({ url: result.url, balance: await ledger.balance(account) });
+    } catch (err) {
+      if (err instanceof InsufficientCreditsError) {
+        res.status(402).json({ error: 'insufficient credits', balance: await ledger.balance(account) });
+        return;
+      }
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.post('/v1/generate-video', async (req: Request, res: Response) => {
+    const body = req.body as { prompt?: string; width?: number; height?: number; durationSec?: number; image?: string; model?: string } | undefined;
+    if (!body?.prompt) {
+      res.status(400).json({ error: 'request body must be { prompt }' });
+      return;
+    }
+    if (!process.env.RUNWAY_API_TOKEN) {
+      res.status(503).json({ error: 'server is missing RUNWAY_API_TOKEN' });
+      return;
+    }
+    const account = await accountOf(req);
+    try {
+      const result = await gen.generateVideo(account, {
+        prompt: body.prompt,
+        width: body.width,
+        height: body.height,
+        durationSec: body.durationSec,
+        image: body.image,
+        model: body.model,
+      });
       res.json({ url: result.url, balance: await ledger.balance(account) });
     } catch (err) {
       if (err instanceof InsufficientCreditsError) {
