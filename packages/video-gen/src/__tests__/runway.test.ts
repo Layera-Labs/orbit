@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { RunwayProvider } from '../providers/runway';
+import { RunwayProvider, nearestRatio } from '../providers/runway';
 
 function jsonResponse(body: unknown, ok = true, status = 200): Response {
   return { ok, status, json: async () => body, text: async () => JSON.stringify(body) } as unknown as Response;
@@ -43,5 +43,24 @@ describe('RunwayProvider.generateImage', () => {
 
   it('throws without a token', async () => {
     await expect(new RunwayProvider({}).generateImage({ prompt: 'x' })).rejects.toThrow(/token/);
+  });
+
+  it('maps the requested size to the nearest supported ratio', async () => {
+    const call = async (width: number, height: number) => {
+      const fetchImpl = vi.fn(async () => jsonResponse({ id: 'p', status: 'SUCCEEDED', output: ['https://x/o.png'] }));
+      await new RunwayProvider({ token: 't', pollMs: 1, fetchImpl: fetchImpl as unknown as typeof fetch }).generateImage({ prompt: 'x', width, height });
+      return JSON.parse((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body as string).ratio;
+    };
+    expect(await call(1080, 1080)).toBe('1024:1024'); // square
+    expect(await call(1080, 1920)).toBe('1080:1920'); // 9:16 portrait
+    expect(await call(1920, 1080)).toBe('1920:1080'); // 16:9 landscape
+  });
+});
+
+describe('nearestRatio', () => {
+  it('picks the closest aspect and falls back on bad input', () => {
+    expect(nearestRatio(1000, 1000)).toBe('1024:1024');
+    expect(nearestRatio(900, 1600)).toBe('1080:1920');
+    expect(nearestRatio(0, 0)).toBe('1920:1080'); // first ratio as fallback
   });
 });
