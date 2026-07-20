@@ -1445,9 +1445,10 @@ function GenerateTab({ onPick }: { onPick: () => void }) {
         style={[s.keyInput, { minHeight: 76, textAlignVertical: 'top' }]}
         value={prompt}
         onChangeText={setPrompt}
+        onSubmitEditing={run}
+        returnKeyType="go"
         placeholder="e.g. a neon city skyline at dusk, cinematic"
         placeholderTextColor={vela.muted3}
-        multiline
       />
       {err ? <Text style={[s.prefSub, { color: vela.danger }]}>{err}</Text> : null}
       <Pressable onPress={run} disabled={busy || !prompt.trim()} style={[s.genBtn, (busy || !prompt.trim()) && { opacity: 0.5 }]}>
