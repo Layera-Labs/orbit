@@ -1397,12 +1397,15 @@ function GenerateTab({ onPick }: { onPick: () => void }) {
   const credits = useEditor((st) => st.credits);
   const refreshCredits = useEditor((st) => st.refreshCredits);
   const generateImageClip = useEditor((st) => st.generateImageClip);
+  const generateVideoClip = useEditor((st) => st.generateVideoClip);
+  const [mode, setMode] = useState<'image' | 'video'>('image');
   const [prompt, setPrompt] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
     void refreshCredits();
   }, [refreshCredits]);
+  const cost = mode === 'image' ? 10 : 100;
 
   const run = async () => {
     const p = prompt.trim();
@@ -1410,7 +1413,7 @@ function GenerateTab({ onPick }: { onPick: () => void }) {
     setBusy(true);
     setErr(null);
     try {
-      await generateImageClip(p);
+      await (mode === 'image' ? generateImageClip(p) : generateVideoClip(p));
       onPick(); // clip added → close the sheet
     } catch (e) {
       if (e instanceof GenError && typeof e.balance === 'number') useEditor.setState({ credits: e.balance });
@@ -1419,7 +1422,7 @@ function GenerateTab({ onPick }: { onPick: () => void }) {
           ? e.kind === 'out-of-credits'
             ? 'You’re out of credits.'
             : e.kind === 'not-configured'
-              ? 'Image generation isn’t set up on the render server.'
+              ? `${mode === 'image' ? 'Image' : 'Video'} generation isn’t set up on the render server.`
               : e.kind === 'no-server'
                 ? 'Can’t reach the render server — set its URL in Profile › Render server.'
                 : e.message
@@ -1435,7 +1438,13 @@ function GenerateTab({ onPick }: { onPick: () => void }) {
   return (
     <View style={{ gap: 12 }}>
       <View style={s.rowBetween}>
-        <Text style={s.libSection}>Describe an image to generate</Text>
+        <View style={s.chipRow}>
+          {(['image', 'video'] as const).map((m) => (
+            <Pressable key={m} onPress={() => setMode(m)} style={[s.chip, mode === m && s.chipOn]}>
+              <Text style={[s.chipText, mode === m && { color: vela.accent }]}>{m === 'image' ? 'Image' : 'Video'}</Text>
+            </Pressable>
+          ))}
+        </View>
         <View style={s.creditPill}>
           <VIcon name="bolt" size={13} color={vela.accent} strokeWidth={2.2} />
           <Text style={s.creditText}>{credits == null ? '—' : credits}</Text>
@@ -1447,15 +1456,15 @@ function GenerateTab({ onPick }: { onPick: () => void }) {
         onChangeText={setPrompt}
         onSubmitEditing={run}
         returnKeyType="go"
-        placeholder="e.g. a neon city skyline at dusk, cinematic"
+        placeholder={mode === 'image' ? 'e.g. a neon city skyline at dusk, cinematic' : 'e.g. slow push-in on a misty forest at dawn'}
         placeholderTextColor={vela.muted3}
       />
       {err ? <Text style={[s.prefSub, { color: vela.danger }]}>{err}</Text> : null}
       <Pressable onPress={run} disabled={busy || !prompt.trim()} style={[s.genBtn, (busy || !prompt.trim()) && { opacity: 0.5 }]}>
         {busy ? <ActivityIndicator color={vela.onAccent} /> : <VIcon name="fx" size={18} color={vela.onAccent} strokeWidth={2} />}
-        <Text style={s.genBtnText}>{busy ? 'Generating…' : 'Generate · 10 credits'}</Text>
+        <Text style={s.genBtnText}>{busy ? (mode === 'video' ? 'Generating… (~1 min)' : 'Generating…') : `Generate · ${cost} credits`}</Text>
       </Pressable>
-      <Text style={s.prefSub}>Runs on your render server; the image drops onto the timeline.</Text>
+      <Text style={s.prefSub}>Runs on your render server in the project’s aspect ratio; drops onto the timeline.</Text>
     </View>
   );
 }

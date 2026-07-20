@@ -13,9 +13,12 @@ export interface GenImageRequest {
 export interface GenVideoRequest {
   prompt: string;
   durationSec?: number;
-  /** Optional source image (image-to-video). */
+  /** Optional source image (image-to-video). If omitted, one is generated first. */
   image?: string;
   model?: string;
+  /** Target dimensions (mapped to the nearest supported ratio). */
+  width?: number;
+  height?: number;
 }
 
 export interface TTSRequest {
