@@ -126,3 +126,18 @@ export const elev = {
 
 /** Default render-service URL (sim shares the Mac's network on localhost). */
 export const DEFAULT_SERVER = 'http://localhost:8787';
+
+/**
+ * Require login/register before AI generation + credits. Set false only for a
+ * local dev server running without auth (ORBIT_AUTH_PROVIDER unset), where the
+ * anonymous account is used instead. The editor is always usable logged-out.
+ */
+export const AUTH_ENABLED = true;
+
+/**
+ * RevenueCat public SDK keys (per platform), for buying credit packs. Empty until
+ * you configure RevenueCat — while empty, the SDK is never loaded and the
+ * Buy-credits UI shows a "not available yet" state. Fill these in, add the
+ * `react-native-purchases` config plugin, and rebuild the dev client to enable.
+ */
+export const REVENUECAT_API_KEY = { ios: '', android: '' } as const;

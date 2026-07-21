@@ -6,12 +6,13 @@
  * menu (Rename / Move to Trash real, the rest soon).
  */
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type KeyboardTypeOptions } from 'react-native';
 import { font, mono, vela, ratioLabel } from '../constants';
 import { projectDuration } from '../model/project';
 import { VIcon, type VIconName } from '../components/VIcon';
 import { BottomNav } from '../components/BottomNav';
 import { BottomSheet } from '../components/BottomSheet';
+import { InputSheet } from '../components/InputSheet';
 import { Glass } from '../components/Glass';
 import { useEditor } from '../store/editorStore';
 import type { ViewMode } from '../storage/settings';
@@ -19,6 +20,18 @@ import type { StoredProject } from '../storage/projects';
 import { CreateSheet } from './CreateSheet';
 
 const DAY = 86400_000;
+
+/** A pending text-input request hosted by the screen-level InputSheet. */
+export type InputReq = {
+  title: string;
+  subtitle?: string;
+  initialValue?: string;
+  placeholder?: string;
+  saveLabel?: string;
+  keyboardType?: KeyboardTypeOptions;
+  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
+  onSave: (value: string) => void;
+};
 
 function clipCount(p: StoredProject): number {
   if (p.project.tracks?.length) return p.project.tracks.reduce((n, t) => n + t.clips.length, 0);
@@ -97,7 +110,7 @@ function ProjectGridCard({ p, cols, onOpen, onMenu, selectMode, checked }: { p: 
   );
 }
 
-function FolderPickerSheet({ folders, onPick, onClose }: { folders: string[]; onPick: (folder: string) => void; onClose: () => void }) {
+function FolderPickerSheet({ folders, onPick, onClose, onRequestInput }: { folders: string[]; onPick: (folder: string) => void; onClose: () => void; onRequestInput: (req: InputReq) => void }) {
   return (
     <BottomSheet onClose={onClose} style={styles.lightSheet} dim="rgba(20,20,30,0.32)">
       <Text style={styles.pickerTitle}>Move to Folder</Text>
@@ -109,12 +122,10 @@ function FolderPickerSheet({ folders, onPick, onClose }: { folders: string[]; on
       ))}
       <Pressable
         style={styles.viewRow}
-        onPress={() =>
-          Alert.prompt('New Folder', 'Name the folder.', [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Create', onPress: (t?: string) => t && t.trim() && onPick(t.trim()) },
-          ], 'plain-text')
-        }
+        onPress={() => {
+          onClose();
+          onRequestInput({ title: 'New Folder', subtitle: 'Name the folder.', placeholder: 'Folder name', saveLabel: 'Create', autoCapitalize: 'words', onSave: onPick });
+        }}
       >
         <VIcon name="plus" size={22} color={vela.accent} strokeWidth={2.4} />
         <Text style={[styles.viewLabel, { color: vela.accent }]}>New Folder…</Text>
@@ -144,7 +155,7 @@ function ViewOptionsSheet({ current, onPick, onClose }: { current: ViewMode; onP
 
 interface MenuItem { label: string; d: string; color: string; onPress: () => void; pro?: boolean; div?: boolean; }
 
-function ProjectMenu({ p, onClose }: { p: StoredProject; onClose: () => void }) {
+function ProjectMenu({ p, onClose, onRequestInput }: { p: StoredProject; onClose: () => void; onRequestInput: (req: InputReq) => void }) {
   const renameProject = useEditor((s) => s.renameProject);
   const removeProject = useEditor((s) => s.removeProject);
   const duplicateProject = useEditor((s) => s.duplicateProject);
@@ -160,30 +171,24 @@ function ProjectMenu({ p, onClose }: { p: StoredProject; onClose: () => void }) 
 
   function moveFolder() {
     onClose();
-    Alert.prompt(
-      'Move to Folder',
-      'Type a folder name (creates it if new).',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Move', onPress: (t?: string) => t && setProjectFolder(p.id, t) },
-      ],
-      'plain-text',
-      p.folder ?? 'Default',
-    );
+    onRequestInput({
+      title: 'Move to Folder',
+      subtitle: 'Type a folder name (creates it if new).',
+      initialValue: p.folder ?? 'Default',
+      autoCapitalize: 'words',
+      saveLabel: 'Move',
+      onSave: (t) => setProjectFolder(p.id, t),
+    });
   }
 
   function rename() {
     onClose();
-    Alert.prompt(
-      'Rename project',
-      undefined,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Save', onPress: (t?: string) => t && renameProject(p.id, t) },
-      ],
-      'plain-text',
-      p.name,
-    );
+    onRequestInput({
+      title: 'Rename project',
+      initialValue: p.name,
+      autoCapitalize: 'sentences',
+      onSave: (t) => renameProject(p.id, t),
+    });
   }
   function trash() {
     onClose();
@@ -245,18 +250,18 @@ export function ProjectsScreen() {
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [moveOpen, setMoveOpen] = useState(false);
+  const [inputReq, setInputReq] = useState<InputReq | null>(null);
 
   function promptServer() {
-    Alert.prompt(
-      'Render server',
-      'URL of your render service (your Mac’s IP for a physical phone).',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Save', onPress: (text?: string) => text && setServerUrl(text) },
-      ],
-      'plain-text',
-      serverUrl,
-    );
+    setInputReq({
+      title: 'Render server',
+      subtitle: 'URL of your render service (your Mac’s IP for a physical phone).',
+      initialValue: serverUrl,
+      placeholder: 'http://192.168.1.20:8787',
+      keyboardType: 'url',
+      autoCapitalize: 'none',
+      onSave: setServerUrl,
+    });
   }
 
   const folderOf = (p: StoredProject) => p.folder ?? 'Default';
@@ -340,9 +345,6 @@ export function ProjectsScreen() {
           <View style={styles.header}>
             <Text style={styles.h1}>Projects</Text>
             <View style={styles.headerActions}>
-              <Pressable style={styles.roundBtn} onPress={() => go('quick')}>
-                <VIcon name="bolt" size={20} color={vela.ink2} strokeWidth={2} />
-              </Pressable>
               <Pressable style={styles.roundBtn} onPress={promptServer}>
                 <VIcon name="prefs" size={20} color={vela.ink2} strokeWidth={2} />
               </Pressable>
@@ -435,7 +437,7 @@ export function ProjectsScreen() {
       )}
 
       {moveOpen ? (
-        <FolderPickerSheet folders={folderNames} onPick={moveSelected} onClose={() => setMoveOpen(false)} />
+        <FolderPickerSheet folders={folderNames} onPick={moveSelected} onClose={() => setMoveOpen(false)} onRequestInput={setInputReq} />
       ) : null}
 
       <CreateSheet
@@ -447,7 +449,9 @@ export function ProjectsScreen() {
         }}
       />
 
-      {menuProject ? <ProjectMenu p={menuProject} onClose={() => setMenuProject(null)} /> : null}
+      {menuProject ? <ProjectMenu p={menuProject} onClose={() => setMenuProject(null)} onRequestInput={setInputReq} /> : null}
+
+      {inputReq ? <InputSheet {...inputReq} onClose={() => setInputReq(null)} /> : null}
 
       {exporting ? (
         <View style={styles.busy}>

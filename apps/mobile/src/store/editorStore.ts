@@ -40,9 +40,9 @@ function progressLabel(p: ExportProgress): string {
         : 'Saving…';
 }
 
-export type Screen = 'projects' | 'discover' | 'editor' | 'quick';
+export type Screen = 'projects' | 'discover' | 'editor';
 /** Editor sheets/panels — mirrors Vela's `panel` state machine. */
-export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition' | 'speed' | 'volume' | 'fx' | 'motion' | 'cutout' | 'trim' | 'keyframe' | 'opacity' | 'position' | 'mask' | 'voiceover' | 'blend' | 'curve' | 'library' | 'keys' | 'soundfx' | 'aigen';
+export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition' | 'speed' | 'volume' | 'fx' | 'motion' | 'cutout' | 'trim' | 'keyframe' | 'opacity' | 'position' | 'mask' | 'voiceover' | 'blend' | 'curve' | 'library' | 'keys' | 'soundfx' | 'aigen' | 'auth' | 'genhistory' | 'tts' | 'buycredits';
 export interface EditorPrefs {
   mainTrack: 'Quick' | 'Pro';
   linkage: boolean;
@@ -79,6 +79,8 @@ interface EditorState {
 
   // editor sheets + prefs + export
   panel: EditorPanel | null;
+  /** Where the auth gate should return after a successful sign-in (AI Generate vs AI Voice). */
+  authNext: EditorPanel;
   /** Which tab the content library opens on. */
   libraryTab: 'stickers' | 'emoji' | 'backgrounds' | 'stock' | 'generate';
   prefs: EditorPrefs;
@@ -135,6 +137,8 @@ interface EditorState {
   insertImageFromUrl: (url: string) => Promise<void>;
   /** Add a generated video (by URL) to the timeline, plus an optional synced sound-effect clip. */
   insertVideoFromUrl: (url: string, audioUrl?: string, durationSec?: number) => Promise<void>;
+  /** Add a generated voiceover (by URL) as an audio clip at the playhead. */
+  insertVoiceoverFromUrl: (url: string) => Promise<void>;
 
   // helpers
   mainTrackId: () => string | null;
@@ -217,6 +221,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   past: [],
   future: [],
   panel: null,
+  authNext: 'aigen',
   libraryTab: 'emoji',
   prefs: { mainTrack: 'Quick', linkage: true, snapping: false, previewFps: 30 },
   exporting: false,
@@ -500,6 +505,12 @@ export const useEditor = create<EditorState>((set, get) => ({
       const asrc = await downloadToMedia(audioUrl, 'mp3');
       get().importAudio({ id: newId('a'), src: asrc, start: startAt, duration: dur, volume: 1 });
     }
+  },
+
+  insertVoiceoverFromUrl: async (url) => {
+    const src = await downloadToMedia(url, 'mp3');
+    // duration 0 → importAudio applies a sensible fallback (as with imported music).
+    get().importAudio({ id: newId('a'), src, start: get().playheadSec ?? 0, duration: 0, volume: 0.9 });
   },
 
   mainTrackId: () => get().project?.tracks?.find((t) => t.kind === 'visual')?.id ?? null,
