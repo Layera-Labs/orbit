@@ -14,6 +14,11 @@ class MemUserStore implements UserStore {
   async create(user: UserRecord) {
     this.byEmail.set(user.email, user);
   }
+  async updatePassword(id: string, passwordHash: string) {
+    for (const [email, rec] of this.byEmail) {
+      if (rec.id === id) this.byEmail.set(email, { ...rec, passwordHash });
+    }
+  }
 }
 
 const make = () => new SelfHostedAuth({ secret: 'test-secret-please-change', store: new MemUserStore() });
@@ -65,5 +70,44 @@ describe('SelfHostedAuth', () => {
     const other = new SelfHostedAuth({ secret: 'a-different-secret-entirely', store: new MemUserStore() });
     const res = await other.register('x@y.com', 'password123');
     expect(await auth.verify(res.token)).toBeNull(); // signed by a different key
+  });
+
+  it('resets a password via a reset token and logs the user in with the new one', async () => {
+    const auth = make();
+    await auth.register('reset@x.com', 'oldpassword1');
+    const req = await auth.requestReset('Reset@X.com'); // case-insensitive
+    expect(req?.token).toBeTruthy();
+    const reset = await auth.resetPassword(req!.token, 'newpassword2');
+    expect(reset.isNew).toBe(false);
+    expect(reset.user.email).toBe('reset@x.com');
+    // The session token from a reset is a normal, verifiable session token.
+    expect((await auth.verify(reset.token))?.email).toBe('reset@x.com');
+    // Old password no longer works; new one does.
+    await expect(auth.login('reset@x.com', 'oldpassword1')).rejects.toMatchObject({ kind: 'invalid-credentials' });
+    expect((await auth.login('reset@x.com', 'newpassword2')).isNew).toBe(false);
+  });
+
+  it('returns null requesting a reset for an unknown email', async () => {
+    const auth = make();
+    expect(await auth.requestReset('nobody@x.com')).toBeNull();
+  });
+
+  it('rejects a reset token as a session bearer, and rejects a session token for reset', async () => {
+    const auth = make();
+    await auth.register('dual@x.com', 'password123');
+    const req = await auth.requestReset('dual@x.com');
+    // A reset token must never authenticate a normal request.
+    expect(await auth.verify(req!.token)).toBeNull();
+    // A normal session token must never be accepted as a reset token.
+    const session = await auth.login('dual@x.com', 'password123');
+    await expect(auth.resetPassword(session.token, 'password456')).rejects.toMatchObject({ kind: 'invalid-token' });
+  });
+
+  it('rejects a weak new password and a garbage reset token', async () => {
+    const auth = make();
+    await auth.register('weak@x.com', 'password123');
+    const req = await auth.requestReset('weak@x.com');
+    await expect(auth.resetPassword(req!.token, 'short')).rejects.toMatchObject({ kind: 'weak-password' });
+    await expect(auth.resetPassword('garbage.token', 'password456')).rejects.toMatchObject({ kind: 'invalid-token' });
   });
 });

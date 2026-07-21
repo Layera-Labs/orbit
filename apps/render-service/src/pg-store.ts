@@ -136,4 +136,9 @@ export class PgUserStore implements UserStore {
       user.createdAt,
     ]);
   }
+
+  async updatePassword(id: string, passwordHash: string): Promise<void> {
+    await this.ready;
+    await this.pool.query('UPDATE users SET password_hash = $2 WHERE id = $1', [id, passwordHash]);
+  }
 }
