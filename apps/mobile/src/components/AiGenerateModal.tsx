@@ -158,12 +158,12 @@ export function AiGenerateModal() {
         const { url, balance } = await generateImage(serverUrl, p, size, ac.signal);
         useEditor.setState({ credits: balance });
         setResult({ kind: 'image', url });
-        addHistory({ kind: 'image', url, prompt: p });
+        addHistory({ kind: 'image', source: 'ai', url, prompt: p });
       } else {
         const { url, audioUrl, balance } = await generateVideo(serverUrl, p, size, { durationSec, audio, image: usingPhoto ? photoToken ?? undefined : undefined }, ac.signal);
         useEditor.setState({ credits: balance });
         setResult({ kind: 'video', url, audioUrl, durationSec });
-        addHistory({ kind: 'video', url, audioUrl, durationSec, prompt: p });
+        addHistory({ kind: 'video', source: 'ai', url, audioUrl, durationSec, prompt: p });
       }
     } catch (e) {
       if (isCancel(e)) return; // user cancelled / dismissed — nothing charged, no error UI

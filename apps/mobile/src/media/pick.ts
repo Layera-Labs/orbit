@@ -10,6 +10,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { newId } from '../model/editor-ops';
 import type { AudioTrackClip, VisualTrackClip } from '../model/types';
 import { copyIntoMedia, extFromUri, videoThumbnail } from '../storage/media';
+import { addHistory } from '../storage/genHistory';
 import { useEditor } from '../store/editorStore';
 
 const DEFAULT_IMAGE_DUR = 4; // seconds
@@ -42,8 +43,10 @@ export async function pickAndAddMedia(): Promise<void> {
           useEditor.getState().setSourceDims(asset.width, asset.height);
         }
         clips.push({ id: newId('v'), type: 'video', src, start: 0, duration: dur, trimIn: 0, volume: 1 });
+        addHistory({ kind: 'video', source: 'upload', url: src, durationSec: dur });
       } else {
         clips.push({ id: newId('img'), type: 'image', src, start: 0, duration: DEFAULT_IMAGE_DUR });
+        addHistory({ kind: 'image', source: 'upload', url: src });
       }
       if (!firstPoster) firstPoster = { uri: src, isVideo };
     } catch (e) {
