@@ -11,19 +11,21 @@
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
+    "@orbit/auth": "workspace:*",
     "@orbit/billing": "workspace:*",
     "@orbit/video": "workspace:*",
-    "@orbit/video-ai": "workspace:*",
     "@orbit/video-gen": "workspace:*",
     "cors": "^2.8.6",
     "express": "^4.19.2",
-    "multer": "^2.2.0"
+    "multer": "^2.2.0",
+    "pg": "^8.13.1"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^4.17.21",
     "@types/multer": "^2.1.0",
     "@types/node": "^20.11.0",
+    "@types/pg": "^8.11.10",
     "typescript": "^5.4.0"
   }
 }

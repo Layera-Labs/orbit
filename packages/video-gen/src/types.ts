@@ -8,6 +8,8 @@ export interface GenImageRequest {
   width?: number;
   height?: number;
   model?: string;
+  /** Abort the generation (e.g. the API client disconnected). */
+  signal?: AbortSignal;
 }
 
 export interface GenVideoRequest {
@@ -21,11 +23,15 @@ export interface GenVideoRequest {
   height?: number;
   /** Also generate a matching sound effect (returned as `meta.audioUrl`). */
   audio?: boolean;
+  /** Abort the generation (e.g. the API client disconnected). */
+  signal?: AbortSignal;
 }
 
 export interface TTSRequest {
   text: string;
   voice?: string;
+  /** Abort the generation (e.g. the API client disconnected). */
+  signal?: AbortSignal;
 }
 
 export interface GenResult {
