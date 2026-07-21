@@ -114,11 +114,12 @@ export class RunwayProvider implements MediaProvider {
       method: 'POST',
       headers: this.headers(),
       body: JSON.stringify({ promptText: req.prompt, model, ratio }),
+      signal: req.signal,
     });
     if (!res.ok) throw new Error(`Runway ${res.status}: ${await safeText(res)}`);
     const { id } = (await res.json()) as { id?: string };
     if (!id) throw new Error('Runway did not return a task id');
-    const task = await this.poll(id);
+    const task = await this.poll(id, req.signal);
     if (task.status !== 'SUCCEEDED') {
       throw new Error(`Runway task ${task.status}: ${String(task.failure ?? task.failureCode ?? 'unknown error')}`);
     }
@@ -131,7 +132,7 @@ export class RunwayProvider implements MediaProvider {
     if (!this.token) throw new Error('RunwayProvider: missing API token');
     // Runway animates a source image; text-to-video = generate an image first.
     const promptImage =
-      req.image ?? (await this.generateImage({ prompt: req.prompt, width: req.width, height: req.height })).url;
+      req.image ?? (await this.generateImage({ prompt: req.prompt, width: req.width, height: req.height, signal: req.signal })).url;
     const model = req.model ?? this.videoModel;
     const ratio = req.width && req.height ? nearestRatio(req.width, req.height, VIDEO_RATIOS) : VIDEO_RATIOS[0];
     // gen4_turbo supports 5s or 10s.
@@ -140,11 +141,12 @@ export class RunwayProvider implements MediaProvider {
       method: 'POST',
       headers: this.headers(),
       body: JSON.stringify({ promptImage, promptText: req.prompt, model, ratio, duration }),
+      signal: req.signal,
     });
     if (!res.ok) throw new Error(`Runway ${res.status}: ${await safeText(res)}`);
     const { id } = (await res.json()) as { id?: string };
     if (!id) throw new Error('Runway did not return a task id');
-    const task = await this.poll(id);
+    const task = await this.poll(id, req.signal);
     if (task.status !== 'SUCCEEDED') {
       throw new Error(`Runway task ${task.status}: ${String(task.failure ?? task.failureCode ?? 'unknown error')}`);
     }
@@ -152,21 +154,22 @@ export class RunwayProvider implements MediaProvider {
     if (!url) throw new Error('Runway returned no output URL');
     // Optional matching sound effect (Runway video is silent), returned so the
     // caller can add it as a separate audio clip.
-    const audioUrl = req.audio ? await this.soundEffect(req.prompt, duration) : undefined;
+    const audioUrl = req.audio ? await this.soundEffect(req.prompt, duration, req.signal) : undefined;
     return { url, meta: { provider: 'runway', model, id, ratio, duration, ...(audioUrl ? { audioUrl } : {}) } };
   }
 
   /** Generate a matching sound effect (eleven_text_to_sound_v2). Returns its URL. */
-  private async soundEffect(prompt: string, duration: number): Promise<string> {
+  private async soundEffect(prompt: string, duration: number, signal?: AbortSignal): Promise<string> {
     const res = await this.fetchImpl(`${RUNWAY_API}/v1/sound_effect`, {
       method: 'POST',
       headers: this.headers(),
       body: JSON.stringify({ model: 'eleven_text_to_sound_v2', promptText: prompt, duration }),
+      signal,
     });
     if (!res.ok) throw new Error(`Runway sound_effect ${res.status}: ${await safeText(res)}`);
     const { id } = (await res.json()) as { id?: string };
     if (!id) throw new Error('Runway sound_effect did not return a task id');
-    const task = await this.poll(id);
+    const task = await this.poll(id, signal);
     if (task.status !== 'SUCCEEDED') {
       throw new Error(`Runway sound_effect ${task.status}: ${String(task.failure ?? task.failureCode ?? 'unknown error')}`);
     }
@@ -175,18 +178,26 @@ export class RunwayProvider implements MediaProvider {
     return url;
   }
 
-  /** Poll the task until it reaches a terminal state. */
-  private async poll(id: string): Promise<Task> {
+  /** Poll the task until it reaches a terminal state (or the caller aborts). */
+  private async poll(id: string, signal?: AbortSignal): Promise<Task> {
     const deadline = Date.now() + this.timeoutMs;
     for (;;) {
-      await sleep(this.pollMs);
-      const r = await this.fetchImpl(`${RUNWAY_API}/v1/tasks/${id}`, { headers: this.headers() });
+      if (signal?.aborted) throw abortError();
+      await sleep(this.pollMs, signal);
+      const r = await this.fetchImpl(`${RUNWAY_API}/v1/tasks/${id}`, { headers: this.headers(), signal });
       if (!r.ok) throw new Error(`Runway poll ${r.status}: ${await safeText(r)}`);
       const task = (await r.json()) as Task;
       if (TERMINAL.has(task.status)) return task;
       if (Date.now() > deadline) throw new Error('Runway generation timed out');
     }
   }
+}
+
+/** An AbortError matching the shape `fetch` throws, so callers detect cancels uniformly. */
+function abortError(): Error {
+  const e = new Error('Aborted');
+  e.name = 'AbortError';
+  return e;
 }
 
 /** Runway task `output` is an array of URL strings. */
@@ -204,6 +215,18 @@ async function safeText(r: Response): Promise<string> {
   }
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+/** Sleep that rejects early with an AbortError if the signal fires mid-wait. */
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) return reject(abortError());
+    const t = setTimeout(() => {
+      signal?.removeEventListener('abort', onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(t);
+      reject(abortError());
+    };
+    signal?.addEventListener('abort', onAbort, { once: true });
+  });
 }

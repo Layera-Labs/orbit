@@ -16,11 +16,12 @@ import {
   JetBrainsMono_700Bold,
 } from '@expo-google-fonts/jetbrains-mono';
 import { useEditor } from './src/store/editorStore';
+import { useAuth } from './src/store/authStore';
+import { configurePurchases } from './src/net/purchases';
 import { vela } from './src/constants';
 import { ProjectsScreen } from './src/screens/ProjectsScreen';
 import { DiscoverScreen } from './src/screens/DiscoverScreen';
 import { EditorScreen } from './src/screens/EditorScreen';
-import { QuickGenerateScreen } from './src/screens/QuickGenerateScreen';
 
 export default function App() {
   const screen = useEditor((s) => s.screen);
@@ -41,6 +42,9 @@ export default function App() {
   useEffect(() => {
     loadSettings();
     refreshProjects();
+    configurePurchases(); // no-op until a RevenueCat key is set
+    // Restore a saved session (token → genClient) so AI works without re-login.
+    void useAuth.getState().hydrate();
   }, [loadSettings, refreshProjects]);
 
   // Hold a flat screen in the app's first-screen colour until fonts are ready,
@@ -51,15 +55,13 @@ export default function App() {
 
   const isEditor = screen === 'editor';
   // Light status-bar text on the dark-topped screens; dark on the light Home.
-  const darkTop = isEditor || screen === 'quick' || screen === 'discover';
+  const darkTop = isEditor || screen === 'discover';
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style={darkTop ? 'light' : 'dark'} />
       {isEditor ? (
         <EditorScreen />
-      ) : screen === 'quick' ? (
-        <QuickGenerateScreen />
       ) : screen === 'discover' ? (
         <DiscoverScreen />
       ) : (

@@ -10,8 +10,11 @@ import { font, vela } from '../constants';
 import { VIcon, type VIconName } from './VIcon';
 import { Glass } from './Glass';
 import { BottomSheet } from './BottomSheet';
+import { InputSheet } from './InputSheet';
+import { AuthSheet } from './AuthSheet';
 import { OrbitMark } from './OrbitMark';
 import { useEditor } from '../store/editorStore';
+import { useAuth } from '../store/authStore';
 
 const APP_VERSION = '1.0.0';
 
@@ -56,24 +59,47 @@ export function BottomNav({
 function ProfileSheet({ onClose, onPro }: { onClose: () => void; onPro: () => void }) {
   const serverUrl = useEditor((s) => s.serverUrl);
   const setServerUrl = useEditor((s) => s.setServerUrl);
-  const editServer = () =>
-    Alert.prompt('Render server', 'URL of your render service.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Save', onPress: (t?: string) => t && setServerUrl(t) },
-    ], 'plain-text', serverUrl);
+  const authStatus = useAuth((s) => s.status);
+  const user = useAuth((s) => s.user);
+  const logout = useAuth((s) => s.logout);
+  const [editingServer, setEditingServer] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
+
+  const signedIn = authStatus === 'authed';
+  const account = signedIn
+    ? { icon: 'profile' as VIconName, label: 'Sign out', sub: user?.email, onPress: () => void logout() }
+    : { icon: 'profile' as VIconName, label: 'Sign in', sub: 'Needed for AI generation', onPress: () => setSigningIn(true) };
 
   const rows: { icon: VIconName; label: string; sub?: string; onPress: () => void }[] = [
-    { icon: 'prefs', label: 'Render server', sub: serverUrl, onPress: editServer },
+    account,
+    { icon: 'prefs', label: 'Render server', sub: serverUrl, onPress: () => setEditingServer(true) },
     { icon: 'crown', label: 'Upgrade to Orbit Pro', onPress: onPro },
     { icon: 'help', label: 'About Orbit', sub: `Version ${APP_VERSION}`, onPress: () => Alert.alert('Orbit', `A local-first video editor.\nVersion ${APP_VERSION}`) },
   ];
+  if (editingServer) {
+    return (
+      <InputSheet
+        title="Render server"
+        subtitle="URL of your render service (your Mac’s IP for a physical phone)."
+        initialValue={serverUrl}
+        placeholder="http://192.168.1.20:8787"
+        keyboardType="url"
+        autoCapitalize="none"
+        onSave={setServerUrl}
+        onClose={() => setEditingServer(false)}
+      />
+    );
+  }
+  if (signingIn) {
+    return <AuthSheet onClose={() => setSigningIn(false)} onAuthed={() => setSigningIn(false)} />;
+  }
   return (
     <BottomSheet onClose={onClose} dim="#0006">
       <View style={s.profileHead}>
         <OrbitMark size={40} />
         <View>
           <Text style={s.profileTitle}>Orbit</Text>
-          <Text style={s.profileSub}>Local workspace · no account needed</Text>
+          <Text style={s.profileSub}>{signedIn ? user?.email ?? 'Signed in' : 'Local workspace · sign in for AI'}</Text>
         </View>
       </View>
       <View style={s.divider} />

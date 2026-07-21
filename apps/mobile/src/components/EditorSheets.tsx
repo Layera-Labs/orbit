@@ -21,9 +21,10 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { font, mono, vela, RATIOS, ratioLabel } from '../constants';
+import { font, mono, vela, RATIOS, ratioLabel, AUTH_ENABLED } from '../constants';
 import { VIcon, type VIconName } from './VIcon';
 import { BottomSheet } from './BottomSheet';
+import { InputSheet } from './InputSheet';
 import { VSlider } from './VSlider';
 import { ColorSheet } from './ColorSheet';
 import { FontPickerSheet } from './FontPickerSheet';
@@ -33,6 +34,11 @@ import { BUNDLED_BG, BUNDLED_EMOJI, BUNDLED_SFX, BUNDLED_STICKER } from '../cont
 import { addBundledSfx, addBundledSticker, addStickerFromUrl, addStockItem, setBackgroundFromPhoto, setBackgroundFromUrl, setBundledBackground } from '../content/library';
 import { getStockKey, setStockKey, type StockProvider } from '../content/keys';
 import { AiGenerateModal } from './AiGenerateModal';
+import { AuthSheet } from './AuthSheet';
+import { GenHistorySheet } from './GenHistorySheet';
+import { TtsSheet } from './TtsSheet';
+import { BuyCreditsSheet } from './BuyCreditsSheet';
+import { useAuth } from '../store/authStore';
 import { searchStock, isMissingKey, type StockItem, type StockKind } from '../content/stock';
 import { Linking } from 'react-native';
 import type { BlendMode, ClipFilter, ClipMask, ExportOutput, Keyframe, MaskShape, Motion, MotionType, TextAlign, TransitionType, VolumePoint } from '../model/types';
@@ -120,21 +126,8 @@ function ProjectMenuSheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const shareExport = useEditor((s) => s.shareExport);
   const saveAsTemplate = useEditor((s) => s.saveAsTemplate);
+  const [renaming, setRenaming] = useState(false);
   const close = () => setPanel(null);
-
-  function rename() {
-    close();
-    Alert.prompt(
-      'Rename project',
-      undefined,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Save', onPress: (t?: string) => t && setName(t) },
-      ],
-      'plain-text',
-      name,
-    );
-  }
 
   async function setCover() {
     close();
@@ -159,6 +152,18 @@ function ProjectMenuSheet() {
     }
   }
 
+  if (renaming) {
+    return (
+      <InputSheet
+        title="Rename project"
+        initialValue={name}
+        placeholder="Project name"
+        onSave={setName}
+        onClose={() => setRenaming(false)}
+      />
+    );
+  }
+
   return (
     <BottomSheet onClose={close} style={s.menuSheet}>
       <View style={s.menuHeader}>
@@ -166,12 +171,12 @@ function ProjectMenuSheet() {
           <Text style={s.menuTitle} numberOfLines={1}>{name || 'Untitled'}</Text>
           <Text style={s.menuSub}>{ratioLabel(project.width, project.height)}</Text>
         </View>
-        <Pressable onPress={rename} hitSlop={10}>
+        <Pressable onPress={() => setRenaming(true)} hitSlop={10}>
           <VIcon name="pencil" size={24} color="#fff" />
         </Pressable>
       </View>
       <View style={s.menuDivider} />
-      <Pressable style={s.menuRow} onPress={rename}>
+      <Pressable style={s.menuRow} onPress={() => setRenaming(true)}>
         <VIcon name="pencil" size={24} color="#fff" />
         <Text style={s.menuRowText}>Rename</Text>
       </Pressable>
@@ -213,6 +218,16 @@ function GridSheet({ title, items, tall }: { title: string; items: GridItem[]; t
   );
 }
 
+/** Open an AI panel, first routing through the auth sheet when sign-in is required. */
+function gateAi(target: 'aigen' | 'tts') {
+  if (AUTH_ENABLED && useAuth.getState().status !== 'authed') {
+    useEditor.setState({ authNext: target });
+    useEditor.getState().setPanel('auth');
+  } else {
+    useEditor.getState().setPanel(target);
+  }
+}
+
 function InsertSheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const openLibrary = useEditor((s) => s.openLibrary);
@@ -221,7 +236,8 @@ function InsertSheet() {
     { label: 'Photos', icon: 'photos', onPress: () => { setPanel(null); void pickAndAddMedia(); } },
     { label: 'Audio', icon: 'audio', onPress: () => setPanel('audio') },
     { label: 'Text', icon: 'text', onPress: () => { setPanel(null); addText(); } },
-    { label: 'AI Image', icon: 'fx', onPress: () => setPanel('aigen') },
+    { label: 'AI Generate', icon: 'fx', onPress: () => gateAi('aigen') },
+    { label: 'AI History', icon: 'list', onPress: () => setPanel('genhistory') },
     { label: 'Sticker', icon: 'sticker', onPress: () => openLibrary('stickers') },
     { label: 'Library', icon: 'templates', onPress: () => openLibrary('emoji') },
     { label: 'Upload', icon: 'image', onPress: () => { setPanel(null); void pickAndAddOverlay(); } },
@@ -234,6 +250,7 @@ function AudioSheet() {
   const items: GridItem[] = [
     { label: 'Music', icon: 'audio', onPress: () => { setPanel(null); void pickAndAddAudio(); } },
     { label: 'Sound FX', icon: 'soundfx', onPress: () => setPanel('soundfx') },
+    { label: 'AI Voice', icon: 'subtitle', onPress: () => gateAi('tts') },
     { label: 'Record', icon: 'record', onPress: () => setPanel('voiceover') },
   ];
   return <GridSheet title="Insert audio" items={items} tall />;
@@ -1643,6 +1660,8 @@ function ExportProgressModal() {
 
 export function EditorSheets() {
   const panel = useEditor((s) => s.panel);
+  const setPanel = useEditor((s) => s.setPanel);
+  const authNext = useEditor((s) => s.authNext);
   return (
     <>
       {panel === 'settings' && <VideoSettingsSheet />}
@@ -1666,7 +1685,11 @@ export function EditorSheets() {
       {panel === 'mask' && <MaskSheet />}
       {panel === 'voiceover' && <VoiceoverSheet />}
       {panel === 'soundfx' && <SoundFxSheet />}
+      {panel === 'auth' && <AuthSheet onClose={() => setPanel(null)} onAuthed={() => setPanel(authNext)} />}
       {panel === 'aigen' && <AiGenerateModal />}
+      {panel === 'genhistory' && <GenHistorySheet />}
+      {panel === 'tts' && <TtsSheet />}
+      {panel === 'buycredits' && <BuyCreditsSheet />}
       {panel === 'blend' && <BlendSheet />}
       {panel === 'curve' && <CurveSheet />}
       {panel === 'library' && <ContentLibrarySheet />}
