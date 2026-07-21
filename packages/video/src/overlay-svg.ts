@@ -24,7 +24,7 @@ function n(v: number): string {
 /** Produce a `width`×`height` SVG containing the positioned caption. */
 export function overlayToSVG(o: TextOverlay, width: number, height: number): string {
   const lines = (o.text ?? '').split('\n');
-  const lineH = o.fontSize * 1.25;
+  const lineH = o.fontSize * (o.lineHeight ?? 1.25);
   const anchorX = width * o.x;
   const anchorY = height * o.y;
   const align = o.align ?? 'center';
@@ -53,10 +53,28 @@ export function overlayToSVG(o: TextOverlay, width: number, height: number): str
   const tspans = lines
     .map((l, i) => `<tspan x="${n(anchorX)}" y="${n(firstY + i * lineH)}">${esc(l) || ' '}</tspan>`)
     .join('');
+
+  // Optional drop shadow via an SVG filter applied to the caption text.
+  let filterEl = '';
+  let filterAttr = '';
+  if (o.shadow) {
+    const s = o.shadow;
+    filterEl =
+      `<filter id="sh" x="-40%" y="-40%" width="180%" height="180%">` +
+      `<feDropShadow dx="${n(s.dx ?? 0)}" dy="${n(s.dy ?? 2)}" stdDeviation="${n((s.blur ?? 4) / 2)}" ` +
+      `flood-color="${esc(s.color)}" flood-opacity="${s.opacity ?? 0.6}"/></filter>`;
+    filterAttr = ` filter="url(#sh)"`;
+  }
+  // Optional outline stroke; paint-order=stroke draws it behind the fill so glyph
+  // interiors stay crisp.
+  const strokeAttr = o.stroke
+    ? ` stroke="${esc(o.stroke.color)}" stroke-width="${n(o.stroke.width)}" stroke-linejoin="round" paint-order="stroke"`
+    : '';
+
   const textEl =
     `<text font-family="${esc(fontFamily)}" font-size="${o.fontSize}" font-weight="${fontWeight}" ` +
     `letter-spacing="${letterSpacing}" ` +
-    `fill="${esc(o.color)}" text-anchor="${textAnchor}" dominant-baseline="middle">${tspans}</text>`;
+    `fill="${esc(o.color)}" text-anchor="${textAnchor}" dominant-baseline="middle"${strokeAttr}${filterAttr}>${tspans}</text>`;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${boxEl}${textEl}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${filterEl}${boxEl}${textEl}</svg>`;
 }

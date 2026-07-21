@@ -39,6 +39,21 @@ export type VisualClip = VideoClip | ImageClip;
 
 export type TextAlign = 'left' | 'center' | 'right';
 
+/** Drop shadow behind a caption. Offsets/blur are px at the output resolution. */
+export interface TextShadow {
+  color: string;
+  blur?: number;
+  dx?: number;
+  dy?: number;
+  opacity?: number;
+}
+
+/** Outline stroke around caption glyphs. Width is px at the output resolution. */
+export interface TextStroke {
+  color: string;
+  width: number;
+}
+
 export interface TextOverlay {
   id: ID;
   type: 'text';
@@ -57,6 +72,12 @@ export interface TextOverlay {
   bold?: boolean;
   /** Letter spacing (tracking) in px at the output resolution. */
   letterSpacing?: number;
+  /** Line height as a multiple of the font size (default 1.25). */
+  lineHeight?: number;
+  /** Drop shadow behind the caption (preview + export). */
+  shadow?: TextShadow;
+  /** Outline stroke around the glyphs (preview + export). */
+  stroke?: TextStroke;
   /** Optional caption background box. */
   box?: { color: string; opacity?: number; padding?: number };
   animation?: 'none' | 'fade';

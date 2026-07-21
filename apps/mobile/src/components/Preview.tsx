@@ -11,7 +11,7 @@
  * layers (P4/P5). The server export is the true composite.
  */
 import { useEffect, useRef } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, type TextStyle } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Blur, Canvas, ColorMatrix, Fill, Group, Image as SkImg, ImageShader, LinearGradient, type SkImage, Shader, Skia, rect, useImage, vec } from '@shopify/react-native-skia';
 import { type SharedValue, useSharedValue } from 'react-native-reanimated';
@@ -415,30 +415,76 @@ export function Preview({ width, height }: { width: number; height: number }) {
                 },
               ]}
             >
-              <Text
-                key={`${o.fontFamily ?? 'def'}-${fontsVersion}`}
-                style={{
-                  color: o.color,
-                  fontSize: Math.max(8, o.fontSize * scale),
-                  fontWeight: o.bold ? '700' : '400',
-                  textAlign: o.align ?? 'center',
-                  fontFamily: o.fontFamily,
-                  letterSpacing: (o.letterSpacing ?? 0) * scale,
-                  width: '90%',
-                  // Default legibility floor so captions read over any footage.
-                  textShadowColor: 'rgba(0,0,0,0.45)',
-                  textShadowOffset: { width: 0, height: 1 },
-                  textShadowRadius: 3,
-                }}
-              >
-                {o.text}
-              </Text>
+              <CaptionText o={o} scale={scale} fontsVersion={fontsVersion} />
             </View>
           );
         })}
       </View>
       </View>
     </GestureDetector>
+  );
+}
+
+/** Fold an opacity into a hex color → rgba() (pass-through for non-hex). */
+function shadowRgba(color: string, opacity?: number): string {
+  if (opacity == null) return color;
+  const m = /^#([0-9a-f]{6})$/i.exec(color) ?? /^#([0-9a-f]{3})$/i.exec(color);
+  if (!m) return color;
+  let hex = m[1];
+  if (hex.length === 3) hex = hex.split('').map((c) => c + c).join('');
+  const r = parseInt(hex.slice(0, 2), 16);
+  const g = parseInt(hex.slice(2, 4), 16);
+  const b = parseInt(hex.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+
+// 8-direction offsets used to fake a text stroke (RN <Text> has no native one).
+const STROKE_OFFSETS = [
+  [-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1],
+] as const;
+
+/**
+ * Renders one caption's text with its style: line-height, drop shadow (native
+ * textShadow), and an outline stroke drawn as offset duplicate <Text> layers
+ * behind the fill (there is no native RN text stroke). Keyed by fontsVersion so
+ * it remounts once a downloaded font registers (iOS font-miss cache).
+ */
+function CaptionText({ o, scale, fontsVersion }: { o: TextOverlay; scale: number; fontsVersion: number }) {
+  const fontSize = Math.max(8, o.fontSize * scale);
+  const base: TextStyle = {
+    fontSize,
+    fontWeight: o.bold ? '700' : '400',
+    textAlign: o.align ?? 'center',
+    fontFamily: o.fontFamily,
+    letterSpacing: (o.letterSpacing ?? 0) * scale,
+    lineHeight: o.lineHeight ? fontSize * o.lineHeight : undefined,
+  };
+  const shadow: TextStyle = o.shadow
+    ? {
+        textShadowColor: shadowRgba(o.shadow.color, o.shadow.opacity),
+        textShadowOffset: { width: (o.shadow.dx ?? 0) * scale, height: (o.shadow.dy ?? 2) * scale },
+        textShadowRadius: (o.shadow.blur ?? 4) * scale,
+      }
+    : // Default legibility floor so captions read over any footage.
+      { textShadowColor: 'rgba(0,0,0,0.45)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 3 };
+  const key = `${o.fontFamily ?? 'def'}-${fontsVersion}`;
+
+  if (!o.stroke || o.stroke.width <= 0) {
+    return <Text key={key} style={[base, shadow, { color: o.color, width: '90%' }]}>{o.text}</Text>;
+  }
+  const w = o.stroke.width * scale;
+  return (
+    <View style={{ width: '90%' }}>
+      {STROKE_OFFSETS.map(([dx, dy], i) => (
+        <Text
+          key={`${key}-s${i}`}
+          style={[base, { color: o.stroke!.color, position: 'absolute', left: 0, right: 0, transform: [{ translateX: dx * w }, { translateY: dy * w }] }]}
+        >
+          {o.text}
+        </Text>
+      ))}
+      <Text key={key} style={[base, shadow, { color: o.color }]}>{o.text}</Text>
+    </View>
   );
 }
 
