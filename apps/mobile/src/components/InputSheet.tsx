@@ -8,10 +8,9 @@
  * Primary "Save" is the dominant action; "Cancel" is a quiet secondary below it
  * (not a fill-vs-ghost pair). Save is disabled while the trimmed value is empty.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import {
   Animated,
-  Dimensions,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -19,12 +18,10 @@ import {
   StyleSheet,
   Text,
   TextInput,
-  View,
   type KeyboardTypeOptions,
 } from 'react-native';
 import { font, vela } from '../constants';
-
-const SCREEN_H = Dimensions.get('window').height;
+import { useSheetMotion } from './sheetMotion';
 
 export function InputSheet({
   title,
@@ -52,18 +49,8 @@ export function InputSheet({
   onSave: (value: string) => void;
   onClose: () => void;
 }) {
-  const anim = useRef(new Animated.Value(0)).current; // 0 = hidden, 1 = shown
+  const { translateY, backdrop, close } = useSheetMotion(onClose);
   const [value, setValue] = useState(initialValue);
-
-  useEffect(() => {
-    Animated.timing(anim, { toValue: 1, duration: 240, useNativeDriver: true }).start();
-  }, [anim]);
-
-  const close = useCallback(() => {
-    Animated.timing(anim, { toValue: 0, duration: 190, useNativeDriver: true }).start(({ finished }) => {
-      if (finished) onClose();
-    });
-  }, [anim, onClose]);
 
   const canSave = allowEmpty || value.trim().length > 0;
   const save = () => {
@@ -72,11 +59,9 @@ export function InputSheet({
     close();
   };
 
-  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [SCREEN_H, 0] });
-
   return (
     <Modal visible transparent statusBarTranslucent animationType="none" onRequestClose={close}>
-      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#0008', opacity: anim }]} />
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#0008', opacity: backdrop }]} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
         <Pressable style={StyleSheet.absoluteFill} onPress={close} />
         <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>

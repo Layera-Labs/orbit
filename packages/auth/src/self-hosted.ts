@@ -84,10 +84,44 @@ export class SelfHostedAuth implements AuthAdapter {
     return { token: await this.issue(rec.id, rec.email), user: { endUserId: rec.id, email: rec.email }, isNew: false };
   }
 
+  /** Issue a password-reset token for an email (null if no such account). */
+  async requestReset(email: string): Promise<{ user: AuthUser; token: string } | null> {
+    const addr = normalizeEmail(email);
+    const rec = await this.store.findByEmail(addr);
+    if (!rec) return null;
+    const token = await new SignJWT({ email: rec.email, type: 'reset' })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject(rec.id)
+      .setIssuedAt()
+      .setIssuer(this.issuer)
+      .setExpirationTime('1h')
+      .sign(this.key);
+    return { user: { endUserId: rec.id, email: rec.email }, token };
+  }
+
+  /** Verify a reset token and set a new password; returns a fresh session (auto-login). */
+  async resetPassword(token: string, newPassword: string): Promise<AuthResult> {
+    if (newPassword.length < 8) throw new AuthError('weak-password', 'Password must be at least 8 characters.');
+    let payload: Awaited<ReturnType<typeof jwtVerify>>['payload'];
+    try {
+      ({ payload } = await jwtVerify(token, this.key, { issuer: this.issuer }));
+    } catch {
+      throw new AuthError('invalid-token', 'This reset link is invalid or has expired.');
+    }
+    const email = (payload as { email?: string }).email;
+    const rec = (payload as { type?: string }).type === 'reset' && payload.sub && email
+      ? await this.store.findByEmail(normalizeEmail(email))
+      : null;
+    if (!rec || rec.id !== payload.sub) throw new AuthError('invalid-token', 'This reset link is invalid or has expired.');
+    await this.store.updatePassword(rec.id, hashPassword(newPassword));
+    return { token: await this.issue(rec.id, rec.email), user: { endUserId: rec.id, email: rec.email }, isNew: false };
+  }
+
   async verify(token: string): Promise<AuthUser | null> {
     try {
       const { payload } = await jwtVerify(token, this.key, { issuer: this.issuer });
-      if (!payload.sub) return null;
+      // Reset tokens are single-purpose — never accept one as a session bearer.
+      if (!payload.sub || (payload as { type?: string }).type === 'reset') return null;
       return { endUserId: payload.sub, email: (payload as { email?: string }).email };
     } catch {
       return null;

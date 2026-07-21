@@ -3,11 +3,10 @@
  * drop it on the audio track at the playhead. Self-contained so it sits above the
  * keyboard while typing. Costs 5 credits; gated behind auth like AI Generate.
  */
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
-  Dimensions,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -19,6 +18,7 @@ import {
 } from 'react-native';
 import { font, vela } from '../constants';
 import { VIcon } from './VIcon';
+import { useSheetMotion } from './sheetMotion';
 import { useEditor } from '../store/editorStore';
 import { useAuth } from '../store/authStore';
 import { generateTts, GenError } from '../net/genClient';
@@ -42,22 +42,17 @@ export function TtsSheet() {
   const credits = useEditor((s) => s.credits);
   const insertVoiceoverFromUrl = useEditor((s) => s.insertVoiceoverFromUrl);
 
-  const anim = useRef(new Animated.Value(0)).current;
   const abortRef = useRef<AbortController | null>(null);
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => {
-    Animated.timing(anim, { toValue: 1, duration: 240, useNativeDriver: true }).start();
-  }, [anim]);
-
+  const { translateY, backdrop, close: animateClose } = useSheetMotion(() => setPanel(null));
+  // Abort any in-flight generation immediately, then let the sheet glide out.
   const close = useCallback(() => {
     abortRef.current?.abort();
-    Animated.timing(anim, { toValue: 0, duration: 190, useNativeDriver: true }).start(({ finished }) => {
-      if (finished) setPanel(null);
-    });
-  }, [anim, setPanel]);
+    animateClose();
+  }, [animateClose]);
 
   const canRun = !!text.trim() && !busy;
 
@@ -83,11 +78,9 @@ export function TtsSheet() {
     }
   };
 
-  const translateY = anim.interpolate({ inputRange: [0, 1], outputRange: [Dimensions.get('window').height, 0] });
-
   return (
     <Modal visible transparent statusBarTranslucent animationType="none" onRequestClose={close}>
-      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#0009', opacity: anim }]} />
+      <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#0009', opacity: backdrop }]} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
         <Pressable style={StyleSheet.absoluteFill} onPress={close} />
         <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>

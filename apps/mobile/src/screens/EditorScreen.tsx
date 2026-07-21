@@ -193,8 +193,11 @@ export function EditorScreen() {
 
       {/* Preview (tap to deselect — hides the selection action bar) */}
       <Pressable style={styles.stage} onPress={() => selected && select(null)}>
-        <View style={[styles.whiteFrame, { width: iw + 14, height: ih + 14 }]}>
-          <Preview width={iw} height={ih} />
+        <View style={[styles.whiteFrame, { width: iw + 14, height: ih + 14 }, project.hdr && styles.hdrGlow]}>
+          <View style={{ width: iw, height: ih }}>
+            <Preview width={iw} height={ih} />
+            {project.hdr ? <View pointerEvents="none" style={styles.hdrSheen} /> : null}
+          </View>
         </View>
         <Pressable style={styles.fullscreenBtn} onPress={() => setFullscreen(true)}>
           <VIcon name="fullscreen" size={18} color="#fff" />
@@ -249,14 +252,14 @@ export function EditorScreen() {
       {/* Sheets + export progress */}
       <EditorSheets />
 
-      {/* Fullscreen preview */}
+      {/* Fullscreen player — hides the timeline, keeps transport controls */}
       <Modal visible={fullscreen} animationType="fade" onRequestClose={() => setFullscreen(false)}>
         <View style={styles.fsRoot}>
           {(() => {
             let fw = screenW;
             let fh = fw / ar;
-            if (fh > screenH) {
-              fh = screenH;
+            if (fh > screenH - 96) {
+              fh = screenH - 96;
               fw = fh * ar;
             }
             return <Preview width={fw} height={fh} />;
@@ -264,6 +267,18 @@ export function EditorScreen() {
           <Pressable style={styles.fsClose} onPress={() => setFullscreen(false)} hitSlop={12}>
             <VIcon name="close" size={26} color="#fff" />
           </Pressable>
+          <View style={styles.fsTransport}>
+            <Text style={styles.tc}>
+              {playheadSec.toFixed(2)}
+              <Text style={styles.tcDim}>s / {dur.toFixed(2)}s</Text>
+            </Text>
+            <View style={styles.transportBtns}>
+              <Pressable onPress={() => setPlayhead(0)} hitSlop={12}><VIcon name="prev" size={20} color="#fff" /></Pressable>
+              <Pressable onPress={() => setPlaying(!isPlaying)} hitSlop={12}><VIcon name={isPlaying ? 'pause' : 'play'} size={30} color="#fff" /></Pressable>
+              <Pressable onPress={() => setPlayhead(dur)} hitSlop={12}><VIcon name="next" size={20} color="#fff" /></Pressable>
+            </View>
+            <View style={{ width: 64 }} />
+          </View>
         </View>
       </Modal>
     </View>
@@ -283,9 +298,13 @@ const styles = StyleSheet.create({
 
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   whiteFrame: { backgroundColor: '#fff', borderRadius: 6, padding: 7 },
+  // HDR on: a soft white bloom around the preview + a faint sheen over it.
+  hdrGlow: { shadowColor: '#fff', shadowOpacity: 0.5, shadowRadius: 20, shadowOffset: { width: 0, height: 0 }, elevation: 14 },
+  hdrSheen: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 4 },
   fullscreenBtn: { position: 'absolute', right: 24, bottom: 6, width: 34, height: 34, borderRadius: 9, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
   fsRoot: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
   fsClose: { position: 'absolute', top: 52, right: 20, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
+  fsTransport: { position: 'absolute', left: 0, right: 0, bottom: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24 },
 
   transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, paddingVertical: 6 },
   tc: { fontFamily: mono.regular, fontSize: 13, color: '#fff' },

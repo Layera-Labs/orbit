@@ -8,7 +8,7 @@
  */
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
-import { loginUser, registerUser, type AuthUser } from '../net/authClient';
+import { loginUser, registerUser, requestPasswordReset, resetPassword as resetPasswordReq, type AuthUser } from '../net/authClient';
 import { setAuthToken } from '../net/genClient';
 import { identifyPurchaser, resetPurchaser } from '../net/purchases';
 import { useEditor } from './editorStore';
@@ -28,6 +28,8 @@ interface AuthState {
   hydrate: () => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
+  requestReset: (email: string) => Promise<void>;
+  resetPassword: (token: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -72,6 +74,18 @@ export const useAuth = create<AuthState>((set) => ({
   login: async (email, password) => {
     const base = useEditor.getState().serverUrl;
     const res = await loginUser(base, email, password);
+    await SecureStore.setItemAsync(AUTH_KEY, JSON.stringify({ token: res.token, user: res.user }));
+    applyAuth(set, res.token, res.user, res.balance);
+  },
+
+  requestReset: async (email) => {
+    const base = useEditor.getState().serverUrl;
+    await requestPasswordReset(base, email);
+  },
+
+  resetPassword: async (token, password) => {
+    const base = useEditor.getState().serverUrl;
+    const res = await resetPasswordReq(base, token, password);
     await SecureStore.setItemAsync(AUTH_KEY, JSON.stringify({ token: res.token, user: res.user }));
     applyAuth(set, res.token, res.user, res.balance);
   },

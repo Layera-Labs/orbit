@@ -13,4 +13,9 @@ export class InMemoryUserStore implements UserStore {
   async create(user: UserRecord): Promise<void> {
     this.byEmail.set(user.email, user);
   }
+  async updatePassword(id: string, passwordHash: string): Promise<void> {
+    for (const [email, rec] of this.byEmail) {
+      if (rec.id === id) this.byEmail.set(email, { ...rec, passwordHash });
+    }
+  }
 }

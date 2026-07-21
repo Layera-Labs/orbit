@@ -30,13 +30,15 @@ export interface UserRecord {
   createdAt: string;
 }
 
-/** Persistence seam for self-hosted users (the render service backs this with SQLite). */
+/** Persistence seam for self-hosted users (the render service backs this with Postgres). */
 export interface UserStore {
   findByEmail(email: string): Promise<UserRecord | null>;
   create(user: UserRecord): Promise<void>;
+  /** Replace a user's password hash (password reset). */
+  updatePassword(id: string, passwordHash: string): Promise<void>;
 }
 
-export type AuthErrorKind = 'email-taken' | 'invalid-credentials' | 'weak-password' | 'bad-email';
+export type AuthErrorKind = 'email-taken' | 'invalid-credentials' | 'weak-password' | 'bad-email' | 'invalid-token';
 
 export class AuthError extends Error {
   constructor(

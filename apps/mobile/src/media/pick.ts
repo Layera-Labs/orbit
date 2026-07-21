@@ -36,12 +36,13 @@ export async function pickAndAddMedia(): Promise<void> {
     const isVideo = asset.type === 'video';
     try {
       const src = copyIntoMedia(asset.uri, isVideo ? 'mp4' : 'jpg');
+      // First imported asset's dimensions drive the "Original" ratio (images too).
+      if (!useEditor.getState().sourceDims && asset.width && asset.height) {
+        useEditor.getState().setSourceDims(asset.width, asset.height);
+      }
       if (isVideo) {
         const dur = asset.duration && asset.duration > 0 ? asset.duration / 1000 : FALLBACK_VIDEO_DUR;
         useEditor.getState().setMediaDuration(src, dur);
-        if (!useEditor.getState().sourceDims && asset.width && asset.height) {
-          useEditor.getState().setSourceDims(asset.width, asset.height);
-        }
         clips.push({ id: newId('v'), type: 'video', src, start: 0, duration: dur, trimIn: 0, volume: 1 });
         addHistory({ kind: 'video', source: 'upload', url: src, durationSec: dur });
       } else {

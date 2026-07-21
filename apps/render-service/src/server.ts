@@ -39,6 +39,7 @@ import { authFromEnv, AuthError, type UserStore } from '@orbit/auth';
 import { isClientSrc, makeResolveSrc } from './resolve.js';
 import { PgLedgerStore, PgUserStore, makePgPool } from './pg-store.js';
 import { InMemoryUserStore } from './user-store.js';
+import { emailSenderFromEnv } from './email.js';
 
 export function createServer(): Express {
   const app = express();
@@ -224,6 +225,12 @@ export function createServer(): Express {
   if (auth?.selfHosted) {
     const selfHosted = auth.selfHosted;
     const creds = (req: Request) => (req.body ?? {}) as { email?: string; password?: string };
+    // Optional transactional email for password resets (Resend today). Null when
+    // unconfigured — /v1/auth/forgot then answers 503 "email not configured".
+    const mailer = emailSenderFromEnv(process.env);
+    // Where the reset token is delivered: a deep link / web page base if set, else
+    // the token is emailed for the user to paste into the app's reset screen.
+    const resetUrlBase = process.env.EMAIL_RESET_URL_BASE; // e.g. "orbit://reset" or "https://…/reset"
 
     app.post('/v1/auth/register', async (req: Request, res: Response) => {
       const { email, password } = creds(req);
@@ -260,6 +267,61 @@ export function createServer(): Express {
       } catch (err) {
         if (err instanceof AuthError) {
           res.status(401).json({ error: err.message, kind: err.kind });
+          return;
+        }
+        res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+      }
+    });
+
+    // Request a password reset. Requires an email provider; without one we can't
+    // deliver the token, so answer 503 rather than silently succeeding.
+    app.post('/v1/auth/forgot', async (req: Request, res: Response) => {
+      const { email } = creds(req);
+      if (!email) {
+        res.status(400).json({ error: 'email is required' });
+        return;
+      }
+      if (!mailer) {
+        res.status(503).json({ error: 'email is not configured on this server', kind: 'email-unconfigured' });
+        return;
+      }
+      try {
+        const reset = await selfHosted.requestReset(email);
+        // Only actually send when the account exists — but always answer 200 with
+        // the same body, so the response can't be used to probe which emails exist.
+        if (reset) {
+          const link = resetUrlBase
+            ? `${resetUrlBase}${resetUrlBase.includes('?') ? '&' : '?'}token=${encodeURIComponent(reset.token)}`
+            : undefined;
+          await mailer.send({
+            to: reset.user.email!,
+            subject: 'Reset your Orbit password',
+            text:
+              `You asked to reset your Orbit password.\n\n` +
+              (link ? `Open this link to continue:\n${link}\n\n` : `Enter this code in the app to continue:\n\n${reset.token}\n\n`) +
+              `This link expires in 1 hour. If you didn't request it, you can ignore this email.`,
+          });
+        }
+        res.json({ ok: true });
+      } catch (err) {
+        res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+      }
+    });
+
+    // Complete a reset with the emailed token + a new password; logs the user in.
+    app.post('/v1/auth/reset', async (req: Request, res: Response) => {
+      const { token, password } = (req.body ?? {}) as { token?: string; password?: string };
+      if (!token || !password) {
+        res.status(400).json({ error: 'token and password are required' });
+        return;
+      }
+      try {
+        const result = await selfHosted.resetPassword(token, password);
+        const account = makeAccountId(LICENSE_KEY, result.user.endUserId);
+        res.json({ token: result.token, user: result.user, balance: await ledger.balance(account) });
+      } catch (err) {
+        if (err instanceof AuthError) {
+          res.status(err.kind === 'invalid-token' ? 400 : 422).json({ error: err.message, kind: err.kind });
           return;
         }
         res.status(500).json({ error: err instanceof Error ? err.message : String(err) });

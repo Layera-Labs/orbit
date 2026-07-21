@@ -57,6 +57,8 @@ interface RowDef {
   empty: string;
   /** show a white "+" tile after the last clip (the main video row) */
   addTile?: boolean;
+  /** dim the lane to signal it's muted (the Sound row when the video audio is off) */
+  muted?: boolean;
 }
 
 const thumbCache = new Map<string, string>();
@@ -285,6 +287,8 @@ function ClipLane({ row, pxPerSec, selected, scrollRef }: { row: RowDef; pxPerSe
           <VIcon name="plus" size={22} color={vela.onAccent} />
         </Pressable>
       ) : null}
+      {/* Muted: dim the sound lane (tap still falls through to the gutter toggle). */}
+      {row.muted && row.kind === 'sound' ? <View pointerEvents="none" style={styles.mutedOverlay} /> : null}
     </View>
   );
 }
@@ -317,7 +321,7 @@ export function Timeline() {
     { key: 'text', icon: 'subtitle', label: 'Text', kind: 'text', height: TEXT_H, clips: overlays.map((o) => ({ clip: { id: o.id, start: o.start, duration: Math.max(0.1, o.end - o.start), text: o.text }, trackId: OVERLAY_TRACK })), add: () => setPanel('insert'), empty: 'Tap to add subtitle' },
     { key: 'image', icon: 'image', label: 'Image', kind: 'visual', height: IMAGE_H, clips: toEntries(visual.slice(1)), add: () => setPanel('insert'), empty: 'Tap to add sticker / PiP' },
     { key: 'video', icon: 'video', label: 'Video', kind: 'visual', height: VIDEO_H, clips: main ? main.clips.map((clip) => ({ clip, trackId: main.id })) : [], add: () => setPanel('addvisual'), empty: 'Tap to add video', addTile: true },
-    { key: 'sound', icon: mainMuted ? 'mute' : 'volume', label: 'Sound', kind: 'sound', height: SOUND_H, clips: main ? main.clips.filter((c) => c.type === 'video').map((clip) => ({ clip, trackId: main.id })) : [], add: () => toggleMainMuted(), empty: 'Original audio' },
+    { key: 'sound', icon: mainMuted ? 'mute' : 'volume', label: 'Sound', kind: 'sound', height: SOUND_H, muted: mainMuted, clips: main ? main.clips.filter((c) => c.type === 'video').map((clip) => ({ clip, trackId: main.id })) : [], add: () => toggleMainMuted(), empty: 'Original audio' },
   ];
 
   const end = project ? projectDuration(project) : 0;
@@ -442,6 +446,7 @@ const styles = StyleSheet.create({
   textLabel: { color: vela.onAccent, fontSize: 11, fontFamily: font.bold },
   waveform: { ...StyleSheet.absoluteFillObject, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', paddingHorizontal: 2 },
   soundBlock: { position: 'absolute', top: 0, bottom: 0, borderRadius: 7, overflow: 'hidden', backgroundColor: vela.soundBlock },
+  mutedOverlay: { ...StyleSheet.absoluteFillObject, borderRadius: 7, backgroundColor: 'rgba(12,11,10,0.6)' },
   badge: { position: 'absolute', top: 2, left: 4, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 },
   badgeText: { color: '#fff', fontSize: 9, fontFamily: font.bold },
   durTag: { position: 'absolute', bottom: 2, right: 4, backgroundColor: '#000a', borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 },
