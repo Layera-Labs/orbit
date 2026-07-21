@@ -16,6 +16,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -77,6 +78,7 @@ function FullSheet({ onClose, children }: { onClose: () => void; children: React
 function VideoSettingsSheet() {
   const project = useEditor((s) => s.project)!;
   const setRatio = useEditor((s) => s.setRatio);
+  const setHdr = useEditor((s) => s.setHdr);
   const sourceDims = useEditor((s) => s.sourceDims);
   const setPanel = useEditor((s) => s.setPanel);
   const close = () => setPanel(null);
@@ -108,9 +110,9 @@ function VideoSettingsSheet() {
       <View style={s.infoCard}>
         <View style={{ flex: 1 }}>
           <Text style={s.infoTitle}>HDR</Text>
-          <Text style={s.infoSub}>Export in HDR10 (10-bit HEVC) from the Export screen</Text>
+          <Text style={s.infoSub}>Brighter preview, and HDR10 (10-bit HEVC) on export</Text>
         </View>
-        <VIcon name="export" size={22} color={vela.muted2} />
+        <Switch value={!!project.hdr} onValueChange={setHdr} trackColor={{ true: vela.accent, false: vela.toggleOff }} thumbColor="#fff" />
       </View>
     </BottomSheet>
   );
@@ -436,7 +438,7 @@ function ExportSheet() {
   const project = useEditor((s) => s.project);
   const [quality, setQuality] = useState<'Auto' | 'Manual'>('Manual');
   const [audioOnly, setAudioOnly] = useState(false);
-  const [hdr, setHdr] = useState(false);
+  const [hdr, setHdr] = useState(!!project?.hdr); // default from the project's HDR toggle
   const [resIdx, setResIdx] = useState(2);
   const [fpsIdx, setFpsIdx] = useState(2);
   const [bitrate, setBitrate] = useState(20);

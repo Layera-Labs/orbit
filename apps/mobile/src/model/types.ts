@@ -280,4 +280,6 @@ export interface VideoProject {
   audio: AudioClip[];
   /** Multi-track layers (v2). The editor always uses this. */
   tracks?: Track[];
+  /** Author in HDR — glows the editor preview and defaults HDR10 on export. */
+  hdr?: boolean;
 }

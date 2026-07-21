@@ -9,11 +9,23 @@ export interface RatioPreset {
 }
 
 export const RATIOS: RatioPreset[] = [
+  // Portrait
   { key: '9:16', label: '9:16', hint: 'Reel / Story', width: 1080, height: 1920 },
-  { key: '1:1', label: '1:1', hint: 'Square', width: 1080, height: 1080 },
   { key: '4:5', label: '4:5', hint: 'Portrait', width: 1080, height: 1350 },
   { key: '2:3', label: '2:3', hint: 'Portrait', width: 1080, height: 1620 },
+  { key: '3:4', label: '3:4', hint: 'Portrait', width: 1080, height: 1440 },
+  { key: '1:2', label: '1:2', hint: 'Tall', width: 1080, height: 2160 },
+  // Square
+  { key: '1:1', label: '1:1', hint: 'Square', width: 1080, height: 1080 },
+  // Landscape
   { key: '16:9', label: '16:9', hint: 'Landscape', width: 1920, height: 1080 },
+  { key: '4:3', label: '4:3', hint: 'Classic', width: 1440, height: 1080 },
+  { key: '3:2', label: '3:2', hint: 'Photo', width: 1620, height: 1080 },
+  { key: '2:1', label: '2:1', hint: 'Wide', width: 2160, height: 1080 },
+  { key: '1.85:1', label: '1.85:1', hint: 'Film', width: 1998, height: 1080 },
+  { key: '2.35:1', label: '2.35:1', hint: 'Cinemascope', width: 2538, height: 1080 },
+  { key: '21:9', label: '21:9', hint: 'Cinematic', width: 2520, height: 1080 },
+  { key: '42:9', label: '42:9', hint: 'Ultrawide', width: 5040, height: 1080 },
 ];
 
 export function ratioLabel(width: number, height: number): string {

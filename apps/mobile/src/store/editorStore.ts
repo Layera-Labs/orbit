@@ -203,6 +203,8 @@ interface EditorState {
   setRatio: (width: number, height: number) => void;
   setName: (name: string) => void;
   setSourceDims: (width: number, height: number) => void;
+  /** Toggle HDR authoring (preview glow + default HDR10 export). */
+  setHdr: (hdr: boolean) => void;
 }
 
 // Undo history: coalesce a burst of mutations (e.g. a drag's per-frame updates)
@@ -899,6 +901,8 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   setRatio: (width, height) => get().apply((p) => ops.setProjectRatio(p, width, height)),
+
+  setHdr: (hdr) => get().apply((p) => ({ ...p, hdr })),
 
   setName: (name) => {
     const clean = name.trim() || 'Untitled';
