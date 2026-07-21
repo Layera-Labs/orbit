@@ -33,7 +33,7 @@ import { mkdir as mkdirAsync, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { extname, join } from 'node:path';
 import { renderProject, type ExportOutput, type VideoProject } from '@orbit/video';
-import { ElevenLabsProvider, GenerationService, RunwayProvider } from '@orbit/video-gen';
+import { ElevenLabsProvider, GenerationService, ProviderError, RunwayProvider } from '@orbit/video-gen';
 import { InMemoryLedgerStore, InsufficientCreditsError, Ledger, makeAccountId, type AccountId, type LedgerStore } from '@orbit/billing';
 import { authFromEnv, AuthError, type UserStore } from '@orbit/auth';
 import { isClientSrc, makeResolveSrc } from './resolve.js';
@@ -292,6 +292,13 @@ export function createServer(): Express {
         res.status(402).json({ error: 'insufficient credits', balance: await ledger.balance(account) });
         return;
       }
+      // The upstream AI provider rejected the request for billing/quota reasons
+      // (e.g. free ElevenLabs plan, exhausted Runway credits) — surface a clear
+      // 502 rather than a raw provider error. Distinct from our own 402.
+      if (err instanceof ProviderError && err.upstreamStatus === 402) {
+        res.status(502).json({ error: 'The AI provider rejected the request — its account is out of credits or needs a paid plan.' });
+        return;
+      }
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
@@ -335,6 +342,13 @@ export function createServer(): Express {
         res.status(402).json({ error: 'insufficient credits', balance: await ledger.balance(account) });
         return;
       }
+      // The upstream AI provider rejected the request for billing/quota reasons
+      // (e.g. free ElevenLabs plan, exhausted Runway credits) — surface a clear
+      // 502 rather than a raw provider error. Distinct from our own 402.
+      if (err instanceof ProviderError && err.upstreamStatus === 402) {
+        res.status(502).json({ error: 'The AI provider rejected the request — its account is out of credits or needs a paid plan.' });
+        return;
+      }
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
@@ -361,6 +375,13 @@ export function createServer(): Express {
       if (ac.signal.aborted) return; // client disconnected — nothing to send
       if (err instanceof InsufficientCreditsError) {
         res.status(402).json({ error: 'insufficient credits', balance: await ledger.balance(account) });
+        return;
+      }
+      // The upstream AI provider rejected the request for billing/quota reasons
+      // (e.g. free ElevenLabs plan, exhausted Runway credits) — surface a clear
+      // 502 rather than a raw provider error. Distinct from our own 402.
+      if (err instanceof ProviderError && err.upstreamStatus === 402) {
+        res.status(502).json({ error: 'The AI provider rejected the request — its account is out of credits or needs a paid plan.' });
         return;
       }
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });

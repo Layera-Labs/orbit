@@ -8,6 +8,7 @@
  * https://docs.dev.runwayml.com
  */
 import type { GenImageRequest, GenResult, GenVideoRequest, MediaProvider } from '../types';
+import { ProviderError } from '../errors';
 
 const RUNWAY_API = 'https://api.dev.runwayml.com';
 const API_VERSION = '2024-11-06';
@@ -116,7 +117,7 @@ export class RunwayProvider implements MediaProvider {
       body: JSON.stringify({ promptText: req.prompt, model, ratio }),
       signal: req.signal,
     });
-    if (!res.ok) throw new Error(`Runway ${res.status}: ${await safeText(res)}`);
+    if (!res.ok) throw new ProviderError(`Runway ${res.status}: ${await safeText(res)}`, res.status);
     const { id } = (await res.json()) as { id?: string };
     if (!id) throw new Error('Runway did not return a task id');
     const task = await this.poll(id, req.signal);
@@ -143,7 +144,7 @@ export class RunwayProvider implements MediaProvider {
       body: JSON.stringify({ promptImage, promptText: req.prompt, model, ratio, duration }),
       signal: req.signal,
     });
-    if (!res.ok) throw new Error(`Runway ${res.status}: ${await safeText(res)}`);
+    if (!res.ok) throw new ProviderError(`Runway ${res.status}: ${await safeText(res)}`, res.status);
     const { id } = (await res.json()) as { id?: string };
     if (!id) throw new Error('Runway did not return a task id');
     const task = await this.poll(id, req.signal);
@@ -166,7 +167,7 @@ export class RunwayProvider implements MediaProvider {
       body: JSON.stringify({ model: 'eleven_text_to_sound_v2', promptText: prompt, duration }),
       signal,
     });
-    if (!res.ok) throw new Error(`Runway sound_effect ${res.status}: ${await safeText(res)}`);
+    if (!res.ok) throw new ProviderError(`Runway sound_effect ${res.status}: ${await safeText(res)}`, res.status);
     const { id } = (await res.json()) as { id?: string };
     if (!id) throw new Error('Runway sound_effect did not return a task id');
     const task = await this.poll(id, signal);
@@ -185,7 +186,7 @@ export class RunwayProvider implements MediaProvider {
       if (signal?.aborted) throw abortError();
       await sleep(this.pollMs, signal);
       const r = await this.fetchImpl(`${RUNWAY_API}/v1/tasks/${id}`, { headers: this.headers(), signal });
-      if (!r.ok) throw new Error(`Runway poll ${r.status}: ${await safeText(r)}`);
+      if (!r.ok) throw new ProviderError(`Runway poll ${r.status}: ${await safeText(r)}`, r.status);
       const task = (await r.json()) as Task;
       if (TERMINAL.has(task.status)) return task;
       if (Date.now() > deadline) throw new Error('Runway generation timed out');
