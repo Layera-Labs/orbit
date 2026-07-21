@@ -50,6 +50,8 @@ const ICONS = {
   next: { mode: 'fill', paths: ['M6 5v14l9-7zM17 5h2v14h-2z'] },
   prefs: { circles: [[7, 8, 2], [17, 16, 2]], paths: ['M9 8h11M4 16h11'], sw: 2 },
   fullscreen: { paths: ['M9 3H4v5M15 3h5v5M9 21H4v-5M15 21h5v-5'], sw: 2 },
+  // Exit fullscreen — the same corners pulled inward (brackets face the centre).
+  fullscreenExit: { paths: ['M4 9h5V4', 'M20 9h-5V4', 'M4 15h5v5', 'M20 15h-5v5'], sw: 2 },
   undo: { paths: ['M9 14l-4-4 4-4', 'M5 10h8a5 5 0 015 5v1'], sw: 2 },
   redo: { paths: ['M15 14l4-4-4-4', 'M19 10h-8a5 5 0 00-5 5v1'], sw: 2 },
 
@@ -118,6 +120,13 @@ const ICONS = {
   font: { paths: ['M5 19l5-14 5 14M7 14h6'], sw: 1.8 },
   fontsize: { paths: ['M3 18l3-9 3 9M4.2 15h3.6M12 18l4.5-12 4.5 12M13.5 14h6'], sw: 1.8 },
   format: { paths: ['M4 6h16M4 12h10M4 18h14'], sw: 1.8 },
+  alignLeft: { paths: ['M4 6h16M4 12h10M4 18h13'], sw: 1.8 },
+  alignCenter: { paths: ['M4 6h16M7 12h10M6 18h12'], sw: 1.8 },
+  alignRight: { paths: ['M4 6h16M10 12h10M7 18h13'], sw: 1.8 },
+  // Text shadow / stroke — two offset rounded plates reading as depth.
+  shadow: { paths: ['M5 5h8v8H5z', 'M11 11h8v8h-8z'], sw: 1.8 },
+  star: { paths: ['M12 3.5l2.5 5.3 5.8.6-4.3 4 1.2 5.7L12 16.3 6.8 19.1l1.2-5.7-4.3-4 5.8-.6z'], sw: 1.8 },
+  lineheight: { paths: ['M4 5v14M4 5l-2 2.4M4 5l2 2.4M4 19l-2-2.4M4 19l2-2.4M9 7h11M9 12h11M9 17h11'], sw: 1.8 },
   spacing: { paths: ['M5 4v16M5 4l-2.2 2.4M5 4l2.2 2.4M5 20l-2.2-2.4M5 20l2.2-2.4M10 7h10M10 12h10M10 17h10'], sw: 1.8 },
   style: { rects: [[3, 4, 18, 16, 3]], paths: ['M8 9h8M12 9v7'], sw: 1.8 },
   blending: { circles: [[9.5, 12, 5], [14.5, 12, 5]], sw: 1.8 },

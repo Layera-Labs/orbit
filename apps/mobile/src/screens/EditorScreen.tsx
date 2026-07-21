@@ -5,8 +5,8 @@
  * is tagged "soon". Sheets (settings, project menu, insert, audio, prefs,
  * filter, export) live in <EditorSheets/> and open via the store `panel` state.
  */
-import { useState } from 'react';
-import { Alert, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Alert, Animated, Easing, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { projectDuration } from '../model/project';
 import { ratioLabel, font, mono, vela } from '../constants';
 import { VIcon, type VIconName } from '../components/VIcon';
@@ -66,7 +66,32 @@ export function EditorScreen() {
   const canUndo = useEditor((s) => s.past.length > 0);
   const canRedo = useEditor((s) => s.future.length > 0);
   const { height: screenH } = useWindowDimensions();
-  const [fullscreen, setFullscreen] = useState(false);
+  // Fullscreen player: `fsMounted` keeps the modal alive through its exit
+  // animation; `fsAnim` (0→1) drives an expand-in / shrink-out of the player.
+  const [fsMounted, setFsMounted] = useState(false);
+  const fsAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!fsMounted) return;
+    Animated.spring(fsAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+      damping: 26,
+      stiffness: 240,
+      mass: 1,
+      restDisplacementThreshold: 0.4,
+      restSpeedThreshold: 4,
+    }).start();
+  }, [fsMounted, fsAnim]);
+
+  const openFullscreen = () => setFsMounted(true);
+  const closeFullscreen = () => {
+    Animated.timing(fsAnim, { toValue: 0, duration: 220, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(
+      ({ finished }) => {
+        if (finished) setFsMounted(false);
+      },
+    );
+  };
 
   if (!project) return null;
 
@@ -199,7 +224,7 @@ export function EditorScreen() {
             {project.hdr ? <View pointerEvents="none" style={styles.hdrSheen} /> : null}
           </View>
         </View>
-        <Pressable style={styles.fullscreenBtn} onPress={() => setFullscreen(true)}>
+        <Pressable style={styles.fullscreenBtn} onPress={openFullscreen}>
           <VIcon name="fullscreen" size={18} color="#fff" />
         </Pressable>
       </Pressable>
@@ -252,9 +277,17 @@ export function EditorScreen() {
       {/* Sheets + export progress */}
       <EditorSheets />
 
-      {/* Fullscreen player — hides the timeline, keeps transport controls */}
-      <Modal visible={fullscreen} animationType="fade" onRequestClose={() => setFullscreen(false)}>
-        <View style={styles.fsRoot}>
+      {/* Fullscreen player — expands over the editor, keeps transport controls */}
+      <Modal visible={fsMounted} transparent statusBarTranslucent animationType="none" onRequestClose={closeFullscreen}>
+        <Animated.View
+          style={[
+            styles.fsRoot,
+            {
+              opacity: fsAnim,
+              transform: [{ scale: fsAnim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1], extrapolate: 'clamp' }) }],
+            },
+          ]}
+        >
           {(() => {
             let fw = screenW;
             let fh = fw / ar;
@@ -264,9 +297,6 @@ export function EditorScreen() {
             }
             return <Preview width={fw} height={fh} />;
           })()}
-          <Pressable style={styles.fsClose} onPress={() => setFullscreen(false)} hitSlop={12}>
-            <VIcon name="close" size={26} color="#fff" />
-          </Pressable>
           <View style={styles.fsTransport}>
             <Text style={styles.tc}>
               {playheadSec.toFixed(2)}
@@ -277,9 +307,11 @@ export function EditorScreen() {
               <Pressable onPress={() => setPlaying(!isPlaying)} hitSlop={12}><VIcon name={isPlaying ? 'pause' : 'play'} size={30} color="#fff" /></Pressable>
               <Pressable onPress={() => setPlayhead(dur)} hitSlop={12}><VIcon name="next" size={20} color="#fff" /></Pressable>
             </View>
-            <View style={{ width: 64 }} />
+            <Pressable style={styles.fsExit} onPress={closeFullscreen} hitSlop={12}>
+              <VIcon name="fullscreenExit" size={22} color="#fff" />
+            </Pressable>
           </View>
-        </View>
+        </Animated.View>
       </Modal>
     </View>
   );
@@ -303,7 +335,7 @@ const styles = StyleSheet.create({
   hdrSheen: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.07)', borderRadius: 4 },
   fullscreenBtn: { position: 'absolute', right: 24, bottom: 6, width: 34, height: 34, borderRadius: 9, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
   fsRoot: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
-  fsClose: { position: 'absolute', top: 52, right: 20, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center' },
+  fsExit: { minWidth: 64, alignItems: 'flex-end', justifyContent: 'center' },
   fsTransport: { position: 'absolute', left: 0, right: 0, bottom: 34, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24 },
 
   transport: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 22, paddingVertical: 6 },

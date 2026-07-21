@@ -10,6 +10,18 @@ import { VIcon } from './VIcon';
 
 const SWATCHES = ['#ffffff', '#000000', '#6d4aff', '#2f7bff', '#f2c14e', '#ff5a5f', '#15b8a6', '#c04af0', '#ff8a3d', '#37b6f0'];
 
+/** The picker itself — reused inline as the "Color" tab of Text Settings. */
+export function ColorPickerBody({ value, onChange }: { value: string; onChange: (hex: string) => void }) {
+  return (
+    <RNColorPicker value={value || '#ffffff'} onCompleteJS={({ hex }) => onChange(hex)} style={{ gap: 16 }}>
+      <Preview hideInitialColor style={styles.preview} />
+      <Panel1 style={styles.panel} />
+      <HueSlider style={styles.hue} />
+      <Swatches colors={SWATCHES} style={styles.swatches} swatchStyle={styles.swatch} />
+    </RNColorPicker>
+  );
+}
+
 export function ColorSheet({ value, onChange, onClose }: { value: string; onChange: (hex: string) => void; onClose: () => void }) {
   return (
     <Modal transparent visible animationType="slide" onRequestClose={onClose}>
@@ -21,12 +33,7 @@ export function ColorSheet({ value, onChange, onClose }: { value: string; onChan
               <VIcon name="check" size={24} color="#fff" />
             </Pressable>
           </View>
-          <RNColorPicker value={value || '#ffffff'} onCompleteJS={({ hex }) => onChange(hex)} style={{ gap: 16 }}>
-            <Preview hideInitialColor style={styles.preview} />
-            <Panel1 style={styles.panel} />
-            <HueSlider style={styles.hue} />
-            <Swatches colors={SWATCHES} style={styles.swatches} swatchStyle={styles.swatch} />
-          </RNColorPicker>
+          <ColorPickerBody value={value} onChange={onChange} />
         </Pressable>
       </Pressable>
     </Modal>

@@ -5,6 +5,8 @@ export type {
   ImageClip,
   VisualClip,
   TextAlign,
+  TextShadow,
+  TextStroke,
   TextOverlay,
   Overlay,
   AudioClip,

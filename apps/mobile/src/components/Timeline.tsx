@@ -302,6 +302,7 @@ export function Timeline() {
   const isPlaying = useEditor((s) => s.isPlaying);
   const setPanel = useEditor((s) => s.setPanel);
   const toggleMainMuted = useEditor((s) => s.toggleMainMuted);
+  const select = useEditor((s) => s.select);
 
   const scrollRef = useRef<ScrollView>(null);
   const [viewW, setViewW] = useState(0);
@@ -320,7 +321,7 @@ export function Timeline() {
     { key: 'music', icon: 'gutterAudio', label: 'Music', kind: 'audio', height: MUSIC_H, clips: toEntries(audio), add: () => setPanel('audio'), empty: 'Tap to add music' },
     { key: 'text', icon: 'subtitle', label: 'Text', kind: 'text', height: TEXT_H, clips: overlays.map((o) => ({ clip: { id: o.id, start: o.start, duration: Math.max(0.1, o.end - o.start), text: o.text }, trackId: OVERLAY_TRACK })), add: () => setPanel('insert'), empty: 'Tap to add subtitle' },
     { key: 'image', icon: 'image', label: 'Image', kind: 'visual', height: IMAGE_H, clips: toEntries(visual.slice(1)), add: () => setPanel('insert'), empty: 'Tap to add sticker / PiP' },
-    { key: 'video', icon: 'video', label: 'Video', kind: 'visual', height: VIDEO_H, clips: main ? main.clips.map((clip) => ({ clip, trackId: main.id })) : [], add: () => setPanel('addvisual'), empty: 'Tap to add video', addTile: true },
+    { key: 'video', icon: 'video', label: 'Video', kind: 'visual', height: VIDEO_H, clips: main ? main.clips.map((clip) => ({ clip, trackId: main.id })) : [], add: () => setPanel('addvisual'), empty: 'Tap to add image/video', addTile: true },
     { key: 'sound', icon: mainMuted ? 'mute' : 'volume', label: 'Sound', kind: 'sound', height: SOUND_H, muted: mainMuted, clips: main ? main.clips.filter((c) => c.type === 'video').map((clip) => ({ clip, trackId: main.id })) : [], add: () => toggleMainMuted(), empty: 'Original audio' },
   ];
 
@@ -382,6 +383,10 @@ export function Timeline() {
             contentContainerStyle={{ paddingLeft: PLAYHEAD_X, paddingRight: scrollW }}
           >
             <View style={{ width: contentW }}>
+              {/* Tap empty timeline (or the ruler) to deselect — hides the
+                  selection toolbar. Sits behind the clips, which catch their own
+                  taps; a scroll drag cancels the press so scrubbing still works. */}
+              {selected ? <Pressable style={StyleSheet.absoluteFill} onPress={() => select(null)} /> : null}
               <Ruler end={end} pxPerSec={pxPerSec} />
               <View style={{ gap: LANE_GAP }}>
                 {rows.map((r) => (
