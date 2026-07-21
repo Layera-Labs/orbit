@@ -55,12 +55,21 @@ function CheckCircle({ on, size = 24 }: { on: boolean; size?: number }) {
   );
 }
 
+/** The card thumbnail: the saved poster, else the first image clip's own src as a fallback. */
+function posterFor(p: StoredProject): string | undefined {
+  if (p.posterUri) return p.posterUri;
+  const first = p.project.tracks?.find((t) => t.kind === 'visual')?.clips?.[0];
+  if (first && first.type === 'image' && first.src) return first.src;
+  return undefined;
+}
+
 function ProjectRow({ p, onOpen, onMenu, selectMode, checked }: { p: StoredProject; onOpen: () => void; onMenu: () => void; selectMode?: boolean; checked?: boolean }) {
+  const poster = posterFor(p);
   return (
     <Pressable style={styles.row} onPress={onOpen} onLongPress={selectMode ? undefined : onMenu}>
       <View style={styles.poster}>
-        {p.posterUri ? (
-          <Image source={{ uri: p.posterUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        {poster ? (
+          <Image source={{ uri: poster }} style={StyleSheet.absoluteFill} resizeMode="cover" />
         ) : (
           <View style={[StyleSheet.absoluteFill, { backgroundColor: vela.lightSurface, alignItems: 'center', justifyContent: 'center' }]}>
             <VIcon name="picture" size={22} color={vela.lightMuted3} />
@@ -90,11 +99,12 @@ function ProjectRow({ p, onOpen, onMenu, selectMode, checked }: { p: StoredProje
 }
 
 function ProjectGridCard({ p, cols, onOpen, onMenu, selectMode, checked }: { p: StoredProject; cols: 2 | 3; onOpen: () => void; onMenu: () => void; selectMode?: boolean; checked?: boolean }) {
+  const poster = posterFor(p);
   return (
     <Pressable style={cols === 3 ? styles.gridItem3 : styles.gridItem} onPress={onOpen} onLongPress={selectMode ? undefined : onMenu}>
       <View style={styles.gridPoster}>
-        {p.posterUri ? (
-          <Image source={{ uri: p.posterUri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        {poster ? (
+          <Image source={{ uri: poster }} style={StyleSheet.absoluteFill} resizeMode="cover" />
         ) : (
           <View style={[StyleSheet.absoluteFill, { backgroundColor: vela.lightSurface, alignItems: 'center', justifyContent: 'center' }]}>
             <VIcon name="picture" size={cols === 3 ? 18 : 22} color={vela.lightMuted3} />

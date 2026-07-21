@@ -44,7 +44,7 @@ export function GenHistorySheet() {
   return (
     <BottomSheet onClose={close} style={{ gap: 12, paddingBottom: 24 }}>
       <View style={s.head}>
-        <Text style={s.title}>Recent generations</Text>
+        <Text style={s.title}>Library</Text>
         {records.length > 0 ? (
           <Pressable onPress={confirmClear} hitSlop={10}><Text style={s.clear}>Clear</Text></Pressable>
         ) : null}

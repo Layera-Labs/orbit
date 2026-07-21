@@ -165,17 +165,6 @@ export function EditorScreen() {
           <Pressable onPress={closeEditor} hitSlop={10}>
             <VIcon name="back" size={24} color="#fff" />
           </Pressable>
-          <Pressable
-            onPress={() =>
-              Alert.alert(
-                'Orbit editor',
-                'Scrub by dragging the timeline. Tap a clip to select it, then use the tools below. Drag a PiP in the preview to move it. Tap ⤢ for fullscreen preview. Export saves to Photos.',
-              )
-            }
-            hitSlop={10}
-          >
-            <VIcon name="help" size={22} color={vela.muted} />
-          </Pressable>
         </View>
 
         <Pressable style={styles.ratioChip} onPress={() => setPanel('settings')} hitSlop={8}>
@@ -185,14 +174,19 @@ export function EditorScreen() {
         </Pressable>
 
         <View style={styles.topGroup}>
-          <Pressable onPress={() => setPanel('editmenu')} hitSlop={10}>
-            <VIcon name="dots" size={22} color="#fff" />
+          {/* AI is the singular gold accent and the headline action — first in the cluster. */}
+          <Pressable style={styles.aiTile} onPress={() => setPanel('ai')}>
+            <VIcon name="fx" size={17} color={vela.onAccent} strokeWidth={2} />
+            <Text style={styles.aiTileText}>AI</Text>
           </Pressable>
           <Pressable style={styles.saveTile} onPress={() => Alert.alert('Saved', 'Your project saves automatically.')}>
             <VIcon name="save" size={19} color="#fff" />
           </Pressable>
-          <Pressable style={styles.exportTile} onPress={() => setPanel('export')}>
-            <VIcon name="export" size={19} color={vela.onAccent} />
+          <Pressable style={styles.saveTile} onPress={() => setPanel('export')}>
+            <VIcon name="export" size={19} color="#fff" />
+          </Pressable>
+          <Pressable onPress={() => setPanel('editmenu')} hitSlop={10}>
+            <VIcon name="dots" size={22} color="#fff" />
           </Pressable>
         </View>
       </View>
@@ -280,11 +274,12 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: vela.editorBg, paddingTop: 56 },
 
   topbar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingTop: 4, paddingBottom: 8 },
-  topGroup: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  topGroup: { flexDirection: 'row', alignItems: 'center', gap: 9 },
   ratioChip: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   ratioChipText: { color: '#fff', fontFamily: font.semibold, fontSize: 15 },
   saveTile: { width: 42, height: 36, borderRadius: 10, backgroundColor: vela.saveTile, alignItems: 'center', justifyContent: 'center' },
-  exportTile: { width: 42, height: 36, borderRadius: 10, backgroundColor: vela.accent, alignItems: 'center', justifyContent: 'center' },
+  aiTile: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 36, paddingHorizontal: 13, borderRadius: 10, backgroundColor: vela.accent },
+  aiTileText: { color: vela.onAccent, fontFamily: font.bold, fontSize: 14.5 },
 
   stage: { flex: 1, alignItems: 'center', justifyContent: 'center', position: 'relative' },
   whiteFrame: { backgroundColor: '#fff', borderRadius: 6, padding: 7 },

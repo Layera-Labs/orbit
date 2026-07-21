@@ -21,7 +21,7 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { font, mono, vela, RATIOS, ratioLabel, AUTH_ENABLED } from '../constants';
+import { font, mono, vela, RATIOS, ratioLabel } from '../constants';
 import { VIcon, type VIconName } from './VIcon';
 import { BottomSheet } from './BottomSheet';
 import { InputSheet } from './InputSheet';
@@ -38,7 +38,7 @@ import { AuthSheet } from './AuthSheet';
 import { GenHistorySheet } from './GenHistorySheet';
 import { TtsSheet } from './TtsSheet';
 import { BuyCreditsSheet } from './BuyCreditsSheet';
-import { useAuth } from '../store/authStore';
+import { AiHubSheet } from './AiHubSheet';
 import { searchStock, isMissingKey, type StockItem, type StockKind } from '../content/stock';
 import { Linking } from 'react-native';
 import type { BlendMode, ClipFilter, ClipMask, ExportOutput, Keyframe, MaskShape, Motion, MotionType, TextAlign, TransitionType, VolumePoint } from '../model/types';
@@ -218,16 +218,6 @@ function GridSheet({ title, items, tall }: { title: string; items: GridItem[]; t
   );
 }
 
-/** Open an AI panel, first routing through the auth sheet when sign-in is required. */
-function gateAi(target: 'aigen' | 'tts') {
-  if (AUTH_ENABLED && useAuth.getState().status !== 'authed') {
-    useEditor.setState({ authNext: target });
-    useEditor.getState().setPanel('auth');
-  } else {
-    useEditor.getState().setPanel(target);
-  }
-}
-
 function InsertSheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const openLibrary = useEditor((s) => s.openLibrary);
@@ -236,8 +226,6 @@ function InsertSheet() {
     { label: 'Photos', icon: 'photos', onPress: () => { setPanel(null); void pickAndAddMedia(); } },
     { label: 'Audio', icon: 'audio', onPress: () => setPanel('audio') },
     { label: 'Text', icon: 'text', onPress: () => { setPanel(null); addText(); } },
-    { label: 'AI Generate', icon: 'fx', onPress: () => gateAi('aigen') },
-    { label: 'AI History', icon: 'list', onPress: () => setPanel('genhistory') },
     { label: 'Sticker', icon: 'sticker', onPress: () => openLibrary('stickers') },
     { label: 'Library', icon: 'templates', onPress: () => openLibrary('emoji') },
     { label: 'Upload', icon: 'image', onPress: () => { setPanel(null); void pickAndAddOverlay(); } },
@@ -250,10 +238,20 @@ function AudioSheet() {
   const items: GridItem[] = [
     { label: 'Music', icon: 'audio', onPress: () => { setPanel(null); void pickAndAddAudio(); } },
     { label: 'Sound FX', icon: 'soundfx', onPress: () => setPanel('soundfx') },
-    { label: 'AI Voice', icon: 'subtitle', onPress: () => gateAi('tts') },
     { label: 'Record', icon: 'record', onPress: () => setPanel('voiceover') },
   ];
   return <GridSheet title="Insert audio" items={items} tall />;
+}
+
+/** The visual-track "+" chooser: create with AI, upload from device, or pick from the Library. */
+function AddVisualSheet() {
+  const setPanel = useEditor((s) => s.setPanel);
+  const items: GridItem[] = [
+    { label: 'AI', icon: 'fx', onPress: () => setPanel('ai') },
+    { label: 'Upload', icon: 'image', onPress: () => { setPanel(null); void pickAndAddMedia(); } },
+    { label: 'Library', icon: 'templates', onPress: () => setPanel('genhistory') },
+  ];
+  return <GridSheet title="Add visual" items={items} tall />;
 }
 
 // ---- Editor Preferences --------------------------------------------------
@@ -1686,6 +1684,8 @@ export function EditorSheets() {
       {panel === 'voiceover' && <VoiceoverSheet />}
       {panel === 'soundfx' && <SoundFxSheet />}
       {panel === 'auth' && <AuthSheet onClose={() => setPanel(null)} onAuthed={() => setPanel(authNext)} />}
+      {panel === 'ai' && <AiHubSheet />}
+      {panel === 'addvisual' && <AddVisualSheet />}
       {panel === 'aigen' && <AiGenerateModal />}
       {panel === 'genhistory' && <GenHistorySheet />}
       {panel === 'tts' && <TtsSheet />}

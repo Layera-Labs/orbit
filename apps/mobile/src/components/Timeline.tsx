@@ -28,7 +28,6 @@ import { VIcon, type VIconName } from './VIcon';
 import { MIN_CLIP } from '../model/editor-ops';
 import { projectDuration } from '../model/project';
 import type { Rect, Transition, VisualTrackClip } from '../model/types';
-import { pickAndAddMedia } from '../media/pick';
 import { videoThumbnail } from '../storage/media';
 import { OVERLAY_TRACK, useEditor } from '../store/editorStore';
 
@@ -298,6 +297,7 @@ export function Timeline() {
   const setPlayhead = useEditor((s) => s.setPlayhead);
   const isPlaying = useEditor((s) => s.isPlaying);
   const setPanel = useEditor((s) => s.setPanel);
+  const toggleMainMuted = useEditor((s) => s.toggleMainMuted);
 
   const scrollRef = useRef<ScrollView>(null);
   const [viewW, setViewW] = useState(0);
@@ -308,14 +308,16 @@ export function Timeline() {
   const audio = tracks.filter((t) => t.kind === 'audio');
   const main = visual[0];
   const overlays = project?.overlays ?? [];
+  const mainVideos = main ? main.clips.filter((c) => c.type === 'video') : [];
+  const mainMuted = mainVideos.length > 0 && mainVideos.every((c) => (c.volume ?? 1) === 0);
 
   const toEntries = (ts: { id: string; clips: ClipLike[] }[]) => ts.flatMap((t) => t.clips.map((clip) => ({ clip, trackId: t.id })));
   const rows: RowDef[] = [
     { key: 'music', icon: 'gutterAudio', label: 'Music', kind: 'audio', height: MUSIC_H, clips: toEntries(audio), add: () => setPanel('audio'), empty: 'Tap to add music' },
     { key: 'text', icon: 'subtitle', label: 'Text', kind: 'text', height: TEXT_H, clips: overlays.map((o) => ({ clip: { id: o.id, start: o.start, duration: Math.max(0.1, o.end - o.start), text: o.text }, trackId: OVERLAY_TRACK })), add: () => setPanel('insert'), empty: 'Tap to add subtitle' },
     { key: 'image', icon: 'image', label: 'Image', kind: 'visual', height: IMAGE_H, clips: toEntries(visual.slice(1)), add: () => setPanel('insert'), empty: 'Tap to add sticker / PiP' },
-    { key: 'video', icon: 'video', label: 'Video', kind: 'visual', height: VIDEO_H, clips: main ? main.clips.map((clip) => ({ clip, trackId: main.id })) : [], add: () => void pickAndAddMedia(), empty: 'Tap to add video', addTile: true },
-    { key: 'sound', icon: 'soundfx', label: 'Sound', kind: 'sound', height: SOUND_H, clips: main ? main.clips.filter((c) => c.type === 'video').map((clip) => ({ clip, trackId: main.id })) : [], add: () => setPanel('voiceover'), empty: 'Original audio' },
+    { key: 'video', icon: 'video', label: 'Video', kind: 'visual', height: VIDEO_H, clips: main ? main.clips.map((clip) => ({ clip, trackId: main.id })) : [], add: () => setPanel('addvisual'), empty: 'Tap to add video', addTile: true },
+    { key: 'sound', icon: mainMuted ? 'mute' : 'volume', label: 'Sound', kind: 'sound', height: SOUND_H, clips: main ? main.clips.filter((c) => c.type === 'video').map((clip) => ({ clip, trackId: main.id })) : [], add: () => toggleMainMuted(), empty: 'Original audio' },
   ];
 
   const end = project ? projectDuration(project) : 0;
