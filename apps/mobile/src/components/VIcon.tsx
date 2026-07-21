@@ -68,6 +68,7 @@ const ICONS = {
   quality: { paths: ['M4 6h16v12H4zM10 10l5 3-5 3z'], sw: 1.7 },
   speed: { paths: ['M4 15a8 8 0 1116 0M12 15l4-4'], sw: 1.7 },
   volume: { paths: ['M5 10v4h3l4 3V7L8 10zM16 9a4 4 0 010 6M18.5 7a7 7 0 010 10'], sw: 1.7 },
+  mute: { paths: ['M5 10v4h3l4 3V7L8 10z', 'M16 10l4 4', 'M20 10l-4 4'], sw: 1.7 },
 
   // ---- insert / add sheets ----
   photos: { paths: ['M4 5h16v14H4zM4 16l5-4 4 3 3-3 4 3M9 9a1.4 1.4 0 100 .01'], sw: 1.9 },

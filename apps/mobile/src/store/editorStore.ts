@@ -27,7 +27,7 @@ import type { EditorTemplate } from '../templates';
 import { loadSettings, saveSettings, type ViewMode } from '../storage/settings';
 import { exportProject, downloadToPhotos, type ExportProgress } from '../net/renderClient';
 import { getCredits } from '../net/genClient';
-import { downloadToMedia } from '../storage/media';
+import { downloadToMedia, videoThumbnail } from '../storage/media';
 import { Alert, Share } from 'react-native';
 
 function progressLabel(p: ExportProgress): string {
@@ -42,7 +42,10 @@ function progressLabel(p: ExportProgress): string {
 
 export type Screen = 'projects' | 'discover' | 'editor';
 /** Editor sheets/panels — mirrors Vela's `panel` state machine. */
-export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition' | 'speed' | 'volume' | 'fx' | 'motion' | 'cutout' | 'trim' | 'keyframe' | 'opacity' | 'position' | 'mask' | 'voiceover' | 'blend' | 'curve' | 'library' | 'keys' | 'soundfx' | 'aigen' | 'auth' | 'genhistory' | 'tts' | 'buycredits';
+export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition' | 'speed' | 'volume' | 'fx' | 'motion' | 'cutout' | 'trim' | 'keyframe' | 'opacity' | 'position' | 'mask' | 'voiceover' | 'blend' | 'curve' | 'library' | 'keys' | 'soundfx' | 'aigen' | 'auth' | 'genhistory' | 'tts' | 'buycredits' | 'ai' | 'addvisual';
+
+/** Initial mode/source for the AI generate modal, set by the AI hub before opening it. */
+export type AiIntent = { mode: 'image' | 'video'; source?: 'text' | 'photo' };
 export interface EditorPrefs {
   mainTrack: 'Quick' | 'Pro';
   linkage: boolean;
@@ -81,6 +84,8 @@ interface EditorState {
   panel: EditorPanel | null;
   /** Where the auth gate should return after a successful sign-in (AI Generate vs AI Voice). */
   authNext: EditorPanel;
+  /** Initial mode/source the AI generate modal should open with (set by the AI hub). */
+  aiIntent: AiIntent | null;
   /** Which tab the content library opens on. */
   libraryTab: 'stickers' | 'emoji' | 'backgrounds' | 'stock' | 'generate';
   prefs: EditorPrefs;
@@ -117,6 +122,8 @@ interface EditorState {
   setZoom: (pxPerSec: number) => void;
   setPlaying: (v: boolean) => void;
   setPoster: (uri: string) => void;
+  /** Set the project poster from its first visual clip, if none is set yet. */
+  ensurePoster: () => void;
   setMediaDuration: (src: string, sec: number) => void;
   setPanel: (panel: EditorPanel | null) => void;
   /** Open the content library on a specific tab. */
@@ -182,6 +189,8 @@ interface EditorState {
   applyClipSpeed: (speed: number) => void;
   /** Apply volume to the selected clip (audio or video), else the base clip at playhead. */
   applyClipVolume: (volume: number) => void;
+  /** Mute/unmute the main video track's original audio (all its video clips). */
+  toggleMainMuted: () => void;
   /** Apply / clear a volume envelope on the selected clip (audio or video). */
   applyClipVolumeCurve: (curve: VolumePoint[] | undefined) => void;
   /** Set the project background (color / gradient / image). */
@@ -222,6 +231,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   future: [],
   panel: null,
   authNext: 'aigen',
+  aiIntent: null,
   libraryTab: 'emoji',
   prefs: { mainTrack: 'Quick', linkage: true, snapping: false, previewFps: 30 },
   exporting: false,
@@ -344,6 +354,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       panel: null,
       screen: 'editor',
     });
+    get().ensurePoster(); // backfill a poster for older projects saved without one
   },
 
   removeProject: (id) => {
@@ -407,6 +418,16 @@ export const useEditor = create<EditorState>((set, get) => ({
     set({ posterUri: uri });
     const { projectId, name, project, mediaDurations } = get();
     if (projectId && project) saveProject({ id: projectId, name, updatedAt: Date.now(), project, posterUri: uri, mediaDurations });
+  },
+  ensurePoster: () => {
+    if (get().posterUri) return;
+    const { project } = get();
+    const mainId = get().mainTrackId();
+    const main = project && mainId ? ops.findTrack(project, mainId) : undefined;
+    const first = main && main.kind === 'visual' ? (main.clips[0] as VisualTrackClip | undefined) : undefined;
+    if (!first) return;
+    if (first.type === 'image') get().setPoster(first.src);
+    else void videoThumbnail(first.src, 0).then((t) => { if (t && !get().posterUri) get().setPoster(t); });
   },
   setMediaDuration: (src, sec) => {
     const mediaDurations = { ...get().mediaDurations, [src]: sec };
@@ -557,6 +578,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       }
       return np;
     });
+    get().ensurePoster(); // first visual → project poster (covers picked + AI-inserted media)
   },
 
   importOverlay: (clips) => {
@@ -796,6 +818,20 @@ export const useEditor = create<EditorState>((set, get) => ({
     const tt = target;
     get().apply((p) => ops.setClipVolume(p, tt.trackId, tt.clipId, volume));
     set({ selected: tt });
+  },
+  toggleMainMuted: () => {
+    const mainId = get().mainTrackId();
+    const project = get().project;
+    const main = project && mainId ? ops.findTrack(project, mainId) : undefined;
+    if (!main || main.kind !== 'visual') return;
+    const videos = main.clips.filter((c) => c.type === 'video');
+    if (!videos.length) return;
+    const next = videos.every((c) => (c.volume ?? 1) === 0) ? 1 : 0; // unmute if all muted, else mute
+    get().apply((p) => {
+      let np = p;
+      for (const c of videos) np = ops.setClipVolume(np, mainId!, c.id, next);
+      return np;
+    });
   },
   applyClipVolumeCurve: (curve) => {
     const s = get().selected;

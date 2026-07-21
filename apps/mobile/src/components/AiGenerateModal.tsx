@@ -57,8 +57,9 @@ export function AiGenerateModal() {
   const insertImageFromUrl = useEditor((s) => s.insertImageFromUrl);
   const insertVideoFromUrl = useEditor((s) => s.insertVideoFromUrl);
 
-  const [mode, setMode] = useState<Mode>('image');
-  const [source, setSource] = useState<VideoSource>('text');
+  // Open in the mode/source the AI hub asked for (Image vs Video vs Photo→Video).
+  const [mode, setMode] = useState<Mode>(() => useEditor.getState().aiIntent?.mode ?? 'image');
+  const [source, setSource] = useState<VideoSource>(() => useEditor.getState().aiIntent?.source ?? 'text');
   const [photoUri, setPhotoUri] = useState<string | null>(null); // local preview
   const [photoToken, setPhotoToken] = useState<string | null>(null); // uploaded ref
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -84,6 +85,7 @@ export function AiGenerateModal() {
   useEffect(() => {
     void refreshCredits();
     void setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+    useEditor.setState({ aiIntent: null }); // consumed on open
   }, [refreshCredits]);
 
   // When a video result arrives, play it in the preview — with its sound effect,
