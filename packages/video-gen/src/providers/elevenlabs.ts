@@ -7,6 +7,7 @@
  * https://elevenlabs.io/docs/api-reference/text-to-speech
  */
 import type { GenResult, MediaProvider, TTSRequest } from '../types';
+import { ProviderError } from '../errors';
 
 const ELEVEN_API = 'https://api.elevenlabs.io';
 /** A long-standing public default voice ("Rachel"). */
@@ -50,7 +51,7 @@ export class ElevenLabsProvider implements MediaProvider {
       body: JSON.stringify({ text: req.text, model_id: this.model }),
       signal: req.signal,
     });
-    if (!res.ok) throw new Error(`ElevenLabs ${res.status}: ${await safeText(res)}`);
+    if (!res.ok) throw new ProviderError(`ElevenLabs ${res.status}: ${await safeText(res)}`, res.status);
     const bytes = new Uint8Array(await res.arrayBuffer());
     if (bytes.length === 0) throw new Error('ElevenLabs returned empty audio');
     return {

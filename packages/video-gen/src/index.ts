@@ -14,3 +14,4 @@ export { RunwayProvider, nearestRatio } from './providers/runway';
 export type { RunwayProviderOptions } from './providers/runway';
 export { ElevenLabsProvider } from './providers/elevenlabs';
 export type { ElevenLabsProviderOptions } from './providers/elevenlabs';
+export { ProviderError } from './errors';
