@@ -618,6 +618,8 @@ export const useEditor = create<EditorState>((set, get) => ({
     const { project, playheadSec } = get();
     if (!project) return;
     const id = newId('txt');
+    // New captions land on their own lane on top of any existing ones.
+    const layer = project.overlays.length ? ops.maxOverlayLayer(project) + 1 : 0;
     const overlay: TextOverlay = {
       id,
       type: 'text',
@@ -631,6 +633,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       align: 'center',
       bold: true,
       animation: 'fade',
+      layer,
     };
     get().apply((p) => ops.addOverlay(p, overlay));
     set({ selected: { trackId: OVERLAY_TRACK, clipId: id } });
@@ -869,6 +872,13 @@ export const useEditor = create<EditorState>((set, get) => ({
   moveSelectedLayer: (dir) => {
     const { selected, project } = get();
     if (!selected || !project) return;
+    // Text overlays stack by `layer` rather than by track.
+    if (selected.trackId === OVERLAY_TRACK) {
+      const o = project.overlays.find((x) => x.id === selected.clipId);
+      if (!o) return;
+      get().apply((p) => ops.setOverlayLayer(p, selected.clipId, (o.layer ?? 0) + dir));
+      return;
+    }
     const visual = (project.tracks ?? []).filter((t) => t.kind === 'visual');
     const fromIdx = visual.findIndex((t) => t.id === selected.trackId);
     if (fromIdx < 0) return; // audio clips don't layer (yet)

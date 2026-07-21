@@ -336,8 +336,25 @@ export function setBackground(p: VideoProject, background: VideoProject['backgro
 // text overlays (rendered as a "caption" lane; not part of `tracks`)
 // ---------------------------------------------------------------------------
 
+/** Highest overlay layer in use (0 when there are none). */
+export function maxOverlayLayer(p: VideoProject): number {
+  return p.overlays.reduce((m, o) => Math.max(m, o.layer ?? 0), 0);
+}
+
+/**
+ * Sort overlays by layer ascending (stable within a layer). Keeping the array in
+ * paint order (bottom→top) means Preview and export need no z-order logic — they
+ * already draw overlays in array order.
+ */
+function sortByLayer(overlays: TextOverlay[]): TextOverlay[] {
+  return overlays
+    .map((o, i) => ({ o, i }))
+    .sort((a, b) => (a.o.layer ?? 0) - (b.o.layer ?? 0) || a.i - b.i)
+    .map((x) => x.o);
+}
+
 export function addOverlay(p: VideoProject, overlay: TextOverlay): VideoProject {
-  return { ...p, overlays: [...p.overlays, overlay] };
+  return { ...p, overlays: sortByLayer([...p.overlays, overlay]) };
 }
 
 export function removeOverlay(p: VideoProject, id: string): VideoProject {
@@ -346,4 +363,10 @@ export function removeOverlay(p: VideoProject, id: string): VideoProject {
 
 export function updateOverlay(p: VideoProject, id: string, patch: Partial<TextOverlay>): VideoProject {
   return { ...p, overlays: p.overlays.map((o) => (o.id === id ? { ...o, ...patch } : o)) };
+}
+
+/** Move an overlay to an absolute stacking lane (clamped ≥ 0); re-sorts by layer. */
+export function setOverlayLayer(p: VideoProject, id: string, layer: number): VideoProject {
+  const clamped = Math.max(0, Math.round(layer));
+  return { ...p, overlays: sortByLayer(p.overlays.map((o) => (o.id === id ? { ...o, layer: clamped } : o))) };
 }

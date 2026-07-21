@@ -39,6 +39,7 @@ const SOUND_H = 32;
 const RULER_H = 22;
 const GUTTER_W = 48;
 const LANE_GAP = 6;
+const SQUEEZE_H = 30; // compact height for a collapsed multi-lane group
 const HANDLE_W = 16;
 const ADD_TILE_W = 42;
 const PLAYHEAD_X = 10; // playhead offset from the gutter — clips start right here (no big gap)
@@ -46,19 +47,28 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 
 type RowKind = 'audio' | 'text' | 'visual' | 'sound';
 type ClipLike = { id: string; start: number; duration: number; trimIn?: number; src?: string; type?: 'video' | 'image'; rect?: Rect; text?: string; transitionIn?: Transition };
+type ClipEntry = { clip: ClipLike; trackId: string };
+/** One collapsed sub-lane in a squeezed group — clips shown as colour bars. */
+type SubLane = { color: string; clips: ClipEntry[] };
 interface RowDef {
   key: string;
   icon: VIconName;
   label: string;
   kind: RowKind;
+  /** Which collapsible group this lane belongs to (drives squeeze/expand). */
+  group: string;
   height: number;
-  clips: { clip: ClipLike; trackId: string }[];
+  clips: ClipEntry[];
   add: () => void;
   empty: string;
   /** show a white "+" tile after the last clip (the main video row) */
   addTile?: boolean;
   /** dim the lane to signal it's muted (the Sound row when the video audio is off) */
   muted?: boolean;
+  /** accent colour for this lane's clips when shown collapsed */
+  color?: string;
+  /** when set, this row is a collapsed summary of a multi-lane group */
+  squeezed?: SubLane[];
 }
 
 const thumbCache = new Map<string, string>();
@@ -121,6 +131,7 @@ function ClipView({ clip, trackId, kind, height, selected, pxPerSec, scrollRef }
   const select = useEditor((s) => s.select);
   const setClipStart = useEditor((s) => s.setClipStart);
   const trimClip = useEditor((s) => s.trimClip);
+  const moveSelectedLayer = useEditor((s) => s.moveSelectedLayer);
   const mediaDurations = useEditor((s) => s.mediaDurations);
   const startRef = useRef({ start: 0, trimIn: 0, duration: 0 });
 
@@ -161,6 +172,18 @@ function ClipView({ clip, trackId, kind, height, selected, pxPerSec, scrollRef }
       const maxDur = kind === 'visual' && v.type === 'video' && srcLen ? srcLen - startRef.current.trimIn : 36000;
       trimClip(trackId, clip.id, { duration: clamp(startRef.current.duration + ds, MIN_CLIP, maxDur) });
     });
+  // Drag the selected clip vertically to restack it — up = higher layer. Commits
+  // by lanes crossed on release. Loses to a horizontal move/trim (Race below).
+  const vertPan = Gesture.Pan()
+    .runOnJS(true)
+    .blocksExternalGesture(scrollRef)
+    .activeOffsetY([-12, 12])
+    .failOffsetX([-12, 12])
+    .onEnd((e) => {
+      const steps = Math.round(-e.translationY / (height + LANE_GAP));
+      const dir: 1 | -1 = steps >= 0 ? 1 : -1;
+      for (let i = 0; i < Math.abs(steps); i++) moveSelectedLayer(dir);
+    });
 
   const inner = (
     <Pressable onPress={() => select(selected ? null : { trackId, clipId: clip.id })} style={StyleSheet.absoluteFill}>
@@ -190,7 +213,7 @@ function ClipView({ clip, trackId, kind, height, selected, pxPerSec, scrollRef }
 
   return (
     <View style={[styles.clip, { left, width, height }, kind === 'audio' && styles.audioClip, kind === 'text' && styles.textClip, selected && styles.clipOn]}>
-      {selected ? <GestureDetector gesture={bodyPan}>{inner}</GestureDetector> : inner}
+      {selected ? <GestureDetector gesture={Gesture.Race(vertPan, bodyPan)}>{inner}</GestureDetector> : inner}
       {selected ? (
         <>
           <GestureDetector gesture={leftPan}>
@@ -293,6 +316,28 @@ function ClipLane({ row, pxPerSec, selected, scrollRef }: { row: RowDef; pxPerSe
   );
 }
 
+/** Collapsed summary of a multi-lane group: each sub-lane's clips as colour bars.
+ *  Tapping expands the group back to full lanes. */
+function SqueezedLane({ sublanes, height, pxPerSec, onPress }: { sublanes: SubLane[]; height: number; pxPerSec: number; onPress: () => void }) {
+  const n = Math.max(1, sublanes.length);
+  const gap = 2;
+  const barH = Math.max(3, (height - (n + 1) * gap) / n);
+  return (
+    <Pressable onPress={onPress} style={{ height, paddingVertical: gap, gap }}>
+      {sublanes.map((sl, i) => (
+        <View key={i} style={{ height: barH }}>
+          {sl.clips.map(({ clip }) => (
+            <View
+              key={clip.id}
+              style={{ position: 'absolute', left: clip.start * pxPerSec, width: Math.max(6, clip.duration * pxPerSec), top: 0, bottom: 0, borderRadius: 2, backgroundColor: sl.color }}
+            />
+          ))}
+        </View>
+      ))}
+    </Pressable>
+  );
+}
+
 export function Timeline() {
   const project = useEditor((s) => s.project);
   const pxPerSec = useEditor((s) => s.pxPerSec);
@@ -307,23 +352,80 @@ export function Timeline() {
   const scrollRef = useRef<ScrollView>(null);
   const [viewW, setViewW] = useState(0);
   const userScrolling = useRef(false);
+  // A group the user tapped to expand while nothing is selected. Cleared whenever
+  // the selection changes (selecting a clip drives expansion on its own).
+  const [manualExpand, setManualExpand] = useState<string | null>(null);
+  useEffect(() => {
+    setManualExpand(null);
+  }, [selected]);
 
   const tracks = project?.tracks ?? [];
   const visual = tracks.filter((t) => t.kind === 'visual');
   const audio = tracks.filter((t) => t.kind === 'audio');
   const main = visual[0];
+  const visualOverlays = visual.slice(1);
   const overlays = project?.overlays ?? [];
+  const maxLayer = overlays.reduce((m, o) => Math.max(m, o.layer ?? 0), 0);
   const mainVideos = main ? main.clips.filter((c) => c.type === 'video') : [];
   const mainMuted = mainVideos.length > 0 && mainVideos.every((c) => (c.volume ?? 1) === 0);
 
-  const toEntries = (ts: { id: string; clips: ClipLike[] }[]) => ts.flatMap((t) => t.clips.map((clip) => ({ clip, trackId: t.id })));
-  const rows: RowDef[] = [
-    { key: 'music', icon: 'gutterAudio', label: 'Music', kind: 'audio', height: MUSIC_H, clips: toEntries(audio), add: () => setPanel('audio'), empty: 'Tap to add music' },
-    { key: 'text', icon: 'subtitle', label: 'Text', kind: 'text', height: TEXT_H, clips: overlays.map((o) => ({ clip: { id: o.id, start: o.start, duration: Math.max(0.1, o.end - o.start), text: o.text }, trackId: OVERLAY_TRACK })), add: () => setPanel('insert'), empty: 'Tap to add subtitle' },
-    { key: 'image', icon: 'image', label: 'Image', kind: 'visual', height: IMAGE_H, clips: toEntries(visual.slice(1)), add: () => setPanel('insert'), empty: 'Tap to add sticker / PiP' },
-    { key: 'video', icon: 'video', label: 'Video', kind: 'visual', height: VIDEO_H, clips: main ? main.clips.map((clip) => ({ clip, trackId: main.id })) : [], add: () => setPanel('addvisual'), empty: 'Tap to add image/video', addTile: true },
-    { key: 'sound', icon: mainMuted ? 'mute' : 'volume', label: 'Sound', kind: 'sound', height: SOUND_H, muted: mainMuted, clips: main ? main.clips.filter((c) => c.type === 'video').map((clip) => ({ clip, trackId: main.id })) : [], add: () => toggleMainMuted(), empty: 'Original audio' },
-  ];
+  // The group holding the current selection stays expanded; a manual tap wins.
+  const selGroup = !selected
+    ? null
+    : selected.trackId === OVERLAY_TRACK
+      ? 'text'
+      : main && selected.trackId === main.id
+        ? 'video'
+        : audio.some((t) => t.id === selected.trackId)
+          ? 'music'
+          : visualOverlays.some((t) => t.id === selected.trackId)
+            ? 'image'
+            : null;
+  const activeGroup = manualExpand ?? selGroup;
+
+  // Build each group's lanes (top→bottom); collapse inactive multi-lane groups
+  // into a single colour-bar summary strip.
+  const lanes: RowDef[] = [];
+  const emit = (group: string, groupIcon: VIconName, color: string, laneList: RowDef[]) => {
+    if (laneList.length >= 2 && activeGroup !== group) {
+      lanes.push({
+        key: `sq-${group}`, icon: groupIcon, label: group, kind: laneList[0].kind, group,
+        height: SQUEEZE_H, clips: [], add: () => setManualExpand(group), empty: '', color,
+        squeezed: laneList.map((l) => ({ color: l.color ?? color, clips: l.clips })),
+      });
+    } else {
+      lanes.push(...laneList);
+    }
+  };
+
+  // Music — one lane per audio track (or a single empty lane).
+  emit('music', 'gutterAudio', vela.audio,
+    audio.length
+      ? audio.map((t) => ({ key: `aud-${t.id}`, icon: 'gutterAudio' as VIconName, label: 'Music', kind: 'audio' as RowKind, group: 'music', height: MUSIC_H, clips: t.clips.map((clip) => ({ clip, trackId: t.id })), add: () => setPanel('audio'), empty: 'Tap to add music', color: vela.audio }))
+      : [{ key: 'music', icon: 'gutterAudio', label: 'Music', kind: 'audio', group: 'music', height: MUSIC_H, clips: [], add: () => setPanel('audio'), empty: 'Tap to add music', color: vela.audio }],
+  );
+
+  // Text — one lane per stacking layer, top layer first.
+  emit('text', 'subtitle', vela.accent,
+    overlays.length
+      ? Array.from({ length: maxLayer + 1 }, (_, i) => maxLayer - i).map((L) => ({
+          key: `text-${L}`, icon: 'subtitle' as VIconName, label: 'Text', kind: 'text' as RowKind, group: 'text', height: TEXT_H,
+          clips: overlays.filter((o) => (o.layer ?? 0) === L).map((o) => ({ clip: { id: o.id, start: o.start, duration: Math.max(0.1, o.end - o.start), text: o.text }, trackId: OVERLAY_TRACK })),
+          add: () => setPanel('insert'), empty: 'Tap to add subtitle', color: vela.accent,
+        }))
+      : [{ key: 'text', icon: 'subtitle', label: 'Text', kind: 'text', group: 'text', height: TEXT_H, clips: [], add: () => setPanel('insert'), empty: 'Tap to add subtitle', color: vela.accent }],
+  );
+
+  // Image — one lane per visual overlay track (stickers / PiP).
+  emit('image', 'image', vela.waveSound,
+    visualOverlays.length
+      ? visualOverlays.map((t) => ({ key: `img-${t.id}`, icon: 'image' as VIconName, label: 'Image', kind: 'visual' as RowKind, group: 'image', height: IMAGE_H, clips: t.clips.map((clip) => ({ clip, trackId: t.id })), add: () => setPanel('insert'), empty: 'Tap to add sticker / PiP', color: vela.waveSound }))
+      : [{ key: 'image', icon: 'image', label: 'Image', kind: 'visual', group: 'image', height: IMAGE_H, clips: [], add: () => setPanel('insert'), empty: 'Tap to add sticker / PiP', color: vela.waveSound }],
+  );
+
+  // Video (main) and Sound (main audio) — always single lanes.
+  lanes.push({ key: 'video', icon: 'video', label: 'Video', kind: 'visual', group: 'video', height: VIDEO_H, clips: main ? main.clips.map((clip) => ({ clip, trackId: main.id })) : [], add: () => setPanel('addvisual'), empty: 'Tap to add image/video', addTile: true });
+  lanes.push({ key: 'sound', icon: mainMuted ? 'mute' : 'volume', label: 'Sound', kind: 'sound', group: 'sound', height: SOUND_H, muted: mainMuted, clips: main ? main.clips.filter((c) => c.type === 'video').map((clip) => ({ clip, trackId: main.id })) : [], add: () => toggleMainMuted(), empty: 'Original audio' });
 
   const end = project ? projectDuration(project) : 0;
   // Scroll stays enabled while a clip is selected — clip drag/trim gestures
@@ -349,7 +451,7 @@ export function Timeline() {
         <View style={styles.gutter}>
           <View style={{ height: RULER_H }} />
           <View style={{ gap: LANE_GAP }}>
-            {rows.map((r) => (
+            {lanes.map((r) => (
               <Pressable key={r.key} style={[styles.gutterItem, { height: r.height }]} onPress={r.add}>
                 <VIcon name={r.icon} size={18} color="#fff" />
               </Pressable>
@@ -363,7 +465,7 @@ export function Timeline() {
           <View style={[StyleSheet.absoluteFill, { paddingLeft: PLAYHEAD_X }]} pointerEvents="none">
             <View style={{ height: RULER_H }} />
             <View style={{ gap: LANE_GAP }}>
-              {rows.map((r) => (
+              {lanes.map((r) => (
                 <RowBg key={r.key} height={r.height} />
               ))}
             </View>
@@ -389,9 +491,13 @@ export function Timeline() {
               {selected ? <Pressable style={StyleSheet.absoluteFill} onPress={() => select(null)} /> : null}
               <Ruler end={end} pxPerSec={pxPerSec} />
               <View style={{ gap: LANE_GAP }}>
-                {rows.map((r) => (
-                  <ClipLane key={r.key} row={r} pxPerSec={pxPerSec} selected={selected} scrollRef={scrollRef} />
-                ))}
+                {lanes.map((r) =>
+                  r.squeezed ? (
+                    <SqueezedLane key={r.key} sublanes={r.squeezed} height={r.height} pxPerSec={pxPerSec} onPress={r.add} />
+                  ) : (
+                    <ClipLane key={r.key} row={r} pxPerSec={pxPerSec} selected={selected} scrollRef={scrollRef} />
+                  ),
+                )}
               </View>
             </View>
           </ScrollView>
@@ -401,9 +507,9 @@ export function Timeline() {
           <View style={[StyleSheet.absoluteFill, { paddingLeft: PLAYHEAD_X }]} pointerEvents="box-none">
             <View style={{ height: RULER_H }} />
             <View style={{ gap: LANE_GAP }}>
-              {rows.map((r) => (
+              {lanes.map((r) => (
                 <View key={r.key} style={{ height: r.height, justifyContent: 'center' }} pointerEvents="box-none">
-                  {r.clips.length === 0 ? (
+                  {!r.squeezed && r.clips.length === 0 ? (
                     <Pressable onPress={r.add} style={styles.emptyTap}>
                       <Text style={styles.emptyHint} numberOfLines={1}>
                         {r.empty}

@@ -74,6 +74,8 @@ export interface TextOverlay {
   letterSpacing?: number;
   /** Line height as a multiple of the font size (default 1.25). */
   lineHeight?: number;
+  /** Stacking lane / z-order (higher = on top). Overlays are kept sorted by it. */
+  layer?: number;
   /** Drop shadow behind the caption (preview + export). */
   shadow?: TextShadow;
   /** Outline stroke around the glyphs (preview + export). */
