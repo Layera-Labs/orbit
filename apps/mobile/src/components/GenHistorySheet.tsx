@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { font, vela } from '../constants';
+import { newId } from '../model/editor-ops';
 import { VIcon } from './VIcon';
 import { BottomSheet } from './BottomSheet';
 import { useEditor } from '../store/editorStore';
@@ -16,6 +17,8 @@ export function GenHistorySheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const insertImageFromUrl = useEditor((s) => s.insertImageFromUrl);
   const insertVideoFromUrl = useEditor((s) => s.insertVideoFromUrl);
+  const importVisual = useEditor((s) => s.importVisual);
+  const setMediaDuration = useEditor((s) => s.setMediaDuration);
   const [records, setRecords] = useState<GenRecord[]>(() => loadHistory());
   const [insertingId, setInsertingId] = useState<string | null>(null);
 
@@ -25,17 +28,29 @@ export function GenHistorySheet() {
     if (insertingId) return;
     setInsertingId(r.id);
     try {
-      if (r.kind === 'image') await insertImageFromUrl(r.url);
-      else await insertVideoFromUrl(r.url, r.audioUrl, r.durationSec);
+      if (r.source === 'upload') {
+        // Local file already in the media dir — insert it directly (no download).
+        if (r.kind === 'image') {
+          importVisual([{ id: newId('img'), type: 'image', src: r.url, start: 0, duration: 4 }]);
+        } else {
+          const dur = r.durationSec && r.durationSec > 0 ? r.durationSec : 5;
+          setMediaDuration(r.url, dur);
+          importVisual([{ id: newId('v'), type: 'video', src: r.url, start: 0, duration: dur, trimIn: 0, volume: 1 }]);
+        }
+      } else if (r.kind === 'image') {
+        await insertImageFromUrl(r.url);
+      } else {
+        await insertVideoFromUrl(r.url, r.audioUrl, r.durationSec);
+      }
       close();
     } catch {
       setInsertingId(null);
-      Alert.alert('Unavailable', 'This result has expired on the server. Generate it again.');
+      Alert.alert('Unavailable', 'This item is no longer available.');
     }
   };
 
   const confirmClear = () => {
-    Alert.alert('Clear history', 'Remove all recent generations from this list?', [
+    Alert.alert('Clear Library', 'Remove everything from your Library? Your timeline clips are not affected.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Clear', style: 'destructive', onPress: () => { clearHistory(); setRecords([]); } },
     ]);
@@ -53,7 +68,7 @@ export function GenHistorySheet() {
       {records.length === 0 ? (
         <View style={s.empty}>
           <VIcon name="fx" size={26} color={vela.muted3} strokeWidth={1.8} />
-          <Text style={s.emptyText}>Your AI results show up here.</Text>
+          <Text style={s.emptyText}>Your AI generations and uploads show up here.</Text>
         </View>
       ) : (
         <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>

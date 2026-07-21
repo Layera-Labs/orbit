@@ -1,23 +1,30 @@
 /**
- * AI generation history — a small local list of past results, persisted as JSON
- * (same document-dir pattern as settings). Records hold the remote result URL so
- * they can be re-inserted via the store's insert-from-URL actions. Results live
- * on the render server's ephemeral storage, so an older URL may 404 — the UI
- * treats that as "expired" rather than an error.
+ * The Library — a local list of the user's media, persisted as JSON (same
+ * document-dir pattern as settings). Holds two kinds of records, global across
+ * projects:
+ *   - `source: 'ai'`     — a generated result; `url` is a remote render-server
+ *     URL (may 404 once the server cleans up — the UI shows "expired").
+ *   - `source: 'upload'` — a device import; `url` is a LOCAL `file://` path
+ *     already copied into the app's media dir (stable).
+ * Re-insertion branches on `source` (download-from-URL vs use the local file).
  */
 import { File, Paths } from 'expo-file-system';
 
 export interface GenRecord {
   id: string;
   kind: 'image' | 'video';
+  /** Where the asset came from — decides how it's re-inserted. */
+  source: 'ai' | 'upload';
+  /** Remote URL (ai) or local file:// path (upload). */
   url: string;
   audioUrl?: string;
   durationSec?: number;
-  prompt: string;
+  /** The generation prompt (ai only). */
+  prompt?: string;
   createdAt: number;
 }
 
-const MAX = 40;
+const MAX = 60;
 
 function historyFile(): File {
   return new File(Paths.document, 'gen-history.json');
