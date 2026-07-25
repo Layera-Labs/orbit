@@ -36,7 +36,8 @@ export function ShadowStrokeBody({
         <Switch
           value={!!shadow}
           onValueChange={(on) => onChange({ shadow: on ? DEFAULT_SHADOW : undefined })}
-          trackColor={{ true: vela.accent, false: vela.toggleOff }}
+          trackColor={{ true: vela.accent, false: '#c7c9d4' }}
+          ios_backgroundColor='#c7c9d4'
           thumbColor="#fff"
         />
       </View>
@@ -58,7 +59,8 @@ export function ShadowStrokeBody({
         <Switch
           value={!!stroke}
           onValueChange={(on) => onChange({ stroke: on ? DEFAULT_STROKE : undefined })}
-          trackColor={{ true: vela.accent, false: vela.toggleOff }}
+          trackColor={{ true: vela.accent, false: '#c7c9d4' }}
+          ios_backgroundColor='#c7c9d4'
           thumbColor="#fff"
         />
       </View>
@@ -121,9 +123,9 @@ function Slider({
 
 const styles = StyleSheet.create({
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
-  sectionTitle: { color: vela.textLight2, fontFamily: font.semibold, fontSize: 13.5 },
+  sectionTitle: { color: vela.ink, fontFamily: font.bold, fontSize: 14 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 44 },
-  rowLabel: { color: '#fff', fontSize: 14, fontFamily: font.medium, minWidth: 64 },
-  rowVal: { color: '#fff', fontFamily: mono.regular, fontSize: 14, minWidth: 42, textAlign: 'right' },
-  swatch: { width: 30, height: 30, borderRadius: 8, borderWidth: 2, borderColor: '#fff' },
+  rowLabel: { color: vela.ink2, fontSize: 14, fontFamily: font.medium, minWidth: 64 },
+  rowVal: { color: vela.ink2, fontFamily: mono.regular, fontSize: 13, minWidth: 42, textAlign: 'right' },
+  swatch: { width: 30, height: 30, borderRadius: 8, borderWidth: 2, borderColor: vela.lightBorder },
 });

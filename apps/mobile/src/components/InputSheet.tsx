@@ -13,7 +13,6 @@ import {
   Animated,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -62,7 +61,7 @@ export function InputSheet({
   return (
     <Modal visible transparent statusBarTranslucent animationType="none" onRequestClose={close}>
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#0008', opacity: backdrop }]} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
+      <KeyboardAvoidingView behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
         <Pressable style={StyleSheet.absoluteFill} onPress={close} />
         <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
           <Text style={styles.title}>{title}</Text>
@@ -96,21 +95,21 @@ export function InputSheet({
 const styles = StyleSheet.create({
   fill: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
-    backgroundColor: vela.sheet,
+    backgroundColor: vela.lightCard,
     padding: 18,
     paddingBottom: 34,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     gap: 12,
   },
-  title: { color: '#fff', fontFamily: font.extrabold, fontSize: 19 },
-  subtitle: { color: vela.muted, fontFamily: font.medium, fontSize: 13.5, marginTop: -4 },
+  title: { color: vela.ink, fontFamily: font.extrabold, fontSize: 20 },
+  subtitle: { color: vela.lightMuted, fontFamily: font.medium, fontSize: 13, marginTop: -4 },
   input: {
-    backgroundColor: vela.card2,
+    backgroundColor: vela.lightSurface,
     borderRadius: 12,
     paddingHorizontal: 14,
     paddingVertical: 14,
-    color: '#fff',
+    color: vela.ink,
     fontFamily: font.medium,
     fontSize: 16,
     marginTop: 4,
@@ -118,5 +117,5 @@ const styles = StyleSheet.create({
   save: { height: 52, borderRadius: 14, backgroundColor: vela.accent, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
   saveText: { color: vela.onAccent, fontFamily: font.bold, fontSize: 17 },
   cancel: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 16 },
-  cancelText: { color: vela.textLight2, fontFamily: font.semibold, fontSize: 15 },
+  cancelText: { color: vela.ink3, fontFamily: font.semibold, fontSize: 14 },
 });

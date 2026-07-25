@@ -54,7 +54,7 @@ export function VSlider({
 
 const styles = StyleSheet.create({
   hit: { height: 40, justifyContent: 'center' },
-  track: { height: 6, borderRadius: 3, backgroundColor: vela.toggleOff, overflow: 'hidden' },
+  track: { height: 6, borderRadius: 3, backgroundColor: vela.lightBorder, overflow: 'hidden' },
   fill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 3 },
   // White knob with a self-colored (fill) ring + a tight downward shadow.
   knob: {

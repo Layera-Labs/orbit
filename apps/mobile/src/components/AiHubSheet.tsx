@@ -12,7 +12,7 @@ import { BottomSheet } from './BottomSheet';
 import { useEditor } from '../store/editorStore';
 import { openAi } from '../store/aiActions';
 
-type Action = { label: string; icon: VIconName; onPress: () => void };
+type Action = { label: string; icon: VIconName; color: string; onPress: () => void };
 
 export function AiHubSheet() {
   const setPanel = useEditor((s) => s.setPanel);
@@ -25,15 +25,15 @@ export function AiHubSheet() {
   }, [refreshCredits]);
 
   const actions: Action[] = [
-    { label: 'Image', icon: 'image', onPress: () => openAi('aigen', { mode: 'image' }) },
-    { label: 'Video', icon: 'video', onPress: () => openAi('aigen', { mode: 'video', source: 'text' }) },
-    { label: 'Photo → Video', icon: 'photos', onPress: () => openAi('aigen', { mode: 'video', source: 'photo' }) },
-    { label: 'Voiceover', icon: 'audio', onPress: () => openAi('tts') },
-    { label: 'Library', icon: 'templates', onPress: () => setPanel('genhistory') },
+    { label: 'Image', icon: 'image', color: '#5b4bff', onPress: () => openAi('aigen', { mode: 'image' }) },
+    { label: 'Video', icon: 'video', color: '#3478f6', onPress: () => openAi('aigen', { mode: 'video', source: 'text' }) },
+    { label: 'Photo → Video', icon: 'photos', color: '#14b8a6', onPress: () => openAi('aigen', { mode: 'video', source: 'photo' }) },
+    { label: 'Voiceover', icon: 'audio', color: '#e84da0', onPress: () => openAi('tts') },
+    { label: 'Library', icon: 'templates', color: '#f39b3f', onPress: () => setPanel('genhistory') },
   ];
 
   return (
-    <BottomSheet onClose={close} style={{ gap: 14, paddingBottom: 26 }}>
+    <BottomSheet onClose={close} style={{ backgroundColor: vela.lightCard, gap: 14, paddingBottom: 26 }} dim='#0005'>
       <View style={s.head}>
         <View style={s.title}>
           <VIcon name="fx" size={20} color={vela.accent} strokeWidth={2} />
@@ -48,8 +48,8 @@ export function AiHubSheet() {
 
       <View style={s.grid}>
         {actions.map((a) => (
-          <Pressable key={a.label} style={s.tile} onPress={a.onPress}>
-            <VIcon name={a.icon} size={28} color={vela.accent} strokeWidth={1.9} />
+          <Pressable key={a.label} style={[s.tile, { backgroundColor: `${a.color}12` }]} onPress={a.onPress}>
+            <View style={[s.tileIcon, { backgroundColor: `${a.color}1c` }]}><VIcon name={a.icon} size={27} color={a.color} strokeWidth={1.9} /></View>
             <Text style={s.tileLabel} numberOfLines={1}>{a.label}</Text>
           </Pressable>
         ))}
@@ -61,11 +61,12 @@ export function AiHubSheet() {
 const s = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  titleText: { color: '#fff', fontFamily: font.extrabold, fontSize: 21 },
+  titleText: { color: vela.ink, fontFamily: font.extrabold, fontSize: 20 },
   creditPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, backgroundColor: vela.accentSoft },
   creditText: { color: vela.accent, fontFamily: font.semibold, fontSize: 12.5 },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  tile: { width: '31.5%', height: 104, borderRadius: 18, backgroundColor: vela.card2, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  tileLabel: { color: '#fff', fontFamily: font.semibold, fontSize: 13.5, paddingHorizontal: 4 },
+  tile: { width: '31.5%', height: 108, borderRadius: 18, alignItems: 'center', justifyContent: 'center', gap: 9 },
+  tileIcon: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  tileLabel: { color: vela.ink2, fontFamily: font.bold, fontSize: 13, paddingHorizontal: 4 },
 });

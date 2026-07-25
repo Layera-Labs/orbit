@@ -10,7 +10,13 @@ export interface RatioPreset {
 
 export const RATIOS: RatioPreset[] = [
   // Portrait
-  { key: '9:16', label: '9:16', hint: 'Reel / Story', width: 1080, height: 1920 },
+  {
+    key: '9:16',
+    label: '9:16',
+    hint: 'Reel / Story',
+    width: 1080,
+    height: 1920,
+  },
   { key: '4:5', label: '4:5', hint: 'Portrait', width: 1080, height: 1350 },
   { key: '2:3', label: '2:3', hint: 'Portrait', width: 1080, height: 1620 },
   { key: '3:4', label: '3:4', hint: 'Portrait', width: 1080, height: 1440 },
@@ -23,7 +29,13 @@ export const RATIOS: RatioPreset[] = [
   { key: '3:2', label: '3:2', hint: 'Photo', width: 1620, height: 1080 },
   { key: '2:1', label: '2:1', hint: 'Wide', width: 2160, height: 1080 },
   { key: '1.85:1', label: '1.85:1', hint: 'Film', width: 1998, height: 1080 },
-  { key: '2.35:1', label: '2.35:1', hint: 'Cinemascope', width: 2538, height: 1080 },
+  {
+    key: '2.35:1',
+    label: '2.35:1',
+    hint: 'Cinemascope',
+    width: 2538,
+    height: 1080,
+  },
   { key: '21:9', label: '21:9', hint: 'Cinematic', width: 2520, height: 1080 },
   { key: '42:9', label: '42:9', hint: 'Ultrawide', width: 5040, height: 1080 },
 ];
@@ -53,72 +65,79 @@ export const mono = {
 } as const;
 
 /**
- * Orbit design tokens. One signature palette: a warm gold accent on warm
- * near-black surfaces (gold + black). Purple, blue and teal are retired. Token
- * NAMES are kept stable so existing call sites inherit the new values.
- *
- * One gold does every job — primary action, "option ON", and editing-selection
- * (`accent`/`action`/`select` are the same gold). Text/icons on a gold fill use
- * `onAccent` (near-black ink), since gold is a light-valued accent.
+ * Orbit design tokens. The mobile product uses a violet-to-purple brand over
+ * quiet neutral light surfaces and a cool near-black editor. Token names stay
+ * stable so the existing editor inherits the redesign without touching its
+ * rendering or timeline behavior.
  */
 export const vela = {
-  // Brand — gold on black
-  accent: '#e3ac3d', // gold — primary brand / active / all CTAs / selection
-  action: '#e3ac3d', // gold — same primary
-  accentDim: '#b98a2b', // deeper gold — pressed
-  accentSoft: 'rgba(227,172,61,0.16)', // low-opacity gold tint
-  onAccent: '#1c1503', // near-black ink for text/icons on a gold fill
-  select: '#e3ac3d', // gold — selected clip / filmstrip border
-  audio: '#a9812c', // audio track fill (deep gold)
+  // Brand
+  accent: '#5b4bff',
+  action: '#5b4bff',
+  accent2: '#933ff2',
+  accentDim: '#4938e8',
+  accentSoft: 'rgba(91,75,255,0.14)',
+  onAccent: '#ffffff',
+  select: '#6b50ff',
+  audio: '#2868b7',
   danger: '#ff453a',
+  success: '#54be72',
+  warning: '#f2a83b',
+  trackText: '#7437bd',
+  trackEffect: '#a66b1f',
+  trackMusic: '#267747',
+  trackAudio: '#2868b7',
 
-  // Editor (dark) — warm near-black, 3-step elevation ladder
-  editorBg: '#0c0b0a',
-  bezel: '#080706',
-  sheet: '#161512',
-  card: '#1b1916',
-  card2: '#252220',
-  card3: '#1e1c18',
-  emptyTrack: '#171512',
-  toolbar: '#100e0c',
-  toolbarBorder: '#1c1a16',
-  saveTile: '#252220',
-  toggleOff: '#3a3630',
-  divider: '#2a2620',
+  // Editor (dark)
+  editorBg: '#090c13',
+  bezel: '#070910',
+  sheet: '#121722',
+  card: '#171c28',
+  card2: '#1c2230',
+  card3: '#151a25',
+  emptyTrack: '#111722',
+  toolbar: '#0c1018',
+  toolbarBorder: '#252b38',
+  saveTile: '#1a202c',
+  toggleOff: '#363d4b',
+  divider: '#282e3b',
 
   // Timeline surfaces (tokenised — no more hardcoded hex in Timeline.tsx)
-  clipBg: '#221f1b',
-  wave: '#edc258', // audio waveform (gold)
-  waveSound: '#c9b078', // sound waveform (muted gold)
-  soundBlock: '#2a2617',
-  tickMinor: '#2a2620',
+  clipBg: '#1c2230',
+  wave: '#6fb1ff',
+  waveSound: '#7dbf96',
+  soundBlock: '#173a29',
+  tickMinor: '#282e3b',
 
-  // Text on dark — warm neutral ramp
+  // Text on dark
   white: '#ffffff',
-  textLight: '#ece9e3',
-  textLight2: '#c9c5bc',
-  textDim: '#cbc7bf',
-  muted: '#9b968c',
-  muted2: '#7b766c',
-  muted3: '#6b665d',
-  muted4: '#605b52',
-  muted5: '#8b867c',
+  textLight: '#f6f7fb',
+  textLight2: '#d5d9e2',
+  textDim: '#bdc3cf',
+  muted: '#9aa2b2',
+  muted2: '#7d8698',
+  muted3: '#687183',
+  muted4: '#596274',
+  muted5: '#8d95a5',
 
-  // Home (light) — warm tinted off-white (not the UI-kit slop gray)
-  homeBg: '#f7f6f2',
-  lightSurface: '#edeae3',
-  lightCard: '#fffefb',
-  ink: '#14120f',
-  ink2: '#1b1815',
-  ink3: '#47433b',
-  lightMuted: '#9b968c',
-  lightMuted2: '#a9a49a',
-  lightMuted3: '#b4afa5',
-  lightBorder: '#e6e2d9',
-  folderFrom: '#f0e2bf',
-  folderTo: '#e6d199',
-  folderDot: '#e3ac3d',
+  // App chrome (light)
+  homeBg: '#f7f7fa',
+  lightSurface: '#f0f0f5',
+  lightCard: '#ffffff',
+  ink: '#101116',
+  ink2: '#181a21',
+  ink3: '#5f6472',
+  lightMuted: '#8e94a3',
+  lightMuted2: '#a6abb7',
+  lightMuted3: '#b9bdc7',
+  lightBorder: '#e5e5ec',
+  folderFrom: '#e9e6ff',
+  folderTo: '#d8d2ff',
+  folderDot: '#6b50ff',
 } as const;
+
+/** Reference gradient used by primary actions and the Orbit mark. */
+export const orbitGradient = [vela.accent, vela.accent2] as const;
 
 /** Spacing scale (px). */
 export const sp = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24 } as const;
@@ -132,8 +151,20 @@ export const r = { sm: 8, md: 12, lg: 16, xl: 22, pill: 999 } as const;
  * edge instead. Spread as `...elev.float` into a style.
  */
 export const elev = {
-  card: { shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
-  float: { shadowColor: '#000', shadowOpacity: 0.22, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 8 },
+  card: {
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 3,
+  },
+  float: {
+    shadowColor: '#000',
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 8,
+  },
 } as const;
 
 /** Default render-service URL (sim shares the Mac's network on localhost). */

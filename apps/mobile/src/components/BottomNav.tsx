@@ -1,8 +1,6 @@
 /**
- * Floating navigation: an iOS-26 liquid-glass pill (Home · Search · Profile ·
- * Pro) plus a distinct solid-gold Create FAB bottom-right (VN-style). Profile
- * and Pro open self-contained sheets so every screen gets them. Glass falls back
- * to a solid warm surface where liquid glass is unavailable.
+ * Orbit's persistent navigation: four destinations in the original iOS 26
+ * liquid-glass pill, plus a distinct floating Create button on the right.
  */
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -10,185 +8,146 @@ import { font, vela } from '../constants';
 import { VIcon, type VIconName } from './VIcon';
 import { Glass } from './Glass';
 import { BottomSheet } from './BottomSheet';
-import { InputSheet } from './InputSheet';
-import { AuthSheet } from './AuthSheet';
 import { OrbitMark } from './OrbitMark';
-import { useEditor } from '../store/editorStore';
-import { useAuth } from '../store/authStore';
 
-const APP_VERSION = '1.0.0';
+export type MainTab = 'home' | 'templates' | 'ai' | 'premium';
 
-export function BottomNav({
-  active,
-  onHome,
-  onDiscover,
-  onCreate,
-}: {
-  active: 'home' | 'discover';
+interface BottomNavProps {
+  active?: Exclude<MainTab, 'premium'>;
   onHome: () => void;
-  onDiscover: () => void;
+  onTemplates: () => void;
   onCreate: () => void;
-}) {
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [proOpen, setProOpen] = useState(false);
+  onAi: () => void;
+  dark?: boolean;
+}
 
-  const Tab = ({ icon, on, onPress, sw = 2 }: { icon: VIconName; on?: boolean; onPress: () => void; sw?: number }) => (
-    <Pressable style={styles.tab} onPress={onPress}>
-      <VIcon name={icon} size={24} color={on ? vela.accent : vela.ink3} strokeWidth={on ? sw + 0.4 : sw} />
-    </Pressable>
-  );
+export function BottomNav({ active, onHome, onTemplates, onCreate, onAi, dark = false }: BottomNavProps) {
+  const [premiumOpen, setPremiumOpen] = useState(false);
+  const tabs: Array<{
+    key: MainTab;
+    label: string;
+    icon: VIconName;
+    onPress: () => void;
+  }> = [
+    { key: 'home', label: 'Home', icon: 'navHome', onPress: onHome },
+    {
+      key: 'templates',
+      label: 'Templates',
+      icon: 'templates',
+      onPress: onTemplates,
+    },
+    { key: 'ai', label: 'AI Studio', icon: 'fx', onPress: onAi },
+    { key: 'premium', label: 'Premium', icon: 'crown', onPress: () => setPremiumOpen(true) },
+  ];
+  const idle = dark ? vela.textLight2 : vela.ink3;
+
+  const renderTab = (tab: (typeof tabs)[number]) => {
+    const selected = tab.key === 'premium' ? premiumOpen : active === tab.key;
+    return (
+      <Pressable key={tab.key} accessibilityRole='tab' accessibilityLabel={tab.label} accessibilityState={{ selected }} style={styles.tab} onPress={tab.onPress} hitSlop={4}>
+        <VIcon name={tab.icon} size={20} color={selected ? vela.accent : idle} strokeWidth={selected ? 2.3 : 1.9} />
+        <Text style={[styles.label, { color: selected ? vela.accent : idle }, selected && styles.labelOn]}>{tab.label}</Text>
+      </Pressable>
+    );
+  };
 
   return (
-    <View style={styles.wrap} pointerEvents="box-none">
-      <Glass style={styles.bar} fallbackColor={vela.lightCard} interactive colorScheme="light">
-        <Tab icon="navHome" on={active === 'home'} onPress={onHome} />
-        <Tab icon="search" on={active === 'discover'} onPress={onDiscover} sw={2.2} />
-        <Tab icon="profile" onPress={() => setProfileOpen(true)} />
-        <Tab icon="crown" onPress={() => setProOpen(true)} sw={1.9} />
+    <View style={styles.wrap} pointerEvents='box-none'>
+      <Glass style={styles.bar} fallbackColor={dark ? 'rgba(18,23,34,0.98)' : 'rgba(255,255,255,0.98)'} interactive colorScheme={dark ? 'dark' : 'light'}>
+        {tabs.map(renderTab)}
       </Glass>
-      <Pressable style={styles.fab} onPress={onCreate}>
-        <VIcon name="plus" size={28} color={vela.onAccent} strokeWidth={2.6} />
+
+      <Pressable accessibilityRole='button' accessibilityLabel='Create new project' style={({ pressed }) => [styles.fab, pressed && styles.createPressed]} onPress={onCreate}>
+        <VIcon name='plus' size={28} color='#fff' strokeWidth={2.7} />
       </Pressable>
 
-      {profileOpen ? <ProfileSheet onClose={() => setProfileOpen(false)} onPro={() => { setProfileOpen(false); setProOpen(true); }} /> : null}
-      {proOpen ? <ProSheet onClose={() => setProOpen(false)} /> : null}
+      {premiumOpen ? <PremiumSheet onClose={() => setPremiumOpen(false)} /> : null}
     </View>
   );
 }
 
-function ProfileSheet({ onClose, onPro }: { onClose: () => void; onPro: () => void }) {
-  const serverUrl = useEditor((s) => s.serverUrl);
-  const setServerUrl = useEditor((s) => s.setServerUrl);
-  const authStatus = useAuth((s) => s.status);
-  const user = useAuth((s) => s.user);
-  const logout = useAuth((s) => s.logout);
-  const [editingServer, setEditingServer] = useState(false);
-  const [signingIn, setSigningIn] = useState(false);
-
-  const signedIn = authStatus === 'authed';
-  const account = signedIn
-    ? { icon: 'profile' as VIconName, label: 'Sign out', sub: user?.email, onPress: () => void logout() }
-    : { icon: 'profile' as VIconName, label: 'Sign in', sub: 'Needed for AI generation', onPress: () => setSigningIn(true) };
-
-  const rows: { icon: VIconName; label: string; sub?: string; onPress: () => void }[] = [
-    account,
-    { icon: 'prefs', label: 'Render server', sub: serverUrl, onPress: () => setEditingServer(true) },
-    { icon: 'crown', label: 'Upgrade to Orbit Pro', onPress: onPro },
-    { icon: 'help', label: 'About Orbit', sub: `Version ${APP_VERSION}`, onPress: () => Alert.alert('Orbit', `A local-first video editor.\nVersion ${APP_VERSION}`) },
-  ];
-  if (editingServer) {
-    return (
-      <InputSheet
-        title="Render server"
-        subtitle="URL of your render service (your Mac’s IP for a physical phone)."
-        initialValue={serverUrl}
-        placeholder="http://192.168.1.20:8787"
-        keyboardType="url"
-        autoCapitalize="none"
-        onSave={setServerUrl}
-        onClose={() => setEditingServer(false)}
-      />
-    );
-  }
-  if (signingIn) {
-    return <AuthSheet onClose={() => setSigningIn(false)} onAuthed={() => setSigningIn(false)} />;
-  }
+function PremiumSheet({ onClose }: { onClose: () => void }) {
+  const perks = ['Unlimited projects and folders', '4K and HDR10 export', 'No watermark', 'Priority cloud renders'];
   return (
-    <BottomSheet onClose={onClose} dim="#0006">
-      <View style={s.profileHead}>
-        <OrbitMark size={40} />
-        <View>
-          <Text style={s.profileTitle}>Orbit</Text>
-          <Text style={s.profileSub}>{signedIn ? user?.email ?? 'Signed in' : 'Local workspace · sign in for AI'}</Text>
-        </View>
-      </View>
-      <View style={s.divider} />
-      {rows.map((r) => (
-        <Pressable key={r.label} style={s.row} onPress={r.onPress}>
-          <VIcon name={r.icon} size={22} color={vela.textLight} />
-          <View style={{ flex: 1 }}>
-            <Text style={s.rowLabel}>{r.label}</Text>
-            {r.sub ? <Text style={s.rowSub} numberOfLines={1}>{r.sub}</Text> : null}
-          </View>
-          <VIcon name="chevronRight" size={18} color={vela.muted3} />
-        </Pressable>
-      ))}
-    </BottomSheet>
-  );
-}
-
-function ProSheet({ onClose }: { onClose: () => void }) {
-  const perks = ['Unlimited projects & folders', '4K + HDR10 export', 'No watermark', 'Priority cloud renders'];
-  return (
-    <BottomSheet onClose={onClose} dim="#0008">
-      <View style={s.proHead}>
+    <BottomSheet onClose={onClose} dim='#0008'>
+      <View style={styles.premiumHead}>
         <OrbitMark size={34} />
-        <Text style={s.proTitle}>Orbit <Text style={{ color: vela.accent }}>Pro</Text></Text>
+        <Text style={styles.premiumTitle}>Orbit <Text style={{ color: vela.accent }}>Premium</Text></Text>
       </View>
-      <Text style={s.proLead}>Everything in Orbit, unlocked.</Text>
-      <View style={{ gap: 12, marginTop: 6 }}>
-        {perks.map((p) => (
-          <View key={p} style={s.perk}>
-            <VIcon name="check" size={18} color={vela.accent} strokeWidth={2.6} />
-            <Text style={s.perkText}>{p}</Text>
+      <Text style={styles.premiumLead}>Professional creation tools, all unlocked.</Text>
+      <View style={styles.perks}>
+        {perks.map((perk) => (
+          <View key={perk} style={styles.perk}>
+            <VIcon name='check' size={18} color={vela.accent} strokeWidth={2.6} />
+            <Text style={styles.perkText}>{perk}</Text>
           </View>
         ))}
       </View>
-      <Pressable style={s.proCta} onPress={() => Alert.alert('Orbit Pro', 'Orbit Pro isn’t available yet. It’s coming soon.')}>
-        <Text style={s.proCtaText}>Coming soon</Text>
+      <Pressable style={styles.premiumCta} onPress={() => Alert.alert('Orbit Premium', 'Orbit Premium is coming soon.')}>
+        <Text style={styles.premiumCtaText}>Coming soon</Text>
       </Pressable>
     </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 110, justifyContent: 'flex-end' },
+  wrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 106,
+    justifyContent: 'flex-end',
+    zIndex: 40,
+  },
   bar: {
     position: 'absolute',
-    left: 18,
-    right: 96,
-    bottom: 26,
-    height: 60,
-    borderRadius: 30,
+    left: 12,
+    right: 88,
+    bottom: 24,
+    height: 62,
+    borderRadius: 31,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-around',
-    paddingHorizontal: 10,
+    paddingHorizontal: 5,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(130,130,150,0.18)',
   },
-  tab: { flex: 1, height: 52, alignItems: 'center', justifyContent: 'center' },
+  tab: {
+    flex: 1,
+    height: 56,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 3,
+  },
+  label: { fontFamily: font.medium, fontSize: 9.5 },
+  labelOn: { fontFamily: font.bold },
   fab: {
     position: 'absolute',
-    right: 18,
-    bottom: 26,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    right: 12,
+    bottom: 24,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
     backgroundColor: vela.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOpacity: 0.22,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 8,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.9)',
+    boxShadow: '0 6px 16px rgba(71,53,220,0.32)',
   },
-});
-
-const s = StyleSheet.create({
-  profileHead: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingTop: 4 },
-  profileTitle: { color: '#fff', fontFamily: font.extrabold, fontSize: 22 },
-  profileSub: { color: vela.muted, fontFamily: font.medium, fontSize: 13, marginTop: 2 },
-  divider: { height: 1, backgroundColor: vela.divider, marginVertical: 6 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 14 },
-  rowLabel: { color: '#fff', fontFamily: font.semibold, fontSize: 16 },
-  rowSub: { color: vela.muted2, fontFamily: font.regular, fontSize: 12.5, marginTop: 2 },
-
-  proHead: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 4 },
-  proTitle: { color: '#fff', fontFamily: font.extrabold, fontSize: 26 },
-  proLead: { color: vela.muted, fontFamily: font.medium, fontSize: 14, marginTop: 2, marginBottom: 8 },
+  createPressed: {
+    transform: [{ scale: 0.94 }],
+    backgroundColor: vela.accentDim,
+  },
+  premiumHead: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: 4 },
+  premiumTitle: { color: '#fff', fontFamily: font.extrabold, fontSize: 24 },
+  premiumLead: { color: vela.muted, fontFamily: font.medium, fontSize: 14, marginTop: 2, marginBottom: 8 },
+  perks: { gap: 12, marginTop: 6 },
   perk: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   perkText: { color: vela.textLight, fontFamily: font.medium, fontSize: 15.5 },
-  proCta: { marginTop: 20, height: 54, borderRadius: 16, backgroundColor: vela.accent, alignItems: 'center', justifyContent: 'center' },
-  proCtaText: { color: vela.onAccent, fontFamily: font.bold, fontSize: 17 },
+  premiumCta: { marginTop: 20, height: 54, borderRadius: 16, backgroundColor: vela.accent, alignItems: 'center', justifyContent: 'center' },
+  premiumCtaText: { color: vela.onAccent, fontFamily: font.bold, fontSize: 17 },
 });

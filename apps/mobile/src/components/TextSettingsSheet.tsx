@@ -5,7 +5,8 @@
  * `FontPickerBody`, the size sliders, `ColorPickerBody`, and `ShadowStrokeBody`.
  */
 import { useEffect, useRef, useState } from 'react';
-import { Animated, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import Animated, { FadeIn, LinearTransition, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { font, mono, vela } from '../constants';
 import type { TextAlign } from '../model/types';
 import { useEditor } from '../store/editorStore';
@@ -17,7 +18,8 @@ import { ShadowStrokeBody } from './ShadowSheet';
 
 const ALIGN_ORDER: TextAlign[] = ['left', 'center', 'right'];
 
-type Tab = 'text' | 'font' | 'size' | 'color' | 'stroke';
+export type TextSettingsTab = 'text' | 'font' | 'size' | 'color' | 'stroke';
+type Tab = TextSettingsTab;
 const TABS: { key: Tab; label: string }[] = [
   { key: 'text', label: 'Text' },
   { key: 'font', label: 'Font' },
@@ -29,19 +31,20 @@ const TABS: { key: Tab; label: string }[] = [
 /** Align header button whose glyph reflects the current alignment and pops on change. */
 function AlignIcon({ align }: { align: TextAlign }) {
   const name: VIconName = align === 'left' ? 'alignLeft' : align === 'right' ? 'alignRight' : 'alignCenter';
-  const pop = useRef(new Animated.Value(1)).current;
+  const pop = useSharedValue(1);
   useEffect(() => {
-    pop.setValue(0.7);
-    Animated.spring(pop, { toValue: 1, useNativeDriver: true, damping: 11, stiffness: 320, mass: 0.6 }).start();
+    pop.value = 0.76;
+    pop.value = withSpring(1, { damping: 12, stiffness: 320, mass: 0.55 });
   }, [align, pop]);
+  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.value }] }));
   return (
-    <Animated.View style={{ transform: [{ scale: pop }] }}>
-      <VIcon name={name} size={22} color={vela.textLight} />
+    <Animated.View style={animatedStyle}>
+      <VIcon name={name} size={22} color={vela.ink2} />
     </Animated.View>
   );
 }
 
-export function TextSettingsSheet() {
+export function TextSettingsSheet({ initialTab = 'text' }: { initialTab?: TextSettingsTab }) {
   const setPanel = useEditor((s) => s.setPanel);
   const selected = useEditor((s) => s.selected);
   const editSelectedText = useEditor((s) => s.editSelectedText);
@@ -49,7 +52,7 @@ export function TextSettingsSheet() {
   const ov = useEditor((s) => s.project?.overlays.find((o) => o.id === selected?.clipId));
   const projW = useEditor((s) => s.project?.width ?? 1080);
 
-  const [tab, setTab] = useState<Tab>('text');
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [text, setText] = useState(ov?.text ?? '');
   const inputRef = useRef<TextInput>(null);
   const close = () => setPanel(null);
@@ -66,12 +69,12 @@ export function TextSettingsSheet() {
   const lineHeight = ov?.lineHeight ?? 1.25;
   const cycleAlign = () => updateOverlay({ align: ALIGN_ORDER[(ALIGN_ORDER.indexOf(align) + 1) % 3] });
 
-  const bodyH = tab === 'text' ? 150 : tab === 'size' ? 210 : 380;
+  const bodyH = tab === 'text' ? 150 : tab === 'size' ? 210 : tab === 'color' ? 324 : 380;
 
   return (
     <Modal transparent visible animationType="slide" onRequestClose={close}>
       <Pressable style={styles.backdrop} onPress={close}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined}>
           <Pressable style={styles.sheet} onPress={() => {}}>
             {/* Header: title + align + bold + done */}
             <View style={styles.header}>
@@ -79,10 +82,10 @@ export function TextSettingsSheet() {
               <View style={styles.headerActions}>
                 <Pressable onPress={cycleAlign} hitSlop={8}><AlignIcon align={align} /></Pressable>
                 <Pressable onPress={() => updateOverlay({ bold: !bold })} hitSlop={8}>
-                  <VIcon name="style" size={22} color={bold ? vela.accent : vela.textLight} />
+                  <VIcon name="style" size={22} color={bold ? vela.accent : vela.ink3} />
                 </Pressable>
                 <View style={styles.headDivider} />
-                <Pressable onPress={close} hitSlop={8}><VIcon name="check" size={24} color="#fff" /></Pressable>
+                <Pressable onPress={close} hitSlop={8} style={styles.done}><VIcon name="check" size={21} color={vela.accent} strokeWidth={2.7} /></Pressable>
               </View>
             </View>
 
@@ -97,7 +100,7 @@ export function TextSettingsSheet() {
             </View>
 
             {/* Body */}
-            <View style={[styles.body, { height: bodyH }]}>
+            <Animated.View key={tab} entering={FadeIn.duration(170)} layout={LinearTransition.duration(180)} style={[styles.body, { height: bodyH }]}>
               {tab === 'text' ? (
                 <View style={styles.inputRow}>
                   <TextInput
@@ -133,7 +136,7 @@ export function TextSettingsSheet() {
               ) : (
                 <ShadowStrokeBody shadow={ov?.shadow} stroke={ov?.stroke} onChange={updateOverlay} />
               )}
-            </View>
+            </Animated.View>
           </Pressable>
         </KeyboardAvoidingView>
       </Pressable>
@@ -152,22 +155,23 @@ function SizeRow({ label, fmt, children }: { label: string; value: number; fmt: 
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: '#0008', justifyContent: 'flex-end' },
-  sheet: { backgroundColor: vela.sheet, paddingHorizontal: 18, paddingTop: 14, paddingBottom: 28, borderTopLeftRadius: 26, borderTopRightRadius: 26 },
+  backdrop: { flex: 1, backgroundColor: '#0006', justifyContent: 'flex-end' },
+  sheet: { maxHeight: '88%', backgroundColor: vela.lightCard, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 28, borderTopLeftRadius: 26, borderTopRightRadius: 26, borderCurve: 'continuous' },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { color: '#fff', fontFamily: font.bold, fontSize: 17 },
+  title: { color: vela.ink, fontFamily: font.extrabold, fontSize: 20 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
-  headDivider: { width: 1, height: 20, backgroundColor: vela.divider },
-  tabs: { flexDirection: 'row', gap: 8, marginTop: 14, borderBottomWidth: 1, borderBottomColor: vela.card2 },
+  done: { width: 34, height: 34, borderRadius: 11, backgroundColor: vela.accentSoft, alignItems: 'center', justifyContent: 'center' },
+  headDivider: { width: 1, height: 20, backgroundColor: vela.lightBorder },
+  tabs: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14, borderBottomWidth: 1, borderBottomColor: vela.lightBorder },
   tab: { paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center' },
-  tabText: { color: vela.muted, fontFamily: font.semibold, fontSize: 14.5 },
-  tabTextOn: { color: '#fff' },
+  tabText: { color: vela.lightMuted, fontFamily: font.semibold, fontSize: 13.5 },
+  tabTextOn: { color: vela.accent, fontFamily: font.bold },
   tabUnderline: { position: 'absolute', bottom: -1, left: 8, right: 8, height: 2, borderRadius: 1, backgroundColor: vela.accent },
   body: { paddingTop: 12 },
   inputRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  input: { flex: 1, color: '#fff', fontSize: 18, fontFamily: font.medium, minHeight: 120, textAlignVertical: 'top' },
+  input: { flex: 1, color: vela.ink, fontSize: 17, fontFamily: font.medium, minHeight: 120, textAlignVertical: 'top' },
   trash: { paddingTop: 4 },
   sizeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 52 },
-  sizeLabel: { color: '#fff', fontSize: 14, fontFamily: font.medium, minWidth: 62 },
-  sizeVal: { color: '#fff', fontFamily: mono.regular, fontSize: 14, minWidth: 40, textAlign: 'right' },
+  sizeLabel: { color: vela.ink2, fontSize: 14, fontFamily: font.semibold, minWidth: 62 },
+  sizeVal: { color: vela.ink2, fontFamily: mono.regular, fontSize: 13, minWidth: 40, textAlign: 'right' },
 });

@@ -60,7 +60,7 @@ export function BuyCreditsSheet() {
   };
 
   return (
-    <BottomSheet onClose={close} style={{ gap: 14, paddingBottom: 24 }}>
+    <BottomSheet onClose={close} style={{ backgroundColor: vela.lightCard, gap: 14, paddingBottom: 24 }} dim='#0005'>
       <View style={s.head}>
         <Text style={s.title}>Get credits</Text>
         <View style={s.creditPill}>
@@ -95,14 +95,14 @@ export function BuyCreditsSheet() {
 
 const s = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { color: '#fff', fontFamily: font.extrabold, fontSize: 20 },
+  title: { color: vela.ink, fontFamily: font.extrabold, fontSize: 20 },
   creditPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, backgroundColor: vela.accentSoft },
   creditText: { color: vela.accent, fontFamily: font.semibold, fontSize: 12.5 },
   center: { alignItems: 'center', justifyContent: 'center', paddingVertical: 28 },
-  emptyText: { color: vela.muted2, fontFamily: font.medium, fontSize: 14.5, textAlign: 'center' },
-  pack: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: vela.card2, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 16 },
-  packTitle: { color: '#fff', fontFamily: font.bold, fontSize: 16 },
-  packSub: { color: vela.muted, fontFamily: font.medium, fontSize: 13, marginTop: 2 },
+  emptyText: { color: vela.lightMuted, fontFamily: font.medium, fontSize: 14, textAlign: 'center' },
+  pack: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: vela.lightSurface, borderRadius: 14, paddingVertical: 16, paddingHorizontal: 16 },
+  packTitle: { color: vela.ink, fontFamily: font.bold, fontSize: 16 },
+  packSub: { color: vela.lightMuted, fontFamily: font.medium, fontSize: 13, marginTop: 2 },
   err: { color: vela.danger, fontFamily: font.medium, fontSize: 13.5 },
-  note: { color: vela.muted2, fontFamily: font.regular, fontSize: 12, textAlign: 'center' },
+  note: { color: vela.lightMuted, fontFamily: font.regular, fontSize: 12, textAlign: 'center' },
 });

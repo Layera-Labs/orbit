@@ -5,24 +5,7 @@
  * ABSOLUTE `start` on the timeline and (for visual clips) a normalized `rect`
  * placement. Audio tracks mix. Every function returns a NEW project.
  */
-import type {
-  AudioTrack,
-  AudioTrackClip,
-  BlendMode,
-  ChromaKey,
-  ClipFilter,
-  ClipMask,
-  Keyframe,
-  Motion,
-  Rect,
-  VolumePoint,
-  TextOverlay,
-  Track,
-  Transition,
-  VideoProject,
-  VisualTrack,
-  VisualTrackClip,
-} from './types';
+import type { AudioTrackClip, BlendMode, ChromaKey, ClipFilter, ClipMask, Keyframe, Motion, Rect, VolumePoint, TextOverlay, Track, Transition, VideoProject, VisualTrackClip } from './types';
 
 export const MIN_CLIP = 0.1;
 
@@ -65,7 +48,16 @@ export function ensureTracks(p: VideoProject): VideoProject {
     const start = acc;
     acc += c.duration;
     return c.type === 'video'
-      ? { id: c.id, type: 'video', src: c.src, start, duration: c.duration, trimIn: c.trimIn, volume: c.volume, muted: c.muted }
+      ? {
+          id: c.id,
+          type: 'video',
+          src: c.src,
+          start,
+          duration: c.duration,
+          trimIn: c.trimIn,
+          volume: c.volume,
+          muted: c.muted,
+        }
       : { id: c.id, type: 'image', src: c.src, start, duration: c.duration };
   });
   const tracks: Track[] = [{ id: newId('trk'), kind: 'visual', name: 'Main', clips: visual }];
@@ -74,7 +66,14 @@ export function ensureTracks(p: VideoProject): VideoProject {
       id: newId('trk'),
       kind: 'audio',
       name: 'Audio',
-      clips: p.audio.map((a) => ({ id: a.id, src: a.src, start: a.start ?? 0, duration: a.duration ?? Math.max(MIN_CLIP, acc - (a.start ?? 0)), trimIn: a.trimIn, volume: a.volume })),
+      clips: p.audio.map((a) => ({
+        id: a.id,
+        src: a.src,
+        start: a.start ?? 0,
+        duration: a.duration ?? Math.max(MIN_CLIP, acc - (a.start ?? 0)),
+        trimIn: a.trimIn,
+        volume: a.volume,
+      })),
     });
   }
   return { ...p, schemaVersion: 2, tracks };
@@ -94,12 +93,7 @@ function mapTracks(p: VideoProject, fn: (tracks: Track[]) => Track[]): VideoProj
 }
 
 /** Update a track's clips, preserving its kind. */
-function updateClips(
-  p: VideoProject,
-  trackId: string,
-  fnV: (clips: VisualTrackClip[]) => VisualTrackClip[],
-  fnA: (clips: AudioTrackClip[]) => AudioTrackClip[],
-): VideoProject {
+function updateClips(p: VideoProject, trackId: string, fnV: (clips: VisualTrackClip[]) => VisualTrackClip[], fnA: (clips: AudioTrackClip[]) => AudioTrackClip[]): VideoProject {
   return mapTracks(p, (ts) =>
     ts.map((t) => {
       if (t.id !== trackId) return t;
@@ -113,8 +107,7 @@ function updateClips(
 // ---------------------------------------------------------------------------
 
 export function addTrack(p: VideoProject, kind: 'visual' | 'audio', id = newId('trk')): VideoProject {
-  const track: Track =
-    kind === 'visual' ? { id, kind: 'visual', clips: [] } : { id, kind: 'audio', clips: [] };
+  const track: Track = kind === 'visual' ? { id, kind: 'visual', clips: [] } : { id, kind: 'audio', clips: [] };
   return mapTracks(p, (ts) => [...ts, track]);
 }
 
@@ -137,11 +130,21 @@ export function pruneEmptyTracks(p: VideoProject): VideoProject {
 // ---------------------------------------------------------------------------
 
 export function addVisualClip(p: VideoProject, trackId: string, clip: VisualTrackClip): VideoProject {
-  return updateClips(p, trackId, (cs) => [...cs, clip], (cs) => cs);
+  return updateClips(
+    p,
+    trackId,
+    (cs) => [...cs, clip],
+    (cs) => cs,
+  );
 }
 
 export function addAudioClip(p: VideoProject, trackId: string, clip: AudioTrackClip): VideoProject {
-  return updateClips(p, trackId, (cs) => cs, (cs) => [...cs, clip]);
+  return updateClips(
+    p,
+    trackId,
+    (cs) => cs,
+    (cs) => [...cs, clip],
+  );
 }
 
 export function removeClip(p: VideoProject, trackId: string, clipId: string): VideoProject {
@@ -165,13 +168,7 @@ export function setClipStart(p: VideoProject, trackId: string, clipId: string, s
 }
 
 /** Move a clip to another track of the SAME kind (drag vertically). */
-export function moveClipToTrack(
-  p: VideoProject,
-  fromTrackId: string,
-  toTrackId: string,
-  clipId: string,
-  newStart?: number,
-): VideoProject {
+export function moveClipToTrack(p: VideoProject, fromTrackId: string, toTrackId: string, clipId: string, newStart?: number): VideoProject {
   const from = findTrack(p, fromTrackId);
   const to = findTrack(p, toTrackId);
   if (!from || !to || from.kind !== to.kind || fromTrackId === toTrackId) return p;
@@ -181,14 +178,10 @@ export function moveClipToTrack(
   return mapTracks(p, (ts) =>
     ts.map((t) => {
       if (t.id === fromTrackId) {
-        return t.kind === 'visual'
-          ? { ...t, clips: t.clips.filter((c) => c.id !== clipId) }
-          : { ...t, clips: t.clips.filter((c) => c.id !== clipId) };
+        return t.kind === 'visual' ? { ...t, clips: t.clips.filter((c) => c.id !== clipId) } : { ...t, clips: t.clips.filter((c) => c.id !== clipId) };
       }
       if (t.id === toTrackId) {
-        return t.kind === 'visual'
-          ? { ...t, clips: [...t.clips, moved as VisualTrackClip] }
-          : { ...t, clips: [...t.clips, moved as AudioTrackClip] };
+        return t.kind === 'visual' ? { ...t, clips: [...t.clips, moved as VisualTrackClip] } : { ...t, clips: [...t.clips, moved as AudioTrackClip] };
       }
       return t;
     }),
@@ -221,12 +214,7 @@ export function splitClipAt(p: VideoProject, trackId: string, clipId: string, at
 }
 
 /** Trim handles: change start / trimIn / duration together. */
-export function trimClip(
-  p: VideoProject,
-  trackId: string,
-  clipId: string,
-  patch: { start?: number; trimIn?: number; duration?: number },
-): VideoProject {
+export function trimClip(p: VideoProject, trackId: string, clipId: string, patch: { start?: number; trimIn?: number; duration?: number }): VideoProject {
   const apply = <C extends VisualTrackClip | AudioTrackClip>(c: C): C => {
     if (c.id !== clipId) return c;
     const duration = Math.max(MIN_CLIP, patch.duration ?? c.duration);
@@ -266,11 +254,15 @@ export function setClipFilter(p: VideoProject, trackId: string, clipId: string, 
 }
 
 export function setClipBlur(p: VideoProject, trackId: string, clipId: string, blur: number): VideoProject {
-  return patchVisualClip(p, trackId, clipId, { blur: Math.max(0, Math.min(1, blur)) });
+  return patchVisualClip(p, trackId, clipId, {
+    blur: Math.max(0, Math.min(1, blur)),
+  });
 }
 
 export function setClipOpacity(p: VideoProject, trackId: string, clipId: string, opacity: number): VideoProject {
-  return patchVisualClip(p, trackId, clipId, { opacity: Math.max(0, Math.min(1, opacity)) });
+  return patchVisualClip(p, trackId, clipId, {
+    opacity: Math.max(0, Math.min(1, opacity)),
+  });
 }
 
 export function setClipMask(p: VideoProject, trackId: string, clipId: string, mask: ClipMask | undefined): VideoProject {
@@ -278,19 +270,27 @@ export function setClipMask(p: VideoProject, trackId: string, clipId: string, ma
 }
 
 export function setClipBlend(p: VideoProject, trackId: string, clipId: string, blend: BlendMode): VideoProject {
-  return patchVisualClip(p, trackId, clipId, { blend: blend === 'normal' ? undefined : blend });
+  return patchVisualClip(p, trackId, clipId, {
+    blend: blend === 'normal' ? undefined : blend,
+  });
 }
 
 export function setClipSpeed(p: VideoProject, trackId: string, clipId: string, speed: number): VideoProject {
-  return patchVisualClip(p, trackId, clipId, { speed: Math.max(0.25, Math.min(4, speed)) });
+  return patchVisualClip(p, trackId, clipId, {
+    speed: Math.max(0.25, Math.min(4, speed)),
+  });
 }
 
 export function setClipMotion(p: VideoProject, trackId: string, clipId: string, motion: Motion | undefined): VideoProject {
-  return patchVisualClip(p, trackId, clipId, { motion: motion && motion.type !== 'none' ? motion : undefined });
+  return patchVisualClip(p, trackId, clipId, {
+    motion: motion && motion.type !== 'none' ? motion : undefined,
+  });
 }
 
 export function setClipCutout(p: VideoProject, trackId: string, clipId: string, cutout: ChromaKey | undefined): VideoProject {
-  return patchVisualClip(p, trackId, clipId, { cutout: cutout && cutout.color ? cutout : undefined });
+  return patchVisualClip(p, trackId, clipId, {
+    cutout: cutout && cutout.color ? cutout : undefined,
+  });
 }
 
 export function setClipKeyframes(p: VideoProject, trackId: string, clipId: string, keyframes: Keyframe[] | undefined): VideoProject {
@@ -362,11 +362,17 @@ export function removeOverlay(p: VideoProject, id: string): VideoProject {
 }
 
 export function updateOverlay(p: VideoProject, id: string, patch: Partial<TextOverlay>): VideoProject {
-  return { ...p, overlays: p.overlays.map((o) => (o.id === id ? { ...o, ...patch } : o)) };
+  return {
+    ...p,
+    overlays: p.overlays.map((o) => (o.id === id ? { ...o, ...patch } : o)),
+  };
 }
 
 /** Move an overlay to an absolute stacking lane (clamped ≥ 0); re-sorts by layer. */
 export function setOverlayLayer(p: VideoProject, id: string, layer: number): VideoProject {
   const clamped = Math.max(0, Math.round(layer));
-  return { ...p, overlays: sortByLayer(p.overlays.map((o) => (o.id === id ? { ...o, layer: clamped } : o))) };
+  return {
+    ...p,
+    overlays: sortByLayer(p.overlays.map((o) => (o.id === id ? { ...o, layer: clamped } : o))),
+  };
 }

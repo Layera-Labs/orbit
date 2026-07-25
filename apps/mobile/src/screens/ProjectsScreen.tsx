@@ -33,26 +33,23 @@ export type InputReq = {
   onSave: (value: string) => void;
 };
 
-function clipCount(p: StoredProject): number {
-  if (p.project.tracks?.length) return p.project.tracks.reduce((n, t) => n + t.clips.length, 0);
-  return p.project.clips.length;
-}
 function fmtTime(sec: number): string {
-  return `${Math.floor(sec / 60)}:${Math.floor(sec % 60).toString().padStart(2, '0')}`;
+  return `${Math.floor(sec / 60)}:${Math.floor(sec % 60)
+    .toString()
+    .padStart(2, '0')}`;
 }
 function fmtDate(ts: number): string {
-  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  return new Date(ts).toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 const FOLDER_DEFAULT = 'M12 4l8 4-8 4-8-4zM4 12l8 4 8-4M4 16l8 4 8-4';
 const FOLDER_IMPORTED = 'M14 4h4v16H6V4h4M9 11l3-3 3 3M12 8v8';
 
 function CheckCircle({ on, size = 24 }: { on: boolean; size?: number }) {
-  return (
-    <View style={[{ width: size, height: size, borderRadius: size / 2 }, on ? styles.checkOn : styles.checkOff]}>
-      {on ? <VIcon name="check" size={size * 0.62} color={vela.onAccent} strokeWidth={3} /> : null}
-    </View>
-  );
+  return <View style={[{ width: size, height: size, borderRadius: size / 2 }, on ? styles.checkOn : styles.checkOff]}>{on ? <VIcon name='check' size={size * 0.62} color={vela.onAccent} strokeWidth={3} /> : null}</View>;
 }
 
 /** The card thumbnail: the saved poster, else the first image clip's own src as a fallback. */
@@ -69,16 +66,27 @@ function ProjectRow({ p, onOpen, onMenu, selectMode, checked }: { p: StoredProje
     <Pressable style={styles.row} onPress={onOpen} onLongPress={selectMode ? undefined : onMenu}>
       <View style={styles.poster}>
         {poster ? (
-          <Image source={{ uri: poster }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          <Image source={{ uri: poster }} style={StyleSheet.absoluteFill} resizeMode='cover' />
         ) : (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: vela.lightSurface, alignItems: 'center', justifyContent: 'center' }]}>
-            <VIcon name="picture" size={22} color={vela.lightMuted3} />
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor: vela.lightSurface,
+                alignItems: 'center',
+                justifyContent: 'center',
+              },
+            ]}
+          >
+            <VIcon name='picture' size={22} color={vela.lightMuted3} />
           </View>
         )}
         <Text style={styles.posterTime}>{fmtTime(projectDuration(p.project))}</Text>
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={styles.rowName} numberOfLines={1}>{p.name}</Text>
+        <Text style={styles.rowName} numberOfLines={1}>
+          {p.name}
+        </Text>
         <View style={styles.rowFolder}>
           <View style={styles.folderDot} />
           <Text style={styles.rowFolderText}>{p.folder ?? 'Default'}</Text>
@@ -89,7 +97,7 @@ function ProjectRow({ p, onOpen, onMenu, selectMode, checked }: { p: StoredProje
       ) : (
         <View style={{ alignItems: 'flex-end' }}>
           <Pressable hitSlop={10} onPress={onMenu}>
-            <VIcon name="dots" size={18} color={vela.lightMuted} />
+            <VIcon name='dots' size={18} color={vela.lightMuted} />
           </Pressable>
           <Text style={styles.rowDate}>{fmtDate(p.updatedAt)}</Text>
         </View>
@@ -104,25 +112,38 @@ function ProjectGridCard({ p, cols, onOpen, onMenu, selectMode, checked }: { p: 
     <Pressable style={cols === 3 ? styles.gridItem3 : styles.gridItem} onPress={onOpen} onLongPress={selectMode ? undefined : onMenu}>
       <View style={styles.gridPoster}>
         {poster ? (
-          <Image source={{ uri: poster }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+          <Image source={{ uri: poster }} style={StyleSheet.absoluteFill} resizeMode='cover' />
         ) : (
-          <View style={[StyleSheet.absoluteFill, { backgroundColor: vela.lightSurface, alignItems: 'center', justifyContent: 'center' }]}>
-            <VIcon name="picture" size={cols === 3 ? 18 : 22} color={vela.lightMuted3} />
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                backgroundColor: vela.lightSurface,
+                alignItems: 'center',
+                justifyContent: 'center',
+              },
+            ]}
+          >
+            <VIcon name='picture' size={cols === 3 ? 18 : 22} color={vela.lightMuted3} />
           </View>
         )}
         <Text style={styles.posterTime}>{fmtTime(projectDuration(p.project))}</Text>
         {selectMode ? (
-          <View style={styles.gridCheck}><CheckCircle on={!!checked} size={cols === 3 ? 20 : 24} /></View>
+          <View style={styles.gridCheck}>
+            <CheckCircle on={!!checked} size={cols === 3 ? 20 : 24} />
+          </View>
         ) : null}
       </View>
-      <Text style={[styles.gridCardName, cols === 3 && { fontSize: 12.5 }]} numberOfLines={1}>{p.name}</Text>
+      <Text style={[styles.gridCardName, cols === 3 && { fontSize: 12.5 }]} numberOfLines={1}>
+        {p.name}
+      </Text>
     </Pressable>
   );
 }
 
 function FolderPickerSheet({ folders, onPick, onClose, onRequestInput }: { folders: string[]; onPick: (folder: string) => void; onClose: () => void; onRequestInput: (req: InputReq) => void }) {
   return (
-    <BottomSheet onClose={onClose} style={styles.lightSheet} dim="rgba(20,20,30,0.32)">
+    <BottomSheet onClose={onClose} style={styles.lightSheet} dim='rgba(20,20,30,0.32)'>
       <Text style={styles.pickerTitle}>Move to Folder</Text>
       {folders.map((f) => (
         <Pressable key={f} style={styles.viewRow} onPress={() => onPick(f)}>
@@ -134,10 +155,17 @@ function FolderPickerSheet({ folders, onPick, onClose, onRequestInput }: { folde
         style={styles.viewRow}
         onPress={() => {
           onClose();
-          onRequestInput({ title: 'New Folder', subtitle: 'Name the folder.', placeholder: 'Folder name', saveLabel: 'Create', autoCapitalize: 'words', onSave: onPick });
+          onRequestInput({
+            title: 'New Folder',
+            subtitle: 'Name the folder.',
+            placeholder: 'Folder name',
+            saveLabel: 'Create',
+            autoCapitalize: 'words',
+            onSave: onPick,
+          });
         }}
       >
-        <VIcon name="plus" size={22} color={vela.accent} strokeWidth={2.4} />
+        <VIcon name='plus' size={22} color={vela.accent} strokeWidth={2.4} />
         <Text style={[styles.viewLabel, { color: vela.accent }]}>New Folder…</Text>
       </Pressable>
     </BottomSheet>
@@ -151,19 +179,26 @@ function ViewOptionsSheet({ current, onPick, onClose }: { current: ViewMode; onP
     { mode: 'grid3', label: 'View as Grid (3 columns)', icon: 'grid' },
   ];
   return (
-    <BottomSheet onClose={onClose} style={styles.lightSheet} dim="rgba(20,20,30,0.32)">
+    <BottomSheet onClose={onClose} style={styles.lightSheet} dim='rgba(20,20,30,0.32)'>
       {opts.map((o) => (
         <Pressable key={o.mode} style={styles.viewRow} onPress={() => onPick(o.mode)}>
           <VIcon name={o.icon} size={22} color={vela.ink2} />
           <Text style={styles.viewLabel}>{o.label}</Text>
-          {current === o.mode ? <VIcon name="check" size={20} color={vela.accent} strokeWidth={2.6} /> : null}
+          {current === o.mode ? <VIcon name='check' size={20} color={vela.accent} strokeWidth={2.6} /> : null}
         </Pressable>
       ))}
     </BottomSheet>
   );
 }
 
-interface MenuItem { label: string; d: string; color: string; onPress: () => void; pro?: boolean; div?: boolean; }
+interface MenuItem {
+  label: string;
+  d: string;
+  color: string;
+  onPress: () => void;
+  pro?: boolean;
+  div?: boolean;
+}
 
 function ProjectMenu({ p, onClose, onRequestInput }: { p: StoredProject; onClose: () => void; onRequestInput: (req: InputReq) => void }) {
   const renameProject = useEditor((s) => s.renameProject);
@@ -204,26 +239,69 @@ function ProjectMenu({ p, onClose, onRequestInput }: { p: StoredProject; onClose
     onClose();
     Alert.alert('Move to Trash', `Delete "${p.name}"? This can't be undone.`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => removeProject(p.id) },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => removeProject(p.id),
+      },
     ]);
   }
   const items: MenuItem[] = [
-    { label: 'Move to Folder', d: 'M4 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2zM9 13h6M9 13l2-2M9 13l2 2', color: vela.ink2, onPress: moveFolder },
-    { label: 'Share Project', d: 'M5 12v7a1 1 0 001 1h12a1 1 0 001-1v-7M12 3v13M8 7l4-4 4 4', color: vela.ink2, onPress: () => { onClose(); void shareProject(p.id); } },
-    { label: 'Rename', d: 'M4 20h4L18 10l-4-4L4 16zM14 6l4 4', color: vela.ink2, onPress: rename },
-    { label: 'Create Template', d: 'M12 5a3 3 0 100 6 3 3 0 000-6zM5 19a7 7 0 0110-6.3M17 14v6M14 17h6', color: vela.ink2, onPress: makeTemplate },
-    { label: 'Duplicate', d: 'M8 8h12v12H8zM4 4h12v3M4 4v12h3', color: vela.ink2, div: true, onPress: () => { onClose(); duplicateProject(p.id); } },
-    { label: 'Move to Trash', d: 'M5 7h14M9 7V4h6v3M6 7l1 13h10l1-13', color: '#ff3b30', onPress: trash },
+    {
+      label: 'Move to Folder',
+      d: 'M4 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2zM9 13h6M9 13l2-2M9 13l2 2',
+      color: vela.ink2,
+      onPress: moveFolder,
+    },
+    {
+      label: 'Share Project',
+      d: 'M5 12v7a1 1 0 001 1h12a1 1 0 001-1v-7M12 3v13M8 7l4-4 4 4',
+      color: vela.ink2,
+      onPress: () => {
+        onClose();
+        void shareProject(p.id);
+      },
+    },
+    {
+      label: 'Rename',
+      d: 'M4 20h4L18 10l-4-4L4 16zM14 6l4 4',
+      color: vela.ink2,
+      onPress: rename,
+    },
+    {
+      label: 'Create Template',
+      d: 'M12 5a3 3 0 100 6 3 3 0 000-6zM5 19a7 7 0 0110-6.3M17 14v6M14 17h6',
+      color: vela.ink2,
+      onPress: makeTemplate,
+    },
+    {
+      label: 'Duplicate',
+      d: 'M8 8h12v12H8zM4 4h12v3M4 4v12h3',
+      color: vela.ink2,
+      div: true,
+      onPress: () => {
+        onClose();
+        duplicateProject(p.id);
+      },
+    },
+    {
+      label: 'Move to Trash',
+      d: 'M5 7h14M9 7V4h6v3M6 7l1 13h10l1-13',
+      color: '#ff3b30',
+      onPress: trash,
+    },
   ];
 
   return (
-    <BottomSheet onClose={onClose} style={styles.menuSheet} dim="rgba(20,20,30,0.32)">
+    <BottomSheet onClose={onClose} style={styles.menuSheet} dim='rgba(20,20,30,0.32)'>
       <View style={styles.menuHeader}>
         <View>
-          <Text style={styles.menuTitle} numberOfLines={1}>{p.name}</Text>
+          <Text style={styles.menuTitle} numberOfLines={1}>
+            {p.name}
+          </Text>
           <Text style={styles.menuSub}>{ratioLabel(p.project.width, p.project.height)}</Text>
         </View>
-        <VIcon name="pencil" size={24} color={vela.ink2} />
+        <VIcon name='pencil' size={24} color={vela.ink2} />
       </View>
       <View style={styles.menuDivider} />
       {items.map((it) => (
@@ -278,8 +356,7 @@ export function ProjectsScreen() {
   const now = Date.now();
   const q = query.trim().toLowerCase();
   const searching = q.length > 0;
-  const visible = (activeFolder ? projects.filter((p) => folderOf(p) === activeFolder) : projects)
-    .filter((p) => !searching || p.name.toLowerCase().includes(q));
+  const visible = (activeFolder ? projects.filter((p) => folderOf(p) === activeFolder) : projects).filter((p) => !searching || p.name.toLowerCase().includes(q));
   const recent = visible.filter((p) => now - p.updatedAt < 30 * DAY);
   const older = visible.filter((p) => now - p.updatedAt >= 30 * DAY);
 
@@ -310,7 +387,14 @@ export function ProjectsScreen() {
     if (!ids.length) return;
     Alert.alert('Move to Trash', `Delete ${ids.length} ${ids.length === 1 ? 'project' : 'projects'}? This can't be undone.`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => { removeProjects(ids); exitSelect(); } },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          removeProjects(ids);
+          exitSelect();
+        },
+      },
     ]);
   }
   function moveSelected(folder: string) {
@@ -330,7 +414,9 @@ export function ProjectsScreen() {
           items.map((p) => <ProjectRow key={p.id} p={p} selectMode={selectMode} checked={selected.has(p.id)} onOpen={() => onCard(p)} onMenu={() => setMenuProject(p)} />)
         ) : (
           <View style={styles.gridWrap}>
-            {items.map((p) => <ProjectGridCard key={p.id} p={p} cols={cols} selectMode={selectMode} checked={selected.has(p.id)} onOpen={() => onCard(p)} onMenu={() => setMenuProject(p)} />)}
+            {items.map((p) => (
+              <ProjectGridCard key={p.id} p={p} cols={cols} selectMode={selectMode} checked={selected.has(p.id)} onOpen={() => onCard(p)} onMenu={() => setMenuProject(p)} />
+            ))}
           </View>
         )}
       </View>
@@ -344,7 +430,7 @@ export function ProjectsScreen() {
         {selectMode ? (
           <View style={styles.header}>
             <Pressable onPress={exitSelect} hitSlop={12} style={styles.selectClose}>
-              <VIcon name="close" size={22} color={vela.ink2} strokeWidth={2.2} />
+              <VIcon name='close' size={22} color={vela.ink2} strokeWidth={2.2} />
             </Pressable>
             <Text style={styles.selectTitle}>{selected.size ? `${selected.size} selected` : 'Select items'}</Text>
             <Pressable onPress={toggleAll} hitSlop={8}>
@@ -356,7 +442,7 @@ export function ProjectsScreen() {
             <Text style={styles.h1}>Projects</Text>
             <View style={styles.headerActions}>
               <Pressable style={styles.roundBtn} onPress={promptServer}>
-                <VIcon name="prefs" size={20} color={vela.ink2} strokeWidth={2} />
+                <VIcon name='prefs' size={20} color={vela.ink2} strokeWidth={2} />
               </Pressable>
             </View>
           </View>
@@ -364,18 +450,8 @@ export function ProjectsScreen() {
 
         {/* search */}
         <View style={styles.search}>
-          <VIcon name="search" size={19} color={vela.lightMuted} strokeWidth={2.2} />
-          <TextInput
-            style={styles.searchInput}
-            value={query}
-            onChangeText={setQuery}
-            placeholder="Search your projects"
-            placeholderTextColor={vela.lightMuted}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-            clearButtonMode="while-editing"
-          />
+          <VIcon name='search' size={19} color={vela.lightMuted} strokeWidth={2.2} />
+          <TextInput style={styles.searchInput} value={query} onChangeText={setQuery} placeholder='Search your projects' placeholderTextColor={vela.lightMuted} autoCapitalize='none' autoCorrect={false} returnKeyType='search' clearButtonMode='while-editing' />
         </View>
 
         {/* folders */}
@@ -389,7 +465,9 @@ export function ProjectsScreen() {
                   <VIcon d={f.d} size={30} color={on ? vela.accent : vela.ink3} strokeWidth={2} />
                 </View>
                 <Text style={[styles.folderName, on && { color: vela.accent }]}>{f.name}</Text>
-                <Text style={styles.folderItems}>{f.count} {f.count === 1 ? 'Item' : 'Items'}</Text>
+                <Text style={styles.folderItems}>
+                  {f.count} {f.count === 1 ? 'Item' : 'Items'}
+                </Text>
               </Pressable>
             );
           })}
@@ -397,10 +475,18 @@ export function ProjectsScreen() {
 
         {/* projects */}
         <View style={styles.projectsHeader}>
-          <Text style={styles.sectionH}>Projects <Text style={styles.tabCount}>{projects.length}</Text></Text>
+          <Text style={styles.sectionH}>
+            Projects <Text style={styles.tabCount}>{projects.length}</Text>
+          </Text>
           {!selectMode ? (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-              <Pressable onPress={() => { if (projects.length) setSelectMode(true); }}><Text style={styles.editLink}>Edit</Text></Pressable>
+              <Pressable
+                onPress={() => {
+                  if (projects.length) setSelectMode(true);
+                }}
+              >
+                <Text style={styles.editLink}>Edit</Text>
+              </Pressable>
               <Pressable onPress={() => setViewSheet(true)} hitSlop={8}>
                 <VIcon name={viewMode === 'list' ? 'list' : 'grid'} size={20} color={vela.ink3} strokeWidth={2} />
               </Pressable>
@@ -425,30 +511,35 @@ export function ProjectsScreen() {
       </ScrollView>
 
       {viewSheet ? (
-        <ViewOptionsSheet current={viewMode} onPick={(m) => { setViewMode(m); setViewSheet(false); }} onClose={() => setViewSheet(false)} />
+        <ViewOptionsSheet
+          current={viewMode}
+          onPick={(m) => {
+            setViewMode(m);
+            setViewSheet(false);
+          }}
+          onClose={() => setViewSheet(false)}
+        />
       ) : null}
 
       {selectMode ? (
-        <View style={styles.actionWrap} pointerEvents="box-none">
-          <Glass style={styles.actionBar} fallbackColor={vela.lightCard} interactive colorScheme="light">
+        <View style={styles.actionWrap} pointerEvents='box-none'>
+          <Glass style={styles.actionBar} fallbackColor={vela.lightCard} interactive colorScheme='light'>
             <Pressable style={styles.actionBtn} disabled={selected.size === 0} onPress={() => setMoveOpen(true)}>
-              <VIcon d="M4 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2zM9 13h6M9 13l2-2M9 13l2 2" size={23} color={selected.size ? vela.ink2 : vela.lightMuted3} strokeWidth={2} />
+              <VIcon d='M4 7a2 2 0 012-2h4l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2zM9 13h6M9 13l2-2M9 13l2 2' size={23} color={selected.size ? vela.ink2 : vela.lightMuted3} strokeWidth={2} />
               <Text style={[styles.actionLabel, selected.size === 0 && styles.actionLabelOff]}>Move to</Text>
             </Pressable>
             <View style={styles.actionSep} />
             <Pressable style={styles.actionBtn} disabled={selected.size === 0} onPress={deleteSelected}>
-              <VIcon name="trash" size={23} color={selected.size ? '#ff3b30' : vela.lightMuted3} strokeWidth={2} />
+              <VIcon name='trash' size={23} color={selected.size ? '#ff3b30' : vela.lightMuted3} strokeWidth={2} />
               <Text style={[styles.actionLabel, { color: selected.size ? '#ff3b30' : vela.lightMuted3 }]}>Delete</Text>
             </Pressable>
           </Glass>
         </View>
       ) : (
-        <BottomNav active="home" onHome={() => {}} onDiscover={() => go('discover')} onCreate={() => setCreateOpen(true)} />
+        <BottomNav active='home' onHome={() => {}} onTemplates={() => go('discover')} onCreate={() => setCreateOpen(true)} onAi={() => go('ai')} />
       )}
 
-      {moveOpen ? (
-        <FolderPickerSheet folders={folderNames} onPick={moveSelected} onClose={() => setMoveOpen(false)} onRequestInput={setInputReq} />
-      ) : null}
+      {moveOpen ? <FolderPickerSheet folders={folderNames} onPick={moveSelected} onClose={() => setMoveOpen(false)} onRequestInput={setInputReq} /> : null}
 
       <CreateSheet
         visible={createOpen}
@@ -478,39 +569,174 @@ export function ProjectsScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: vela.homeBg, paddingTop: 54 },
 
-  busy: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(20,20,28,0.5)', alignItems: 'center', justifyContent: 'center' },
-  busyCard: { backgroundColor: vela.lightCard, borderRadius: 18, paddingHorizontal: 30, paddingVertical: 26, alignItems: 'center', gap: 14, minWidth: 200 },
-  busyText: { fontFamily: font.semibold, fontSize: 15, color: vela.ink2, textAlign: 'center' },
+  busy: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(20,20,28,0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  busyCard: {
+    backgroundColor: vela.lightCard,
+    borderRadius: 18,
+    paddingHorizontal: 30,
+    paddingVertical: 26,
+    alignItems: 'center',
+    gap: 14,
+    minWidth: 200,
+  },
+  busyText: {
+    fontFamily: font.semibold,
+    fontSize: 15,
+    color: vela.ink2,
+    textAlign: 'center',
+  },
 
-  header: { paddingHorizontal: 22, paddingTop: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  h1: { fontFamily: font.extrabold, fontSize: 30, color: vela.ink, letterSpacing: -0.6 },
+  header: {
+    paddingHorizontal: 22,
+    paddingTop: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  h1: {
+    fontFamily: font.extrabold,
+    fontSize: 30,
+    color: vela.ink,
+    letterSpacing: -0.6,
+  },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  roundBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: vela.lightCard, alignItems: 'center', justifyContent: 'center' },
+  roundBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: vela.lightCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
-  search: { marginHorizontal: 22, marginTop: 16, height: 46, borderRadius: 14, backgroundColor: vela.lightSurface, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
-  searchInput: { flex: 1, color: vela.ink, fontSize: 16, fontFamily: font.medium, height: '100%' },
+  search: {
+    marginHorizontal: 22,
+    marginTop: 16,
+    height: 46,
+    borderRadius: 14,
+    backgroundColor: vela.lightSurface,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 16,
+  },
+  searchInput: {
+    flex: 1,
+    color: vela.ink,
+    fontSize: 16,
+    fontFamily: font.medium,
+    height: '100%',
+  },
 
   tabCount: { color: vela.lightMuted },
 
-  sectionH: { paddingHorizontal: 22, paddingTop: 20, paddingBottom: 6, fontFamily: font.extrabold, fontSize: 18, color: vela.ink },
-  folderRow: { gap: 16, paddingHorizontal: 22, paddingBottom: 6, paddingTop: 4 },
+  sectionH: {
+    paddingHorizontal: 22,
+    paddingTop: 20,
+    paddingBottom: 6,
+    fontFamily: font.extrabold,
+    fontSize: 18,
+    color: vela.ink,
+  },
+  folderRow: {
+    gap: 16,
+    paddingHorizontal: 22,
+    paddingBottom: 6,
+    paddingTop: 4,
+  },
   folder: { width: 118 },
-  folderCard: { height: 92, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: vela.lightSurface },
-  folderCardOn: { backgroundColor: vela.accentSoft, borderWidth: 1.5, borderColor: vela.accent },
-  folderName: { textAlign: 'center', marginTop: 9, fontFamily: font.bold, fontSize: 15, color: vela.ink },
-  folderItems: { textAlign: 'center', fontSize: 12, color: '#a0a0a8', marginTop: 1 },
+  folderCard: {
+    height: 92,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: vela.lightSurface,
+  },
+  folderCardOn: {
+    backgroundColor: vela.accentSoft,
+    borderWidth: 1.5,
+    borderColor: vela.accent,
+  },
+  folderName: {
+    textAlign: 'center',
+    marginTop: 9,
+    fontFamily: font.bold,
+    fontSize: 15,
+    color: vela.ink,
+  },
+  folderItems: {
+    textAlign: 'center',
+    fontSize: 12,
+    color: '#a0a0a8',
+    marginTop: 1,
+  },
 
-  projectsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingRight: 22 },
+  projectsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingRight: 22,
+  },
   editLink: { color: vela.accent, fontFamily: font.bold, fontSize: 15 },
 
-  groupLabel: { paddingHorizontal: 22, paddingTop: 8, paddingBottom: 4, fontSize: 11.5, fontFamily: font.bold, letterSpacing: 1, color: vela.lightMuted2 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingHorizontal: 22, paddingVertical: 12 },
-  poster: { width: 62, height: 84, borderRadius: 11, overflow: 'hidden', backgroundColor: '#ddd' },
-  posterTime: { position: 'absolute', left: 6, bottom: 6, backgroundColor: 'rgba(0,0,0,0.55)', color: '#fff', fontSize: 10, fontFamily: mono.regular, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
+  groupLabel: {
+    paddingHorizontal: 22,
+    paddingTop: 8,
+    paddingBottom: 4,
+    fontSize: 11.5,
+    fontFamily: font.bold,
+    letterSpacing: 1,
+    color: vela.lightMuted2,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+  },
+  poster: {
+    width: 62,
+    height: 84,
+    borderRadius: 11,
+    overflow: 'hidden',
+    backgroundColor: '#ddd',
+  },
+  posterTime: {
+    position: 'absolute',
+    left: 6,
+    bottom: 6,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    color: '#fff',
+    fontSize: 10,
+    fontFamily: mono.regular,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
   rowName: { fontFamily: font.bold, fontSize: 18, color: vela.ink },
-  rowFolder: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
-  folderDot: { width: 14, height: 14, borderRadius: 4, backgroundColor: vela.folderDot },
-  rowFolderText: { color: vela.lightMuted, fontSize: 13.5, fontFamily: font.medium },
+  rowFolder: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+  },
+  folderDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 4,
+    backgroundColor: vela.folderDot,
+  },
+  rowFolderText: {
+    color: vela.lightMuted,
+    fontSize: 13.5,
+    fontFamily: font.medium,
+  },
   rowDate: { color: vela.lightMuted2, fontSize: 13, marginTop: 14 },
 
   empty: { alignItems: 'center', marginTop: 50, gap: 6 },
@@ -518,39 +744,150 @@ const styles = StyleSheet.create({
   emptyHint: { color: vela.lightMuted, fontSize: 13 },
 
   // grid views
-  gridWrap: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 22, paddingTop: 4, gap: 14 },
+  gridWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    paddingHorizontal: 22,
+    paddingTop: 4,
+    gap: 14,
+  },
   gridItem: { width: '47%' },
   gridItem3: { width: '30.4%' },
-  gridPoster: { width: '100%', aspectRatio: 3 / 4, borderRadius: 12, overflow: 'hidden', backgroundColor: vela.lightSurface },
-  gridCardName: { fontFamily: font.semibold, fontSize: 14, color: vela.ink, marginTop: 7 },
+  gridPoster: {
+    width: '100%',
+    aspectRatio: 3 / 4,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: vela.lightSurface,
+  },
+  gridCardName: {
+    fontFamily: font.semibold,
+    fontSize: 14,
+    color: vela.ink,
+    marginTop: 7,
+  },
 
   // view-options sheet
-  lightSheet: { backgroundColor: vela.lightCard, paddingHorizontal: 22, paddingTop: 18, paddingBottom: 28, gap: 0 },
-  viewRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 16 },
-  viewLabel: { flex: 1, fontFamily: font.semibold, fontSize: 17, color: vela.ink2 },
-  pickerTitle: { fontFamily: font.extrabold, fontSize: 20, color: vela.ink, paddingBottom: 6 },
+  lightSheet: {
+    backgroundColor: vela.lightCard,
+    paddingHorizontal: 22,
+    paddingTop: 18,
+    paddingBottom: 28,
+    gap: 0,
+  },
+  viewRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    paddingVertical: 16,
+  },
+  viewLabel: {
+    flex: 1,
+    fontFamily: font.semibold,
+    fontSize: 17,
+    color: vela.ink2,
+  },
+  pickerTitle: {
+    fontFamily: font.extrabold,
+    fontSize: 20,
+    color: vela.ink,
+    paddingBottom: 6,
+  },
 
   // multi-select
-  selectClose: { width: 42, height: 42, borderRadius: 21, backgroundColor: vela.lightCard, alignItems: 'center', justifyContent: 'center' },
-  selectTitle: { fontFamily: font.extrabold, fontSize: 20, color: vela.ink, letterSpacing: -0.3 },
-  checkOn: { backgroundColor: vela.accent, alignItems: 'center', justifyContent: 'center' },
-  checkOff: { borderWidth: 2, borderColor: vela.lightMuted3, backgroundColor: 'transparent' },
+  selectClose: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: vela.lightCard,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectTitle: {
+    fontFamily: font.extrabold,
+    fontSize: 20,
+    color: vela.ink,
+    letterSpacing: -0.3,
+  },
+  checkOn: {
+    backgroundColor: vela.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkOff: {
+    borderWidth: 2,
+    borderColor: vela.lightMuted3,
+    backgroundColor: 'transparent',
+  },
   gridCheck: { position: 'absolute', top: 8, right: 8 },
 
-  actionWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 100, justifyContent: 'flex-end' },
-  actionBar: { position: 'absolute', left: 18, right: 18, bottom: 26, height: 62, borderRadius: 31, overflow: 'hidden', flexDirection: 'row', alignItems: 'center' },
-  actionBtn: { flex: 1, height: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  actionWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 100,
+    justifyContent: 'flex-end',
+  },
+  actionBar: {
+    position: 'absolute',
+    left: 18,
+    right: 18,
+    bottom: 26,
+    height: 62,
+    borderRadius: 31,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  actionBtn: {
+    flex: 1,
+    height: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
   actionLabel: { fontFamily: font.bold, fontSize: 16, color: vela.ink2 },
   actionLabelOff: { color: vela.lightMuted3 },
   actionSep: { width: 1, height: 28, backgroundColor: vela.lightSurface },
 
   // project menu
-  menuSheet: { backgroundColor: vela.lightCard, paddingHorizontal: 22, paddingTop: 24, paddingBottom: 30, gap: 0 },
-  menuHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingBottom: 18 },
-  menuTitle: { fontFamily: font.extrabold, fontSize: 22, color: vela.ink2, maxWidth: 260 },
+  menuSheet: {
+    backgroundColor: vela.lightCard,
+    paddingHorizontal: 22,
+    paddingTop: 24,
+    paddingBottom: 30,
+    gap: 0,
+  },
+  menuHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 18,
+  },
+  menuTitle: {
+    fontFamily: font.extrabold,
+    fontSize: 22,
+    color: vela.ink2,
+    maxWidth: 260,
+  },
   menuSub: { color: vela.lightMuted, fontSize: 14, marginTop: 4 },
-  menuDivider: { height: 1, backgroundColor: vela.lightSurface, marginBottom: 6 },
-  menuItemDivider: { height: 1, backgroundColor: vela.lightSurface, marginVertical: 6 },
-  menuRow: { flexDirection: 'row', alignItems: 'center', gap: 16, paddingVertical: 15 },
+  menuDivider: {
+    height: 1,
+    backgroundColor: vela.lightSurface,
+    marginBottom: 6,
+  },
+  menuItemDivider: {
+    height: 1,
+    backgroundColor: vela.lightSurface,
+    marginVertical: 6,
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    paddingVertical: 15,
+  },
   menuRowText: { fontSize: 18, fontFamily: font.semibold },
 });

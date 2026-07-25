@@ -1,0 +1,107 @@
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { font, vela } from "../constants";
+import { OrbitMark } from "./OrbitMark";
+import { VIcon, type VIconName } from "./VIcon";
+
+interface HeaderAction {
+  icon: VIconName;
+  label: string;
+  onPress: () => void;
+  prominent?: boolean;
+}
+
+export function AppHeader({
+  title,
+  brand = false,
+  dark = false,
+  leading,
+  actions = [],
+}: {
+  title?: string;
+  brand?: boolean;
+  dark?: boolean;
+  leading?: HeaderAction;
+  actions?: HeaderAction[];
+}) {
+  const ink = dark ? vela.textLight : vela.ink;
+  return (
+    <View style={styles.container}>
+      <View style={styles.row}>
+        <View style={styles.left}>
+          {leading ? <HeaderButton action={leading} dark={dark} /> : null}
+          {brand ? (
+            <View style={styles.brand}>
+              <OrbitMark size={25} />
+              <Text style={[styles.brandText, { color: ink }]}>orbit</Text>
+            </View>
+          ) : (
+            <Text style={[styles.title, { color: ink }]}>{title}</Text>
+          )}
+        </View>
+        <View style={styles.actions}>
+          {actions.map((action) => (
+            <HeaderButton key={action.label} action={action} dark={dark} />
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function HeaderButton({
+  action,
+  dark,
+}: {
+  action: HeaderAction;
+  dark: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={action.label}
+      hitSlop={8}
+      onPress={action.onPress}
+      style={({ pressed }) => [
+        styles.action,
+        action.prominent && styles.actionProminent,
+        pressed && { opacity: 0.72 },
+      ]}
+    >
+      <VIcon
+        name={action.icon}
+        size={18}
+        color={action.prominent ? "#fff" : dark ? vela.textLight : vela.ink2}
+        strokeWidth={2}
+      />
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    minHeight: 90,
+    paddingTop: 48,
+    paddingHorizontal: 20,
+    paddingBottom: 6,
+    zIndex: 20,
+  },
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 36,
+  },
+  left: { flexDirection: "row", alignItems: "center", gap: 9, flex: 1 },
+  brand: { flexDirection: "row", alignItems: "center", gap: 8 },
+  brandText: { fontFamily: font.extrabold, fontSize: 21, letterSpacing: -0.55 },
+  title: { fontFamily: font.extrabold, fontSize: 20, letterSpacing: -0.3 },
+  actions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  action: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionProminent: { backgroundColor: vela.accent },
+});

@@ -15,13 +15,7 @@ import { FULL_FRAME, type AudioTrackClip, type BlendMode, type ChromaKey, type C
 export const OVERLAY_TRACK = '__overlays__';
 
 const DEFAULT_PIP: Rect = { x: 0.52, y: 0.06, w: 0.44, h: 0.3 };
-import {
-  deleteProject as deleteStored,
-  listProjects,
-  loadProject,
-  saveProject,
-  type StoredProject,
-} from '../storage/projects';
+import { deleteProject as deleteStored, listProjects, loadProject, saveProject, type StoredProject } from '../storage/projects';
 import { saveUserTemplate, type StoredTemplate } from '../storage/templates';
 import type { EditorTemplate } from '../templates';
 import { loadSettings, saveSettings, type ViewMode } from '../storage/settings';
@@ -31,18 +25,12 @@ import { downloadToMedia, videoThumbnail } from '../storage/media';
 import { Alert, Share } from 'react-native';
 
 function progressLabel(p: ExportProgress): string {
-  return p.stage === 'uploading'
-    ? `Uploading media ${p.current ?? 1}/${p.total ?? 1}…`
-    : p.stage === 'rendering'
-      ? 'Rendering on server…'
-      : p.stage === 'downloading'
-        ? 'Downloading…'
-        : 'Saving…';
+  return p.stage === 'uploading' ? `Uploading media ${p.current ?? 1}/${p.total ?? 1}…` : p.stage === 'rendering' ? 'Rendering on server…' : p.stage === 'downloading' ? 'Downloading…' : 'Saving…';
 }
 
-export type Screen = 'projects' | 'discover' | 'editor';
+export type Screen = 'projects' | 'discover' | 'library' | 'ai' | 'profile' | 'editor';
 /** Editor sheets/panels — mirrors Vela's `panel` state machine. */
-export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'transition' | 'speed' | 'volume' | 'fx' | 'motion' | 'cutout' | 'trim' | 'keyframe' | 'opacity' | 'position' | 'mask' | 'voiceover' | 'blend' | 'curve' | 'library' | 'keys' | 'soundfx' | 'aigen' | 'auth' | 'genhistory' | 'tts' | 'buycredits' | 'ai' | 'addvisual';
+export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'texttrack' | 'imagetrack' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'textedit-font' | 'textedit-size' | 'textedit-color' | 'textedit-stroke' | 'transition' | 'speed' | 'volume' | 'fx' | 'motion' | 'cutout' | 'trim' | 'keyframe' | 'opacity' | 'position' | 'mask' | 'voiceover' | 'blend' | 'curve' | 'library' | 'keys' | 'soundfx' | 'aigen' | 'auth' | 'genhistory' | 'tts' | 'buycredits' | 'ai' | 'addvisual';
 
 /** Initial mode/source for the AI generate modal, set by the AI hub before opening it. */
 export type AiIntent = { mode: 'image' | 'video'; source?: 'text' | 'photo' };
@@ -258,8 +246,18 @@ export const useEditor = create<EditorState>((set, get) => ({
   newProject: (name, width, height) => {
     const id = newId('proj');
     const base = createProject({ id, width, height });
-    const project: VideoProject = { ...base, schemaVersion: 2, tracks: ops.newProjectTracks() };
-    saveProject({ id, name, updatedAt: Date.now(), project, mediaDurations: {} });
+    const project: VideoProject = {
+      ...base,
+      schemaVersion: 2,
+      tracks: ops.newProjectTracks(),
+    };
+    saveProject({
+      id,
+      name,
+      updatedAt: Date.now(),
+      project,
+      mediaDurations: {},
+    });
     set({
       projectId: id,
       name,
@@ -280,10 +278,30 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   newProjectFromTemplate: (tpl) => {
     const id = newId('proj');
-    const base = createProject({ id, width: tpl.width, height: tpl.height, background: tpl.background });
-    const overlays = tpl.texts.map((o) => ({ ...o, id: newId('ov'), type: 'text' as const }));
-    const project: VideoProject = { ...base, schemaVersion: 2, tracks: ops.newProjectTracks(), overlays };
-    saveProject({ id, name: tpl.name, updatedAt: Date.now(), project, mediaDurations: {} });
+    const base = createProject({
+      id,
+      width: tpl.width,
+      height: tpl.height,
+      background: tpl.background,
+    });
+    const overlays = tpl.texts.map((o) => ({
+      ...o,
+      id: newId('ov'),
+      type: 'text' as const,
+    }));
+    const project: VideoProject = {
+      ...base,
+      schemaVersion: 2,
+      tracks: ops.newProjectTracks(),
+      overlays,
+    };
+    saveProject({
+      id,
+      name: tpl.name,
+      updatedAt: Date.now(),
+      project,
+      mediaDurations: {},
+    });
     set({
       projectId: id,
       name: tpl.name,
@@ -304,8 +322,18 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   newProjectFromStoredTemplate: (tpl) => {
     const id = newId('proj');
-    const project: VideoProject = { ...JSON.parse(JSON.stringify(tpl.project)), id, schemaVersion: 2 };
-    saveProject({ id, name: tpl.name, updatedAt: Date.now(), project, mediaDurations: {} });
+    const project: VideoProject = {
+      ...JSON.parse(JSON.stringify(tpl.project)),
+      id,
+      schemaVersion: 2,
+    };
+    saveProject({
+      id,
+      name: tpl.name,
+      updatedAt: Date.now(),
+      project,
+      mediaDurations: {},
+    });
     set({
       projectId: id,
       name: tpl.name,
@@ -327,13 +355,23 @@ export const useEditor = create<EditorState>((set, get) => ({
   saveAsTemplate: () => {
     const { project, name } = get();
     if (!project) return;
-    saveUserTemplate({ id: newId('tpl'), name: `${name} (template)`, createdAt: Date.now(), project });
+    saveUserTemplate({
+      id: newId('tpl'),
+      name: `${name} (template)`,
+      createdAt: Date.now(),
+      project,
+    });
   },
 
   saveProjectAsTemplate: (id) => {
     const stored = loadProject(id);
     if (!stored) return;
-    saveUserTemplate({ id: newId('tpl'), name: `${stored.name} (template)`, createdAt: Date.now(), project: stored.project });
+    saveUserTemplate({
+      id: newId('tpl'),
+      name: `${stored.name} (template)`,
+      createdAt: Date.now(),
+      project: stored.project,
+    });
   },
 
   openProject: (id) => {
@@ -410,7 +448,13 @@ export const useEditor = create<EditorState>((set, get) => ({
     set({ projects: listProjects() });
   },
 
-  closeEditor: () => set({ screen: 'projects', isPlaying: false, panel: null, projects: listProjects() }),
+  closeEditor: () =>
+    set({
+      screen: 'projects',
+      isPlaying: false,
+      panel: null,
+      projects: listProjects(),
+    }),
 
   select: (sel) => set({ selected: sel }),
   setPlayhead: (sec) => set({ playheadSec: Math.max(0, sec) }),
@@ -419,7 +463,15 @@ export const useEditor = create<EditorState>((set, get) => ({
   setPoster: (uri) => {
     set({ posterUri: uri });
     const { projectId, name, project, mediaDurations } = get();
-    if (projectId && project) saveProject({ id: projectId, name, updatedAt: Date.now(), project, posterUri: uri, mediaDurations });
+    if (projectId && project)
+      saveProject({
+        id: projectId,
+        name,
+        updatedAt: Date.now(),
+        project,
+        posterUri: uri,
+        mediaDurations,
+      });
   },
   ensurePoster: () => {
     if (get().posterUri) return;
@@ -429,13 +481,24 @@ export const useEditor = create<EditorState>((set, get) => ({
     const first = main && main.kind === 'visual' ? (main.clips[0] as VisualTrackClip | undefined) : undefined;
     if (!first) return;
     if (first.type === 'image') get().setPoster(first.src);
-    else void videoThumbnail(first.src, 0).then((t) => { if (t && !get().posterUri) get().setPoster(t); });
+    else
+      void videoThumbnail(first.src, 0).then((t) => {
+        if (t && !get().posterUri) get().setPoster(t);
+      });
   },
   setMediaDuration: (src, sec) => {
     const mediaDurations = { ...get().mediaDurations, [src]: sec };
     set({ mediaDurations });
     const { projectId, name, project, posterUri } = get();
-    if (projectId && project) saveProject({ id: projectId, name, updatedAt: Date.now(), project, posterUri, mediaDurations });
+    if (projectId && project)
+      saveProject({
+        id: projectId,
+        name,
+        updatedAt: Date.now(),
+        project,
+        posterUri,
+        mediaDurations,
+      });
   },
 
   setPanel: (panel) => set({ panel }),
@@ -523,17 +586,39 @@ export const useEditor = create<EditorState>((set, get) => ({
     const startAt = main && main.kind === 'visual' ? ops.trackEnd(main) : 0;
     const src = await downloadToMedia(url, 'mp4');
     get().setMediaDuration(src, dur);
-    get().importVisual([{ id: newId('v'), type: 'video', src, start: 0, duration: dur, trimIn: 0, volume: 1 }]);
+    get().importVisual([
+      {
+        id: newId('v'),
+        type: 'video',
+        src,
+        start: 0,
+        duration: dur,
+        trimIn: 0,
+        volume: 1,
+      },
+    ]);
     if (audioUrl) {
       const asrc = await downloadToMedia(audioUrl, 'mp3');
-      get().importAudio({ id: newId('a'), src: asrc, start: startAt, duration: dur, volume: 1 });
+      get().importAudio({
+        id: newId('a'),
+        src: asrc,
+        start: startAt,
+        duration: dur,
+        volume: 1,
+      });
     }
   },
 
   insertVoiceoverFromUrl: async (url) => {
     const src = await downloadToMedia(url, 'mp3');
     // duration 0 → importAudio applies a sensible fallback (as with imported music).
-    get().importAudio({ id: newId('a'), src, start: get().playheadSec ?? 0, duration: 0, volume: 0.9 });
+    get().importAudio({
+      id: newId('a'),
+      src,
+      start: get().playheadSec ?? 0,
+      duration: 0,
+      volume: 0.9,
+    });
   },
 
   mainTrackId: () => get().project?.tracks?.find((t) => t.kind === 'visual')?.id ?? null,
@@ -546,8 +631,19 @@ export const useEditor = create<EditorState>((set, get) => ({
     // Push the pre-mutation state, coalescing rapid successive mutations (drags).
     const coalesce = past.length > 0 && now - lastHistoryAt < HISTORY_COALESCE_MS;
     lastHistoryAt = now;
-    set({ project: next, past: coalesce ? past : [...past, project].slice(-HISTORY_MAX), future: [] });
-    saveProject({ id: projectId, name, updatedAt: Date.now(), project: next, posterUri, mediaDurations });
+    set({
+      project: next,
+      past: coalesce ? past : [...past, project].slice(-HISTORY_MAX),
+      future: [],
+    });
+    saveProject({
+      id: projectId,
+      name,
+      updatedAt: Date.now(),
+      project: next,
+      posterUri,
+      mediaDurations,
+    });
   },
 
   undo: () => {
@@ -555,16 +651,40 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (!past.length || !project || !projectId) return;
     const previous = past[past.length - 1];
     lastHistoryAt = 0;
-    set({ past: past.slice(0, -1), future: [...future, project], project: previous, selected: null });
-    saveProject({ id: projectId, name, updatedAt: Date.now(), project: previous, posterUri, mediaDurations });
+    set({
+      past: past.slice(0, -1),
+      future: [...future, project],
+      project: previous,
+      selected: null,
+    });
+    saveProject({
+      id: projectId,
+      name,
+      updatedAt: Date.now(),
+      project: previous,
+      posterUri,
+      mediaDurations,
+    });
   },
   redo: () => {
     const { past, future, project, projectId, name, posterUri, mediaDurations } = get();
     if (!future.length || !project || !projectId) return;
     const upcoming = future[future.length - 1];
     lastHistoryAt = 0;
-    set({ future: future.slice(0, -1), past: [...past, project], project: upcoming, selected: null });
-    saveProject({ id: projectId, name, updatedAt: Date.now(), project: upcoming, posterUri, mediaDurations });
+    set({
+      future: future.slice(0, -1),
+      past: [...past, project],
+      project: upcoming,
+      selected: null,
+    });
+    saveProject({
+      id: projectId,
+      name,
+      updatedAt: Date.now(),
+      project: upcoming,
+      posterUri,
+      mediaDurations,
+    });
   },
 
   importVisual: (clips) => {
@@ -591,7 +711,11 @@ export const useEditor = create<EditorState>((set, get) => ({
       np = ops.addTrack(np, 'visual', trackId);
       let start = at;
       for (const c of clips) {
-        np = ops.addVisualClip(np, trackId, { ...c, start, rect: c.rect ?? DEFAULT_PIP });
+        np = ops.addVisualClip(np, trackId, {
+          ...c,
+          start,
+          rect: c.rect ?? DEFAULT_PIP,
+        });
         start += c.duration;
       }
       return np;
@@ -610,7 +734,11 @@ export const useEditor = create<EditorState>((set, get) => ({
         trackId = existing.id;
       }
       const duration = clip.duration && clip.duration > 0 ? clip.duration : Math.max(5, projectDuration(np));
-      return ops.addAudioClip(np, trackId, { ...clip, start: clip.start ?? 0, duration });
+      return ops.addAudioClip(np, trackId, {
+        ...clip,
+        start: clip.start ?? 0,
+        duration,
+      });
     });
   },
 
@@ -688,11 +816,23 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (!track || !clip) return;
     if (track.kind === 'visual') {
       const id = newId('v');
-      get().apply((p) => ops.addVisualClip(p, track.id, { ...(clip as VisualTrackClip), id, start: clip.start + clip.duration }));
+      get().apply((p) =>
+        ops.addVisualClip(p, track.id, {
+          ...(clip as VisualTrackClip),
+          id,
+          start: clip.start + clip.duration,
+        }),
+      );
       set({ selected: { trackId: track.id, clipId: id } });
     } else {
       const id = newId('a');
-      get().apply((p) => ops.addAudioClip(p, track.id, { ...(clip as AudioTrackClip), id, start: clip.start + clip.duration }));
+      get().apply((p) =>
+        ops.addAudioClip(p, track.id, {
+          ...(clip as AudioTrackClip),
+          id,
+          start: clip.start + clip.duration,
+        }),
+      );
       set({ selected: { trackId: track.id, clipId: id } });
     }
   },
@@ -711,14 +851,16 @@ export const useEditor = create<EditorState>((set, get) => ({
         const o = p.overlays.find((x) => x.id === clipId);
         if (!o) return p;
         const s = Math.max(0, start);
-        return ops.updateOverlay(p, clipId, { start: s, end: s + (o.end - o.start) });
+        return ops.updateOverlay(p, clipId, {
+          start: s,
+          end: s + (o.end - o.start),
+        });
       });
       return;
     }
     get().apply((p) => ops.setClipStart(p, trackId, clipId, start));
   },
-  moveClipToTrack: (fromTrackId, toTrackId, clipId, start) =>
-    get().apply((p) => ops.pruneEmptyTracks(ops.moveClipToTrack(p, fromTrackId, toTrackId, clipId, start))),
+  moveClipToTrack: (fromTrackId, toTrackId, clipId, start) => get().apply((p) => ops.pruneEmptyTracks(ops.moveClipToTrack(p, fromTrackId, toTrackId, clipId, start))),
   trimClip: (trackId, clipId, patch) => {
     if (trackId === OVERLAY_TRACK) {
       get().apply((p) => {
@@ -779,7 +921,11 @@ export const useEditor = create<EditorState>((set, get) => ({
     const sel = get().selected;
     if (sel && sel.trackId === OVERLAY_TRACK) {
       const id = sel.clipId;
-      get().apply((p) => ops.updateOverlay(p, id, { motion: motion && motion.type !== 'none' ? motion : undefined }));
+      get().apply((p) =>
+        ops.updateOverlay(p, id, {
+          motion: motion && motion.type !== 'none' ? motion : undefined,
+        }),
+      );
       return;
     }
     const t = effectsTarget();
@@ -895,7 +1041,15 @@ export const useEditor = create<EditorState>((set, get) => ({
     np = ops.pruneEmptyTracks(ops.moveClipToTrack(np, selected.trackId, toId, selected.clipId));
     const { projectId, name, posterUri, mediaDurations } = get();
     set({ project: np, selected: { trackId: toId, clipId: selected.clipId } });
-    if (projectId) saveProject({ id: projectId, name, updatedAt: Date.now(), project: np, posterUri, mediaDurations });
+    if (projectId)
+      saveProject({
+        id: projectId,
+        name,
+        updatedAt: Date.now(),
+        project: np,
+        posterUri,
+        mediaDurations,
+      });
   },
 
   togglePiP: () => {
@@ -918,7 +1072,15 @@ export const useEditor = create<EditorState>((set, get) => ({
     const clean = name.trim() || 'Untitled';
     set({ name: clean });
     const { projectId, project, posterUri, mediaDurations } = get();
-    if (projectId && project) saveProject({ id: projectId, name: clean, updatedAt: Date.now(), project, posterUri, mediaDurations });
+    if (projectId && project)
+      saveProject({
+        id: projectId,
+        name: clean,
+        updatedAt: Date.now(),
+        project,
+        posterUri,
+        mediaDurations,
+      });
   },
 
   setSourceDims: (width, height) => set({ sourceDims: { width, height } }),
@@ -928,7 +1090,11 @@ export const useEditor = create<EditorState>((set, get) => ({
  * The clip an effect (filter/speed/...) should target: the selected visual clip
  * if there is one, otherwise the base track's clip at the playhead.
  */
-export function effectsTarget(): { trackId: string; clipId: string; clip: VisualTrackClip } | null {
+export function effectsTarget(): {
+  trackId: string;
+  clipId: string;
+  clip: VisualTrackClip;
+} | null {
   const { selected, project, playheadSec } = useEditor.getState();
   const tracks = project?.tracks ?? [];
   if (selected) {

@@ -145,11 +145,11 @@ export function FontPickerBody({ value, onChange }: { value?: string; onChange: 
 }
 
 const styles = StyleSheet.create({
-  search: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: vela.card3, borderRadius: 12, paddingHorizontal: 14, height: 44 },
-  searchInput: { flex: 1, color: '#fff', fontSize: 16, fontFamily: font.regular },
-  section: { color: vela.muted, fontFamily: font.semibold, fontSize: 12.5, letterSpacing: 0.4, textTransform: 'uppercase', paddingTop: 14, paddingBottom: 4 },
-  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: vela.card2 },
+  search: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: vela.lightSurface, borderRadius: 12, paddingHorizontal: 14, height: 44 },
+  searchInput: { flex: 1, color: vela.ink, fontSize: 15, fontFamily: font.regular },
+  section: { color: vela.lightMuted, fontFamily: font.semibold, fontSize: 11.5, letterSpacing: 0.4, textTransform: 'uppercase', paddingTop: 14, paddingBottom: 4 },
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 13, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: vela.lightBorder },
   rowRight: { flexDirection: 'row', alignItems: 'center', gap: 14 },
-  name: { color: vela.textLight, fontSize: 18, fontFamily: font.medium, flex: 1, marginRight: 12 },
+  name: { color: vela.ink2, fontSize: 17, fontFamily: font.medium, flex: 1, marginRight: 12 },
   nameOn: { color: vela.accent },
 });

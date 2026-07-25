@@ -57,7 +57,7 @@ export function GenHistorySheet() {
   };
 
   return (
-    <BottomSheet onClose={close} style={{ gap: 12, paddingBottom: 24 }}>
+    <BottomSheet onClose={close} style={{ backgroundColor: vela.lightCard, gap: 12, paddingBottom: 24 }} dim='#0005'>
       <View style={s.head}>
         <Text style={s.title}>Library</Text>
         {records.length > 0 ? (
@@ -96,14 +96,14 @@ export function GenHistorySheet() {
 
 const s = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { color: '#fff', fontFamily: font.bold, fontSize: 18 },
-  clear: { color: vela.muted, fontFamily: font.semibold, fontSize: 14 },
+  title: { color: vela.ink, fontFamily: font.extrabold, fontSize: 20 },
+  clear: { color: vela.accent, fontFamily: font.bold, fontSize: 14 },
   empty: { alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 40 },
-  emptyText: { color: vela.muted2, fontFamily: font.medium, fontSize: 14.5 },
+  emptyText: { color: vela.lightMuted, fontFamily: font.medium, fontSize: 14 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   tile: { width: '31.5%', gap: 6 },
-  thumb: { width: '100%', aspectRatio: 1, borderRadius: 12, overflow: 'hidden', backgroundColor: vela.card2 },
+  thumb: { width: '100%', aspectRatio: 1, borderRadius: 12, overflow: 'hidden', backgroundColor: vela.lightSurface },
   badge: { position: 'absolute', left: 6, top: 6, width: 22, height: 22, borderRadius: 11, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
   tileBusy: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center' },
-  caption: { color: vela.textLight2, fontFamily: font.medium, fontSize: 11.5 },
+  caption: { color: vela.ink3, fontFamily: font.medium, fontSize: 11.5 },
 });

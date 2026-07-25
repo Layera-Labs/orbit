@@ -9,7 +9,6 @@ import {
   Animated,
   KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -81,7 +80,7 @@ export function TtsSheet() {
   return (
     <Modal visible transparent statusBarTranslucent animationType="none" onRequestClose={close}>
       <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: '#0009', opacity: backdrop }]} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
+      <KeyboardAvoidingView behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined} style={styles.fill}>
         <Pressable style={StyleSheet.absoluteFill} onPress={close} />
         <Animated.View style={[styles.sheet, { transform: [{ translateY }] }]}>
           <View style={styles.head}>
@@ -120,15 +119,15 @@ export function TtsSheet() {
 
 const styles = StyleSheet.create({
   fill: { flex: 1, justifyContent: 'flex-end' },
-  sheet: { backgroundColor: vela.sheet, padding: 18, paddingBottom: 34, borderTopLeftRadius: 24, borderTopRightRadius: 24, gap: 12 },
+  sheet: { backgroundColor: vela.lightCard, padding: 18, paddingBottom: 34, borderTopLeftRadius: 24, borderTopRightRadius: 24, gap: 12 },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  title: { color: '#fff', fontFamily: font.extrabold, fontSize: 19 },
+  title: { color: vela.ink, fontFamily: font.extrabold, fontSize: 20 },
   creditPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 11, paddingVertical: 6, borderRadius: 999, backgroundColor: vela.accentSoft },
   creditText: { color: vela.accent, fontFamily: font.semibold, fontSize: 12.5 },
-  input: { minHeight: 96, backgroundColor: vela.card2, borderRadius: 12, padding: 14, color: '#fff', fontFamily: font.medium, fontSize: 16, textAlignVertical: 'top' },
+  input: { minHeight: 96, backgroundColor: vela.lightSurface, borderRadius: 12, padding: 14, color: vela.ink, fontFamily: font.medium, fontSize: 16, textAlignVertical: 'top' },
   err: { color: vela.danger, fontFamily: font.medium, fontSize: 13.5 },
   primary: { height: 54, borderRadius: 14, backgroundColor: vela.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, marginTop: 2 },
   primaryText: { color: vela.onAccent, fontFamily: font.bold, fontSize: 16.5 },
   cancel: { alignSelf: 'center', paddingVertical: 8, paddingHorizontal: 16 },
-  cancelText: { color: vela.textLight2, fontFamily: font.semibold, fontSize: 15 },
+  cancelText: { color: vela.ink3, fontFamily: font.semibold, fontSize: 14 },
 });

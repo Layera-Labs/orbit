@@ -1,138 +1,116 @@
-/**
- * Discover — a warm-dark showcase hero over a light, categorised template
- * browser. Templates are REAL: tapping one creates a new editable project.
- * Sections group the built-ins by category; the search box filters across all.
- */
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+/** Template browser matching the new light Orbit shell. */
+import { useMemo, useState } from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { font, mono, vela } from '../constants';
-import { VIcon } from '../components/VIcon';
-import { OrbitMark } from '../components/OrbitMark';
+import { AppHeader } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
-import { CreateSheet } from './CreateSheet';
-import { useEditor } from '../store/editorStore';
-import { BUILTIN_TEMPLATES, TEMPLATE_CATEGORIES, type EditorTemplate } from '../templates';
+import { Chip, SearchField } from '../components/OrbitUi';
+import { font, mono, vela } from '../constants';
 import { listUserTemplates } from '../storage/templates';
+import { useEditor } from '../store/editorStore';
+import { BUILTIN_TEMPLATES, type EditorTemplate } from '../templates';
+import { CreateSheet } from './CreateSheet';
 
-const ratioOf = (t: { width: number; height: number }) => (t.height > t.width ? '9:16' : t.height === t.width ? '1:1' : '16:9');
+type Category = 'Trending' | 'Reel' | 'Intro' | 'Lyrics' | 'Celebrate';
+const CATEGORIES: Category[] = ['Trending', 'Reel', 'Intro', 'Lyrics', 'Celebrate'];
+
+function matchesCategory(template: EditorTemplate, category: Category): boolean {
+  if (category === 'Trending') return true;
+  if (category === 'Reel') return template.category === 'Social';
+  if (category === 'Intro') return template.category === 'Titles';
+  if (category === 'Lyrics') return template.category === 'Music';
+  return template.category === 'Celebrate';
+}
+
+function ratioLabel(template: { width: number; height: number }): string {
+  return template.height > template.width ? '9:16' : template.height === template.width ? '1:1' : '16:9';
+}
 
 export function DiscoverScreen() {
   const go = useEditor((s) => s.go);
   const newProject = useEditor((s) => s.newProject);
   const newProjectFromTemplate = useEditor((s) => s.newProjectFromTemplate);
   const newProjectFromStoredTemplate = useEditor((s) => s.newProjectFromStoredTemplate);
-  const [createOpen, setCreateOpen] = useState(false);
   const [query, setQuery] = useState('');
+  const [category, setCategory] = useState<Category>('Trending');
+  const [createOpen, setCreateOpen] = useState(false);
   const userTemplates = listUserTemplates();
 
-  const q = query.trim().toLowerCase();
-  const searching = q.length > 0;
-  const matched = BUILTIN_TEMPLATES.filter((t) => t.name.toLowerCase().includes(q));
-
-  const Card = ({ tpl }: { tpl: EditorTemplate }) => (
-    <Pressable style={styles.cat} onPress={() => newProjectFromTemplate(tpl)}>
-      <LinearGradient colors={tpl.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.catCard}>
-        <Text style={styles.catTag}>{ratioOf(tpl)} · {tpl.tag}</Text>
-      </LinearGradient>
-      <Text style={styles.catName} numberOfLines={1}>{tpl.name}</Text>
-    </Pressable>
-  );
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return BUILTIN_TEMPLATES.filter((template) => matchesCategory(template, category) && (!q || `${template.name} ${template.tag}`.toLowerCase().includes(q)));
+  }, [category, query]);
 
   return (
     <View style={styles.root}>
-      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ paddingBottom: 130 }}>
-        {/* warm-dark showcase hero */}
-        <LinearGradient colors={['#241d13', '#0f0d0a']} start={{ x: 0, y: 0 }} end={{ x: 0, y: 1 }} style={styles.hero}>
-          <View style={{ height: 54 }} />
-          <View style={styles.heroTop}>
-            <Text style={styles.h1}>Discover</Text>
-            <OrbitMark size={30} />
-          </View>
-          <View style={styles.search}>
-            <VIcon name="search" size={19} color={vela.lightMuted} strokeWidth={2.2} />
-            <TextInput
-              style={styles.searchInput}
-              value={query}
-              onChangeText={setQuery}
-              placeholder="Search templates"
-              placeholderTextColor={vela.lightMuted}
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="search"
-              clearButtonMode="while-editing"
-            />
-          </View>
-          <View style={styles.heroBody}>
-            <Text style={styles.heroTitle}>Start from a <Text style={{ color: vela.accent }}>template</Text></Text>
-            <Text style={styles.heroSub}>Ready-made looks. Open one and make it yours.</Text>
-          </View>
-        </LinearGradient>
+      <AppHeader
+        title='Templates'
+        actions={[
+          {
+            icon: 'profile',
+            label: 'Open profile',
+            onPress: () => go('profile'),
+          },
+        ]}
+      />
+      <ScrollView contentInsetAdjustmentBehavior='automatic' showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
+        <SearchField value={query} onChangeText={setQuery} placeholder='Search templates…' />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          {CATEGORIES.map((item) => (
+            <Chip key={item} label={item} selected={category === item} onPress={() => setCategory(item)} icon={item === 'Trending' ? 'fx' : undefined} />
+          ))}
+        </ScrollView>
 
-        {searching ? (
-          <>
-            <Text style={styles.sectionH}>Results <Text style={styles.count}>{matched.length}</Text></Text>
-            {matched.length ? (
-              <View style={styles.grid}>
-                {matched.map((tpl) => (
-                  <Pressable key={tpl.id} style={styles.gridCell} onPress={() => newProjectFromTemplate(tpl)}>
-                    <LinearGradient colors={tpl.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gridCard}>
-                      <Text style={styles.gridTag}>{ratioOf(tpl)} · {tpl.tag}</Text>
-                      <Text style={styles.gridName} numberOfLines={1}>{tpl.name}</Text>
-                    </LinearGradient>
-                  </Pressable>
-                ))}
-              </View>
-            ) : (
-              <View style={styles.empty}>
-                <Text style={styles.emptyText}>No templates match “{query.trim()}”.</Text>
-              </View>
-            )}
-          </>
+        {visible.length ? (
+          <View style={styles.grid}>
+            {visible.map((template, index) => (
+              <Pressable key={template.id} style={styles.cell} onPress={() => newProjectFromTemplate(template)}>
+                <LinearGradient colors={template.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.card, index % 3 === 0 && styles.cardTall]}>
+                  <Text style={styles.cardRatio}>
+                    {ratioLabel(template)} · {template.tag}
+                  </Text>
+                  <Text style={styles.cardHero}>{template.name.toUpperCase()}</Text>
+                  <Text style={styles.cardDuration}>00:{template.id.length % 2 ? '15' : '12'}</Text>
+                </LinearGradient>
+                <Text style={styles.name} numberOfLines={1}>
+                  {template.name}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         ) : (
-          <>
-            {/* categorised sections */}
-            {TEMPLATE_CATEGORIES.map((cat) => {
-              const items = BUILTIN_TEMPLATES.filter((t) => t.category === cat);
-              if (!items.length) return null;
-              return (
-                <View key={cat}>
-                  <Text style={styles.sectionH}>{cat} <Text style={styles.count}>{items.length}</Text></Text>
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catRow}>
-                    {items.map((tpl) => <Card key={tpl.id} tpl={tpl} />)}
-                  </ScrollView>
-                </View>
-              );
-            })}
-
-            {/* user-saved templates */}
-            {userTemplates.length ? (
-              <>
-                <Text style={styles.sectionH}>My Templates <Text style={styles.count}>{userTemplates.length}</Text></Text>
-                <View style={styles.grid}>
-                  {userTemplates.map((tpl) => (
-                    <Pressable key={tpl.id} style={styles.gridCell} onPress={() => newProjectFromStoredTemplate(tpl)}>
-                      <LinearGradient colors={[vela.ink3, vela.ink]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.gridCard}>
-                        <Text style={styles.gridTag}>{ratioOf(tpl.project)} · saved</Text>
-                        <Text style={styles.gridName} numberOfLines={1}>{tpl.name}</Text>
-                      </LinearGradient>
-                    </Pressable>
-                  ))}
-                </View>
-              </>
-            ) : null}
-          </>
+          <View style={styles.empty}>
+            <Text style={styles.emptyText}>No templates match “{query.trim()}”.</Text>
+          </View>
         )}
+
+        {userTemplates.length ? (
+          <>
+            <Text style={styles.sectionTitle}>My Templates</Text>
+            <View style={styles.grid}>
+              {userTemplates.map((template) => (
+                <Pressable key={template.id} style={styles.cell} onPress={() => newProjectFromStoredTemplate(template)}>
+                  <LinearGradient colors={['#1c2230', '#5b4bff']} style={styles.card}>
+                    <Text style={styles.cardRatio}>{ratioLabel(template.project)} · saved</Text>
+                    <Text style={styles.cardHero}>{template.name.toUpperCase()}</Text>
+                  </LinearGradient>
+                  <Text style={styles.name} numberOfLines={1}>
+                    {template.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </>
+        ) : null}
       </ScrollView>
 
-      <BottomNav active="discover" onHome={() => go('projects')} onDiscover={() => {}} onCreate={() => setCreateOpen(true)} />
-
+      <BottomNav active='templates' onHome={() => go('projects')} onTemplates={() => {}} onCreate={() => setCreateOpen(true)} onAi={() => go('ai')} />
       <CreateSheet
         visible={createOpen}
         onClose={() => setCreateOpen(false)}
-        onCreate={(w, h) => {
+        onCreate={(width, height) => {
           setCreateOpen(false);
-          newProject('Untitled', w, h);
+          newProject('Untitled', width, height);
         }}
       />
     </View>
@@ -141,30 +119,73 @@ export function DiscoverScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: vela.homeBg },
-
-  hero: { paddingBottom: 26 },
-  heroTop: { paddingHorizontal: 22, paddingTop: 6, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  h1: { fontFamily: font.extrabold, fontSize: 30, color: '#fff', letterSpacing: -0.6 },
-  search: { marginHorizontal: 22, marginTop: 14, height: 46, borderRadius: 14, backgroundColor: vela.lightCard, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
-  searchInput: { flex: 1, color: vela.ink, fontSize: 16, fontFamily: font.medium, height: '100%' },
-  heroBody: { paddingHorizontal: 22, marginTop: 20 },
-  heroTitle: { fontFamily: font.extrabold, fontSize: 30, color: '#fff', lineHeight: 34 },
-  heroSub: { color: 'rgba(255,255,255,0.72)', fontSize: 13.5, marginTop: 10, maxWidth: 240, fontFamily: font.medium },
-
-  sectionH: { paddingHorizontal: 22, paddingTop: 22, fontFamily: font.extrabold, fontSize: 18, color: vela.ink },
-  count: { color: vela.lightMuted },
-  catRow: { gap: 14, paddingHorizontal: 22, paddingTop: 14, paddingBottom: 4 },
-  cat: { width: 124 },
-  catCard: { height: 124, borderRadius: 18, justifyContent: 'flex-end', padding: 12 },
-  catTag: { fontFamily: mono.regular, fontSize: 10, color: 'rgba(255,255,255,0.85)' },
-  catName: { textAlign: 'center', marginTop: 9, fontFamily: font.bold, fontSize: 14.5, color: vela.ink },
-
-  grid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 22, paddingTop: 14, gap: 14, justifyContent: 'space-between' },
-  gridCell: { width: '47%' },
-  gridCard: { aspectRatio: 0.72, borderRadius: 16, justifyContent: 'flex-end', padding: 12, gap: 4 },
-  gridTag: { fontFamily: mono.regular, fontSize: 11, color: 'rgba(255,255,255,0.7)' },
-  gridName: { fontFamily: font.bold, fontSize: 15, color: '#fff' },
-
-  empty: { alignItems: 'center', paddingTop: 40, paddingHorizontal: 22 },
-  emptyText: { color: vela.ink3, fontSize: 15, fontFamily: font.medium, textAlign: 'center' },
+  content: {
+    paddingHorizontal: 18,
+    paddingTop: 14,
+    paddingBottom: 116,
+    gap: 14,
+  },
+  chips: { gap: 8, paddingRight: 8 },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    rowGap: 17,
+  },
+  cell: { width: '48%' },
+  card: {
+    height: 142,
+    borderRadius: 14,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    padding: 12,
+    justifyContent: 'flex-end',
+  },
+  cardTall: { height: 154 },
+  cardRatio: {
+    position: 'absolute',
+    left: 10,
+    top: 10,
+    color: '#ffffffba',
+    fontFamily: mono.medium,
+    fontSize: 9.5,
+  },
+  cardHero: {
+    color: '#fff',
+    fontFamily: font.extrabold,
+    fontSize: 22,
+    lineHeight: 22,
+    letterSpacing: -0.5,
+    maxWidth: 130,
+  },
+  cardDuration: {
+    color: '#fff',
+    backgroundColor: '#0009',
+    alignSelf: 'flex-start',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 5,
+    fontFamily: mono.medium,
+    fontSize: 9,
+    marginTop: 8,
+  },
+  name: {
+    color: vela.ink,
+    fontFamily: font.semibold,
+    fontSize: 12.5,
+    marginTop: 6,
+  },
+  sectionTitle: {
+    color: vela.ink,
+    fontFamily: font.extrabold,
+    fontSize: 18,
+    marginTop: 8,
+  },
+  empty: { paddingVertical: 70, alignItems: 'center' },
+  emptyText: {
+    color: vela.ink3,
+    fontFamily: font.medium,
+    fontSize: 14,
+    textAlign: 'center',
+  },
 });
