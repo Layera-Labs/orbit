@@ -105,6 +105,23 @@ import {
 const soon = (label: string) =>
   Alert.alert("Coming soon", `${label} is coming soon.`);
 
+/**
+ * Shown by the per-clip tools (FX / Filter) when `effectsTarget()` is null —
+ * i.e. nothing is selected AND the playhead sits past the end of the base track
+ * or over a gap. Without this the sliders still move and display a value while
+ * silently applying to nothing, which reads as a broken control.
+ */
+function NoClipTarget({ what }: { what: string }) {
+  return (
+    <View style={s.noTarget}>
+      <VIcon name="video" size={22} color={vela.lightMuted} />
+      <Text style={s.noTargetText}>
+        Select a clip, or move the playhead over one, to apply {what}.
+      </Text>
+    </View>
+  );
+}
+
 // ---- shared bits ---------------------------------------------------------
 
 /** Every editor tool uses the same light sheet surface and dim strength. */
@@ -704,6 +721,9 @@ function FilterSheet() {
     () => effectsTarget()?.clip.filter ?? {},
   );
   const [tab, setTab] = useState<"filter" | "adjust">("filter");
+  // Same guard as FxSheet: filters are per-clip, so with no target every
+  // control would silently do nothing while still looking live.
+  const hasTarget = !!effectsTarget();
   const apply = (f: ClipFilter) => {
     setFilter(f);
     applyClipFilter(Object.keys(f).length ? f : undefined);
@@ -727,8 +747,10 @@ function FilterSheet() {
         </Pressable>
       </View>
 
+      {!hasTarget ? <NoClipTarget what="a filter" /> : null}
+
       {tab === "filter" ? (
-        <>
+        <View style={!hasTarget ? s.disabled : undefined} pointerEvents={hasTarget ? 'auto' : 'none'}>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -773,9 +795,9 @@ function FilterSheet() {
               <Text style={s.intensityVal}>{Math.round(intensity * 100)}</Text>
             </View>
           ) : null}
-        </>
+        </View>
       ) : (
-        <View style={{ gap: 2 }}>
+        <View style={{ gap: 2 }} pointerEvents={hasTarget ? 'auto' : 'none'}>
           <AdjustRow
             label="Brightness"
             value={filter.brightness ?? 0}
@@ -1173,6 +1195,8 @@ function VolumeSheet() {
 function FxSheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const applyClipBlur = useEditor((s) => s.applyClipBlur);
+  // Re-read on every render so the sheet reflects playhead/selection changes.
+  const hasTarget = !!effectsTarget();
   const [blur, setBlur] = useState(() => effectsTarget()?.clip.blur ?? 0);
   const close = () => setPanel(null);
   const set = (v: number) => {
@@ -1187,7 +1211,8 @@ function FxSheet() {
           <VIcon name="check" size={24} color={vela.accent} />
         </Pressable>
       </View>
-      <View style={s.intensityRow}>
+      {!hasTarget ? <NoClipTarget what="effects" /> : null}
+      <View style={[s.intensityRow, !hasTarget && s.disabled]} pointerEvents={hasTarget ? 'auto' : 'none'}>
         <Text style={s.intensityLabel}>Blur</Text>
         <View style={{ flex: 1 }}>
           <VSlider
@@ -1199,7 +1224,7 @@ function FxSheet() {
         </View>
         <Text style={s.intensityVal}>{Math.round(blur * 100)}%</Text>
       </View>
-      <View style={s.chipRow}>
+      <View style={[s.chipRow, !hasTarget && s.disabled]} pointerEvents={hasTarget ? 'auto' : 'none'}>
         {[0, 0.25, 0.5, 1].map((v) => (
           <Pressable
             key={v}
@@ -3029,6 +3054,18 @@ const s = StyleSheet.create({
   trSoonText: { color: vela.lightMuted, fontSize: 8, fontFamily: font.bold },
 
   chipRow: { flexDirection: "row", gap: 10 },
+  /** Dim the per-clip controls when there's nothing to apply them to. */
+  disabled: { opacity: 0.38 },
+  noTarget: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    backgroundColor: vela.lightSurface,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  noTargetText: { flex: 1, color: vela.ink3, fontFamily: font.medium, fontSize: 13, lineHeight: 18 },
   chip: {
     flex: 1,
     height: 40,
