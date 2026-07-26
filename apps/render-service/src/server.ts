@@ -28,6 +28,7 @@
 import cors from 'cors';
 import express, { type Express, type Request, type Response } from 'express';
 import multer from 'multer';
+import { spawn } from 'node:child_process';
 import { mkdir, mkdirSync } from 'node:fs';
 import { mkdir as mkdirAsync, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -93,10 +94,54 @@ export function createServer(): Express {
     limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB
   });
 
+  /**
+   * HEIF-family stills (iPhone's default photo format) are read by ffmpeg's
+   * mov/heif demuxer, which has no `loop` option — so the renderer's
+   * `-loop 1 -t <dur> -i <img>` for still images dies with "Option not found".
+   * Transcode those to PNG once at upload so every still goes down the image2
+   * path. ffmpeg decodes HEIF fine; only the demuxer option is the problem.
+   */
+  async function normalizeStill(filename: string): Promise<string> {
+    if (!/\.(heic|heif|avif)$/i.test(filename)) return filename;
+    const src = join(mediaDir, filename);
+    const outName = `${filename.replace(/\.[^.]+$/, '')}.png`;
+    await new Promise<void>((resolve, reject) => {
+      const proc = spawn(process.env.FFMPEG_PATH ?? 'ffmpeg', ['-y', '-i', src, '-frames:v', '1', '-update', '1', join(mediaDir, outName)], {
+        stdio: ['ignore', 'ignore', 'pipe'],
+      });
+      let stderr = '';
+      proc.stderr.on('data', (d: Buffer) => (stderr += d.toString()));
+      proc.on('error', reject);
+      proc.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg (still normalize) exited ${code}\n${stderr.slice(-800)}`))));
+    });
+    return outName;
+  }
+
+  /** Rewrite every HEIF-family still src in a project to its PNG twin (see
+   *  `normalizeStill`). Clients cache upload tokens across exports, so doing
+   *  this only at upload time would miss already-uploaded media. */
+  async function normalizeProjectStills(project: VideoProject): Promise<VideoProject> {
+    const cache = new Map<string, string>();
+    const fix = async (src: string | undefined): Promise<string | undefined> => {
+      if (!src?.startsWith('upload:') || !/\.(heic|heif|avif)$/i.test(src)) return src;
+      if (!cache.has(src)) cache.set(src, `upload:${await normalizeStill(src.slice('upload:'.length))}`);
+      return cache.get(src);
+    };
+    const clips = await Promise.all((project.clips ?? []).map(async (c) => ({ ...c, src: (await fix(c.src)) ?? c.src })));
+    const tracks = await Promise.all(
+      (project.tracks ?? []).map(async (t) => ({
+        ...t,
+        clips: await Promise.all(t.clips.map(async (c) => ({ ...c, src: (await fix(c.src)) ?? c.src }))),
+      })),
+    );
+    return { ...project, clips, tracks } as VideoProject;
+  }
+
   async function render(project: VideoProject, output?: ExportOutput): Promise<string> {
     await mkdirAsync(outDir, { recursive: true });
     const name = `v_${++counter}_${Date.now()}.mp4`;
-    await renderProject(project, { outputPath: join(outDir, name), resolveSrc, output });
+    const safe = await normalizeProjectStills(project);
+    await renderProject(safe, { outputPath: join(outDir, name), resolveSrc, output });
     return `/files/${name}`;
   }
 
@@ -184,13 +229,18 @@ export function createServer(): Express {
     res.json({ ok: true, service: 'orbit-render' });
   });
 
-  app.post('/v1/upload', upload.single('file'), (req: Request, res: Response) => {
+  app.post('/v1/upload', upload.single('file'), async (req: Request, res: Response) => {
     const file = (req as Request & { file?: { filename: string } }).file;
     if (!file) {
       res.status(400).json({ error: 'multipart upload must include a "file" field' });
       return;
     }
-    res.json({ id: `upload:${file.filename}` });
+    try {
+      res.json({ id: `upload:${await normalizeStill(file.filename)}` });
+    } catch (err) {
+      console.error('[orbit] upload normalize failed:', err);
+      res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
+    }
   });
 
   app.post('/v1/render', async (req: Request, res: Response) => {
@@ -209,6 +259,9 @@ export function createServer(): Express {
     try {
       res.json({ url: await render(project, body?.output) });
     } catch (err) {
+      // Log the full failure server-side — the client only shows a truncated
+      // message, so without this an ffmpeg error is effectively undebuggable.
+      console.error('[orbit] render failed:', err instanceof Error ? err.stack ?? err.message : err);
       res.status(500).json({ error: err instanceof Error ? err.message : String(err) });
     }
   });
