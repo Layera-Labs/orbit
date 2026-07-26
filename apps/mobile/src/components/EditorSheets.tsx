@@ -713,15 +713,23 @@ function AdjustRow({
   );
 }
 
-function FilterSheet() {
+/** Filter / Adjust / FX — all three are per-clip look controls, so they share
+ *  one sheet. `initialTab` lets the Effect tool open straight on FX. */
+function FilterSheet({ initialTab = "filter" }: { initialTab?: "filter" | "adjust" | "fx" }) {
   const setPanel = useEditor((s) => s.setPanel);
   const applyClipFilter = useEditor((s) => s.applyClipFilter);
   const close = () => setPanel(null);
   const [filter, setFilter] = useState<ClipFilter>(
     () => effectsTarget()?.clip.filter ?? {},
   );
-  const [tab, setTab] = useState<"filter" | "adjust">("filter");
-  // Same guard as FxSheet: filters are per-clip, so with no target every
+  const [tab, setTab] = useState<"filter" | "adjust" | "fx">(initialTab);
+  const applyClipBlur = useEditor((s) => s.applyClipBlur);
+  const [blur, setBlur] = useState(() => effectsTarget()?.clip.blur ?? 0);
+  const setBlurValue = (v: number) => {
+    setBlur(v);
+    applyClipBlur(v);
+  };
+  // Same guard as the FX tab: filters are per-clip, so with no target every
   // control would silently do nothing while still looking live.
   const hasTarget = !!effectsTarget();
   const apply = (f: ClipFilter) => {
@@ -740,6 +748,9 @@ function FilterSheet() {
           </Pressable>
           <Pressable onPress={() => setTab("adjust")}>
             <Text style={tab === "adjust" ? s.fTabOn : s.fTabOff}>Adjust</Text>
+          </Pressable>
+          <Pressable onPress={() => setTab("fx")}>
+            <Text style={tab === "fx" ? s.fTabOn : s.fTabOff}>FX</Text>
           </Pressable>
         </View>
         <Pressable onPress={close} hitSlop={10}>
@@ -795,6 +806,25 @@ function FilterSheet() {
               <Text style={s.intensityVal}>{Math.round(intensity * 100)}</Text>
             </View>
           ) : null}
+        </View>
+      ) : tab === "fx" ? (
+        <View style={[{ gap: 16 }, !hasTarget && s.disabled]} pointerEvents={hasTarget ? 'auto' : 'none'}>
+          <View style={s.intensityRow}>
+            <Text style={s.intensityLabel}>Blur</Text>
+            <View style={{ flex: 1 }}>
+              <VSlider value={blur} min={0} max={1} onChange={(v) => setBlurValue(r2(v))} />
+            </View>
+            <Text style={s.intensityVal}>{Math.round(blur * 100)}%</Text>
+          </View>
+          <View style={s.chipRow}>
+            {[0, 0.25, 0.5, 1].map((v) => (
+              <Pressable key={v} onPress={() => setBlurValue(v)} style={[s.chip, blur === v && s.chipOn]}>
+                <Text style={[s.chipText, blur === v && { color: vela.accent }]}>
+                  {v === 0 ? "None" : `${Math.round(v * 100)}%`}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </View>
       ) : (
         <View style={{ gap: 2 }} pointerEvents={hasTarget ? 'auto' : 'none'}>
@@ -1007,13 +1037,13 @@ function ExportSheet() {
 
 // ---- Transition ----------------------------------------------------------
 
-const TRANSITIONS: { key: TransitionType; label: string; soon?: boolean }[] = [
-  { key: "cut", label: "None" },
-  { key: "fade", label: "Fade" },
-  { key: "dissolve", label: "Dissolve", soon: true },
-  { key: "slide", label: "Slide", soon: true },
-  { key: "wipe", label: "Wipe", soon: true },
-  { key: "zoom", label: "Zoom", soon: true },
+const TRANSITIONS: { key: TransitionType; label: string; icon: VIconName; soon?: boolean }[] = [
+  { key: "cut", label: "None", icon: "close" },
+  { key: "fade", label: "Fade", icon: "trFade" },
+  { key: "dissolve", label: "Dissolve", icon: "trDissolve", soon: true },
+  { key: "slide", label: "Slide", icon: "trSlide", soon: true },
+  { key: "wipe", label: "Wipe", icon: "trWipe", soon: true },
+  { key: "zoom", label: "Zoom", icon: "trZoom", soon: true },
 ];
 
 function TransitionSheet() {
@@ -1062,11 +1092,7 @@ function TransitionSheet() {
               onPress={() => (t.soon ? soon(t.label) : apply(t.key))}
             >
               <View style={[s.trIcon, on && s.trIconOn]}>
-                <VIcon
-                  name={t.key === "cut" ? "close" : "fx"}
-                  size={22}
-                  color={on ? vela.accent : "#fff"}
-                />
+                <VIcon name={t.icon} size={22} color={on ? vela.accent : "#fff"} />
               </View>
               <Text style={[s.trLabel, on && { color: vela.accent }]}>
                 {t.label}
@@ -1187,55 +1213,6 @@ function VolumeSheet() {
           />
         </View>
         <Text style={s.intensityVal}>{Math.round(vol * 100)}%</Text>
-      </View>
-    </BottomSheet>
-  );
-}
-
-function FxSheet() {
-  const setPanel = useEditor((s) => s.setPanel);
-  const applyClipBlur = useEditor((s) => s.applyClipBlur);
-  // Re-read on every render so the sheet reflects playhead/selection changes.
-  const hasTarget = !!effectsTarget();
-  const [blur, setBlur] = useState(() => effectsTarget()?.clip.blur ?? 0);
-  const close = () => setPanel(null);
-  const set = (v: number) => {
-    setBlur(v);
-    applyClipBlur(v);
-  };
-  return (
-    <BottomSheet onClose={close} style={{ gap: 16 }} dim="#0002">
-      <View style={s.rowBetween}>
-        <Text style={s.sheetTitle}>FX</Text>
-        <Pressable onPress={close} hitSlop={10}>
-          <VIcon name="check" size={24} color={vela.accent} />
-        </Pressable>
-      </View>
-      {!hasTarget ? <NoClipTarget what="effects" /> : null}
-      <View style={[s.intensityRow, !hasTarget && s.disabled]} pointerEvents={hasTarget ? 'auto' : 'none'}>
-        <Text style={s.intensityLabel}>Blur</Text>
-        <View style={{ flex: 1 }}>
-          <VSlider
-            value={blur}
-            min={0}
-            max={1}
-            onChange={(v) => set(Math.round(v * 100) / 100)}
-          />
-        </View>
-        <Text style={s.intensityVal}>{Math.round(blur * 100)}%</Text>
-      </View>
-      <View style={[s.chipRow, !hasTarget && s.disabled]} pointerEvents={hasTarget ? 'auto' : 'none'}>
-        {[0, 0.25, 0.5, 1].map((v) => (
-          <Pressable
-            key={v}
-            onPress={() => set(v)}
-            style={[s.chip, blur === v && s.chipOn]}
-          >
-            <Text style={[s.chipText, blur === v && { color: vela.accent }]}>
-              {v === 0 ? "None" : `${Math.round(v * 100)}%`}
-            </Text>
-          </Pressable>
-        ))}
       </View>
     </BottomSheet>
   );
@@ -2725,7 +2702,8 @@ export function EditorSheets() {
       {panel === "transition" && <TransitionSheet />}
       {panel === "speed" && <SpeedSheet />}
       {panel === "volume" && <VolumeSheet />}
-      {panel === "fx" && <FxSheet />}
+      {/* FX is a tab of the per-clip look sheet — the Effect tool opens it there. */}
+      {panel === "fx" && <FilterSheet initialTab="fx" />}
       {panel === "motion" && <MotionSheet />}
       {panel === "cutout" && <CutoutSheet />}
       {panel === "trim" && <TrimSheet />}

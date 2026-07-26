@@ -130,6 +130,24 @@ const ICONS = {
   // Text shadow / stroke — two offset rounded plates reading as depth.
   shadow: { paths: ['M5 5h8v8H5z', 'M11 11h8v8h-8z'], sw: 1.8 },
   star: { paths: ['M12 3.5l2.5 5.3 5.8.6-4.3 4 1.2 5.7L12 16.3 6.8 19.1l1.2-5.7-4.3-4 5.8-.6z'], sw: 1.8 },
+
+  // ---- transitions ----
+  // Each glyph shows how two shots meet, so the row reads at a glance rather
+  // than repeating one generic sparkle.
+  /** Fade: two frames with a soft gradient seam between them. */
+  trFade: { rects: [[3, 6, 8, 12, 1.5], [13, 6, 8, 12, 1.5]], paths: ['M11 8v8M13 8v8'], sw: 1.7 },
+  /** Dissolve: right frame stippled, as if breaking up into the left. */
+  trDissolve: {
+    rects: [[3, 6, 8, 12, 1.5]],
+    paths: ['M13 6.5h1M17 6.5h1M15 9h1M19 9h1M13 11.5h1M17 11.5h1M15 14h1M19 14h1M13 16.5h1M17 16.5h1'],
+    sw: 1.7,
+  },
+  /** Slide: a frame pushing in from the right, arrow showing the travel. */
+  trSlide: { rects: [[3, 6, 8, 12, 1.5]], paths: ['M21 6v12M13.5 12h6M16.5 9l3 3-3 3'], sw: 1.7 },
+  /** Wipe: a hard vertical edge sweeping across one frame. */
+  trWipe: { rects: [[3, 6, 18, 12, 1.5]], paths: ['M12 6v12M14.5 9.5l2.5 2.5-2.5 2.5'], sw: 1.7 },
+  /** Zoom: a frame growing out of a smaller one. */
+  trZoom: { rects: [[3, 6, 18, 12, 1.5], [8.5, 9.5, 7, 5, 1]], paths: ['M6 8.5L8 10M18 8.5L16 10M6 15.5L8 14M18 15.5L16 14'], sw: 1.7 },
   lineheight: { paths: ['M4 5v14M4 5l-2 2.4M4 5l2 2.4M4 19l-2-2.4M4 19l2-2.4M9 7h11M9 12h11M9 17h11'], sw: 1.8 },
   spacing: { paths: ['M5 4v16M5 4l-2.2 2.4M5 4l2.2 2.4M5 20l-2.2-2.4M5 20l2.2-2.4M10 7h10M10 12h10M10 17h10'], sw: 1.8 },
   style: { rects: [[3, 4, 18, 16, 3]], paths: ['M8 9h8M12 9v7'], sw: 1.8 },
