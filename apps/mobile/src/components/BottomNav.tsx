@@ -12,6 +12,17 @@ import { OrbitMark } from './OrbitMark';
 
 export type MainTab = 'home' | 'templates' | 'ai' | 'premium';
 
+/** Three nav layouts:
+ *  - `pill`   compact glass pill + a separate Create button floating right.
+ *  - `dock`   full-width glass dock, Create raised through a centre notch.
+ *  - `inline` one flat glass bar, Create sitting inline as the middle slot
+ *             (nothing floats or breaks the bar's silhouette). */
+export type NavVariant = 'pill' | 'dock' | 'inline';
+
+/** The layout every screen uses. Flip this one value to try another look
+ *  (individual screens can still override with the `variant` prop). */
+const DEFAULT_VARIANT: NavVariant = 'inline';
+
 interface BottomNavProps {
   active?: Exclude<MainTab, 'premium'>;
   onHome: () => void;
@@ -19,9 +30,10 @@ interface BottomNavProps {
   onCreate: () => void;
   onAi: () => void;
   dark?: boolean;
+  variant?: NavVariant;
 }
 
-export function BottomNav({ active, onHome, onTemplates, onCreate, onAi, dark = false }: BottomNavProps) {
+export function BottomNav({ active, onHome, onTemplates, onCreate, onAi, dark = false, variant = DEFAULT_VARIANT }: BottomNavProps) {
   const [premiumOpen, setPremiumOpen] = useState(false);
   const tabs: Array<{
     key: MainTab;
@@ -53,9 +65,56 @@ export function BottomNav({ active, onHome, onTemplates, onCreate, onAi, dark = 
     );
   };
 
+  const glassFallback = dark ? 'rgba(18,23,34,0.98)' : 'rgba(255,255,255,0.98)';
+
+  if (variant === 'inline') {
+    return (
+      <View style={styles.inlineWrap} pointerEvents='box-none'>
+        <Glass style={styles.inlineBar} fallbackColor={glassFallback} interactive colorScheme={dark ? 'dark' : 'light'}>
+          {tabs.slice(0, 2).map(renderTab)}
+          <Pressable
+            accessibilityRole='button'
+            accessibilityLabel='Create new project'
+            style={styles.tab}
+            onPress={onCreate}
+            hitSlop={4}
+          >
+            {({ pressed }) => (
+              <View style={[styles.inlineCreate, pressed && styles.createPressed]}>
+                <VIcon name='plus' size={24} color='#fff' strokeWidth={2.7} />
+              </View>
+            )}
+          </Pressable>
+          {tabs.slice(2).map(renderTab)}
+        </Glass>
+
+        {premiumOpen ? <PremiumSheet onClose={() => setPremiumOpen(false)} /> : null}
+      </View>
+    );
+  }
+
+  if (variant === 'dock') {
+    return (
+      <View style={styles.dockWrap} pointerEvents='box-none'>
+        <Glass style={styles.dockBar} fallbackColor={glassFallback} interactive colorScheme={dark ? 'dark' : 'light'}>
+          {tabs.slice(0, 2).map(renderTab)}
+          {/* Reserved slot under the raised centre Create button. */}
+          <View style={styles.dockNotch} />
+          {tabs.slice(2).map(renderTab)}
+        </Glass>
+
+        <Pressable accessibilityRole='button' accessibilityLabel='Create new project' style={({ pressed }) => [styles.dockFab, pressed && styles.createPressed]} onPress={onCreate}>
+          <VIcon name='plus' size={26} color='#fff' strokeWidth={2.7} />
+        </Pressable>
+
+        {premiumOpen ? <PremiumSheet onClose={() => setPremiumOpen(false)} /> : null}
+      </View>
+    );
+  }
+
   return (
     <View style={styles.wrap} pointerEvents='box-none'>
-      <Glass style={styles.bar} fallbackColor={dark ? 'rgba(18,23,34,0.98)' : 'rgba(255,255,255,0.98)'} interactive colorScheme={dark ? 'dark' : 'light'}>
+      <Glass style={styles.bar} fallbackColor={glassFallback} interactive colorScheme={dark ? 'dark' : 'light'}>
         {tabs.map(renderTab)}
       </Glass>
 
@@ -131,6 +190,80 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconHolderOn: { backgroundColor: vela.accentSoft },
+  // ---- inline variant: one flat bar, Create is the middle slot ----
+  inlineWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 92,
+    justifyContent: 'flex-end',
+    zIndex: 40,
+  },
+  inlineBar: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    bottom: 12,
+    height: 64,
+    borderRadius: 30,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(130,130,150,0.18)',
+  },
+  inlineCreate: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: vela.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // ---- dock variant: full-width bar, Create raised in the centre ----
+  dockWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 122,
+    justifyContent: 'flex-end',
+    zIndex: 40,
+  },
+  dockBar: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    bottom: 12,
+    height: 64,
+    borderRadius: 30,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(130,130,150,0.18)',
+  },
+  dockNotch: { width: 72 },
+  dockFab: {
+    position: 'absolute',
+    left: '50%',
+    marginLeft: -29,
+    bottom: 42,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: vela.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.9)',
+    boxShadow: '0 6px 16px rgba(71,53,220,0.32)',
+  },
   fab: {
     position: 'absolute',
     right: 12,
