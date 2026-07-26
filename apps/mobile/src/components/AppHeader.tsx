@@ -31,7 +31,7 @@ export function AppHeader({
           {leading ? <HeaderButton action={leading} dark={dark} /> : null}
           {brand ? (
             <View style={styles.brand}>
-              <OrbitMark size={25} />
+              <OrbitMark size={28} ringOpacity={0.8} />
               <Text style={[styles.brandText, { color: ink }]}>orbit</Text>
             </View>
           ) : (
@@ -63,6 +63,7 @@ function HeaderButton({
       onPress={action.onPress}
       style={({ pressed }) => [
         styles.action,
+        dark ? styles.actionDark : styles.actionLight,
         action.prominent && styles.actionProminent,
         pressed && { opacity: 0.72 },
       ]}
@@ -97,11 +98,15 @@ const styles = StyleSheet.create({
   title: { fontFamily: font.extrabold, fontSize: 20, letterSpacing: -0.3 },
   actions: { flexDirection: "row", alignItems: "center", gap: 8 },
   action: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  actionProminent: { backgroundColor: vela.accent },
+  // Contained circles so header actions read as buttons, not floating glyphs.
+  actionLight: { backgroundColor: vela.lightCard, borderColor: vela.lightBorder },
+  actionDark: { backgroundColor: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.14)" },
+  actionProminent: { backgroundColor: vela.accent, borderColor: "transparent" },
 });

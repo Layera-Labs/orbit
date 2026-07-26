@@ -1,16 +1,60 @@
 /** Persistent text-style drawer used by the timeline's T lane. */
-import { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useMemo, useRef, useState } from "react";
+import {
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import Animated, {
   FadeInRight,
   FadeOutLeft,
   LinearTransition,
 } from "react-native-reanimated";
+import { LinearGradient } from "expo-linear-gradient";
 import { font, vela } from "../constants";
 import type { TextOverlay } from "../model/types";
 import { useEditor } from "../store/editorStore";
 import { BottomSheet } from "./BottomSheet";
 import { VIcon, type VIconName } from "./VIcon";
+
+const EDGE_FADE_W = 28;
+
+/**
+ * A horizontal-scroll edge that fades content into the surrounding surface
+ * color instead of guillotining it flush at the container edge — a hard cut
+ * reads as broken, not scrollable. Only shows on the side that still has
+ * content to reveal, so it never lies about scrollability.
+ */
+function useScrollEdges() {
+  const [canLeft, setCanLeft] = useState(false);
+  const [canRight, setCanRight] = useState(false);
+  const contentW = useRef(0);
+  const layoutW = useRef(0);
+
+  const evaluate = (offsetX: number) => {
+    setCanLeft(offsetX > 2);
+    setCanRight(offsetX < contentW.current - layoutW.current - 2);
+  };
+
+  return {
+    canLeft,
+    canRight,
+    onScroll: (e: NativeSyntheticEvent<NativeScrollEvent>) =>
+      evaluate(e.nativeEvent.contentOffset.x),
+    onContentSizeChange: (w: number) => {
+      contentW.current = w;
+      evaluate(0);
+    },
+    onLayout: (w: number) => {
+      layoutW.current = w;
+      evaluate(0);
+    },
+  };
+}
 
 type DrawerTab = "default" | "recent" | "templates";
 type TemplateCategory = "all" | "titles" | "social" | "editorial" | "utility";
@@ -372,6 +416,7 @@ export function TextDrawerSheet() {
   const setPanel = useEditor((state) => state.setPanel);
   const [tab, setTab] = useState<DrawerTab>("default");
   const [category, setCategory] = useState<TemplateCategory>("all");
+  const categoryEdges = useScrollEdges();
   const [selection, setSelection] = useState<{
     id: string;
     label: string;
@@ -670,59 +715,85 @@ export function TextDrawerSheet() {
                 title="Templates"
                 detail={`${visibleTemplates.length} styles`}
               />
-              <ScrollView
-                horizontal
-                nestedScrollEnabled
-                showsHorizontalScrollIndicator={false}
-                style={styles.categoryScroller}
-                contentContainerStyle={styles.categoryRow}
-              >
-                {CATEGORIES.map((item) => {
-                  const active = category === item.key;
-                  const count =
-                    item.key === "all"
-                      ? TEMPLATE_PRESETS.length
-                      : TEMPLATE_PRESETS.filter(
-                          (preset) => preset.category === item.key,
-                        ).length;
-                  return (
-                    <Pressable
-                      key={item.key}
-                      accessibilityRole="tab"
-                      accessibilityState={{ selected: active }}
-                      onPress={() => setCategory(item.key)}
-                      style={[
-                        styles.categoryChip,
-                        active && styles.categoryChipOn,
-                      ]}
-                    >
-                      <Text
+              <View style={styles.categoryScrollerWrap}>
+                <ScrollView
+                  horizontal
+                  nestedScrollEnabled
+                  showsHorizontalScrollIndicator={false}
+                  style={styles.categoryScroller}
+                  contentContainerStyle={styles.categoryRow}
+                  scrollEventThrottle={16}
+                  onScroll={categoryEdges.onScroll}
+                  onContentSizeChange={categoryEdges.onContentSizeChange}
+                  onLayout={(e) =>
+                    categoryEdges.onLayout(e.nativeEvent.layout.width)
+                  }
+                >
+                  {CATEGORIES.map((item) => {
+                    const active = category === item.key;
+                    const count =
+                      item.key === "all"
+                        ? TEMPLATE_PRESETS.length
+                        : TEMPLATE_PRESETS.filter(
+                            (preset) => preset.category === item.key,
+                          ).length;
+                    return (
+                      <Pressable
+                        key={item.key}
+                        accessibilityRole="tab"
+                        accessibilityState={{ selected: active }}
+                        onPress={() => setCategory(item.key)}
                         style={[
-                          styles.categoryLabel,
-                          active && styles.categoryLabelOn,
-                        ]}
-                      >
-                        {item.label}
-                      </Text>
-                      <View
-                        style={[
-                          styles.categoryCount,
-                          active && styles.categoryCountOn,
+                          styles.categoryChip,
+                          active && styles.categoryChipOn,
                         ]}
                       >
                         <Text
                           style={[
-                            styles.categoryCountText,
-                            active && styles.categoryCountTextOn,
+                            styles.categoryLabel,
+                            active && styles.categoryLabelOn,
                           ]}
                         >
-                          {count}
+                          {item.label}
                         </Text>
-                      </View>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
+                        <View
+                          style={[
+                            styles.categoryCount,
+                            active && styles.categoryCountOn,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.categoryCountText,
+                              active && styles.categoryCountTextOn,
+                            ]}
+                          >
+                            {count}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    );
+                  })}
+                </ScrollView>
+                {categoryEdges.canLeft ? (
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={[vela.lightCard, `${vela.lightCard}00`]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[styles.categoryEdgeFade, styles.categoryEdgeFadeLeft]}
+                  />
+                ) : null}
+                {categoryEdges.canRight ? (
+                  <LinearGradient
+                    pointerEvents="none"
+                    colors={[`${vela.lightCard}00`, vela.lightCard]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={[styles.categoryEdgeFade, styles.categoryEdgeFadeRight]}
+                  />
+                ) : null}
+              </View>
               <ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.templateGrid}
@@ -924,7 +995,7 @@ const styles = StyleSheet.create({
   sheet: {
     height: "72%",
     backgroundColor: vela.lightCard,
-    paddingHorizontal: 8,
+    paddingHorizontal: 18,
     paddingTop: 12,
     paddingBottom: 18,
     gap: 12,
@@ -1047,11 +1118,22 @@ const styles = StyleSheet.create({
   headingPreview: { fontFamily: font.extrabold, fontSize: 20, lineHeight: 23 },
   subheadingPreview: { fontFamily: font.bold, fontSize: 16, lineHeight: 19 },
   bodyPreview: { fontFamily: font.regular, fontSize: 13, lineHeight: 18 },
+  categoryScrollerWrap: { position: "relative" },
   categoryScroller: { flexGrow: 0 },
-  categoryRow: { gap: 7, paddingRight: 10 },
+  categoryRow: { gap: 7, paddingRight: 4 },
+  // Fades a partially-scrolled-off chip into the sheet's own background instead
+  // of guillotining it flush at the edge — a hard cut reads as broken content,
+  // a fade reads as "there's more, scroll for it".
+  categoryEdgeFade: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: EDGE_FADE_W,
+  },
+  categoryEdgeFadeLeft: { left: 0 },
+  categoryEdgeFadeRight: { right: 0 },
   categoryChip: {
     minHeight: 38,
-    minWidth: 88,
     paddingHorizontal: 12,
     borderRadius: 12,
     backgroundColor: vela.lightSurface,
@@ -1198,7 +1280,6 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: vela.lightBorder,
     paddingTop: 10,
-    paddingHorizontal: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",

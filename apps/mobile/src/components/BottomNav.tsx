@@ -33,7 +33,7 @@ export function BottomNav({ active, onHome, onTemplates, onCreate, onAi, dark = 
     {
       key: 'templates',
       label: 'Templates',
-      icon: 'templates',
+      icon: 'layout',
       onPress: onTemplates,
     },
     { key: 'ai', label: 'AI Studio', icon: 'fx', onPress: onAi },
@@ -45,8 +45,10 @@ export function BottomNav({ active, onHome, onTemplates, onCreate, onAi, dark = 
     const selected = tab.key === 'premium' ? premiumOpen : active === tab.key;
     return (
       <Pressable key={tab.key} accessibilityRole='tab' accessibilityLabel={tab.label} accessibilityState={{ selected }} style={styles.tab} onPress={tab.onPress} hitSlop={4}>
-        <VIcon name={tab.icon} size={20} color={selected ? vela.accent : idle} strokeWidth={selected ? 2.3 : 1.9} />
-        <Text style={[styles.label, { color: selected ? vela.accent : idle }, selected && styles.labelOn]}>{tab.label}</Text>
+        {/* Icon-only tabs: a soft accent pill carries the active state (no labels). */}
+        <View style={[styles.iconHolder, selected && styles.iconHolderOn]}>
+          <VIcon name={tab.icon} size={22} color={selected ? vela.accent : idle} strokeWidth={selected ? 2.3 : 1.9} />
+        </View>
       </Pressable>
     );
   };
@@ -120,10 +122,15 @@ const styles = StyleSheet.create({
     height: 56,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
   },
-  label: { fontFamily: font.medium, fontSize: 9.5 },
-  labelOn: { fontFamily: font.bold },
+  iconHolder: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconHolderOn: { backgroundColor: vela.accentSoft },
   fab: {
     position: 'absolute',
     right: 12,

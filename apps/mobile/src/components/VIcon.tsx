@@ -92,6 +92,10 @@ const ICONS = {
   navHome: { paths: ['M4 11l8-7 8 7M6 10v9h12v-9'], sw: 2 },
   search: { circles: [[11, 11, 7]], paths: ['M20 20l-4-4'], sw: 2.2 },
   templates: { paths: ['M4 8l4 4 4-7 4 7 4-4-2 11H6z'], sw: 2 },
+  // Template/layout: framed card with a header row and a split body — reads as
+  // "layouts" at a glance (the old crown-ish `templates` glyph collides with
+  // `crown` in icon-only contexts).
+  layout: { rects: [[3.5, 4, 17, 16, 3]], paths: ['M3.5 9.5h17M10.5 9.5V20'], sw: 1.9 },
   profile: { circles: [[12, 9, 3.2]], paths: ['M5 20a7 7 0 0114 0'], sw: 2 },
   crown: { paths: ['M4 8.5l3.4 3L12 5l4.6 6.5 3.4-3L18.5 19h-13zM6 19h12'], sw: 1.9 },
 

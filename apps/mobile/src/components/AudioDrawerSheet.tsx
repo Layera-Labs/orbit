@@ -795,7 +795,7 @@ const styles = StyleSheet.create({
   sheet: {
     height: "72%",
     backgroundColor: vela.lightCard,
-    paddingHorizontal: 8,
+    paddingHorizontal: 18,
     paddingTop: 12,
     paddingBottom: 18,
     gap: 10,
@@ -1024,7 +1024,6 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: vela.lightBorder,
     paddingTop: 8,
-    paddingHorizontal: 8,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
