@@ -23,14 +23,14 @@ describe('emailSenderFromEnv', () => {
 
 describe('ResendEmailSender', () => {
   it('POSTs the message and throws on a non-2xx response', async () => {
-    const ok = vi.fn(async () => new Response('{}', { status: 200 }));
+    const ok = vi.fn(async (_url: string, _init: RequestInit) => new Response('{}', { status: 200 }));
     await new ResendEmailSender('key', 'Orbit <no-reply@x>', ok as unknown as typeof fetch).send({
       to: 'a@b.com',
       subject: 'Hi',
       text: 'body',
     });
     expect(ok).toHaveBeenCalledOnce();
-    const [url, init] = ok.mock.calls[0] as [string, RequestInit];
+    const [url, init] = ok.mock.calls[0];
     expect(url).toContain('api.resend.com');
     expect((init.headers as Record<string, string>).authorization).toBe('Bearer key');
 
