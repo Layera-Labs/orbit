@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { font, vela } from "../constants";
 import { OrbitMark } from "./OrbitMark";
@@ -16,12 +17,16 @@ export function AppHeader({
   dark = false,
   leading,
   actions = [],
+  trailing,
 }: {
   title?: string;
   brand?: boolean;
   dark?: boolean;
   leading?: HeaderAction;
   actions?: HeaderAction[];
+  /** Custom trailing content (e.g. a credit pill) rendered after `actions`,
+   *  for the one-off cases a plain icon button can't express. */
+  trailing?: ReactNode;
 }) {
   const ink = dark ? vela.textLight : vela.ink;
   return (
@@ -42,6 +47,7 @@ export function AppHeader({
           {actions.map((action) => (
             <HeaderButton key={action.label} action={action} dark={dark} />
           ))}
+          {trailing}
         </View>
       </View>
     </View>

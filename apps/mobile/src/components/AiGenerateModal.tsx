@@ -10,6 +10,7 @@ import { useVideoPlayer, VideoView } from 'expo-video';
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import * as ImagePicker from 'expo-image-picker';
 import { font, mono, vela } from '../constants';
+import { AppHeader } from './AppHeader';
 import { VIcon } from './VIcon';
 import { useEditor } from '../store/editorStore';
 import { useAuth } from '../store/authStore';
@@ -200,17 +201,17 @@ export function AiGenerateModal() {
   return (
     <Modal visible animationType="slide" onRequestClose={close} presentationStyle="fullScreen">
       <View style={s.root}>
-        <View style={s.header}>
-          <Pressable onPress={close} hitSlop={12} style={s.round}>
-            <VIcon name="close" size={22} color={vela.textLight} strokeWidth={2.2} />
-          </Pressable>
-          <Text style={s.title}>AI Generate</Text>
-          <Pressable onPress={() => setPanel('buycredits')} style={s.creditPill} hitSlop={8}>
-            <VIcon name="bolt" size={13} color={vela.accent} strokeWidth={2.2} />
-            <Text style={s.creditText}>{credits == null ? '—' : credits}</Text>
-            <VIcon name="plus" size={12} color={vela.accent} strokeWidth={2.6} />
-          </Pressable>
-        </View>
+        <AppHeader
+          title="AI Generate"
+          leading={{ icon: 'close', label: 'Close', onPress: close }}
+          trailing={
+            <Pressable onPress={() => setPanel('buycredits')} style={s.creditPill} hitSlop={8}>
+              <VIcon name="bolt" size={13} color={vela.accent} strokeWidth={2.2} />
+              <Text style={s.creditText}>{credits == null ? '—' : credits}</Text>
+              <VIcon name="plus" size={12} color={vela.accent} strokeWidth={2.6} />
+            </Pressable>
+          }
+        />
 
         {result ? (
           <View style={s.body}>
@@ -234,7 +235,7 @@ export function AiGenerateModal() {
                 <Text style={s.btnPrimaryText}>Insert into timeline</Text>
               </Pressable>
               <Pressable onPress={tryAgain} disabled={inserting} hitSlop={10} style={s.retry}>
-                <VIcon name="redo" size={16} color={vela.textLight2} strokeWidth={2} />
+                <VIcon name="redo" size={16} color={vela.ink3} strokeWidth={2} />
                 <Text style={s.retryText}>Try again</Text>
               </Pressable>
             </View>
@@ -254,7 +255,7 @@ export function AiGenerateModal() {
               value={prompt}
               onChangeText={setPrompt}
               placeholder={mode === 'image' ? 'Describe the image…' : usingPhoto ? 'Describe the motion…' : 'Describe the video…'}
-              placeholderTextColor={vela.muted3}
+              placeholderTextColor={vela.lightMuted2}
               multiline
               autoFocus
             />
@@ -263,9 +264,9 @@ export function AiGenerateModal() {
               <>
                 <View style={s.optRow}>
                   <Text style={s.optLabel}>Source</Text>
-                  <View style={s.seg}>
+                  <View style={s.segCompact}>
                     {(['text', 'photo'] as VideoSource[]).map((sv) => (
-                      <Pressable key={sv} onPress={() => setSource(sv)} style={[s.segItem, source === sv && s.segItemOn]}>
+                      <Pressable key={sv} onPress={() => setSource(sv)} style={[s.segCompactItem, source === sv && s.segItemOn]}>
                         <Text style={[s.segText, source === sv && { color: vela.onAccent }]}>{sv === 'text' ? 'Text' : 'Photo'}</Text>
                       </Pressable>
                     ))}
@@ -289,7 +290,7 @@ export function AiGenerateModal() {
                       </>
                     ) : (
                       <View style={s.photoEmpty}>
-                        <VIcon name="image" size={26} color={vela.muted} strokeWidth={1.8} />
+                        <VIcon name="image" size={26} color={vela.lightMuted} strokeWidth={1.8} />
                         <Text style={s.photoEmptyText}>Pick a photo to animate</Text>
                       </View>
                     )}
@@ -297,9 +298,9 @@ export function AiGenerateModal() {
                 ) : null}
                 <View style={s.optRow}>
                   <Text style={s.optLabel}>Duration</Text>
-                  <View style={s.seg}>
+                  <View style={s.segCompact}>
                     {([5, 10] as const).map((d) => (
-                      <Pressable key={d} onPress={() => setDurationSec(d)} style={[s.segItem, durationSec === d && s.segItemOn]}>
+                      <Pressable key={d} onPress={() => setDurationSec(d)} style={[s.segCompactItem, durationSec === d && s.segItemOn]}>
                         <Text style={[s.segText, durationSec === d && { color: vela.onAccent }]}>{d}s</Text>
                       </Pressable>
                     ))}
@@ -328,7 +329,7 @@ export function AiGenerateModal() {
                 <Text style={s.ideasLabel}>Need a starting point</Text>
                 {IDEAS[mode].map((idea) => (
                   <Pressable key={idea} onPress={() => setPrompt(idea)} style={s.idea}>
-                    <VIcon name="fx" size={14} color={vela.muted} strokeWidth={2} />
+                    <VIcon name="fx" size={14} color={vela.lightMuted} strokeWidth={2} />
                     <Text style={s.ideaText} numberOfLines={1}>{idea}</Text>
                   </Pressable>
                 ))}
@@ -342,7 +343,7 @@ export function AiGenerateModal() {
             </Pressable>
             {busy ? (
               <Pressable onPress={cancel} hitSlop={10} style={s.retry}>
-                <VIcon name="close" size={16} color={vela.textLight2} strokeWidth={2.2} />
+                <VIcon name="close" size={16} color={vela.ink3} strokeWidth={2.2} />
                 <Text style={s.retryText}>Cancel</Text>
               </Pressable>
             ) : (
@@ -356,25 +357,31 @@ export function AiGenerateModal() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: vela.editorBg, paddingTop: 54 },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 12 },
-  round: { width: 42, height: 42, borderRadius: 21, backgroundColor: vela.card2, alignItems: 'center', justifyContent: 'center' },
-  title: { color: '#fff', fontFamily: font.extrabold, fontSize: 19 },
+  root: { flex: 1, backgroundColor: vela.homeBg },
   creditPill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, backgroundColor: vela.accentSoft },
   creditText: { color: vela.accent, fontFamily: mono.bold, fontSize: 13 },
 
   body: { flex: 1, paddingHorizontal: 20, paddingBottom: 28, gap: 16 },
 
-  seg: { flexDirection: 'row', backgroundColor: vela.card2, borderRadius: 12, padding: 4, gap: 4 },
+  // Full-width toggle (Image/Video): a direct column child, so it stretches to
+  // the body's width and its two flex:1 items split that evenly.
+  seg: { flexDirection: 'row', backgroundColor: vela.lightSurface, borderRadius: 12, padding: 4, gap: 4 },
   segItem: { flex: 1, height: 40, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
   segItemOn: { backgroundColor: vela.accent },
-  segText: { fontFamily: font.bold, fontSize: 15, color: vela.textLight },
+  segText: { fontFamily: font.bold, fontSize: 15, color: vela.ink2 },
 
-  input: { minHeight: 110, backgroundColor: vela.card2, borderRadius: 14, padding: 16, color: '#fff', fontFamily: font.medium, fontSize: 16, textAlignVertical: 'top' },
+  // Compact toggle (Source/Duration): sits beside a label inside a row, so it
+  // must size to its own content instead of flex:1 — nested flex:1 inside an
+  // unbounded row parent has no definite width to grow into and can render
+  // wider than the available space, pushing the control off the screen edge.
+  segCompact: { flexDirection: 'row', backgroundColor: vela.lightSurface, borderRadius: 12, padding: 4, gap: 4, flexShrink: 1 },
+  segCompactItem: { height: 36, borderRadius: 9, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+
+  input: { minHeight: 110, backgroundColor: vela.lightSurface, borderRadius: 14, padding: 16, color: vela.ink, fontFamily: font.medium, fontSize: 16, textAlignVertical: 'top' },
 
   optRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  optLabel: { color: '#fff', fontFamily: font.semibold, fontSize: 16 },
-  optHint: { color: vela.muted2, fontFamily: font.regular, fontSize: 12.5, marginTop: 2 },
+  optLabel: { color: vela.ink, fontFamily: font.semibold, fontSize: 16 },
+  optHint: { color: vela.lightMuted, fontFamily: font.regular, fontSize: 12.5, marginTop: 2 },
 
   preview: { width: '100%', maxHeight: '78%', alignSelf: 'center', borderRadius: 16, overflow: 'hidden', backgroundColor: '#000' },
   soundTag: { position: 'absolute', left: 10, top: 10, flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999 },
@@ -385,12 +392,12 @@ const s = StyleSheet.create({
   btnPrimary: { backgroundColor: vela.accent },
   btnPrimaryText: { color: vela.onAccent, fontFamily: font.bold, fontSize: 17 },
   retry: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, alignSelf: 'center', paddingVertical: 10, paddingHorizontal: 16 },
-  retryText: { color: vela.textLight2, fontFamily: font.semibold, fontSize: 15 },
+  retryText: { color: vela.ink3, fontFamily: font.semibold, fontSize: 15 },
   generate: { height: 56 },
 
-  photoTile: { height: 128, borderRadius: 14, overflow: 'hidden', backgroundColor: vela.card2 },
+  photoTile: { height: 128, borderRadius: 14, overflow: 'hidden', backgroundColor: vela.lightSurface },
   photoEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  photoEmptyText: { color: vela.muted, fontFamily: font.medium, fontSize: 14 },
+  photoEmptyText: { color: vela.lightMuted, fontFamily: font.medium, fontSize: 14 },
   photoOverlay: { position: 'absolute', left: 0, right: 0, bottom: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, paddingVertical: 9, backgroundColor: 'rgba(0,0,0,0.5)' },
   photoOverlayText: { color: '#fff', fontFamily: font.semibold, fontSize: 13.5 },
 
@@ -398,9 +405,9 @@ const s = StyleSheet.create({
   getCreditsText: { color: vela.onAccent, fontFamily: font.bold, fontSize: 15.5 },
 
   ideas: { gap: 8 },
-  ideasLabel: { color: vela.muted2, fontFamily: font.semibold, fontSize: 12.5, marginBottom: 2, letterSpacing: 0.2 },
-  idea: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: vela.card2, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 14 },
-  ideaText: { flex: 1, color: vela.textLight2, fontFamily: font.medium, fontSize: 14.5 },
-  footNote: { color: vela.muted2, fontFamily: font.medium, fontSize: 12.5, textAlign: 'center' },
+  ideasLabel: { color: vela.lightMuted, fontFamily: font.semibold, fontSize: 12.5, marginBottom: 2, letterSpacing: 0.2 },
+  idea: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: vela.lightSurface, borderRadius: 12, paddingVertical: 13, paddingHorizontal: 14 },
+  ideaText: { flex: 1, color: vela.ink3, fontFamily: font.medium, fontSize: 14.5 },
+  footNote: { color: vela.lightMuted, fontFamily: font.medium, fontSize: 12.5, textAlign: 'center' },
   err: { color: vela.danger, fontFamily: font.medium, fontSize: 13.5 },
 });

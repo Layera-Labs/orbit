@@ -58,7 +58,6 @@ export function AiStudioScreen() {
     <View style={styles.root}>
       <AppHeader
         title='AI Studio'
-        dark
         actions={[
           ...(authed
             ? [
@@ -98,7 +97,7 @@ export function AiStudioScreen() {
             <View style={styles.capabilities}>
               {capabilities.map((item) => (
                 <View key={item.label} style={styles.capability}>
-                  <VIcon name={item.icon} size={18} color={vela.textLight2} />
+                  <VIcon name={item.icon} size={18} color={vela.ink3} />
                   <Text style={styles.capabilityText}>{item.label}</Text>
                 </View>
               ))}
@@ -109,7 +108,7 @@ export function AiStudioScreen() {
         )}
       </ScrollView>
 
-      <BottomNav dark active='ai' onHome={() => go('projects')} onTemplates={() => go('discover')} onCreate={() => setCreateOpen(true)} onAi={() => {}} />
+      <BottomNav active='ai' onHome={() => go('projects')} onTemplates={() => go('discover')} onCreate={() => setCreateOpen(true)} onAi={() => {}} />
       {authOpen ? <AuthSheet onClose={() => setAuthOpen(false)} onAuthed={() => setAuthOpen(false)} /> : null}
       <CreateSheet
         visible={createOpen}
@@ -164,7 +163,7 @@ function SignedInStudio({ email, credits, onImage, onVideo, onPhotoVideo, onVoic
           {email ? <Text style={styles.signedEmail}>{email}</Text> : null}
         </View>
         <View style={styles.creditPill}>
-          <VIcon name='bolt' size={14} color={vela.accent2} />
+          <VIcon name='bolt' size={14} color={vela.accent} />
           <Text style={styles.creditText}>{credits ?? '—'}</Text>
         </View>
       </View>
@@ -172,7 +171,7 @@ function SignedInStudio({ email, credits, onImage, onVideo, onPhotoVideo, onVoic
         {actions.map((action) => (
           <Pressable key={action.label} style={styles.toolCard} onPress={action.onPress}>
             <View style={styles.toolIcon}>
-              <VIcon name={action.icon} size={26} color={vela.accent2} />
+              <VIcon name={action.icon} size={26} color={vela.accent} />
             </View>
             <Text style={styles.toolTitle}>{action.label}</Text>
             <Text style={styles.toolDetail}>{action.detail}</Text>
@@ -180,16 +179,16 @@ function SignedInStudio({ email, credits, onImage, onVideo, onPhotoVideo, onVoic
         ))}
       </View>
       <Pressable style={styles.history} onPress={onHistory}>
-        <VIcon name='templates' size={20} color={vela.textLight} />
+        <VIcon name='templates' size={20} color={vela.ink2} />
         <Text style={styles.historyText}>Generation history</Text>
-        <VIcon name='chevronRight' size={17} color={vela.muted} />
+        <VIcon name='chevronRight' size={17} color={vela.lightMuted} />
       </Pressable>
     </>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: vela.editorBg },
+  root: { flex: 1, backgroundColor: vela.homeBg },
   content: { paddingHorizontal: 22, paddingTop: 24, paddingBottom: 118 },
   heroMark: { alignItems: 'center' },
   sparkHalo: {
@@ -198,17 +197,17 @@ const styles = StyleSheet.create({
     borderRadius: 52,
     alignItems: 'center',
     justifyContent: 'center',
-    boxShadow: '0 0 34px rgba(147,63,242,0.34)',
+    boxShadow: '0 0 34px rgba(91,75,255,0.24)',
   },
   intro: { alignItems: 'center', marginTop: 22 },
   title: {
-    color: '#fff',
+    color: vela.ink,
     fontFamily: font.extrabold,
     fontSize: 22,
     textAlign: 'center',
   },
   subtitle: {
-    color: vela.muted,
+    color: vela.lightMuted,
     fontFamily: font.medium,
     fontSize: 14,
     lineHeight: 20,
@@ -219,12 +218,12 @@ const styles = StyleSheet.create({
   capabilities: { gap: 14, marginTop: 28, marginBottom: 24 },
   capability: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   capabilityText: {
-    color: vela.textLight,
+    color: vela.ink2,
     fontFamily: font.medium,
     fontSize: 14.5,
   },
   optional: {
-    color: vela.muted2,
+    color: vela.lightMuted2,
     fontFamily: font.medium,
     fontSize: 11.5,
     lineHeight: 16,
@@ -238,19 +237,19 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   signedEyebrow: {
-    color: vela.accent2,
+    color: vela.accent,
     fontFamily: font.bold,
     fontSize: 10.5,
     letterSpacing: 1.2,
   },
   signedTitle: {
-    color: '#fff',
+    color: vela.ink,
     fontFamily: font.extrabold,
     fontSize: 25,
     marginTop: 4,
   },
   signedEmail: {
-    color: vela.muted,
+    color: vela.lightMuted,
     fontFamily: font.medium,
     fontSize: 12,
     marginTop: 3,
@@ -259,12 +258,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(147,63,242,0.14)',
+    backgroundColor: vela.accentSoft,
     borderRadius: 18,
     paddingHorizontal: 12,
     paddingVertical: 8,
   },
-  creditText: { color: '#fff', fontFamily: font.bold, fontSize: 13 },
+  creditText: { color: vela.accent, fontFamily: font.bold, fontSize: 13 },
   toolGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -275,26 +274,26 @@ const styles = StyleSheet.create({
   toolCard: {
     width: '48%',
     minHeight: 142,
-    backgroundColor: vela.card,
+    backgroundColor: vela.lightCard,
     borderRadius: 18,
     borderCurve: 'continuous',
     padding: 15,
     justifyContent: 'flex-end',
     borderWidth: 1,
-    borderColor: vela.divider,
+    borderColor: vela.lightBorder,
   },
   toolIcon: {
     width: 46,
     height: 46,
     borderRadius: 15,
-    backgroundColor: 'rgba(147,63,242,0.12)',
+    backgroundColor: vela.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 14,
   },
-  toolTitle: { color: '#fff', fontFamily: font.bold, fontSize: 14 },
+  toolTitle: { color: vela.ink, fontFamily: font.bold, fontSize: 14 },
   toolDetail: {
-    color: vela.muted,
+    color: vela.lightMuted,
     fontFamily: font.medium,
     fontSize: 11.5,
     marginTop: 3,
@@ -303,15 +302,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: vela.card,
+    backgroundColor: vela.lightCard,
     borderRadius: 15,
     borderCurve: 'continuous',
     padding: 16,
     marginTop: 14,
+    borderWidth: 1,
+    borderColor: vela.lightBorder,
   },
   historyText: {
     flex: 1,
-    color: vela.textLight,
+    color: vela.ink2,
     fontFamily: font.semibold,
     fontSize: 14,
   },
