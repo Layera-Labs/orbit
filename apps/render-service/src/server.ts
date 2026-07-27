@@ -30,7 +30,14 @@ import express, { type Express, type Request, type Response } from "express";
 import multer from "multer";
 import { spawn } from "node:child_process";
 import { mkdir, mkdirSync } from "node:fs";
-import { mkdir as mkdirAsync, readFile, writeFile } from "node:fs/promises";
+import {
+  mkdir as mkdirAsync,
+  readFile,
+  readdir,
+  rm as rmAsync,
+  stat as statAsync,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
 import {
@@ -57,6 +64,18 @@ import { collectClientSrcs, isClientSrc, makeResolveSrc } from "./resolve.js";
 import { PgLedgerStore, PgUserStore, makePgPool } from "./pg-store.js";
 import { InMemoryUserStore } from "./user-store.js";
 import { emailSenderFromEnv } from "./email.js";
+
+/** Per-file upload cap, and the total media-store budget before eviction. */
+const MAX_UPLOAD_BYTES = Number(
+  process.env.ORBIT_MAX_UPLOAD_BYTES ?? 500 * 1024 * 1024,
+);
+const MAX_MEDIA_BYTES = Number(
+  process.env.ORBIT_MAX_MEDIA_BYTES ?? 5 * 1024 * 1024 * 1024,
+);
+/** Requests per IP per window for the two unauthenticated, expensive endpoints. */
+const RATE_WINDOW_MS = Number(process.env.ORBIT_RATE_WINDOW_MS ?? 60_000);
+const UPLOAD_RATE_LIMIT = Number(process.env.ORBIT_UPLOAD_RATE_LIMIT ?? 60);
+const RENDER_RATE_LIMIT = Number(process.env.ORBIT_RENDER_RATE_LIMIT ?? 10);
 
 export function createServer(): Express {
   const app = express();
@@ -119,8 +138,71 @@ export function createServer(): Express {
           `u_${++mediaCounter}_${Date.now()}${extname(file.originalname) || ".bin"}`,
         ),
     }),
-    limits: { fileSize: 500 * 1024 * 1024 }, // 500 MB
+    limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
   });
+
+  /**
+   * Fixed-window rate limit, keyed by client IP.
+   *
+   * `/v1/upload` and `/v1/render` are deliberately unauthenticated — the app is
+   * guest-first, so requiring a token here would break the primary flow. That
+   * leaves no per-account meter, so an anonymous caller could fill the disk or
+   * pin every core with concurrent encodes. This is the floor, not a
+   * replacement for a real queue and quota.
+   */
+  const hits = new Map<string, { n: number; resetAt: number }>();
+  const rateLimit =
+    (limit: number, windowMs: number) =>
+    (req: Request, res: Response, next: () => void) => {
+      const now = Date.now();
+      const key = `${req.path}:${req.ip ?? "unknown"}`;
+      const cur = hits.get(key);
+      if (!cur || now >= cur.resetAt) {
+        hits.set(key, { n: 1, resetAt: now + windowMs });
+        if (hits.size > 10_000)
+          for (const [k, v] of hits) if (now >= v.resetAt) hits.delete(k);
+        return next();
+      }
+      if (cur.n >= limit) {
+        res
+          .status(429)
+          .json({
+            error: "too many requests",
+            retryAfterMs: cur.resetAt - now,
+          });
+        return;
+      }
+      cur.n += 1;
+      next();
+    };
+
+  /** Delete the oldest media once the store exceeds its budget. */
+  async function evictMedia(): Promise<void> {
+    try {
+      const names = await readdir(mediaDir);
+      const entries = await Promise.all(
+        names.map(async (name) => {
+          const path = join(mediaDir, name);
+          try {
+            const s = await statAsync(path);
+            return { path, size: s.size, at: s.mtimeMs };
+          } catch {
+            return null;
+          }
+        }),
+      );
+      const files = entries.filter((e): e is NonNullable<typeof e> => !!e);
+      let total = files.reduce((sum, f) => sum + f.size, 0);
+      if (total <= MAX_MEDIA_BYTES) return;
+      for (const f of files.sort((a, b) => a.at - b.at)) {
+        if (total <= MAX_MEDIA_BYTES) break;
+        await rmAsync(f.path, { force: true });
+        total -= f.size;
+      }
+    } catch {
+      // Eviction is best-effort; never fail an upload because of it.
+    }
+  }
 
   /**
    * HEIF-family stills (iPhone's default photo format) are read by ffmpeg's
@@ -332,6 +414,7 @@ export function createServer(): Express {
 
   app.post(
     "/v1/upload",
+    rateLimit(UPLOAD_RATE_LIMIT, RATE_WINDOW_MS),
     upload.single("file"),
     async (req: Request, res: Response) => {
       const file = (req as Request & { file?: { filename: string } }).file;
@@ -342,7 +425,9 @@ export function createServer(): Express {
         return;
       }
       try {
-        res.json({ id: `upload:${await normalizeStill(file.filename)}` });
+        const id = await normalizeStill(file.filename);
+        void evictMedia(); // keep the store under budget; never blocks the reply
+        res.json({ id: `upload:${id}` });
       } catch (err) {
         console.error("[orbit] upload normalize failed:", err);
         res
@@ -352,42 +437,48 @@ export function createServer(): Express {
     },
   );
 
-  app.post("/v1/render", async (req: Request, res: Response) => {
-    const body = req.body as
-      | { project?: VideoProject; output?: ExportOutput }
-      | undefined;
-    const project = body?.project;
-    if (
-      !project ||
-      (!Array.isArray(project.clips) && !Array.isArray(project.overlays))
-    ) {
-      res
-        .status(400)
-        .json({ error: "request body must be { project: VideoProject }" });
-      return;
-    }
-    const srcs = collectClientSrcs(project);
-    const bad = srcs.find((s) => typeof s !== "string" || !isClientSrc(s));
-    if (bad !== undefined) {
-      res
-        .status(400)
-        .json({ error: `src must be an upload token or http(s) URL: ${bad}` });
-      return;
-    }
-    try {
-      res.json({ url: await render(project, body?.output) });
-    } catch (err) {
-      // Log the full failure server-side — the client only shows a truncated
-      // message, so without this an ffmpeg error is effectively undebuggable.
-      console.error(
-        "[orbit] render failed:",
-        err instanceof Error ? (err.stack ?? err.message) : err,
-      );
-      res
-        .status(500)
-        .json({ error: err instanceof Error ? err.message : String(err) });
-    }
-  });
+  app.post(
+    "/v1/render",
+    rateLimit(RENDER_RATE_LIMIT, RATE_WINDOW_MS),
+    async (req: Request, res: Response) => {
+      const body = req.body as
+        | { project?: VideoProject; output?: ExportOutput }
+        | undefined;
+      const project = body?.project;
+      if (
+        !project ||
+        (!Array.isArray(project.clips) && !Array.isArray(project.overlays))
+      ) {
+        res
+          .status(400)
+          .json({ error: "request body must be { project: VideoProject }" });
+        return;
+      }
+      const srcs = collectClientSrcs(project);
+      const bad = srcs.find((s) => typeof s !== "string" || !isClientSrc(s));
+      if (bad !== undefined) {
+        res
+          .status(400)
+          .json({
+            error: `src must be an upload token or http(s) URL: ${bad}`,
+          });
+        return;
+      }
+      try {
+        res.json({ url: await render(project, body?.output) });
+      } catch (err) {
+        // Log the full failure server-side — the client only shows a truncated
+        // message, so without this an ffmpeg error is effectively undebuggable.
+        console.error(
+          "[orbit] render failed:",
+          err instanceof Error ? (err.stack ?? err.message) : err,
+        );
+        res
+          .status(500)
+          .json({ error: err instanceof Error ? err.message : String(err) });
+      }
+    },
+  );
 
   app.get("/v1/credits", async (req: Request, res: Response) => {
     const account = await accountOf(req, res);
@@ -474,12 +565,10 @@ export function createServer(): Express {
         return;
       }
       if (!mailer) {
-        res
-          .status(503)
-          .json({
-            error: "email is not configured on this server",
-            kind: "email-unconfigured",
-          });
+        res.status(503).json({
+          error: "email is not configured on this server",
+          kind: "email-unconfigured",
+        });
         return;
       }
       try {
@@ -573,24 +662,20 @@ export function createServer(): Express {
     } catch (err) {
       if (ac.signal.aborted) return; // client disconnected — nothing to send
       if (err instanceof InsufficientCreditsError) {
-        res
-          .status(402)
-          .json({
-            error: "insufficient credits",
-            balance: await ledger.balance(account),
-          });
+        res.status(402).json({
+          error: "insufficient credits",
+          balance: await ledger.balance(account),
+        });
         return;
       }
       // The upstream AI provider rejected the request for billing/quota reasons
       // (e.g. free ElevenLabs plan, exhausted Runway credits) — surface a clear
       // 502 rather than a raw provider error. Distinct from our own 402.
       if (err instanceof ProviderError && err.upstreamStatus === 402) {
-        res
-          .status(502)
-          .json({
-            error:
-              "The AI provider rejected the request — its account is out of credits or needs a paid plan.",
-          });
+        res.status(502).json({
+          error:
+            "The AI provider rejected the request — its account is out of credits or needs a paid plan.",
+        });
         return;
       }
       res
@@ -651,24 +736,20 @@ export function createServer(): Express {
     } catch (err) {
       if (ac.signal.aborted) return; // client disconnected — nothing to send
       if (err instanceof InsufficientCreditsError) {
-        res
-          .status(402)
-          .json({
-            error: "insufficient credits",
-            balance: await ledger.balance(account),
-          });
+        res.status(402).json({
+          error: "insufficient credits",
+          balance: await ledger.balance(account),
+        });
         return;
       }
       // The upstream AI provider rejected the request for billing/quota reasons
       // (e.g. free ElevenLabs plan, exhausted Runway credits) — surface a clear
       // 502 rather than a raw provider error. Distinct from our own 402.
       if (err instanceof ProviderError && err.upstreamStatus === 402) {
-        res
-          .status(502)
-          .json({
-            error:
-              "The AI provider rejected the request — its account is out of credits or needs a paid plan.",
-          });
+        res.status(502).json({
+          error:
+            "The AI provider rejected the request — its account is out of credits or needs a paid plan.",
+        });
         return;
       }
       res
@@ -707,24 +788,20 @@ export function createServer(): Express {
     } catch (err) {
       if (ac.signal.aborted) return; // client disconnected — nothing to send
       if (err instanceof InsufficientCreditsError) {
-        res
-          .status(402)
-          .json({
-            error: "insufficient credits",
-            balance: await ledger.balance(account),
-          });
+        res.status(402).json({
+          error: "insufficient credits",
+          balance: await ledger.balance(account),
+        });
         return;
       }
       // The upstream AI provider rejected the request for billing/quota reasons
       // (e.g. free ElevenLabs plan, exhausted Runway credits) — surface a clear
       // 502 rather than a raw provider error. Distinct from our own 402.
       if (err instanceof ProviderError && err.upstreamStatus === 402) {
-        res
-          .status(502)
-          .json({
-            error:
-              "The AI provider rejected the request — its account is out of credits or needs a paid plan.",
-          });
+        res.status(502).json({
+          error:
+            "The AI provider rejected the request — its account is out of credits or needs a paid plan.",
+        });
         return;
       }
       res
