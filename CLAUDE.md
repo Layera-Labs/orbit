@@ -119,7 +119,16 @@ Editor panels are in `EditorSheets.tsx` plus dedicated sheets (`MosaicSheet`,
   (`npx expo start --port 8081`) then
   `curl -s -o /tmp/b.js -w '%{http_code}' 'http://localhost:8081/index.bundle?platform=ios&dev=true'`
   — 200 = the whole app bundles.
-- **Simulator**: bundle id `com.anonymous.orbit-video`; `npx expo run:ios --device <UDID>`.
+- **Simulator**: bundle id `com.galaxy.orbit` (was `com.anonymous.orbit-video` until
+  2026-07-27 — an app installed before that is a *different* app and needs reinstalling);
+  `npx expo run:ios --device <UDID>`.
+- **Server URL** resolves in `constants.ts` as `extra.serverUrl` → Expo's dev `hostUri` →
+  `localhost:8787`. A dev build on a physical device therefore reaches your Mac
+  automatically. Note `hostUri` reflects HOW the dev client connected: launch the
+  simulator against `localhost` and it resolves to `127.0.0.1`, which is correct but does
+  NOT exercise the device path — relaunch against the LAN IP to test that.
+- **Builds**: `eas.json` has `development` (simulator), `development-device`, `preview`
+  (internal, Android APK) and `production` profiles.
   `ios/` is gitignored (CNG; `app.json` is canonical), so **new native modules need a rebuild**.
   Screenshot with `xcrun simctl io <UDID> screenshot out.png` — computer-use screenshots fail
   here (SCContentFilter) and sim taps don't register. To reach a specific screen/sheet, drive

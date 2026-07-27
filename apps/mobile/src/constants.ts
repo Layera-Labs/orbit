@@ -1,4 +1,5 @@
 /** Shared constants — ratio presets and the Orbit design tokens. */
+import Constants from 'expo-constants';
 
 export interface RatioPreset {
   key: string;
@@ -65,10 +66,10 @@ export const mono = {
 } as const;
 
 /**
- * Orbit design tokens. The mobile product uses a violet-to-purple brand over
- * quiet neutral light surfaces and a cool near-black editor. Token names stay
- * stable so the existing editor inherits the redesign without touching its
- * rendering or timeline behavior.
+ * Orbit design tokens. One indigo hue over neutral light surfaces and a neutral
+ * near-black editor — `accent2` is a lighter STEP of the same hue, not a second
+ * colour. Token names stay stable so the editor inherits changes without
+ * touching its rendering or timeline behavior.
  */
 export const vela = {
   // Brand
@@ -136,7 +137,6 @@ export const vela = {
   folderDot: '#6b50ff',
 } as const;
 
-/** Reference gradient used by primary actions and the Orbit mark. */
 /**
  * Brand accent as a TONAL pair (same hue, two values) — not a two-hue gradient.
  * The previous `[accent, accent2]` was indigo→purple, the most recognizable
@@ -173,8 +173,29 @@ export const elev = {
   },
 } as const;
 
-/** Default render-service URL (sim shares the Mac's network on localhost). */
-export const DEFAULT_SERVER = 'http://localhost:8787';
+/**
+ * Default render-service URL.
+ *
+ * The simulator shares the Mac's network, so `localhost` works there — but a
+ * PHYSICAL device cannot reach it, which silently breaks export, AI generation
+ * and TTS on the one build you actually want to test. In a dev build Expo hands
+ * us the dev machine's LAN address as `hostUri` ("192.168.1.5:8081"), so reuse
+ * that host on the service port and a device works first launch with no setup.
+ *
+ * Resolution order: an explicit `extra.serverUrl` (set this for a deployed
+ * service), then the dev host, then localhost. Settings can always override it.
+ */
+function defaultServer(): string {
+  const extra = Constants.expoConfig?.extra as
+    | { serverUrl?: string }
+    | undefined;
+  if (extra?.serverUrl) return extra.serverUrl;
+  const host = Constants.expoConfig?.hostUri?.split(':')[0];
+  if (host) return `http://${host}:8787`;
+  return 'http://localhost:8787';
+}
+
+export const DEFAULT_SERVER = defaultServer();
 
 /**
  * Require login/register before AI generation + credits. Set false only for a
