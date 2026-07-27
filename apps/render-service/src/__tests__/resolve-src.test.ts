@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { isClientSrc, makeResolveSrc } from '../resolve';
+import { collectClientSrcs, isClientSrc, makeResolveSrc } from '../resolve';
 
 describe('isClientSrc', () => {
   it('accepts upload tokens and http(s) URLs', () => {
@@ -14,6 +14,44 @@ describe('isClientSrc', () => {
     expect(isClientSrc('file:///etc/passwd')).toBe(false);
     expect(isClientSrc('../secret.key')).toBe(false);
     expect(isClientSrc('upload:../escape')).toBe(false); // slash/dot-dot not in token charset
+  });
+});
+
+describe('collectClientSrcs', () => {
+  // Regression: /v1/render used to validate only `clips` and `audio`, while the
+  // mobile app renders exclusively through `tracks` — so the guarded fields were
+  // the legacy ones and the live path was wide open.
+  it('collects srcs from multi-track clips', () => {
+    const srcs = collectClientSrcs({
+      clips: [],
+      audio: [],
+      tracks: [
+        { clips: [{ src: 'upload:ok.mp4' }, { src: '/Users/me/private.mov' }] },
+        { clips: [{ src: 'upload:music.mp3' }] },
+      ],
+    });
+    expect(srcs).toContain('/Users/me/private.mov');
+    expect(srcs.filter((s) => !isClientSrc(s as string))).toEqual(['/Users/me/private.mov']);
+  });
+
+  it('collects an image background src', () => {
+    expect(collectClientSrcs({ background: { type: 'image', src: '/etc/passwd' } })).toEqual([
+      '/etc/passwd',
+    ]);
+  });
+
+  it('ignores backgrounds that carry no src', () => {
+    expect(collectClientSrcs({ background: { type: 'color' } })).toEqual([]);
+  });
+
+  it('still collects the legacy clips and audio srcs', () => {
+    expect(
+      collectClientSrcs({ clips: [{ src: 'upload:a.mp4' }], audio: [{ src: 'upload:b.mp3' }] }),
+    ).toEqual(['upload:a.mp4', 'upload:b.mp3']);
+  });
+
+  it('surfaces non-string srcs so the caller can reject them', () => {
+    expect(collectClientSrcs({ tracks: [{ clips: [{ src: 42 }] }] })).toEqual([42]);
   });
 });
 

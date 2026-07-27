@@ -7,7 +7,9 @@
     "build": "turbo run build",
     "dev": "turbo run dev --concurrency=11",
     "lint": "turbo run lint",
-    "test": "turbo run test",
+    "test": "turbo run test && pnpm test:mobile",
+    "//test:mobile": "apps/mobile is outside the pnpm workspace, so turbo never sees it; its pure model tests still need to run in CI.",
+    "test:mobile": "vitest run apps/mobile/src/model/__tests__",
     "typecheck": "turbo run typecheck",
     "clean": "turbo run clean && rm -rf node_modules",
     "format": "prettier --write \"**/*.{ts,tsx,md,json}\""
