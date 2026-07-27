@@ -340,6 +340,9 @@ export interface VisualTrackClip {
   keyframes?: Keyframe[];
   /** Transition INTO this clip from the previous base-track clip (crossfade etc.). */
   transitionIn?: Transition;
+  /** Authoring-only storyboard note. Never rendered — the renderer ignores it;
+   *  it exists so editor annotations survive a save/load round trip. */
+  note?: string;
 }
 
 export interface AudioTrackClip {
