@@ -42,7 +42,13 @@ import {
 } from "../storage/projects";
 import { saveUserTemplate, type StoredTemplate } from "../storage/templates";
 import type { EditorTemplate } from "../templates";
-import { loadSettings, saveSettings, type ViewMode } from "../storage/settings";
+import {
+  DEFAULT_PREFS,
+  loadSettings,
+  saveSettings,
+  type EditorPrefs,
+  type ViewMode,
+} from "../storage/settings";
 import {
   exportProject,
   downloadToPhotos,
@@ -115,12 +121,7 @@ export type EditorPanel =
 
 /** Initial mode/source for the AI generate modal, set by the AI hub before opening it. */
 export type AiIntent = { mode: "image" | "video"; source?: "text" | "photo" };
-export interface EditorPrefs {
-  mainTrack: "Quick" | "Pro";
-  linkage: boolean;
-  snapping: boolean;
-  previewFps: number;
-}
+export type { EditorPrefs };
 export interface Selection {
   trackId: string;
   clipId: string;
@@ -344,7 +345,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   authNext: "aigen",
   aiIntent: null,
   libraryTab: "emoji",
-  prefs: { mainTrack: "Quick", linkage: true, snapping: false, previewFps: 30 },
+  prefs: DEFAULT_PREFS,
   exporting: false,
   exportMsg: "",
 
@@ -356,6 +357,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       serverUrl: s.serverUrl,
       viewMode: s.viewMode,
       rippleDelete: s.rippleDelete,
+      prefs: s.prefs,
     });
   },
   setServerUrl: (url) => {
@@ -365,6 +367,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       serverUrl,
       viewMode: get().viewMode,
       rippleDelete: get().rippleDelete,
+      prefs: get().prefs,
     });
   },
   setViewMode: (viewMode) => {
@@ -373,6 +376,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       serverUrl: get().serverUrl,
       viewMode,
       rippleDelete: get().rippleDelete,
+      prefs: get().prefs,
     });
   },
   setRippleDelete: (rippleDelete) => {
@@ -381,6 +385,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       serverUrl: get().serverUrl,
       viewMode: get().viewMode,
       rippleDelete,
+      prefs: get().prefs,
     });
   },
 
@@ -655,8 +660,16 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   setPanel: (panel) => set({ panel }),
   openLibrary: (libraryTab) => set({ libraryTab, panel: "library" }),
-  setPref: (key, value) =>
-    set((s) => ({ prefs: { ...s.prefs, [key]: value } })),
+  setPref: (key, value) => {
+    const prefs = { ...get().prefs, [key]: value };
+    set({ prefs });
+    saveSettings({
+      serverUrl: get().serverUrl,
+      viewMode: get().viewMode,
+      rippleDelete: get().rippleDelete,
+      prefs,
+    });
+  },
 
   exportToPhotos: async (output) => {
     const { project, serverUrl, exporting } = get();
@@ -1064,9 +1077,19 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (s.trackId === OVERLAY_TRACK)
       get().apply((p) => ops.removeOverlay(p, s.clipId));
     else
-      get().apply((p) =>
-        ops.pruneEmptyTracks(ops.removeClip(p, s.trackId, s.clipId)),
-      );
+      get().apply((p) => {
+        const { linkage, mainTrack } = get().prefs;
+        const isMain = s.trackId === get().mainTrackId();
+        // Track Linkage: elements inside a main clip's span go with it.
+        let next =
+          linkage && isMain
+            ? ops.removeMainClipLinked(p, s.trackId, s.clipId)
+            : ops.removeClip(p, s.trackId, s.clipId);
+        // Quick main-track mode keeps the sequence fluid — no gap left behind.
+        if (isMain && mainTrack === "Quick")
+          next = ops.packVisualTrack(next, s.trackId);
+        return ops.pruneEmptyTracks(next);
+      });
     set({ selected: null });
   },
 
@@ -1117,7 +1140,18 @@ export const useEditor = create<EditorState>((set, get) => ({
       });
       return;
     }
-    get().apply((p) => ops.setClipStart(p, trackId, clipId, start));
+    get().apply((p) => {
+      const { linkage, mainTrack } = get().prefs;
+      const isMain = trackId === get().mainTrackId();
+      let next =
+        linkage && isMain
+          ? ops.moveMainClipLinked(p, trackId, clipId, start)
+          : ops.setClipStart(p, trackId, clipId, start);
+      // In Quick mode a drag reorders the sequence rather than leaving a gap.
+      if (isMain && mainTrack === "Quick")
+        next = ops.packVisualTrack(next, trackId);
+      return next;
+    });
   },
   moveClipToTrack: (fromTrackId, toTrackId, clipId, start) =>
     get().apply((p) =>

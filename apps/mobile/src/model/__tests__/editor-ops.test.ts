@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   addTitleCard,
   addVisualClip,
+  moveMainClipLinked,
+  packVisualTrack,
+  removeMainClipLinked,
   removeTitleCard,
   removeTrackGap,
   reorderVisualClips,
@@ -298,6 +301,100 @@ describe("setClipNote", () => {
     const clips = cleared.tracks?.find((t) => t.id === "main")
       ?.clips as VisualTrackClip[];
     expect(clips[0]?.note).toBeUndefined();
+  });
+});
+
+describe("packVisualTrack (Quick main-track mode)", () => {
+  const main = (p: VideoProject) =>
+    p.tracks?.find((t) => t.id === "main")?.clips ?? [];
+
+  it("closes a gap left in the middle of the sequence", () => {
+    const gapped: VideoProject = {
+      ...project,
+      tracks: [
+        {
+          id: "main",
+          kind: "visual",
+          clips: [
+            { ...(main(project)[0] as VisualTrackClip), start: 4, duration: 2 },
+            { ...(main(project)[1] as VisualTrackClip), start: 11, duration: 2 },
+          ],
+        },
+      ],
+    };
+    expect(main(packVisualTrack(gapped, "main")).map((c) => c.start)).toEqual([4, 6]);
+  });
+
+  it("anchors at the first clip rather than sliding to zero", () => {
+    expect(main(packVisualTrack(project, "main"))[0]?.start).toBe(4);
+  });
+
+  it("bails by identity when the track is already packed", () => {
+    // `apply` pushes history and writes to disk, so a no-op must not allocate.
+    expect(packVisualTrack(project, "main")).toBe(project);
+  });
+
+  it("ignores audio tracks and unknown ids", () => {
+    expect(packVisualTrack(project, "music")).toBe(project);
+    expect(packVisualTrack(project, "nope")).toBe(project);
+  });
+});
+
+describe("track linkage", () => {
+  // The caption at 1..3 sits inside nothing; give the main clip a span that
+  // contains it so linkage has something to carry.
+  const linked: VideoProject = {
+    ...project,
+    overlays: [{ ...project.overlays[0], start: 4.5, end: 5.5 }],
+    tracks: [
+      {
+        id: "main",
+        kind: "visual",
+        clips: [
+          { id: "m1", type: "image", src: "a.jpg", start: 4, duration: 2 },
+          { id: "m2", type: "image", src: "b.jpg", start: 6, duration: 2 },
+        ],
+      },
+      {
+        id: "music",
+        kind: "audio",
+        clips: [
+          { id: "inside", src: "in.mp3", start: 4.2, duration: 1 },
+          { id: "outside", src: "out.mp3", start: 6.5, duration: 1 },
+        ],
+      },
+    ],
+  };
+  const audio = (p: VideoProject) =>
+    p.tracks?.find((t) => t.id === "music")?.clips ?? [];
+
+  it("carries elements inside the clip's span when it moves", () => {
+    const moved = moveMainClipLinked(linked, "main", "m1", 10);
+    expect(moved.overlays[0]?.start).toBe(10.5);
+    expect(moved.overlays[0]?.end).toBe(11.5);
+    expect(audio(moved).find((c) => c.id === "inside")?.start).toBeCloseTo(10.2, 6);
+    // Something outside the span must NOT move.
+    expect(audio(moved).find((c) => c.id === "outside")?.start).toBe(6.5);
+  });
+
+  it("leaves elements straddling the boundary alone", () => {
+    const straddle: VideoProject = {
+      ...linked,
+      overlays: [{ ...linked.overlays[0], start: 5.5, end: 6.5 }],
+    };
+    expect(moveMainClipLinked(straddle, "main", "m1", 10).overlays[0]?.start).toBe(5.5);
+  });
+
+  it("deletes elements inside the span with the clip", () => {
+    const gone = removeMainClipLinked(linked, "main", "m1");
+    expect(gone.tracks?.find((t) => t.id === "main")?.clips.map((c) => c.id)).toEqual(["m2"]);
+    expect(gone.overlays).toEqual([]);
+    expect(audio(gone).map((c) => c.id)).toEqual(["outside"]);
+  });
+
+  it("is a no-op for an unknown clip", () => {
+    expect(moveMainClipLinked(linked, "main", "nope", 9)).toBe(linked);
+    expect(removeMainClipLinked(linked, "main", "nope")).toBe(linked);
   });
 });
 

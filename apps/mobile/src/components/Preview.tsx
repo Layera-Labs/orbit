@@ -35,6 +35,7 @@ import { type SharedValue, useSharedValue } from "react-native-reanimated";
 import { useClipFrame } from "../preview/useClipFrame";
 import { motionTransform, motionStateAt, hasMotion } from "../preview/motion";
 import { blendToSkia } from "../preview/blend";
+import { snapSpan, targetsFor, type Span } from "../preview/snap";
 import { hasKeyframes, sampleKeyframes } from "../preview/keyframes";
 import { ensureFontsLoaded, useFontsVersion } from "../text/fonts";
 import { colorMatrix } from "../filters/registry";
@@ -49,6 +50,8 @@ import type {
 } from "../model/types";
 import { OVERLAY_TRACK, useEditor } from "../store/editorStore";
 
+/** Fallback preview tick (20fps) when no preference is set. The Preview FPS
+ *  preference drives this — see `tickMs` below. */
 const TICK_MS = 50;
 
 // Chroma-key (cutout): mirror of the engine `colorkey` — pixels near `keyColor`
@@ -702,6 +705,10 @@ function OverlayImageLayer({
 
 export function Preview({ width, height }: { width: number; height: number }) {
   const project = useEditor((s) => s.project);
+  // Preview FPS preference drives the transport clock.
+  const previewFps = useEditor((s) => s.prefs.previewFps);
+  const snapping = useEditor((s) => s.prefs.snapping);
+  const tickMs = previewFps > 0 ? Math.round(1000 / previewFps) : TICK_MS;
   const playheadSec = useEditor((s) => s.playheadSec);
   const isPlaying = useEditor((s) => s.isPlaying);
   const setPlayhead = useEditor((s) => s.setPlayhead);
@@ -779,10 +786,10 @@ export function Preview({ width, height }: { width: number; height: number }) {
         return;
       }
       setPlayhead(acc);
-    }, TICK_MS);
+    }, tickMs);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlaying, total, project?.id]);
+  }, [isPlaying, total, project?.id, tickMs]);
 
   const activeOverlays = overlayTracks
     .map((t) => {
@@ -794,6 +801,29 @@ export function Preview({ width, height }: { width: number; height: number }) {
     (o) => playheadSec >= o.start && playheadSec <= o.end,
   );
   const scale = project ? width / project.width : 1;
+
+  // Alignment targets from the OTHER objects on canvas — the dragged one is
+  // excluded so it can't snap to itself. Only consumed when Object Snapping is
+  // on; canvas edges and centre are always live regardless.
+  const snapOthers = useMemo(() => {
+    const x: Span[] = [];
+    const y: Span[] = [];
+    for (const { clip, trackId } of activeOverlays) {
+      if (selected?.trackId === trackId && selected?.clipId === clip.id)
+        continue;
+      const r = clip.rect;
+      if (!r) continue;
+      x.push({ pos: r.x, size: r.w });
+      y.push({ pos: r.y, size: r.h });
+    }
+    for (const o of captions) {
+      if (selected?.trackId === OVERLAY_TRACK && selected?.clipId === o.id)
+        continue;
+      x.push({ pos: o.x, size: 0 });
+      y.push({ pos: o.y, size: 0 });
+    }
+    return { x, y };
+  }, [activeOverlays, captions, selected?.trackId, selected?.clipId]);
 
   // Tap an element in the preview to SELECT it (top→bottom): sticker/PiP overlays
   // by rect, then captions by a y-band, then the base clip; empty area deselects.
@@ -912,16 +942,33 @@ export function Preview({ width, height }: { width: number; height: number }) {
       }
       const text = dragText.current;
       if (text && sel.trackId === OVERLAY_TRACK) {
+        // A caption is anchored by a point, so it snaps as a zero-size span.
+        const tx = Math.max(0, Math.min(1, text.x + e.translationX / width));
+        const ty = Math.max(0, Math.min(1, text.y + e.translationY / height));
         updateSelectedOverlay({
-          x: Math.max(0, Math.min(1, text.x + e.translationX / width)),
-          y: Math.max(0, Math.min(1, text.y + e.translationY / height)),
+          x: snapSpan({ pos: tx, size: 0 }, targetsFor(snapping, snapOthers.x)),
+          y: snapSpan({ pos: ty, size: 0 }, targetsFor(snapping, snapOthers.y)),
         });
         return;
       }
       const r = dragRect.current;
       if (!r) return;
-      const nx = Math.max(0, Math.min(1 - r.w, r.x + e.translationX / width));
-      const ny = Math.max(0, Math.min(1 - r.h, r.y + e.translationY / height));
+      const rawX = Math.max(0, Math.min(1 - r.w, r.x + e.translationX / width));
+      const rawY = Math.max(0, Math.min(1 - r.h, r.y + e.translationY / height));
+      const nx = Math.max(
+        0,
+        Math.min(
+          1 - r.w,
+          snapSpan({ pos: rawX, size: r.w }, targetsFor(snapping, snapOthers.x)),
+        ),
+      );
+      const ny = Math.max(
+        0,
+        Math.min(
+          1 - r.h,
+          snapSpan({ pos: rawY, size: r.h }, targetsFor(snapping, snapOthers.y)),
+        ),
+      );
       setClipRect(sel.trackId, sel.clipId, { ...r, x: nx, y: ny });
     });
   const tap = Gesture.Tap()

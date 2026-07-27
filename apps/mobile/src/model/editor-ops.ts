@@ -344,6 +344,134 @@ export function moveClipToTrack(
   );
 }
 
+/**
+ * Pack a visual track back-to-back in time order, anchored at its first clip.
+ *
+ * This is what the "Quick" main-track mode means by a fluid timeline: the main
+ * sequence never holds a gap, so a delete or a drag closes up behind itself.
+ * "Pro" leaves placement alone.
+ */
+export function packVisualTrack(p: VideoProject, trackId: string): VideoProject {
+  const track = findTrack(p, trackId);
+  if (!track || track.kind !== "visual" || track.clips.length === 0) return p;
+  const sorted = byStart(track.clips);
+  let cursor = sorted[0].start;
+  const packed = sorted.map((c) => {
+    const next = { ...c, start: cursor };
+    cursor += c.duration;
+    return next;
+  });
+  // Bail by identity when nothing actually moved — `apply` pushes history and
+  // writes to disk on every call.
+  if (packed.every((c, i) => c.start === track.clips[i]?.start && c.id === track.clips[i]?.id))
+    return p;
+  return updateClips(p, trackId, () => packed, (cs) => cs);
+}
+
+/** Overlays and non-main clips wholly inside `[start, end)`. */
+function linkedWithin(
+  p: VideoProject,
+  mainTrackId: string,
+  start: number,
+  end: number,
+) {
+  const overlays = p.overlays.filter(
+    (o) => o.start >= start - 0.001 && o.end <= end + 0.001,
+  );
+  const clips: { trackId: string; clipId: string }[] = [];
+  for (const t of p.tracks ?? []) {
+    if (t.id === mainTrackId) continue;
+    for (const c of t.clips) {
+      if (c.start >= start - 0.001 && c.start + c.duration <= end + 0.001)
+        clips.push({ trackId: t.id, clipId: c.id });
+    }
+  }
+  return { overlays, clips };
+}
+
+/**
+ * Move a main-track clip and carry everything sitting inside its span with it.
+ *
+ * This is the Track Linkage preference: "Other elements move or delete with
+ * main clips." Only elements WHOLLY inside the clip's span travel — something
+ * straddling the boundary belongs to both neighbours and moving it would be a
+ * guess.
+ */
+export function moveMainClipLinked(
+  p: VideoProject,
+  trackId: string,
+  clipId: string,
+  newStart: number,
+): VideoProject {
+  const track = findTrack(p, trackId);
+  const clip = track?.clips.find((c) => c.id === clipId);
+  if (!track || !clip) return p;
+  const delta = Math.max(0, newStart) - clip.start;
+  if (delta === 0) return setClipStart(p, trackId, clipId, newStart);
+  const { overlays, clips } = linkedWithin(
+    p,
+    trackId,
+    clip.start,
+    clip.start + clip.duration,
+  );
+  const overlayIds = new Set(overlays.map((o) => o.id));
+  const clipKeys = new Set(clips.map((c) => `${c.trackId}:${c.clipId}`));
+  const shifted: VideoProject = {
+    ...mapTracks(p, (ts) =>
+      ts.map((t) =>
+        t.kind === "visual"
+          ? {
+              ...t,
+              clips: t.clips.map((c) =>
+                clipKeys.has(`${t.id}:${c.id}`)
+                  ? { ...c, start: Math.max(0, c.start + delta) }
+                  : c,
+              ),
+            }
+          : {
+              ...t,
+              clips: t.clips.map((c) =>
+                clipKeys.has(`${t.id}:${c.id}`)
+                  ? { ...c, start: Math.max(0, c.start + delta) }
+                  : c,
+              ),
+            },
+      ),
+    ),
+    overlays: p.overlays.map((o) =>
+      overlayIds.has(o.id)
+        ? {
+            ...o,
+            start: Math.max(0, o.start + delta),
+            end: Math.max(0, o.end + delta),
+          }
+        : o,
+    ),
+  };
+  return setClipStart(shifted, trackId, clipId, newStart);
+}
+
+/** Remove a main-track clip and everything sitting inside its span. */
+export function removeMainClipLinked(
+  p: VideoProject,
+  trackId: string,
+  clipId: string,
+): VideoProject {
+  const track = findTrack(p, trackId);
+  const clip = track?.clips.find((c) => c.id === clipId);
+  if (!track || !clip) return p;
+  const { overlays, clips } = linkedWithin(
+    p,
+    trackId,
+    clip.start,
+    clip.start + clip.duration,
+  );
+  let next = removeClip(p, trackId, clipId);
+  for (const o of overlays) next = removeOverlay(next, o.id);
+  for (const c of clips) next = removeClip(next, c.trackId, c.clipId);
+  return next;
+}
+
 /** Split the clip at absolute time `atSec` into two adjacent clips. */
 export function splitClipAt(
   p: VideoProject,
