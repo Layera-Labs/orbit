@@ -1,8 +1,9 @@
 # Orbit Feature and Readiness Report
 
 **Audit date:** 2026-07-26  
+**Last reconciled:** 2026-07-27 (see §16)  
 **Branch:** `codex/ui-redesign`  
-**Audited commit:** `65516bc` plus the current uncommitted worktree  
+**Audited commit:** `65516bc` plus the then-uncommitted worktree; reconciled at `75bb754`  
 **Scope:** Mobile application, native video editor, AI generation, render service,
 authentication, billing, storage, providers, automated tests, and documentation.
 
@@ -30,9 +31,12 @@ deployment and observability, purchase configuration, social login, cloud projec
 sync, additional transition implementations, and completion of the Story,
 auto-caption/SRT, and editor-preference features.
 
-The current worktree also has a large uncommitted change set, including new Mosaic,
-Magnifier, Story, AI generation, TTS, timeline, ripple-delete, and render changes.
-Those changes are included in this report but are not yet part of commit `65516bc`.
+The change set that was uncommitted when this was audited — Mosaic, Magnifier, Story,
+AI generation, TTS, timeline, ripple-delete, and render changes — has since landed in
+four commits (`ab4be27`, `7a6df32`, `f4fa403`, `75bb754`), along with fixes for a
+number of defects this audit did not find. **§16 records what changed and, more
+importantly, where this report was wrong.** Read it before planning from anything
+below.
 
 ## 2. Status definitions
 
@@ -128,43 +132,43 @@ and Android devices. See the verification section for the exact checks performed
 
 ## 4. Mobile video editor capability matrix
 
-| Area                                 | Status                                                   | Current behavior and remaining limits                                                                                                                                                        |
-| ------------------------------------ | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Native preview                       | **Working**                                              | React Native/Skia composition for visual clips, overlays, captions, filters, motion, masks, mosaic, magnifier, and other effects.                                                            |
-| Multi-track timeline                 | **Working**                                              | Visual, image/video overlay, text, and audio lanes with playhead, zoom, selection, trimming, splitting, layer ordering, and vertically scrollable expanded content.                          |
-| Responsive editor layout             | **Working**                                              | Timeline height is bounded so expanding lanes does not push the preview above the fixed header.                                                                                              |
-| Transport                            | **Working**                                              | Play/pause, previous/next, seek, undo, redo, and fullscreen preview.                                                                                                                         |
-| Media import                         | **Working**                                              | Photos/videos from picker and app library can be inserted into the timeline.                                                                                                                 |
-| Text creation                        | **Working**                                              | Heading, subheading, body, recent styles, and categorized templates add editable captions.                                                                                                   |
-| Text styling                         | **Working**                                              | Text, font, size, color, custom saved colors, stroke/shadow, alignment/format, spacing, opacity, blend, position, mask, and duplication.                                                     |
-| Subtitle styles                      | **Partial**                                              | A Subtitle style/template can be added as ordinary text. There is no finished subtitle track automation workflow.                                                                            |
-| SRT import/export                    | **Not implemented**                                      | No complete SRT file parser/importer or SRT exporter is wired into the mobile UI.                                                                                                            |
-| Automatic captions/transcription     | **Not implemented**                                      | AI Studio advertises “Auto Captions & Transcribe,” but no mobile-to-service transcription endpoint or completed flow exists.                                                                 |
-| Visual filters/adjustments           | **Working**                                              | Filter and FX controls change preview and FFmpeg export configuration.                                                                                                                       |
-| Motion                               | **Working**                                              | Motion presets/parameters are represented in preview and export.                                                                                                                             |
-| Keyframes                            | **Working**                                              | Opacity/position keyframes are editable and sampled by preview/export.                                                                                                                       |
-| Chroma cutout                        | **Working**                                              | Current “Cutout” is chroma-key style removal, not semantic AI background removal.                                                                                                            |
-| Masks                                | **Working, limited shapes**                              | Core mask handling exists. Shape/style breadth is smaller than the external VN references.                                                                                                   |
-| Mosaic                               | **Working in current worktree**                          | Mosaic, triangle, hexagon, and blur styles; shape, position, size, opacity, and strength controls; preview and FFmpeg support.                                                               |
-| Magnifier                            | **Working in current worktree**                          | Magnified region with selectable shape/color and zoom, size, border, opacity, and position controls; preview and FFmpeg support.                                                             |
-| Blend/opacity                        | **Working**                                              | Preview and export carry blending and opacity settings.                                                                                                                                      |
-| Speed and speed curve                | **Working**                                              | Clip playback speed/remap controls are implemented.                                                                                                                                          |
-| Audio volume                         | **Working**                                              | Clip volume and original-audio mute state are supported. The timeline speaker is a direct mute/unmute toggle.                                                                                |
-| Audio volume curve                   | **Working for export; preview needs broader validation** | Curve data and FFmpeg application exist. Live multi-track audio mixing parity has not been proven across all devices.                                                                        |
-| Voice recording                      | **Working, permission required**                         | Native voiceover recording uses Expo Audio and inserts the recording locally.                                                                                                                |
-| PiP/overlays                         | **Working**                                              | Overlay clips can be positioned, resized, reordered, masked, and styled.                                                                                                                     |
-| Split/trim/duplicate                 | **Working**                                              | Implemented for the appropriate selected timeline item.                                                                                                                                      |
-| Normal delete                        | **Working**                                              | Removes the selected clip/overlay without closing the resulting time gap.                                                                                                                    |
-| Ripple delete                        | **Working in current worktree**                          | Removes an item and shifts later items in the same relevant lane. A profile setting can replace normal delete with ripple delete.                                                            |
-| Gap selection/HUD                    | **Working in current worktree**                          | Empty main-track regions can be selected, highlighted, filled, preserved, or deleted; the contextual HUD uses a solid readable background.                                                   |
-| Gap effects                          | **Partial**                                              | Mosaic/Magnifier can target a neighboring visual item from a selected gap. This is useful UI behavior but is not a new independent gap clip type.                                            |
-| Story                                | **Partial prototype**                                    | Lists visual clips, allows jumping to/deleting a clip, and accepts temporary descriptions. Reorder, persistent descriptions, section-title generation, and menu actions are not implemented. |
-| Transitions: None/Cut                | **Working**                                              | No transition/cut behavior is available.                                                                                                                                                     |
-| Transition: Fade                     | **Working**                                              | Preview/export fade support exists.                                                                                                                                                          |
-| Dissolve/Slide/Wipe/Zoom transitions | **Coming soon**                                          | Visible in the transition UI with explicit `soon` state; render implementations are pending.                                                                                                 |
-| Export sheet                         | **Working, server required**                             | Resolution, frame rate, quality, HDR option, audio-only, estimated size, save-to-gallery, and sharing UI.                                                                                    |
-| HDR10 export                         | **Partial / needs device validation**                    | Configuration is passed into the render layer; real HDR color-management and playback compatibility need end-to-end validation on target devices.                                            |
-| Undo/redo                            | **Working per editor session**                           | In-memory command history works while editing. Undo history is not persisted across app restarts.                                                                                            |
+| Area                                 | Status                                                   | Current behavior and remaining limits                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------------------ | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Native preview                       | **Working**                                              | React Native/Skia composition for visual clips, overlays, captions, filters, motion, masks, mosaic, magnifier, and other effects.                                                                                                                                                                                                                                                                                                                                                           |
+| Multi-track timeline                 | **Working**                                              | Visual, image/video overlay, text, and audio lanes with playhead, zoom, selection, trimming, splitting, layer ordering, and vertically scrollable expanded content.                                                                                                                                                                                                                                                                                                                         |
+| Responsive editor layout             | **Working**                                              | Timeline height is bounded so expanding lanes does not push the preview above the fixed header.                                                                                                                                                                                                                                                                                                                                                                                             |
+| Transport                            | **Working**                                              | Play/pause, previous/next, seek, undo, redo, and fullscreen preview.                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Media import                         | **Working**                                              | Photos/videos from picker and app library can be inserted into the timeline.                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Text creation                        | **Working**                                              | Heading, subheading, body, recent styles, and categorized templates add editable captions.                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Text styling                         | **Working**                                              | Text, font, size, color, custom saved colors, stroke/shadow, alignment/format, spacing, opacity, blend, position, mask, and duplication.                                                                                                                                                                                                                                                                                                                                                    |
+| Subtitle styles                      | **Partial**                                              | A Subtitle style/template can be added as ordinary text. There is no finished subtitle track automation workflow.                                                                                                                                                                                                                                                                                                                                                                           |
+| SRT import/export                    | **Not implemented**                                      | No complete SRT file parser/importer or SRT exporter is wired into the mobile UI.                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Automatic captions/transcription     | **Not implemented**                                      | AI Studio advertises “Auto Captions & Transcribe,” but no mobile-to-service transcription endpoint or completed flow exists.                                                                                                                                                                                                                                                                                                                                                                |
+| Visual filters/adjustments           | **Working**                                              | Filter and FX controls change preview and FFmpeg export configuration.                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Motion                               | **Working**                                              | Motion presets/parameters are represented in preview and export.                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Keyframes                            | **Working**                                              | Opacity/position keyframes are editable and sampled by preview/export.                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Chroma cutout                        | **Working**                                              | Current “Cutout” is chroma-key style removal, not semantic AI background removal.                                                                                                                                                                                                                                                                                                                                                                                                           |
+| Masks                                | **Working, limited shapes**                              | Core mask handling exists. Shape/style breadth is smaller than the external VN references.                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Mosaic                               | **Working** (parity fixed `f4fa403`)                     | Mosaic, triangle, hexagon, and blur styles; shape, position, size, opacity, and strength controls. Preview and FFmpeg both existed when audited but **did not match**: the preview blurred all four patterns while ffmpeg pixelated three of them, so censoring a face previewed soft and exported as hard blocks. The preview now pixelates on the same block grid. Note `triangle`/`hexagon` differ from `mosaic` only in block SIZE — all three are square cells; the names overpromise. |
+| Magnifier                            | **Working** (parity fixed `f4fa403`)                     | Magnified region with selectable shape/color and zoom, size, border, opacity, and position controls. The border ring was drawn in the preview and read nowhere in the engine, so it **vanished on export**; it is now stroked in both. The "rounded" region shape also used a 0.35 corner radius in the preview and 0.18 in the export.                                                                                                                                                     |
+| Blend/opacity                        | **Working**                                              | Preview and export carry blending and opacity settings.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Speed and speed curve                | **Working**                                              | Clip playback speed/remap controls are implemented.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Audio volume                         | **Working**                                              | Clip volume and original-audio mute state are supported. The timeline speaker is a direct mute/unmute toggle.                                                                                                                                                                                                                                                                                                                                                                               |
+| Audio volume curve                   | **Working for export; preview needs broader validation** | Curve data and FFmpeg application exist. Live multi-track audio mixing parity has not been proven across all devices.                                                                                                                                                                                                                                                                                                                                                                       |
+| Voice recording                      | **Working, permission required**                         | Native voiceover recording uses Expo Audio and inserts the recording locally.                                                                                                                                                                                                                                                                                                                                                                                                               |
+| PiP/overlays                         | **Working**                                              | Overlay clips can be positioned, resized, reordered, masked, and styled.                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Split/trim/duplicate                 | **Working**                                              | Implemented for the appropriate selected timeline item.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Normal delete                        | **Working**                                              | Removes the selected clip/overlay without closing the resulting time gap.                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Ripple delete                        | **Working** (committed `ab4be27`)                        | Removes an item and shifts later items in the same relevant lane. A profile setting can replace normal delete with ripple delete.                                                                                                                                                                                                                                                                                                                                                           |
+| Gap selection/HUD                    | **Working** (committed `ab4be27`)                        | Empty main-track regions can be selected, highlighted, filled, preserved, or deleted; the contextual HUD uses a solid readable background.                                                                                                                                                                                                                                                                                                                                                  |
+| Gap effects                          | **Partial**                                              | Mosaic/Magnifier can target a neighboring visual item from a selected gap. This is useful UI behavior but is not a new independent gap clip type.                                                                                                                                                                                                                                                                                                                                           |
+| Story                                | **Working** (was Partial prototype; fixed `7a6df32`)     | Lists visual clips, jumps to/deletes a clip, reorders with ↑↓ (`reorderVisualClips`, which repacks the track back to back), persists per-clip notes (authoring-only `note` on `VisualTrackClip`; the renderer ignores it), inserts a real title card that shifts the timeline (`addTitleCard`/`removeTitleCard`), and collapses the section. The header "options" menu had no handler and no specified behaviour, so it was **removed rather than implemented**.                            |
+| Transitions: None/Cut                | **Working**                                              | No transition/cut behavior is available.                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Transition: Fade                     | **Working**                                              | Preview/export fade support exists.                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| Dissolve/Slide/Wipe/Zoom transitions | **Coming soon**                                          | Visible in the transition UI with explicit `soon` state; render implementations are pending.                                                                                                                                                                                                                                                                                                                                                                                                |
+| Export sheet                         | **Working, server required**                             | Resolution, frame rate, quality, HDR option, audio-only, estimated size, save-to-gallery, and sharing UI.                                                                                                                                                                                                                                                                                                                                                                                   |
+| HDR10 export                         | **Partial / needs device validation**                    | Configuration is passed into the render layer; real HDR color-management and playback compatibility need end-to-end validation on target devices.                                                                                                                                                                                                                                                                                                                                           |
+| Undo/redo                            | **Working per editor session**                           | In-memory command history works while editing. Undo history is not persisted across app restarts.                                                                                                                                                                                                                                                                                                                                                                                           |
 
 ### 4.1 Editor controls that are currently UI-only
 
@@ -186,8 +190,12 @@ without changing editor behavior.
 
 - Selected text, audio, and visual items receive their own contextual actions.
 - Delete is consistently presented in white within the editor theme.
-- When Ripple Delete is enabled, it replaces the normal Delete action and remains
-  one-line where space permits.
+- When Ripple Delete is enabled, it replaces the normal Delete action. **This report
+  originally claimed it "remains one-line where space permits"; it did not.** The
+  label was hard-clipped mid-word (`ellipsizeMode="clip"` on a slot too narrow for
+  "Ripple delete"), and the Delete slot carried a `flex: 1.18` override that made the
+  six actions unevenly spaced. Fixed in `75bb754`: equal slots, a compact 42pt row,
+  the label shortened to "Ripple" with the full text kept for screen readers.
 - The floating contextual bar uses the theme-blue solid background.
 - Short bottom action groups center within the screen.
 - Larger tool groups remain horizontally scrollable because fitting every advanced
@@ -246,22 +254,22 @@ renderer, `@orbit/video-gen` providers, `@orbit/auth`, and `@orbit/billing`.
 
 ### 7.1 Implemented endpoints
 
-| Endpoint                   | Status                                       | Function                                                                                                    |
-| -------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `GET /health`              | **Working**                                  | Basic process health response.                                                                              |
-| `POST /v1/upload`          | **Working**                                  | Multipart upload, 500 MB limit, and HEIC/HEIF/AVIF still normalization.                                     |
-| `POST /v1/render`          | **Working**                                  | Validates media sources, resolves uploads/HTTP media, renders with FFmpeg, and returns a served output URL. |
-| `GET /v1/credits`          | **Working**                                  | Authenticated or development anonymous credit balance.                                                      |
-| `POST /v1/auth/register`   | **Working when self-hosted auth is enabled** | Email/password registration.                                                                                |
-| `POST /v1/auth/login`      | **Working when self-hosted auth is enabled** | Email/password login.                                                                                       |
-| `POST /v1/auth/forgot`     | **Working when email is configured**         | Sends reset code/link through Resend.                                                                       |
-| `POST /v1/auth/reset`      | **Working when self-hosted auth is enabled** | Completes password reset.                                                                                   |
-| `POST /v1/generate-image`  | **Working, provider required**               | Metered Runway image generation.                                                                            |
-| `POST /v1/generate-video`  | **Working, provider required**               | Metered Runway text/photo video generation.                                                                 |
-| `POST /v1/tts`             | **Working, provider required**               | Metered ElevenLabs speech generation.                                                                       |
-| `POST /v1/billing/webhook` | **Implemented**                              | RevenueCat event processing and idempotent credit grants.                                                   |
-| `POST /v1/credits/grant`   | **Development only**                         | Available only with `ORBIT_DEV_TOPUP=1`.                                                                    |
-| `GET /files/:name`         | **Working locally**                          | Serves generated and rendered files from process-local temporary storage.                                   |
+| Endpoint                   | Status                                       | Function                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| -------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /health`              | **Working**                                  | Basic process health response.                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `POST /v1/upload`          | **Working**                                  | Multipart upload (single file, cap via `ORBIT_MAX_UPLOAD_BYTES`, default 500 MB), HEIC/HEIF/AVIF still normalization, per-IP rate limit, and oldest-first eviction above `ORBIT_MAX_MEDIA_BYTES` (`f4fa403`).                                                                                                                                                                                                                                                         |
+| `POST /v1/render`          | **Working**                                  | Resolves uploads/HTTP media, renders with FFmpeg, returns a served output URL; per-IP rate limited (`f4fa403`). **This report originally said it "validates media sources" — it did not.** It validated only the legacy `clips`/`audio` fields, never `tracks[].clips[].src` or an image `background.src`, and `tracks` is the only path the mobile app uses. Now validated exhaustively via `collectClientSrcs` (`apps/render-service/src/resolve.ts`), unit tested. |
+| `GET /v1/credits`          | **Working**                                  | Authenticated or development anonymous credit balance.                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `POST /v1/auth/register`   | **Working when self-hosted auth is enabled** | Email/password registration.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `POST /v1/auth/login`      | **Working when self-hosted auth is enabled** | Email/password login.                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `POST /v1/auth/forgot`     | **Working when email is configured**         | Sends reset code/link through Resend.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `POST /v1/auth/reset`      | **Working when self-hosted auth is enabled** | Completes password reset.                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `POST /v1/generate-image`  | **Working, provider required**               | Metered Runway image generation.                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `POST /v1/generate-video`  | **Working, provider required**               | Metered Runway text/photo video generation.                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `POST /v1/tts`             | **Working, provider required**               | Metered ElevenLabs speech generation.                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `POST /v1/billing/webhook` | **Implemented**                              | RevenueCat event processing and idempotent credit grants.                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `POST /v1/credits/grant`   | **Development only**                         | Available only with `ORBIT_DEV_TOPUP=1`.                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `GET /files/:name`         | **Working locally**                          | Serves generated and rendered files from process-local temporary storage.                                                                                                                                                                                                                                                                                                                                                                                             |
 
 ### 7.2 Render engine features
 
@@ -294,18 +302,29 @@ renderer, `@orbit/video-gen` providers, `@orbit/auth`, and `@orbit/billing`.
    operations. There is no Redis/BullMQ/SQS-style queue, job status endpoint,
    retry policy, cancellation persistence, worker isolation, or concurrency
    backpressure.
-3. **Upload and render routes are not authenticated.** AI/credit routes use
-   account authentication when enabled, but `/v1/upload` and `/v1/render` are
-   public. A production public deployment could be abused for storage, bandwidth,
-   and FFmpeg compute.
+3. **Upload and render routes are not authenticated — now a deliberate open
+   decision, not an oversight.** The app is guest-first ("100% Free · No Login
+   Required" on onboarding), so requiring a token on `/v1/upload` and `/v1/render`
+   would break the primary flow. Per-IP rate limiting shipped in `f4fa403` as the
+   floor; the real answer is a job queue plus a per-account or per-device quota, and
+   that product decision is still open.
 4. **RevenueCat webhook secret is optional in code.** When
    `REVENUECAT_WEBHOOK_AUTH` is absent, the route accepts requests without the
    shared secret. Production startup should fail or disable the route unless the
    secret is set.
-5. **No API rate limiting or quotas for rendering/upload.**
+5. ~~**No API rate limiting or quotas for rendering/upload.**~~ **Rate limiting done**
+   in `f4fa403` — per-IP fixed window, tunable via `ORBIT_RATE_WINDOW_MS`,
+   `ORBIT_UPLOAD_RATE_LIMIT`, `ORBIT_RENDER_RATE_LIMIT`. Per-account quotas are still
+   missing.
 6. **CORS is unrestricted.**
 7. **No deployed production definition was found.** There is no complete
    container/worker/object-store/queue deployment topology in this app directory.
+8. ~~**FFmpeg and FFprobe had no timeout and were never killed.**~~ **Fixed** in
+   `f4fa403`. This audit did not identify it: `isClientSrc` deliberately permits
+   `http(s)` srcs, so a src pointing at a stalling or endless stream hung the encode
+   forever _and_ leaked its temp directory (the `finally { rm(dir) }` never ran) —
+   an unauthenticated denial-of-service primitive. `packages/video/src/render.ts` now
+   enforces a hard cap with SIGTERM then SIGKILL, configurable per render.
 
 #### Important operational work
 
@@ -352,7 +371,6 @@ renderer, `@orbit/video-gen` providers, `@orbit/auth`, and `@orbit/billing`.
 
 ### Present but incomplete
 
-- Story editor persistence, reordering, section title generation, and action menu.
 - SRT import/export.
 - Automatic captions and transcription.
 - Full live multi-track audio-preview parity.
@@ -468,14 +486,25 @@ renderer, `@orbit/video-gen` providers, `@orbit/auth`, and `@orbit/billing`.
 
 The following commands completed successfully:
 
-| Check                                           | Result                                                                                 |
-| ----------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `pnpm --filter @orbit/video test`               | **81 tests passed** across 7 files.                                                    |
-| `pnpm --filter @orbit/video-gen test`           | **26 tests passed** across 4 files.                                                    |
-| `pnpm --filter @orbit/render-service test`      | **10 tests passed**; 3 Postgres tests skipped because `TEST_DATABASE_URL` was not set. |
-| `pnpm --filter @orbit/render-service typecheck` | **Passed**.                                                                            |
-| `pnpm --dir apps/mobile exec tsc --noEmit`      | **Passed**.                                                                            |
-| Mobile editor-operation test                    | **6 tests passed**, including ripple-delete behavior.                                  |
+| Check                                           | Result                                                                                                                      |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm --filter @orbit/video test`               | **83 tests passed** (was 81; +2 for local-FX alpha and NaN guards).                                                         |
+| `pnpm --filter @orbit/video-gen test`           | **26 tests passed** across 4 files.                                                                                         |
+| `pnpm --filter @orbit/render-service test`      | **15 tests passed** (was 10; +5 for `collectClientSrcs`); 3 Postgres tests skipped because `TEST_DATABASE_URL` was not set. |
+| `pnpm --filter @orbit/render-service typecheck` | **Passed**.                                                                                                                 |
+| `pnpm --dir apps/mobile exec tsc --noEmit`      | **Passed**.                                                                                                                 |
+| Mobile editor-operation test                    | **24 tests passed** (was 6), covering split-with-speed, ripple insert, track ordering, reorder, the title card, and notes.  |
+| Metro iOS bundle                                | **HTTP 200**, ~13.9 MB — the whole app resolves and compiles.                                                               |
+
+**CI gap closed:** these mobile model tests previously ran _nowhere_. `apps/mobile` is
+excluded from the pnpm workspace, so `turbo run test` never saw them. Root `pnpm test`
+now runs them via a `test:mobile` script.
+
+**Simulator verification** (iOS 26.3, iPhone 17 Pro, dev build): the Story panel
+renders with working reorder buttons correctly disabled at both ends; the title card
+appears in the preview with the sequence shifted and project duration 9s → 11s; the
+mosaic renders as nearest-neighbour blocks on the expected grid and the magnifier ring
+draws; the selection action bar shows six equal slots with no clipped labels.
 
 Not tested live during this audit:
 
@@ -500,18 +529,27 @@ Several existing documents describe an older state of the project:
 - `packages/video-ai/README.md` describes the template-agent package correctly,
   but that should not be interpreted as the current mobile AI generation flow.
 
-This report should be treated as the current status baseline. The stale documents
-should be updated after the current worktree is committed so public instructions
-match the shipped architecture.
+This report should be treated as the current status baseline, **read together with
+§16**. The worktree has now been committed, so the trigger for updating those stale
+documents has fired; they remain unchanged as of this reconciliation.
+
+`CLAUDE.md` was added at the repo root on 2026-07-27 and now carries the working
+project context (architecture, the npm-vs-pnpm split for `apps/mobile`, the
+dual-render rule, design-system conventions, and verification commands).
 
 ## 14. Recommended completion order
 
 ### P0 — make the current product safe and deployable
 
-1. Commit the current UI/editor/render work in logical, reviewable commits.
+1. ~~Commit the current UI/editor/render work in logical, reviewable commits.~~
+   **Done** — `ab4be27`, `7a6df32`, `f4fa403`, `75bb754`.
 2. Add durable object storage for uploads, generated assets, and render outputs.
 3. Add an asynchronous job/worker architecture with progress and cancellation.
-4. Authenticate and rate-limit upload/render endpoints.
+4. ~~Authenticate and~~ rate-limit upload/render endpoints. **Rate limiting done**
+   (`f4fa403`). Authentication is now an open product decision rather than a task:
+   the app is guest-first, so a token requirement breaks the primary flow. Decide
+   between per-device quotas, anonymous accounts, or gating only expensive renders —
+   see §7.3 #3.
 5. Make the RevenueCat webhook secret mandatory.
 6. Deploy a staging render service with Postgres, FFmpeg workers, HTTPS, logs,
    metrics, and error reporting.
@@ -522,7 +560,7 @@ match the shipped architecture.
 1. Configure and test RevenueCat on both stores.
 2. Implement Apple and Google login, or remove their buttons until ready.
 3. Finish automatic captions/transcription and SRT import/export.
-4. Finish Story persistence and reorder behavior.
+4. ~~Finish Story persistence and reorder behavior.~~ **Done** — `7a6df32`.
 5. Implement or hide Quick/Pro, Linkage, Snapping, and Preview FPS.
 6. Implement the four visible coming-soon transitions.
 7. Replace placeholder Help & Support with real documentation/contact routes.
@@ -544,3 +582,66 @@ rather than mock screens. The remaining risk is mostly outside the visible UI:
 production infrastructure, durable storage, background jobs, security controls,
 billing activation, provider configuration, cloud sync, and a small set of
 advertised or partially designed advanced features.
+
+## 16. Post-audit corrections (2026-07-27)
+
+### 16.1 Fixed since the audit
+
+| Commit    | Change                                                                                                                                                                                                                        |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ab4be27` | The audited worktree, plus fixes for the security and correctness defects in §16.2.                                                                                                                                           |
+| `7a6df32` | Story: every control made real (reorder, persistent notes, title card, collapse); the no-op options button removed.                                                                                                           |
+| `f4fa403` | Preview/export parity (mosaic pixelation, magnifier ring, region alpha, corner radius); render-service timeouts, rate limits, eviction, numeric guards; track sort order, ripple-insert on duplicate, memoized preview paths. |
+| `75bb754` | Selection action bar: compact, six equal slots, no clipped label.                                                                                                                                                             |
+
+### 16.2 Defects this audit did not find
+
+Found by a subsequent three-way code review of the same change set. All are fixed;
+they are recorded because of **what they say about the method**, not to relitigate them.
+
+1. **`/v1/render` arbitrary-file-read.** Source validation covered only the legacy
+   `clips`/`audio` arrays. `tracks[].clips[].src` and an image `background.src` were
+   unchecked, and `tracks` is the only path the mobile app renders through — so the
+   guarded fields were the dead ones. An unauthenticated request could have ffmpeg
+   read any file the process could reach and serve the transcode back from `/files`.
+   This report listed the endpoint as "Working — validates media sources".
+2. **ElevenLabs voice-id injection.** `req.voice` was interpolated unvalidated into
+   the request URL path, so a traversal-style value could aim the operator's API key
+   at other vendor endpoints and return the response to the caller.
+3. **`splitClipAt` corrupted every non-1× clip.** It wrote `trimIn + local`, mixing a
+   timeline offset into a source offset; both preview and export map timeline→source
+   as `trimIn + elapsed * speed`. Splitting a 2× clip replayed several seconds of
+   footage at the cut.
+4. **Inverted caption masks rendered opposite in preview vs export.** The preview
+   skipped masking entirely when `invert` was set; the export honoured it.
+5. **Mosaic/Magnifier sheets mutated the clip on open with no cancel path.** Opening
+   a sheet to look at it and dismissing it permanently applied the effect — and
+   because the effect target falls back to the clip under the playhead, potentially
+   to a clip the user never selected.
+
+**The lesson.** A static audit reports what code _claims_ to do. Every item above sat
+behind a feature this report marked **Working**, and three of them (1, 2, 4) are cases
+where two components that both existed did not agree with each other — precisely what
+reading each in isolation cannot catch. Treat §7.3's infrastructure findings as
+reliable, since structural absences are visible from the source. Treat the per-feature
+**Working** labels in §4 and §7.1 as _unverified_ unless a test or a simulator run is
+cited for them in §12.
+
+### 16.3 Known-open, not covered elsewhere in this report
+
+- **Per-pointer-event project writes.** Effect and PiP drags call `apply()` on every
+  pointer event, and each call serializes the whole project to disk on the JS thread.
+  Undo history coalesces at 450 ms; the disk write does not.
+- **`normalizeProjectStills` always returns `tracks`** (defaulting to `[]`), so
+  `project.tracks !== undefined` is always true server-side and the legacy
+  concat/xfade path in `buildFFmpegArgs` is unreachable. Latent for the mobile app,
+  which always sends `tracks`, but a silent wrong-output bug for any other client.
+- **`tsconfig.tsbuildinfo` files are tracked in git** and not ignored. They churn on
+  every build and had to be held out of three commits by hand.
+- **Mosaic `triangle` and `hexagon` are square blocks** differing only in cell size;
+  real polygonal cells have no ffmpeg equivalent. The preview now matches the export,
+  but the names still overpromise.
+- **Open design question:** `orbitGradient` is `#5b4bff → #933ff2` (indigo→purple),
+  which the project's own design guidance names as the most recognisable machine-made
+  colour move. Visible on the onboarding CTA and the selection action bar. May be
+  deliberate; it has not been confirmed.
