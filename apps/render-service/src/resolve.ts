@@ -13,6 +13,27 @@ export function isClientSrc(src: string): boolean {
   return /^upload:[A-Za-z0-9._-]+$/.test(src) || /^https?:\/\//.test(src);
 }
 
+/**
+ * Every client-supplied `src` in a project, from EVERY src-bearing field.
+ *
+ * This has to stay exhaustive: `makeResolveSrc` passes non-token srcs straight
+ * through to ffmpeg's `-i`, so any field missed here is an arbitrary-file-read
+ * hole. `tracks` in particular is the path the mobile app renders through.
+ */
+export function collectClientSrcs(project: {
+  clips?: { src?: unknown }[];
+  audio?: { src?: unknown }[];
+  tracks?: { clips?: { src?: unknown }[] }[];
+  background?: { type?: string; src?: unknown };
+}): unknown[] {
+  return [
+    ...(project.clips ?? []).map((c) => c?.src),
+    ...(project.audio ?? []).map((a) => a?.src),
+    ...(project.tracks ?? []).flatMap((t) => (t?.clips ?? []).map((c) => c?.src)),
+    ...(project.background?.type === "image" ? [project.background.src] : []),
+  ];
+}
+
 /** Map an `upload:<id>` token to a path inside `mediaDir`; pass other srcs
  *  through; throw if a token would escape the media dir. */
 export function makeResolveSrc(mediaDir: string): (src: string) => string {

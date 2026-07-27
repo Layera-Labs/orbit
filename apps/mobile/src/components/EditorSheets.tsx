@@ -20,6 +20,7 @@ import {
   View,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
+import { StatusBar } from "expo-status-bar";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { font, mono, vela, RATIOS, ratioLabel } from "../constants";
 import { VIcon, type VIconName } from "./VIcon";
@@ -63,6 +64,9 @@ import { AiHubSheet } from "./AiHubSheet";
 import { MediaDrawerSheet } from "./MediaDrawerSheet";
 import { AudioDrawerSheet } from "./AudioDrawerSheet";
 import { TextDrawerSheet } from "./TextDrawerSheet";
+import { MosaicSheet } from "./MosaicSheet";
+import { MagnifierSheet } from "./MagnifierSheet";
+import { StorySheet } from "./StorySheet";
 import {
   searchStock,
   isMissingKey,
@@ -166,6 +170,7 @@ function FullSheet({
 }) {
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
+      <StatusBar style="auto" />
       <View style={s.full}>{children}</View>
     </Modal>
   );
@@ -715,7 +720,11 @@ function AdjustRow({
 
 /** Filter / Adjust / FX — all three are per-clip look controls, so they share
  *  one sheet. `initialTab` lets the Effect tool open straight on FX. */
-function FilterSheet({ initialTab = "filter" }: { initialTab?: "filter" | "adjust" | "fx" }) {
+function FilterSheet({
+  initialTab = "filter",
+}: {
+  initialTab?: "filter" | "adjust" | "fx";
+}) {
   const setPanel = useEditor((s) => s.setPanel);
   const applyClipFilter = useEditor((s) => s.applyClipFilter);
   const close = () => setPanel(null);
@@ -761,7 +770,10 @@ function FilterSheet({ initialTab = "filter" }: { initialTab?: "filter" | "adjus
       {!hasTarget ? <NoClipTarget what="a filter" /> : null}
 
       {tab === "filter" ? (
-        <View style={!hasTarget ? s.disabled : undefined} pointerEvents={hasTarget ? 'auto' : 'none'}>
+        <View
+          style={!hasTarget ? s.disabled : undefined}
+          pointerEvents={hasTarget ? "auto" : "none"}
+        >
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -808,18 +820,32 @@ function FilterSheet({ initialTab = "filter" }: { initialTab?: "filter" | "adjus
           ) : null}
         </View>
       ) : tab === "fx" ? (
-        <View style={[{ gap: 16 }, !hasTarget && s.disabled]} pointerEvents={hasTarget ? 'auto' : 'none'}>
+        <View
+          style={[{ gap: 16 }, !hasTarget && s.disabled]}
+          pointerEvents={hasTarget ? "auto" : "none"}
+        >
           <View style={s.intensityRow}>
             <Text style={s.intensityLabel}>Blur</Text>
             <View style={{ flex: 1 }}>
-              <VSlider value={blur} min={0} max={1} onChange={(v) => setBlurValue(r2(v))} />
+              <VSlider
+                value={blur}
+                min={0}
+                max={1}
+                onChange={(v) => setBlurValue(r2(v))}
+              />
             </View>
             <Text style={s.intensityVal}>{Math.round(blur * 100)}%</Text>
           </View>
           <View style={s.chipRow}>
             {[0, 0.25, 0.5, 1].map((v) => (
-              <Pressable key={v} onPress={() => setBlurValue(v)} style={[s.chip, blur === v && s.chipOn]}>
-                <Text style={[s.chipText, blur === v && { color: vela.accent }]}>
+              <Pressable
+                key={v}
+                onPress={() => setBlurValue(v)}
+                style={[s.chip, blur === v && s.chipOn]}
+              >
+                <Text
+                  style={[s.chipText, blur === v && { color: vela.accent }]}
+                >
                   {v === 0 ? "None" : `${Math.round(v * 100)}%`}
                 </Text>
               </Pressable>
@@ -827,7 +853,7 @@ function FilterSheet({ initialTab = "filter" }: { initialTab?: "filter" | "adjus
           </View>
         </View>
       ) : (
-        <View style={{ gap: 2 }} pointerEvents={hasTarget ? 'auto' : 'none'}>
+        <View style={{ gap: 2 }} pointerEvents={hasTarget ? "auto" : "none"}>
           <AdjustRow
             label="Brightness"
             value={filter.brightness ?? 0}
@@ -1037,7 +1063,12 @@ function ExportSheet() {
 
 // ---- Transition ----------------------------------------------------------
 
-const TRANSITIONS: { key: TransitionType; label: string; icon: VIconName; soon?: boolean }[] = [
+const TRANSITIONS: {
+  key: TransitionType;
+  label: string;
+  icon: VIconName;
+  soon?: boolean;
+}[] = [
   { key: "cut", label: "None", icon: "close" },
   { key: "fade", label: "Fade", icon: "trFade" },
   { key: "dissolve", label: "Dissolve", icon: "trDissolve", soon: true },
@@ -1092,7 +1123,11 @@ function TransitionSheet() {
               onPress={() => (t.soon ? soon(t.label) : apply(t.key))}
             >
               <View style={[s.trIcon, on && s.trIconOn]}>
-                <VIcon name={t.icon} size={22} color={on ? vela.accent : "#fff"} />
+                <VIcon
+                  name={t.icon}
+                  size={22}
+                  color={on ? vela.accent : "#fff"}
+                />
               </View>
               <Text style={[s.trLabel, on && { color: vela.accent }]}>
                 {t.label}
@@ -1646,6 +1681,7 @@ function KeyframeSheet() {
           <Pressable
             onPress={() => push(kfs.filter((_, i) => i !== idx))}
             hitSlop={6}
+            style={s.kfRemoveButton}
           >
             <Text style={s.kfRemove}>Remove this keyframe</Text>
           </Pressable>
@@ -1658,7 +1694,9 @@ function KeyframeSheet() {
 function OpacitySheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const applyClipOpacity = useEditor((s) => s.applyClipOpacity);
-  const [op, setOp] = useState(() => effectsTarget()?.clip.opacity ?? 1);
+  const [op, setOp] = useState(
+    () => selectedOverlay()?.opacity ?? effectsTarget()?.clip.opacity ?? 1,
+  );
   const close = () => setPanel(null);
   const set = (v: number) => {
     setOp(v);
@@ -1691,6 +1729,13 @@ function OpacitySheet() {
 function PositionSheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const applyClipRect = useEditor((s) => s.applyClipRect);
+  const updateSelectedOverlay = useEditor((s) => s.updateSelectedOverlay);
+  const overlay0 = selectedOverlay();
+  const [overlay, setOverlay] = useState(() =>
+    overlay0
+      ? { x: overlay0.x, y: overlay0.y, fontSize: overlay0.fontSize }
+      : null,
+  );
   const r0 = effectsTarget()?.clip.rect ?? { x: 0, y: 0, w: 1, h: 1 };
   const [r, setR] = useState(r0);
   const close = () => setPanel(null);
@@ -1718,6 +1763,14 @@ function PositionSheet() {
     applyClipRect(nr);
   };
   const size = Math.max(r.w, r.h);
+  const setTextPosition = (
+    patch: Partial<{ x: number; y: number; fontSize: number }>,
+  ) => {
+    if (!overlay) return;
+    const next = { ...overlay, ...patch };
+    setOverlay(next);
+    updateSelectedOverlay(next);
+  };
   return (
     <BottomSheet onClose={close} style={{ gap: 14 }} dim="#0002">
       <View style={s.rowBetween}>
@@ -1726,42 +1779,89 @@ function PositionSheet() {
           <VIcon name="check" size={24} color={vela.accent} />
         </Pressable>
       </View>
-      <View style={s.intensityRow}>
-        <Text style={s.intensityLabel}>X</Text>
-        <View style={{ flex: 1 }}>
-          <VSlider
-            value={r.x}
-            min={0}
-            max={Math.max(0.001, 1 - r.w)}
-            onChange={(v) => setPos("x", Math.round(v * 100) / 100)}
-          />
-        </View>
-        <Text style={s.intensityVal}>{Math.round(r.x * 100)}%</Text>
-      </View>
-      <View style={s.intensityRow}>
-        <Text style={s.intensityLabel}>Y</Text>
-        <View style={{ flex: 1 }}>
-          <VSlider
-            value={r.y}
-            min={0}
-            max={Math.max(0.001, 1 - r.h)}
-            onChange={(v) => setPos("y", Math.round(v * 100) / 100)}
-          />
-        </View>
-        <Text style={s.intensityVal}>{Math.round(r.y * 100)}%</Text>
-      </View>
-      <View style={s.intensityRow}>
-        <Text style={s.intensityLabel}>Size</Text>
-        <View style={{ flex: 1 }}>
-          <VSlider
-            value={size}
-            min={0.1}
-            max={1}
-            onChange={(v) => setSize(Math.round(v * 100) / 100)}
-          />
-        </View>
-        <Text style={s.intensityVal}>{Math.round(size * 100)}%</Text>
-      </View>
+      {overlay ? (
+        <>
+          <View style={s.intensityRow}>
+            <Text style={s.intensityLabel}>X</Text>
+            <View style={{ flex: 1 }}>
+              <VSlider
+                value={overlay.x}
+                min={0}
+                max={1}
+                onChange={(v) =>
+                  setTextPosition({ x: Math.round(v * 100) / 100 })
+                }
+              />
+            </View>
+            <Text style={s.intensityVal}>{Math.round(overlay.x * 100)}%</Text>
+          </View>
+          <View style={s.intensityRow}>
+            <Text style={s.intensityLabel}>Y</Text>
+            <View style={{ flex: 1 }}>
+              <VSlider
+                value={overlay.y}
+                min={0}
+                max={1}
+                onChange={(v) =>
+                  setTextPosition({ y: Math.round(v * 100) / 100 })
+                }
+              />
+            </View>
+            <Text style={s.intensityVal}>{Math.round(overlay.y * 100)}%</Text>
+          </View>
+          <View style={s.intensityRow}>
+            <Text style={s.intensityLabel}>Size</Text>
+            <View style={{ flex: 1 }}>
+              <VSlider
+                value={overlay.fontSize}
+                min={12}
+                max={240}
+                onChange={(v) => setTextPosition({ fontSize: Math.round(v) })}
+              />
+            </View>
+            <Text style={s.intensityVal}>{overlay.fontSize}px</Text>
+          </View>
+        </>
+      ) : (
+        <>
+          <View style={s.intensityRow}>
+            <Text style={s.intensityLabel}>X</Text>
+            <View style={{ flex: 1 }}>
+              <VSlider
+                value={r.x}
+                min={0}
+                max={Math.max(0.001, 1 - r.w)}
+                onChange={(v) => setPos("x", Math.round(v * 100) / 100)}
+              />
+            </View>
+            <Text style={s.intensityVal}>{Math.round(r.x * 100)}%</Text>
+          </View>
+          <View style={s.intensityRow}>
+            <Text style={s.intensityLabel}>Y</Text>
+            <View style={{ flex: 1 }}>
+              <VSlider
+                value={r.y}
+                min={0}
+                max={Math.max(0.001, 1 - r.h)}
+                onChange={(v) => setPos("y", Math.round(v * 100) / 100)}
+              />
+            </View>
+            <Text style={s.intensityVal}>{Math.round(r.y * 100)}%</Text>
+          </View>
+          <View style={s.intensityRow}>
+            <Text style={s.intensityLabel}>Size</Text>
+            <View style={{ flex: 1 }}>
+              <VSlider
+                value={size}
+                min={0.1}
+                max={1}
+                onChange={(v) => setSize(Math.round(v * 100) / 100)}
+              />
+            </View>
+            <Text style={s.intensityVal}>{Math.round(size * 100)}%</Text>
+          </View>
+        </>
+      )}
     </BottomSheet>
   );
 }
@@ -1778,8 +1878,9 @@ const DEFAULT_MASK: ClipMask = {
 function MaskSheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const applyClipMask = useEditor((s) => s.applyClipMask);
+  const textTarget = selectedOverlay();
   const [mask, setMask] = useState<ClipMask | undefined>(
-    () => effectsTarget()?.clip.mask,
+    () => textTarget?.mask ?? effectsTarget()?.clip.mask,
   );
   const close = () => setPanel(null);
   const on = !!mask;
@@ -1790,53 +1891,85 @@ function MaskSheet() {
   const patch = (p: Partial<ClipMask>) =>
     update({ ...(mask ?? DEFAULT_MASK), ...p });
   return (
-    <BottomSheet onClose={close} style={{ gap: 14 }} dim="#0002">
+    <BottomSheet onClose={close} style={{ gap: 16 }} dim="#0003">
       <View style={s.rowBetween}>
-        <Text style={s.sheetTitle}>Mask</Text>
-        <Pressable onPress={close} hitSlop={10}>
-          <VIcon name="check" size={24} color={vela.accent} />
+        <View>
+          <Text style={s.sheetTitle}>Mask</Text>
+          <Text style={s.maskHint}>
+            Reveal only the part of the layer you need
+          </Text>
+        </View>
+        <Pressable onPress={close} hitSlop={10} style={s.maskDone}>
+          <VIcon name="check" size={19} color="#fff" />
         </Pressable>
       </View>
-      <View style={s.chipRow}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={s.maskPresetRow}
+      >
         <Pressable
           onPress={() => update(on ? undefined : DEFAULT_MASK)}
-          style={[s.chip, on && s.chipOn]}
+          style={[s.maskPreset, !on && s.maskPresetOn]}
         >
-          <Text style={[s.chipText, on && { color: vela.accent }]}>
-            {on ? "On" : "Off"}
+          <View style={s.maskNone}>
+            <VIcon
+              name="close"
+              size={22}
+              color={!on ? vela.accent : vela.ink3}
+            />
+          </View>
+          <Text style={[s.maskPresetText, !on && { color: vela.accent }]}>
+            None
           </Text>
         </Pressable>
-        {on
-          ? (["rectangle", "circle"] as MaskShape[]).map((sh) => (
-              <Pressable
-                key={sh}
-                onPress={() => patch({ shape: sh })}
-                style={[s.chip, mask!.shape === sh && s.chipOn]}
+        {(["rectangle", "circle"] as MaskShape[]).map((sh) => {
+          const selected = on && mask!.shape === sh && !mask!.invert;
+          return (
+            <Pressable
+              key={sh}
+              onPress={() =>
+                update({ ...(mask ?? DEFAULT_MASK), shape: sh, invert: false })
+              }
+              style={[s.maskPreset, selected && s.maskPresetOn]}
+            >
+              <View
+                style={[
+                  s.maskShapePreview,
+                  sh === "circle" && s.maskCirclePreview,
+                  selected && s.maskShapePreviewOn,
+                ]}
+              />
+              <Text
+                style={[s.maskPresetText, selected && { color: vela.accent }]}
               >
-                <Text
-                  style={[
-                    s.chipText,
-                    mask!.shape === sh && { color: vela.accent },
-                  ]}
-                >
-                  {sh === "rectangle" ? "Rect" : "Circle"}
-                </Text>
-              </Pressable>
-            ))
-          : null}
-        {on ? (
+                {sh === "rectangle" ? "Rectangle" : "Circle"}
+              </Text>
+            </Pressable>
+          );
+        })}
+        {!textTarget ? (
           <Pressable
-            onPress={() => patch({ invert: !mask!.invert })}
-            style={[s.chip, mask!.invert && s.chipOn]}
+            onPress={() => update({ ...(mask ?? DEFAULT_MASK), invert: true })}
+            style={[s.maskPreset, on && !!mask!.invert && s.maskPresetOn]}
           >
-            <Text style={[s.chipText, mask!.invert && { color: vela.accent }]}>
+            <View style={s.maskInvertPreview}>
+              <View style={s.maskInvertHole} />
+            </View>
+            <Text
+              style={[
+                s.maskPresetText,
+                on && !!mask!.invert && { color: vela.accent },
+              ]}
+            >
               Invert
             </Text>
           </Pressable>
         ) : null}
-      </View>
+      </ScrollView>
       {on ? (
         <>
+          <Text style={s.maskSectionTitle}>Geometry</Text>
           <View style={s.intensityRow}>
             <Text style={s.intensityLabel}>Width</Text>
             <View style={{ flex: 1 }}>
@@ -2711,6 +2844,9 @@ export function EditorSheets() {
       {panel === "opacity" && <OpacitySheet />}
       {panel === "position" && <PositionSheet />}
       {panel === "mask" && <MaskSheet />}
+      {panel === "mosaic" && <MosaicSheet />}
+      {panel === "magnifier" && <MagnifierSheet />}
+      {panel === "story" && <StorySheet />}
       {panel === "voiceover" && <VoiceoverSheet />}
       {panel === "soundfx" && <SoundFxSheet />}
       {panel === "auth" && (
@@ -3043,7 +3179,13 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 12,
   },
-  noTargetText: { flex: 1, color: vela.ink3, fontFamily: font.medium, fontSize: 13, lineHeight: 18 },
+  noTargetText: {
+    flex: 1,
+    color: vela.ink3,
+    fontFamily: font.medium,
+    fontSize: 13,
+    lineHeight: 18,
+  },
   chip: {
     flex: 1,
     height: 40,
@@ -3054,6 +3196,71 @@ const s = StyleSheet.create({
   },
   chipOn: { backgroundColor: vela.accentSoft },
   chipText: { color: vela.ink2, fontFamily: font.semibold, fontSize: 13 },
+  maskHint: {
+    color: vela.lightMuted,
+    fontFamily: font.medium,
+    fontSize: 12.5,
+    marginTop: 2,
+  },
+  maskDone: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: vela.accent,
+  },
+  maskPresetRow: { gap: 12, paddingRight: 18 },
+  maskPreset: { width: 82, alignItems: "center", gap: 7 },
+  maskPresetOn: {
+    borderRadius: 16,
+  },
+  maskNone: {
+    width: 72,
+    height: 62,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: vela.lightSurface,
+  },
+  maskShapePreview: {
+    width: 72,
+    height: 62,
+    borderRadius: 15,
+    borderWidth: 2,
+    borderColor: vela.lightMuted2,
+    backgroundColor: vela.lightSurface,
+  },
+  maskCirclePreview: { borderRadius: 31 },
+  maskShapePreviewOn: {
+    borderColor: vela.accent,
+    backgroundColor: vela.accentSoft,
+  },
+  maskInvertPreview: {
+    width: 72,
+    height: 62,
+    borderRadius: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: vela.ink3,
+  },
+  maskInvertHole: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: vela.lightCard,
+  },
+  maskPresetText: {
+    color: vela.ink3,
+    fontFamily: font.semibold,
+    fontSize: 11.5,
+  },
+  maskSectionTitle: {
+    color: vela.ink2,
+    fontFamily: font.bold,
+    fontSize: 14.5,
+    marginTop: 2,
+  },
 
   motionGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   motionChip: {
@@ -3247,11 +3454,17 @@ const s = StyleSheet.create({
   },
   kfEditing: { color: vela.ink2, fontFamily: font.medium, fontSize: 13 },
   kfRemove: {
-    color: vela.danger,
-    fontFamily: font.medium,
+    color: "#fff",
+    fontFamily: font.semibold,
     fontSize: 13,
     textAlign: "center",
-    paddingTop: 4,
+  },
+  kfRemoveButton: {
+    height: 42,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: vela.ink2,
   },
 
   filterSheet: { gap: 14 },

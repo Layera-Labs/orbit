@@ -11,7 +11,13 @@
  * / ruler) to the end while a clip stays selected.
  * The Sound lane is a read-only waveform mirror of the main clips' audio.
  */
-import { type RefObject, useEffect, useRef, useState } from "react";
+import {
+  Fragment,
+  type RefObject,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   Image,
   type LayoutChangeEvent,
@@ -27,14 +33,22 @@ import {
   GestureDetector,
   ScrollView,
 } from "react-native-gesture-handler";
-import Animated, { LinearTransition } from "react-native-reanimated";
+import Animated, {
+  FadeInDown,
+  FadeOutDown,
+  LinearTransition,
+} from "react-native-reanimated";
 import { font, mono, vela } from "../constants";
 import { VIcon, type VIconName } from "./VIcon";
 import { MIN_CLIP } from "../model/editor-ops";
 import { projectDuration } from "../model/project";
 import type { Rect, Transition, VisualTrackClip } from "../model/types";
 import { videoThumbnail } from "../storage/media";
-import { OVERLAY_TRACK, useEditor } from "../store/editorStore";
+import {
+  OVERLAY_TRACK,
+  type GapSelection,
+  useEditor,
+} from "../store/editorStore";
 
 const MUSIC_H = 36;
 const TEXT_H = 30;
@@ -47,6 +61,8 @@ const LANE_GAP = 6;
 const SQUEEZE_H = 30; // compact height for a collapsed multi-lane group
 const HANDLE_W = 16;
 const ADD_TILE_W = 42;
+const GAP_HUD_W = 174;
+const GAP_HUD_BG = "#5b4bff";
 const PLAYHEAD_X = 10; // playhead offset from the gutter — clips start right here (no big gap)
 const clamp = (v: number, lo: number, hi: number) =>
   Math.max(lo, Math.min(hi, v));
@@ -392,6 +408,20 @@ function RowBg({ height }: { height: number }) {
   return <View style={[styles.rowBg, { height }]} />;
 }
 
+/** Empty intervals before/between clips. A trailing interval is not removable. */
+function gapsOf(clips: ClipEntry[]): GapSelection[] {
+  if (!clips.length) return [];
+  const sorted = [...clips].sort((a, b) => a.clip.start - b.clip.start);
+  const gaps: GapSelection[] = [];
+  let cursor = 0;
+  for (const { clip, trackId } of sorted) {
+    if (clip.start > cursor + 0.001)
+      gaps.push({ trackId, start: cursor, end: clip.start });
+    cursor = Math.max(cursor, clip.start + clip.duration);
+  }
+  return gaps;
+}
+
 /** Scrolling clip layer for a row (transparent; sits on top of the RowBg). */
 function ClipLane({
   row,
@@ -405,13 +435,104 @@ function ClipLane({
   scrollRef: RefObject<ScrollView | null>;
 }) {
   const select = useEditor((s) => s.select);
+  const selectedGap = useEditor((s) => s.selectedGap);
+  const selectGap = useEditor((s) => s.selectGap);
+  const removeSelectedGap = useEditor((s) => s.removeSelectedGap);
+  const setPlayhead = useEditor((s) => s.setPlayhead);
   const setPanel = useEditor((s) => s.setPanel);
   const lastEnd = row.clips.reduce(
     (m, { clip }) => Math.max(m, clip.start + clip.duration),
     0,
   );
   return (
-    <View style={{ height: row.height }}>
+    <View
+      style={{
+        height: row.height,
+        zIndex: row.key === "video" && selectedGap ? 20 : 0,
+      }}
+    >
+      {row.key === "video"
+        ? gapsOf(row.clips).map((gap) => {
+            const isSelected =
+              selectedGap?.trackId === gap.trackId &&
+              Math.abs(selectedGap.start - gap.start) < 0.001 &&
+              Math.abs(selectedGap.end - gap.end) < 0.001;
+            const width = Math.max(12, (gap.end - gap.start) * pxPerSec);
+            return (
+              <Fragment key={`gap-${gap.trackId}-${gap.start}`}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Empty space, ${(gap.end - gap.start).toFixed(1)} seconds`}
+                  accessibilityState={{ selected: isSelected }}
+                  onPress={() => selectGap(isSelected ? null : gap)}
+                  style={[
+                    styles.gap,
+                    {
+                      left: gap.start * pxPerSec,
+                      width,
+                      height: row.height,
+                    },
+                    isSelected && styles.gapOn,
+                  ]}
+                >
+                  {isSelected && width >= 66 ? (
+                    <Text style={styles.gapText} numberOfLines={1}>
+                      Empty {(gap.end - gap.start).toFixed(1)}s
+                    </Text>
+                  ) : null}
+                </Pressable>
+                {isSelected ? (
+                  <Animated.View
+                    entering={FadeInDown.duration(170)}
+                    exiting={FadeOutDown.duration(120)}
+                    style={[
+                      styles.gapHud,
+                      {
+                        left:
+                          gap.start * pxPerSec +
+                          Math.max(0, (width - GAP_HUD_W) / 2),
+                      },
+                    ]}
+                  >
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Add media to empty space"
+                      style={styles.gapHudAction}
+                      onPress={() => {
+                        setPlayhead(gap.start);
+                        setPanel("addvisual");
+                      }}
+                    >
+                      <VIcon name="plus" size={19} color="#fff" />
+                      <Text style={styles.gapHudText}>Add</Text>
+                    </Pressable>
+                    <View style={styles.gapHudDivider} />
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Keep empty space"
+                      style={styles.gapHudAction}
+                      onPress={() => selectGap(null)}
+                    >
+                      <VIcon name="lock" size={19} color="#fff" />
+                      <Text style={styles.gapHudText}>Keep</Text>
+                    </Pressable>
+                    <View style={styles.gapHudDivider} />
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Delete empty space"
+                      style={styles.gapHudAction}
+                      onPress={removeSelectedGap}
+                    >
+                      <VIcon name="trash" size={19} color="#fff" />
+                      <Text style={styles.gapHudText}>Delete</Text>
+                    </Pressable>
+                    <View style={styles.gapHudPointer} />
+                  </Animated.View>
+                ) : null}
+              </Fragment>
+            );
+          })
+        : null}
       {row.clips.length === 0
         ? null
         : row.kind === "sound"
@@ -526,6 +647,7 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
   const pxPerSec = useEditor((s) => s.pxPerSec);
   const playheadSec = useEditor((s) => s.playheadSec);
   const selected = useEditor((s) => s.selected);
+  const selectedGap = useEditor((s) => s.selectedGap);
   const setPlayhead = useEditor((s) => s.setPlayhead);
   const isPlaying = useEditor((s) => s.isPlaying);
   const setPanel = useEditor((s) => s.setPanel);
@@ -540,7 +662,7 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
   const [manualExpand, setManualExpand] = useState<string | null>(null);
   useEffect(() => {
     setManualExpand(null);
-  }, [selected]);
+  }, [selected, selectedGap]);
 
   const tracks = project?.tracks ?? [];
   const visual = tracks.filter((t) => t.kind === "visual");
@@ -555,17 +677,19 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
     !hasOriginalAudio || mainVideos.every((c) => (c.volume ?? 1) === 0);
 
   // The group holding the current selection stays expanded; a manual tap wins.
-  const selGroup = !selected
-    ? null
-    : selected.trackId === OVERLAY_TRACK
-      ? "text"
-      : main && selected.trackId === main.id
-        ? "video"
-        : audio.some((t) => t.id === selected.trackId)
-          ? "music"
-          : visualOverlays.some((t) => t.id === selected.trackId)
-            ? "image"
-            : null;
+  const selGroup = selectedGap
+    ? "video"
+    : !selected
+      ? null
+      : selected.trackId === OVERLAY_TRACK
+        ? "text"
+        : main && selected.trackId === main.id
+          ? "video"
+          : audio.some((t) => t.id === selected.trackId)
+            ? "music"
+            : visualOverlays.some((t) => t.id === selected.trackId)
+              ? "image"
+              : null;
   const activeGroup = manualExpand ?? selGroup;
 
   // Build each group's lanes (top→bottom); collapse inactive multi-lane groups
@@ -849,6 +973,7 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
             <ScrollView
               ref={scrollRef}
               horizontal
+              style={selectedGap ? styles.timelineForeground : undefined}
               showsHorizontalScrollIndicator={false}
               scrollEnabled={scrollEnabled}
               scrollEventThrottle={16}
@@ -865,7 +990,7 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
                 {/* Tap empty timeline (or the ruler) to deselect — hides the
                   selection toolbar. Sits behind the clips, which catch their own
                   taps; a scroll drag cancels the press so scrubbing still works. */}
-                {selected ? (
+                {selected || selectedGap ? (
                   <Pressable
                     style={StyleSheet.absoluteFill}
                     onPress={() => select(null)}
@@ -899,7 +1024,11 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
             {/* Fixed empty-row hints — pinned left so they never scroll under the
               gutter (box-none lets drags fall through to the ScrollView). */}
             <View
-              style={[StyleSheet.absoluteFill, { paddingLeft: PLAYHEAD_X }]}
+              style={[
+                StyleSheet.absoluteFill,
+                styles.hintOverlay,
+                { paddingLeft: PLAYHEAD_X },
+              ]}
               pointerEvents="box-none"
             >
               <View style={{ height: RULER_H }} />
@@ -943,6 +1072,8 @@ const styles = StyleSheet.create({
   body: { flexDirection: "row", paddingVertical: 8 },
   gutter: { width: GUTTER_W },
   gutterItem: { alignItems: "center", justifyContent: "center" },
+  timelineForeground: { zIndex: 8 },
+  hintOverlay: { zIndex: 2 },
 
   ruler: { height: RULER_H, justifyContent: "flex-end" },
   tickLabel: {
@@ -955,6 +1086,64 @@ const styles = StyleSheet.create({
   tickMinor: { width: 1, height: 4, backgroundColor: vela.tickMinor },
 
   rowBg: { borderRadius: 7, backgroundColor: vela.emptyTrack },
+  gap: {
+    position: "absolute",
+    top: 0,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gapOn: {
+    backgroundColor: "rgba(91, 75, 255, 0.22)",
+    borderColor: vela.select,
+    borderWidth: 2,
+    borderStyle: "dashed",
+  },
+  gapText: {
+    color: "#d9d4ff",
+    fontFamily: font.bold,
+    fontSize: 10,
+  },
+  gapHud: {
+    position: "absolute",
+    top: -72,
+    width: GAP_HUD_W,
+    height: 62,
+    zIndex: 30,
+    borderRadius: 16,
+    borderCurve: "continuous",
+    backgroundColor: GAP_HUD_BG,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 7,
+    boxShadow: "0 6px 18px rgba(0,0,0,0.32)",
+  },
+  gapHudAction: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+    height: 52,
+  },
+  gapHudText: {
+    color: "#fff",
+    fontFamily: font.semibold,
+    fontSize: 10,
+  },
+  gapHudDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 34,
+    backgroundColor: "rgba(255,255,255,0.28)",
+  },
+  gapHudPointer: {
+    position: "absolute",
+    bottom: -5,
+    left: GAP_HUD_W / 2 - 5,
+    width: 10,
+    height: 10,
+    backgroundColor: GAP_HUD_BG,
+    transform: [{ rotate: "45deg" }],
+  },
   emptyTap: { alignSelf: "flex-start", paddingVertical: 6 },
   emptyHint: { color: vela.muted2, fontSize: 13, paddingLeft: 12 },
 
@@ -1065,6 +1254,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 0,
     bottom: 0,
+    zIndex: 9,
     alignItems: "center",
     marginLeft: -1,
   },

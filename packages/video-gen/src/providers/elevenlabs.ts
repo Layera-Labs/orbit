@@ -6,13 +6,13 @@
  * served file URL for the client.
  * https://elevenlabs.io/docs/api-reference/text-to-speech
  */
-import type { GenResult, MediaProvider, TTSRequest } from '../types';
-import { ProviderError } from '../errors';
+import type { GenResult, MediaProvider, TTSRequest } from "../types";
+import { ProviderError } from "../errors";
 
-const ELEVEN_API = 'https://api.elevenlabs.io';
+const ELEVEN_API = "https://api.elevenlabs.io";
 /** A long-standing public default voice ("Rachel"). */
-const DEFAULT_VOICE = '21m00Tcm4TlvDq8ikWAM';
-const DEFAULT_MODEL = 'eleven_multilingual_v2';
+const DEFAULT_VOICE = "21m00Tcm4TlvDq8ikWAM";
+const DEFAULT_MODEL = "eleven_multilingual_v2";
 
 export interface ElevenLabsProviderOptions {
   /** ElevenLabs API key (the developer's key, held server-side). */
@@ -35,7 +35,7 @@ export class ElevenLabsProvider implements MediaProvider {
   private fetchImpl: typeof fetch;
 
   constructor(opts: ElevenLabsProviderOptions = {}) {
-    this.apiKey = opts.apiKey ?? '';
+    this.apiKey = opts.apiKey ?? "";
     this.voiceId = opts.voiceId ?? DEFAULT_VOICE;
     this.model = opts.model ?? DEFAULT_MODEL;
     this.apiBase = opts.apiBase ?? ELEVEN_API;
@@ -43,27 +43,55 @@ export class ElevenLabsProvider implements MediaProvider {
   }
 
   async tts(req: TTSRequest): Promise<GenResult> {
-    if (!this.apiKey) throw new Error('ElevenLabsProvider: missing API key');
+    if (!this.apiKey) throw new Error("ElevenLabsProvider: missing API key");
     const voiceId = req.voice || this.voiceId;
-    const res = await this.fetchImpl(`${this.apiBase}/v1/text-to-speech/${voiceId}`, {
-      method: 'POST',
-      headers: { 'xi-api-key': this.apiKey, 'content-type': 'application/json', accept: 'audio/mpeg' },
-      body: JSON.stringify({ text: req.text, model_id: this.model }),
-      signal: req.signal,
-    });
-    if (!res.ok) throw new ProviderError(`ElevenLabs ${res.status}: ${await safeText(res)}`, res.status);
+    // The voice id lands in the URL path, so it must not be able to traverse to
+    // another endpoint — that would aim the operator's API key at an arbitrary
+    // ElevenLabs route and hand the response back to the caller.
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(voiceId))
+      throw new ProviderError(`ElevenLabs: invalid voice id: ${voiceId}`, 400);
+    const res = await this.fetchImpl(
+      `${this.apiBase}/v1/text-to-speech/${voiceId}`,
+      {
+        method: "POST",
+        headers: {
+          "xi-api-key": this.apiKey,
+          "content-type": "application/json",
+          accept: "audio/mpeg",
+        },
+        body: JSON.stringify({
+          text: req.text,
+          model_id: this.model,
+          voice_settings:
+            req.speed == null
+              ? undefined
+              : { speed: Math.max(0.7, Math.min(1.2, req.speed)) },
+        }),
+        signal: req.signal,
+      },
+    );
+    if (!res.ok)
+      throw new ProviderError(
+        `ElevenLabs ${res.status}: ${await safeText(res)}`,
+        res.status,
+      );
     const bytes = new Uint8Array(await res.arrayBuffer());
-    if (bytes.length === 0) throw new Error('ElevenLabs returned empty audio');
+    if (bytes.length === 0) throw new Error("ElevenLabs returned empty audio");
     return {
       url: `data:audio/mpeg;base64,${base64(bytes)}`,
-      meta: { provider: 'elevenlabs', voiceId, model: this.model, bytes: bytes.length },
+      meta: {
+        provider: "elevenlabs",
+        voiceId,
+        model: this.model,
+        bytes: bytes.length,
+      },
     };
   }
 }
 
 /** Base64-encode bytes without depending on Node's Buffer (keeps `types: []`). */
 function base64(bytes: Uint8Array): string {
-  let binary = '';
+  let binary = "";
   const chunk = 0x8000; // avoid arg-count limits on fromCharCode
   for (let i = 0; i < bytes.length; i += chunk) {
     binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
@@ -75,6 +103,6 @@ async function safeText(r: Response): Promise<string> {
   try {
     return await r.text();
   } catch {
-    return '';
+    return "";
   }
 }

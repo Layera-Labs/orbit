@@ -1,0 +1,546 @@
+# Orbit Feature and Readiness Report
+
+**Audit date:** 2026-07-26  
+**Branch:** `codex/ui-redesign`  
+**Audited commit:** `65516bc` plus the current uncommitted worktree  
+**Scope:** Mobile application, native video editor, AI generation, render service,
+authentication, billing, storage, providers, automated tests, and documentation.
+
+## 1. Executive summary
+
+Orbit is no longer only a demo or a thin render client. The current branch contains
+a substantial native Expo/React Native editing application backed by a TypeScript
+FFmpeg render engine and an Express render service.
+
+The core guest editing experience is implemented:
+
+- The app opens without login.
+- Local projects, project folders, templates, media import, multi-track editing,
+  preview, and server export are present.
+- Login is required for AI Studio when the shipped `AUTH_ENABLED` setting is on.
+- Image generation, text-to-video, photo-to-video, and text-to-speech have real
+  provider integrations through the render service.
+- The editor contains real controls for text, filters, motion, keyframes, masks,
+  mosaic, magnifier, blending, opacity, speed, audio volume curves, PiP, gap
+  handling, delete, and ripple delete.
+
+It is **development-ready but not production-ready**. The most important remaining
+work is durable media/output storage, an asynchronous render queue, production
+deployment and observability, purchase configuration, social login, cloud project
+sync, additional transition implementations, and completion of the Story,
+auto-caption/SRT, and editor-preference features.
+
+The current worktree also has a large uncommitted change set, including new Mosaic,
+Magnifier, Story, AI generation, TTS, timeline, ripple-delete, and render changes.
+Those changes are included in this report but are not yet part of commit `65516bc`.
+
+## 2. Status definitions
+
+| Status                      | Meaning                                                                                         |
+| --------------------------- | ----------------------------------------------------------------------------------------------- |
+| **Working**                 | Implemented in code and covered by automated checks and/or local simulator use.                 |
+| **Working, setup required** | Implemented, but requires a configured server, provider key, entitlement, or device permission. |
+| **Partial**                 | Some useful behavior works, but the feature is incomplete or not durable.                       |
+| **UI only**                 | A control or screen exists, but it does not currently change editor/render behavior.            |
+| **Coming soon**             | The application explicitly presents the feature as unavailable.                                 |
+| **Not implemented**         | No complete user path exists in the current mobile/render architecture.                         |
+
+“Working” does not mean every permutation has been manually tested on physical iOS
+and Android devices. See the verification section for the exact checks performed.
+
+## 3. Features added on the UI branch
+
+### 3.1 App shell and visual system
+
+**Status: Working**
+
+- Reworked the app into a light application shell with a dark professional editor.
+- Added consistent typography based on Hanken Grotesk and JetBrains Mono.
+- Standardized editor drawers and bottom sheets on white surfaces.
+- Added animated sheets, selection feedback, colored icons, compact interaction
+  states, and a consistent indigo theme.
+- Added an iOS-style floating bottom navigation layout:
+  - Home
+  - Templates
+  - AI Studio
+  - Premium
+  - separate icon-only floating `+` button
+- Kept the primary app available to guests.
+- Moved account/profile access into the top application header.
+- Added automatic status-bar styling on relevant light/dark screens.
+
+### 3.2 Home, projects, folders, and templates
+
+**Status: Working locally**
+
+- Home screen with recent projects and trending templates.
+- Project folders and project cards.
+- Grid/list view switching.
+- Search.
+- Multi-select with checkboxes.
+- Move selected projects to another folder.
+- Delete selected projects.
+- New-project format shortcuts.
+- Built-in project templates and user-created templates.
+- Template categories and template search.
+- Local project/media persistence using Expo file storage.
+
+**Current limits**
+
+- Projects and folders are device-local; there is no cloud sync.
+- There is no trash/recovery system. Deletion is destructive after confirmation.
+- Moving projects is local metadata management, not a server-side operation.
+- Cross-device library and project synchronization are not implemented.
+
+### 3.3 Media and content drawers
+
+**Status: Working, with provider-dependent sections**
+
+- Context-specific bottom sheets for image/video, audio, text, and stickers.
+- Compact left-side source navigation and right-side previews/content.
+- Image/video sources:
+  - AI history
+  - Upload
+  - Stock
+  - Library
+- Audio sources:
+  - project/recent music
+  - Upload
+  - AI Studio entry
+  - Record voiceover
+  - Sound FX
+  - Stock
+  - Library
+- Sticker/background library with bundled content, emoji/OpenMoji, gradients, and
+  solid/image backgrounds.
+- Media added from a picker is copied into app-managed local storage.
+- Media-library history and generation-history screens are present.
+
+**Current limits**
+
+- The media “upload progress” shown in the drawer is local preparation/copy
+  progress; it is not a durable cloud upload.
+- Unsplash and Pexels stock access requires user-provided API keys.
+- Unsplash video is not available; Pexels is the useful video stock path.
+- Audio “Stock” currently uses an offline starter sound-effect collection rather
+  than a remote commercial stock-audio provider.
+- Generated/uploaded library content is local, not synchronized to an account.
+
+## 4. Mobile video editor capability matrix
+
+| Area                                 | Status                                                   | Current behavior and remaining limits                                                                                                                                                        |
+| ------------------------------------ | -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Native preview                       | **Working**                                              | React Native/Skia composition for visual clips, overlays, captions, filters, motion, masks, mosaic, magnifier, and other effects.                                                            |
+| Multi-track timeline                 | **Working**                                              | Visual, image/video overlay, text, and audio lanes with playhead, zoom, selection, trimming, splitting, layer ordering, and vertically scrollable expanded content.                          |
+| Responsive editor layout             | **Working**                                              | Timeline height is bounded so expanding lanes does not push the preview above the fixed header.                                                                                              |
+| Transport                            | **Working**                                              | Play/pause, previous/next, seek, undo, redo, and fullscreen preview.                                                                                                                         |
+| Media import                         | **Working**                                              | Photos/videos from picker and app library can be inserted into the timeline.                                                                                                                 |
+| Text creation                        | **Working**                                              | Heading, subheading, body, recent styles, and categorized templates add editable captions.                                                                                                   |
+| Text styling                         | **Working**                                              | Text, font, size, color, custom saved colors, stroke/shadow, alignment/format, spacing, opacity, blend, position, mask, and duplication.                                                     |
+| Subtitle styles                      | **Partial**                                              | A Subtitle style/template can be added as ordinary text. There is no finished subtitle track automation workflow.                                                                            |
+| SRT import/export                    | **Not implemented**                                      | No complete SRT file parser/importer or SRT exporter is wired into the mobile UI.                                                                                                            |
+| Automatic captions/transcription     | **Not implemented**                                      | AI Studio advertises “Auto Captions & Transcribe,” but no mobile-to-service transcription endpoint or completed flow exists.                                                                 |
+| Visual filters/adjustments           | **Working**                                              | Filter and FX controls change preview and FFmpeg export configuration.                                                                                                                       |
+| Motion                               | **Working**                                              | Motion presets/parameters are represented in preview and export.                                                                                                                             |
+| Keyframes                            | **Working**                                              | Opacity/position keyframes are editable and sampled by preview/export.                                                                                                                       |
+| Chroma cutout                        | **Working**                                              | Current “Cutout” is chroma-key style removal, not semantic AI background removal.                                                                                                            |
+| Masks                                | **Working, limited shapes**                              | Core mask handling exists. Shape/style breadth is smaller than the external VN references.                                                                                                   |
+| Mosaic                               | **Working in current worktree**                          | Mosaic, triangle, hexagon, and blur styles; shape, position, size, opacity, and strength controls; preview and FFmpeg support.                                                               |
+| Magnifier                            | **Working in current worktree**                          | Magnified region with selectable shape/color and zoom, size, border, opacity, and position controls; preview and FFmpeg support.                                                             |
+| Blend/opacity                        | **Working**                                              | Preview and export carry blending and opacity settings.                                                                                                                                      |
+| Speed and speed curve                | **Working**                                              | Clip playback speed/remap controls are implemented.                                                                                                                                          |
+| Audio volume                         | **Working**                                              | Clip volume and original-audio mute state are supported. The timeline speaker is a direct mute/unmute toggle.                                                                                |
+| Audio volume curve                   | **Working for export; preview needs broader validation** | Curve data and FFmpeg application exist. Live multi-track audio mixing parity has not been proven across all devices.                                                                        |
+| Voice recording                      | **Working, permission required**                         | Native voiceover recording uses Expo Audio and inserts the recording locally.                                                                                                                |
+| PiP/overlays                         | **Working**                                              | Overlay clips can be positioned, resized, reordered, masked, and styled.                                                                                                                     |
+| Split/trim/duplicate                 | **Working**                                              | Implemented for the appropriate selected timeline item.                                                                                                                                      |
+| Normal delete                        | **Working**                                              | Removes the selected clip/overlay without closing the resulting time gap.                                                                                                                    |
+| Ripple delete                        | **Working in current worktree**                          | Removes an item and shifts later items in the same relevant lane. A profile setting can replace normal delete with ripple delete.                                                            |
+| Gap selection/HUD                    | **Working in current worktree**                          | Empty main-track regions can be selected, highlighted, filled, preserved, or deleted; the contextual HUD uses a solid readable background.                                                   |
+| Gap effects                          | **Partial**                                              | Mosaic/Magnifier can target a neighboring visual item from a selected gap. This is useful UI behavior but is not a new independent gap clip type.                                            |
+| Story                                | **Partial prototype**                                    | Lists visual clips, allows jumping to/deleting a clip, and accepts temporary descriptions. Reorder, persistent descriptions, section-title generation, and menu actions are not implemented. |
+| Transitions: None/Cut                | **Working**                                              | No transition/cut behavior is available.                                                                                                                                                     |
+| Transition: Fade                     | **Working**                                              | Preview/export fade support exists.                                                                                                                                                          |
+| Dissolve/Slide/Wipe/Zoom transitions | **Coming soon**                                          | Visible in the transition UI with explicit `soon` state; render implementations are pending.                                                                                                 |
+| Export sheet                         | **Working, server required**                             | Resolution, frame rate, quality, HDR option, audio-only, estimated size, save-to-gallery, and sharing UI.                                                                                    |
+| HDR10 export                         | **Partial / needs device validation**                    | Configuration is passed into the render layer; real HDR color-management and playback compatibility need end-to-end validation on target devices.                                            |
+| Undo/redo                            | **Working per editor session**                           | In-memory command history works while editing. Undo history is not persisted across app restarts.                                                                                            |
+
+### 4.1 Editor controls that are currently UI-only
+
+The Editor Preferences sheet contains controls that update store state but are not
+currently consumed by editing or rendering logic:
+
+- Quick vs Pro main-track mode
+- Track Linkage
+- Object Snapping
+- Preview FPS
+
+These should either be implemented and persisted or labeled as previews/coming
+soon. At present they can mislead users because their switches visibly change
+without changing editor behavior.
+
+### 4.2 Selection HUD and contextual rails
+
+**Status: Working**
+
+- Selected text, audio, and visual items receive their own contextual actions.
+- Delete is consistently presented in white within the editor theme.
+- When Ripple Delete is enabled, it replaces the normal Delete action and remains
+  one-line where space permits.
+- The floating contextual bar uses the theme-blue solid background.
+- Short bottom action groups center within the screen.
+- Larger tool groups remain horizontally scrollable because fitting every advanced
+  editor tool into a phone width would reduce touch targets below a safe size.
+
+## 5. Authentication, guest access, premium, and billing
+
+| Feature                              | Status                                         | Notes                                                                                                                                                             |
+| ------------------------------------ | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Guest app access                     | **Working**                                    | Projects and the editor open without login.                                                                                                                       |
+| AI Studio login gate                 | **Working**                                    | With `AUTH_ENABLED = true`, AI generation and credit operations require authentication.                                                                           |
+| Self-hosted email registration/login | **Working, server required**                   | Mounted when `ORBIT_AUTH_PROVIDER=selfhosted`.                                                                                                                    |
+| Forgot/reset password                | **Working, setup required**                    | Requires Resend configuration. Without email configuration, forgot-password returns a service-unavailable response.                                               |
+| Managed auth token verification      | **Backend capability**                         | Clerk, Supabase, and Firebase adapters exist in the auth package. The current mobile app does not include finished sign-in acquisition flows for these providers. |
+| Apple sign-in                        | **Coming soon**                                | Button displays a coming-soon message.                                                                                                                            |
+| Google sign-in                       | **Coming soon**                                | Button displays a coming-soon message.                                                                                                                            |
+| Premium screen                       | **Coming soon**                                | The premium sheet is visual marketing only; no subscription entitlement system currently unlocks the advertised benefits.                                         |
+| Credit balance                       | **Working, server required**                   | Read from the render service for the authenticated/anonymous account.                                                                                             |
+| Credit packs UI                      | **Partial**                                    | Client wrapper and buy sheet exist.                                                                                                                               |
+| RevenueCat purchases                 | **Not active**                                 | iOS and Android public keys are empty, the native purchase module/config is not enabled for release, and store products/offerings/webhook must be configured.     |
+| RevenueCat credit webhook            | **Implemented, production hardening required** | Idempotent transaction crediting exists. The shared webhook secret must be made mandatory in production.                                                          |
+
+## 6. AI Studio and generation
+
+| Feature                            | Status                                        | Provider / requirement                                                                                                                       |
+| ---------------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| AI Studio gated landing page       | **Working**                                   | Login required under the shipped configuration.                                                                                              |
+| Text-to-image                      | **Working, setup required**                   | Runway through `/v1/generate-image`; 10 application credits.                                                                                 |
+| Text-to-video                      | **Working, setup required**                   | Runway through `/v1/generate-video`; duration/aspect controls.                                                                               |
+| Photo-to-video                     | **Working, setup required**                   | Selected local image is uploaded/resolved and sent to Runway.                                                                                |
+| Optional generated video sound     | **Working, setup required**                   | Provider-dependent; higher application credit cost.                                                                                          |
+| Text-to-speech                     | **Working, setup required**                   | ElevenLabs through `/v1/tts`; voice and speed controls; 5 application credits.                                                               |
+| AI generation preview/retry/insert | **Working**                                   | Generated results can be previewed and inserted into the current timeline.                                                                   |
+| AI history                         | **Partial**                                   | History is stored locally. Provider URLs or local files can become unavailable, and there is no account-level durable generation library.    |
+| AI music generation                | **Not implemented**                           | The audio AI entry opens AI Studio, but there is no music-generation provider or endpoint.                                                   |
+| Automatic captions/transcription   | **Not implemented**                           | Advertised in the AI Studio feature list only.                                                                                               |
+| AI script/template agent           | **Library exists, mobile flow not connected** | `@orbit/video-ai` can create a limited template specification, but the current mobile AI path does not expose it through the render service. |
+
+### Required AI configuration
+
+- `RUNWAY_API_TOKEN`
+- `ELEVENLABS_API_KEY`
+- optional `ELEVENLABS_VOICE_ID`
+- optional `ELEVENLABS_MODEL`
+- an authenticated account when `ORBIT_AUTH_PROVIDER` is enabled
+- a positive credit balance
+
+Live provider calls were not made during this audit, so upstream account balance,
+model availability, safety rejection behavior, and latency remain operational
+dependencies.
+
+## 7. Render service status
+
+The render service is an Express application using the `@orbit/video` FFmpeg
+renderer, `@orbit/video-gen` providers, `@orbit/auth`, and `@orbit/billing`.
+
+### 7.1 Implemented endpoints
+
+| Endpoint                   | Status                                       | Function                                                                                                    |
+| -------------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `GET /health`              | **Working**                                  | Basic process health response.                                                                              |
+| `POST /v1/upload`          | **Working**                                  | Multipart upload, 500 MB limit, and HEIC/HEIF/AVIF still normalization.                                     |
+| `POST /v1/render`          | **Working**                                  | Validates media sources, resolves uploads/HTTP media, renders with FFmpeg, and returns a served output URL. |
+| `GET /v1/credits`          | **Working**                                  | Authenticated or development anonymous credit balance.                                                      |
+| `POST /v1/auth/register`   | **Working when self-hosted auth is enabled** | Email/password registration.                                                                                |
+| `POST /v1/auth/login`      | **Working when self-hosted auth is enabled** | Email/password login.                                                                                       |
+| `POST /v1/auth/forgot`     | **Working when email is configured**         | Sends reset code/link through Resend.                                                                       |
+| `POST /v1/auth/reset`      | **Working when self-hosted auth is enabled** | Completes password reset.                                                                                   |
+| `POST /v1/generate-image`  | **Working, provider required**               | Metered Runway image generation.                                                                            |
+| `POST /v1/generate-video`  | **Working, provider required**               | Metered Runway text/photo video generation.                                                                 |
+| `POST /v1/tts`             | **Working, provider required**               | Metered ElevenLabs speech generation.                                                                       |
+| `POST /v1/billing/webhook` | **Implemented**                              | RevenueCat event processing and idempotent credit grants.                                                   |
+| `POST /v1/credits/grant`   | **Development only**                         | Available only with `ORBIT_DEV_TOPUP=1`.                                                                    |
+| `GET /files/:name`         | **Working locally**                          | Serves generated and rendered files from process-local temporary storage.                                   |
+
+### 7.2 Render engine features
+
+**Status: Working at unit-test level**
+
+- Still and video clip composition.
+- Multi-track visual composition.
+- Text/caption rasterization and Google font loading.
+- Background rendering.
+- Audio tracks and volume curves.
+- Clip speed and time remapping.
+- Filters and adjustments.
+- Opacity and blend modes.
+- Keyframes and motion.
+- Masks.
+- Chroma key.
+- Mosaic and magnifier effects.
+- Fade transitions.
+- PiP/overlay composition.
+- Configurable output size, frame rate, bitrate/quality, audio-only, and HDR flags.
+
+### 7.3 Render service production gaps
+
+#### Critical before public deployment
+
+1. **No durable media/output storage.** Uploaded media and render/TTS outputs live
+   under the host temporary directory. They are lost when the instance restarts
+   and do not work safely across multiple instances.
+2. **No job queue.** Rendering and generation are synchronous request-bound
+   operations. There is no Redis/BullMQ/SQS-style queue, job status endpoint,
+   retry policy, cancellation persistence, worker isolation, or concurrency
+   backpressure.
+3. **Upload and render routes are not authenticated.** AI/credit routes use
+   account authentication when enabled, but `/v1/upload` and `/v1/render` are
+   public. A production public deployment could be abused for storage, bandwidth,
+   and FFmpeg compute.
+4. **RevenueCat webhook secret is optional in code.** When
+   `REVENUECAT_WEBHOOK_AUTH` is absent, the route accepts requests without the
+   shared secret. Production startup should fail or disable the route unless the
+   secret is set.
+5. **No API rate limiting or quotas for rendering/upload.**
+6. **CORS is unrestricted.**
+7. **No deployed production definition was found.** There is no complete
+   container/worker/object-store/queue deployment topology in this app directory.
+
+#### Important operational work
+
+- Add S3/R2-compatible object storage and signed URLs.
+- Add upload/output retention and cleanup policies.
+- Add background render/generation workers and persistent jobs.
+- Add progress, polling/websocket status, retry, timeout, and cancel APIs.
+- Add render concurrency and resource limits.
+- Add structured logs, error tracking, metrics, traces, and provider latency/cost
+  dashboards.
+- Add request IDs and audit records.
+- Add malware/content-type validation and stricter remote-source policy.
+- Add production readiness/health checks for FFmpeg, Postgres, storage, and
+  providers rather than only process liveness.
+- Add endpoint integration tests for render, auth, generation, and billing.
+- Run Postgres integration tests in CI against a real test database.
+
+## 8. Data and persistence state
+
+| Data                          | Current storage                     | Risk / pending work                                                                  |
+| ----------------------------- | ----------------------------------- | ------------------------------------------------------------------------------------ |
+| Mobile projects               | Device filesystem                   | No cloud backup, collaboration, or cross-device sync.                                |
+| Mobile project folders        | Device-local metadata               | No server reconciliation.                                                            |
+| Uploaded mobile library       | App-managed device files            | Can be lost with app deletion; no account library.                                   |
+| AI history                    | Device-local settings/files/URLs    | Provider URLs may expire; no durable account history.                                |
+| Undo/redo                     | In-memory editor store              | Lost when editor/app closes.                                                         |
+| Credits and self-hosted users | Postgres when `DATABASE_URL` exists | Falls back to ephemeral memory when missing. Production should refuse this fallback. |
+| Server uploads                | Host temporary directory            | Lost on restart; not horizontally scalable.                                          |
+| Render outputs                | Host temporary directory            | Lost on restart; URLs are instance-local.                                            |
+| TTS outputs                   | Host temporary directory            | Same durability and scaling issue.                                                   |
+
+## 9. Explicitly pending or “coming soon” items
+
+### Visible coming-soon features
+
+- Orbit Premium purchase/subscription.
+- Apple login.
+- Google login.
+- Help & Support content/contact flow.
+- Dissolve transition.
+- Slide transition.
+- Wipe transition.
+- Zoom transition.
+
+### Present but incomplete
+
+- Story editor persistence, reordering, section title generation, and action menu.
+- SRT import/export.
+- Automatic captions and transcription.
+- Full live multi-track audio-preview parity.
+- Real HDR10 end-to-end validation.
+- Remote stock-audio integration.
+- Durable AI generation library.
+- Cloud project/media sync.
+- Purchase activation.
+- Production managed-auth sign-in flows in the mobile client.
+- More advanced mask presets/handles matching the supplied VN references.
+- Persisted editor preferences.
+
+### UI-only controls that currently do not work
+
+- Quick/Pro main-track behavior.
+- Track Linkage.
+- Object Snapping.
+- Preview FPS selection.
+
+## 10. Mobile platform readiness
+
+### Android
+
+**State: Development build/simulator smoke-tested**
+
+- Native Android project exists.
+- The app was built, installed, and opened in an Android simulator during the
+  recent UI work.
+- Guest onboarding/home navigation was verified without a fatal runtime error.
+- TypeScript passes.
+
+**Still required**
+
+- Full editor/import/export regression on Android.
+- Physical-device media picker, microphone, gallery write, and sharing tests.
+- Android render-server networking validation against a LAN/production host.
+- Release signing, Play Console metadata, privacy declarations, and store review.
+- RevenueCat Android SDK/key/product setup.
+- Performance and memory testing on low/mid-range devices.
+
+### iOS
+
+**State: Native project present and actively used for UI development**
+
+- iOS project and iPhone-oriented safe-area/layout work exist.
+- The UI has been iterated in an iPhone 16 Pro simulator during this branch’s
+  development history.
+
+**Still required**
+
+- A fresh full regression of every edited flow on the current uncommitted worktree.
+- Physical-device photo/video, microphone, Photos save, and share tests.
+- HDR export/playback validation.
+- Release signing/provisioning, App Store metadata, privacy manifests, and review.
+- RevenueCat iOS SDK/key/product setup.
+- Apple sign-in implementation if offered as an authentication option.
+
+### Shared mobile release blockers
+
+- Change the default `http://localhost:8787` server to a production HTTPS endpoint.
+- Define environment/config handling per development, staging, and production.
+- Add crash reporting and analytics with privacy review.
+- Add automated device/E2E tests for onboarding, project creation, import, edit,
+  save, reopen, AI insert, export, gallery save, and share.
+- Test project migrations/backward compatibility as model types evolve.
+- Decide and document offline behavior for server-only exports and AI.
+
+## 11. Configuration checklist
+
+### Minimum local render/export
+
+- Node 20 or newer.
+- pnpm 10.29.2.
+- FFmpeg available to the render process.
+- Render service running at the URL configured in the mobile Profile settings.
+
+### Production authentication and persistence
+
+- `DATABASE_URL`
+- `ORBIT_AUTH_PROVIDER`
+- provider-specific auth values, or self-hosted auth
+- `ORBIT_LICENSE_KEY`
+- secure password/reset configuration
+
+### Password email
+
+- Resend API configuration
+- sender address
+- optional `EMAIL_RESET_URL_BASE`
+
+### AI
+
+- `RUNWAY_API_TOKEN`
+- `ELEVENLABS_API_KEY`
+- optional ElevenLabs voice/model values
+- credit policy values
+
+### Purchases
+
+- Mobile RevenueCat iOS and Android public SDK keys
+- native `react-native-purchases` configuration and rebuilt clients
+- App Store Connect and Play Console products
+- RevenueCat offering/packages matching server product IDs
+- mandatory `REVENUECAT_WEBHOOK_AUTH`
+- production webhook URL
+
+### Stock media
+
+- Pexels API key
+- Unsplash API key
+
+## 12. Verification performed in this audit
+
+The following commands completed successfully:
+
+| Check                                           | Result                                                                                 |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `pnpm --filter @orbit/video test`               | **81 tests passed** across 7 files.                                                    |
+| `pnpm --filter @orbit/video-gen test`           | **26 tests passed** across 4 files.                                                    |
+| `pnpm --filter @orbit/render-service test`      | **10 tests passed**; 3 Postgres tests skipped because `TEST_DATABASE_URL` was not set. |
+| `pnpm --filter @orbit/render-service typecheck` | **Passed**.                                                                            |
+| `pnpm --dir apps/mobile exec tsc --noEmit`      | **Passed**.                                                                            |
+| Mobile editor-operation test                    | **6 tests passed**, including ripple-delete behavior.                                  |
+
+Not tested live during this audit:
+
+- Real Runway requests.
+- Real ElevenLabs requests.
+- Real RevenueCat purchases/webhooks.
+- Real Resend delivery.
+- Postgres integration behavior under `TEST_DATABASE_URL`.
+- Full real-media FFmpeg render on production infrastructure.
+- Complete iOS and Android E2E regression.
+
+## 13. Documentation accuracy
+
+Several existing documents describe an older state of the project:
+
+- `apps/mobile/README.md` still describes a thin render client and does not reflect
+  the current native editor.
+- `ROADMAP.md` contains useful history but still lists the mobile app as future
+  work in places.
+- `packages/video-gen/README.md` says real providers are pending even though Runway
+  and ElevenLabs providers now exist.
+- `packages/video-ai/README.md` describes the template-agent package correctly,
+  but that should not be interpreted as the current mobile AI generation flow.
+
+This report should be treated as the current status baseline. The stale documents
+should be updated after the current worktree is committed so public instructions
+match the shipped architecture.
+
+## 14. Recommended completion order
+
+### P0 — make the current product safe and deployable
+
+1. Commit the current UI/editor/render work in logical, reviewable commits.
+2. Add durable object storage for uploads, generated assets, and render outputs.
+3. Add an asynchronous job/worker architecture with progress and cancellation.
+4. Authenticate and rate-limit upload/render endpoints.
+5. Make the RevenueCat webhook secret mandatory.
+6. Deploy a staging render service with Postgres, FFmpeg workers, HTTPS, logs,
+   metrics, and error reporting.
+7. Run full iOS and Android edit/export E2E tests against staging.
+
+### P1 — complete monetization and advertised flows
+
+1. Configure and test RevenueCat on both stores.
+2. Implement Apple and Google login, or remove their buttons until ready.
+3. Finish automatic captions/transcription and SRT import/export.
+4. Finish Story persistence and reorder behavior.
+5. Implement or hide Quick/Pro, Linkage, Snapping, and Preview FPS.
+6. Implement the four visible coming-soon transitions.
+7. Replace placeholder Help & Support with real documentation/contact routes.
+
+### P2 — product durability and polish
+
+1. Add account cloud sync for projects, folders, media, and AI history.
+2. Add a recoverable project trash system.
+3. Add remote stock audio and richer stock filtering/licensing metadata.
+4. Expand mask shapes and advanced preview/export parity tests.
+5. Add device performance profiling and large-project stress tests.
+6. Refresh all READMEs, roadmap, architecture, and go-live documentation.
+
+## 15. Bottom line
+
+The editor and its new UI are the strongest and most complete parts of the current
+branch. Core local editing is usable, and the render/AI integrations are real
+rather than mock screens. The remaining risk is mostly outside the visible UI:
+production infrastructure, durable storage, background jobs, security controls,
+billing activation, provider configuration, cloud sync, and a small set of
+advertised or partially designed advanced features.

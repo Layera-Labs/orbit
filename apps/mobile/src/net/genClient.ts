@@ -4,9 +4,9 @@
  * the app only identifies its account (a stable per-device id) so the server can
  * meter credits. Mirrors `renderClient.ts`'s plain-fetch + `{ error }` contract.
  */
-import * as SecureStore from 'expo-secure-store';
+import * as SecureStore from "expo-secure-store";
 
-const ACCOUNT_ID_KEY = 'orbit.account.id';
+const ACCOUNT_ID_KEY = "orbit.account.id";
 let cachedAccount: string | null = null;
 
 /** A stable, anonymous per-device account id (created once, kept in the keychain). */
@@ -21,7 +21,13 @@ export async function getAccount(): Promise<string> {
   return id;
 }
 
-export type GenErrorKind = 'out-of-credits' | 'not-configured' | 'no-server' | 'failed' | 'cancelled' | 'unauthenticated';
+export type GenErrorKind =
+  | "out-of-credits"
+  | "not-configured"
+  | "no-server"
+  | "failed"
+  | "cancelled"
+  | "unauthenticated";
 
 /**
  * Bearer token for the authenticated user (set by the auth store on login).
@@ -44,15 +50,15 @@ export class GenError extends Error {
     public balance?: number,
   ) {
     super(message);
-    this.name = 'GenError';
+    this.name = "GenError";
   }
 }
 
-const clean = (base: string) => base.replace(/\/+$/, '');
+const clean = (base: string) => base.replace(/\/+$/, "");
 
 /** Was this thrown value an abort (user cancelled / disconnected)? */
 function isAbort(e: unknown): boolean {
-  return e instanceof Error && e.name === 'AbortError';
+  return e instanceof Error && e.name === "AbortError";
 }
 
 /** Generate an image from a prompt. Returns the asset URL + the new credit balance. */
@@ -66,20 +72,49 @@ export async function generateImage(
   let res: Response;
   try {
     res = await fetch(`${clean(base)}/v1/generate-image`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'X-Orbit-Account': account, ...authHeader() },
-      body: JSON.stringify({ prompt, width: size?.width, height: size?.height }),
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "X-Orbit-Account": account,
+        ...authHeader(),
+      },
+      body: JSON.stringify({
+        prompt,
+        width: size?.width,
+        height: size?.height,
+      }),
       signal,
     });
   } catch (e) {
-    if (isAbort(e)) throw new GenError('cancelled', 'Cancelled.');
-    throw new GenError('no-server', 'Could not reach the render server. Check the server URL in settings.');
+    if (isAbort(e)) throw new GenError("cancelled", "Cancelled.");
+    throw new GenError(
+      "no-server",
+      "Could not reach the render server. Check the server URL in settings.",
+    );
   }
-  const data = (await res.json().catch(() => ({}))) as { url?: string; balance?: number; error?: string };
-  if (res.status === 401) throw new GenError('unauthenticated', 'Please sign in to use AI.');
-  if (res.status === 402) throw new GenError('out-of-credits', data.error ?? 'Out of credits.', data.balance);
-  if (res.status === 503) throw new GenError('not-configured', data.error ?? 'Image generation is not configured on the render server.');
-  if (!res.ok || !data.url) throw new GenError('failed', data.error ?? `Generation failed (HTTP ${res.status}).`);
+  const data = (await res.json().catch(() => ({}))) as {
+    url?: string;
+    balance?: number;
+    error?: string;
+  };
+  if (res.status === 401)
+    throw new GenError("unauthenticated", "Please sign in to use AI.");
+  if (res.status === 402)
+    throw new GenError(
+      "out-of-credits",
+      data.error ?? "Out of credits.",
+      data.balance,
+    );
+  if (res.status === 503)
+    throw new GenError(
+      "not-configured",
+      data.error ?? "Image generation is not configured on the render server.",
+    );
+  if (!res.ok || !data.url)
+    throw new GenError(
+      "failed",
+      data.error ?? `Generation failed (HTTP ${res.status}).`,
+    );
   return { url: data.url, balance: data.balance ?? 0 };
 }
 
@@ -95,20 +130,53 @@ export async function generateVideo(
   let res: Response;
   try {
     res = await fetch(`${clean(base)}/v1/generate-video`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'X-Orbit-Account': account, ...authHeader() },
-      body: JSON.stringify({ prompt, width: size?.width, height: size?.height, durationSec: opts?.durationSec, audio: opts?.audio, image: opts?.image }),
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "X-Orbit-Account": account,
+        ...authHeader(),
+      },
+      body: JSON.stringify({
+        prompt,
+        width: size?.width,
+        height: size?.height,
+        durationSec: opts?.durationSec,
+        audio: opts?.audio,
+        image: opts?.image,
+      }),
       signal,
     });
   } catch (e) {
-    if (isAbort(e)) throw new GenError('cancelled', 'Cancelled.');
-    throw new GenError('no-server', 'Could not reach the render server. Check the server URL in settings.');
+    if (isAbort(e)) throw new GenError("cancelled", "Cancelled.");
+    throw new GenError(
+      "no-server",
+      "Could not reach the render server. Check the server URL in settings.",
+    );
   }
-  const data = (await res.json().catch(() => ({}))) as { url?: string; audioUrl?: string; balance?: number; error?: string };
-  if (res.status === 401) throw new GenError('unauthenticated', 'Please sign in to use AI.');
-  if (res.status === 402) throw new GenError('out-of-credits', data.error ?? 'Out of credits.', data.balance);
-  if (res.status === 503) throw new GenError('not-configured', data.error ?? 'Video generation is not configured on the render server.');
-  if (!res.ok || !data.url) throw new GenError('failed', data.error ?? `Generation failed (HTTP ${res.status}).`);
+  const data = (await res.json().catch(() => ({}))) as {
+    url?: string;
+    audioUrl?: string;
+    balance?: number;
+    error?: string;
+  };
+  if (res.status === 401)
+    throw new GenError("unauthenticated", "Please sign in to use AI.");
+  if (res.status === 402)
+    throw new GenError(
+      "out-of-credits",
+      data.error ?? "Out of credits.",
+      data.balance,
+    );
+  if (res.status === 503)
+    throw new GenError(
+      "not-configured",
+      data.error ?? "Video generation is not configured on the render server.",
+    );
+  if (!res.ok || !data.url)
+    throw new GenError(
+      "failed",
+      data.error ?? `Generation failed (HTTP ${res.status}).`,
+    );
   return { url: data.url, audioUrl: data.audioUrl, balance: data.balance ?? 0 };
 }
 
@@ -117,37 +185,70 @@ export async function generateTts(
   base: string,
   text: string,
   voice?: string,
+  speed?: number,
   signal?: AbortSignal,
 ): Promise<{ url: string; balance: number }> {
   const account = await getAccount();
   let res: Response;
   try {
     res = await fetch(`${clean(base)}/v1/tts`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'X-Orbit-Account': account, ...authHeader() },
-      body: JSON.stringify({ text, voice }),
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "X-Orbit-Account": account,
+        ...authHeader(),
+      },
+      body: JSON.stringify({ text, voice, speed }),
       signal,
     });
   } catch (e) {
-    if (isAbort(e)) throw new GenError('cancelled', 'Cancelled.');
-    throw new GenError('no-server', 'Could not reach the render server. Check the server URL in settings.');
+    if (isAbort(e)) throw new GenError("cancelled", "Cancelled.");
+    throw new GenError(
+      "no-server",
+      "Could not reach the render server. Check the server URL in settings.",
+    );
   }
-  const data = (await res.json().catch(() => ({}))) as { url?: string; balance?: number; error?: string };
-  if (res.status === 401) throw new GenError('unauthenticated', 'Please sign in to use AI.');
-  if (res.status === 402) throw new GenError('out-of-credits', data.error ?? 'Out of credits.', data.balance);
-  if (res.status === 503) throw new GenError('not-configured', data.error ?? 'Voiceover generation is not configured on the render server.');
-  if (!res.ok || !data.url) throw new GenError('failed', data.error ?? `Generation failed (HTTP ${res.status}).`);
+  const data = (await res.json().catch(() => ({}))) as {
+    url?: string;
+    balance?: number;
+    error?: string;
+  };
+  if (res.status === 401)
+    throw new GenError("unauthenticated", "Please sign in to use AI.");
+  if (res.status === 402)
+    throw new GenError(
+      "out-of-credits",
+      data.error ?? "Out of credits.",
+      data.balance,
+    );
+  if (res.status === 503)
+    throw new GenError(
+      "not-configured",
+      data.error ??
+        "Voiceover generation is not configured on the render server.",
+    );
+  if (!res.ok || !data.url)
+    throw new GenError(
+      "failed",
+      data.error ?? `Generation failed (HTTP ${res.status}).`,
+    );
   return { url: data.url, balance: data.balance ?? 0 };
 }
 
 /** Current credit balance for this device's account (null if unreachable). */
-export async function getCredits(base: string, signal?: AbortSignal): Promise<number | null> {
+export async function getCredits(
+  base: string,
+  signal?: AbortSignal,
+): Promise<number | null> {
   const account = await getAccount();
   try {
-    const res = await fetch(`${clean(base)}/v1/credits`, { headers: { 'X-Orbit-Account': account, ...authHeader() }, signal });
+    const res = await fetch(`${clean(base)}/v1/credits`, {
+      headers: { "X-Orbit-Account": account, ...authHeader() },
+      signal,
+    });
     if (!res.ok) return null;
     const data = (await res.json().catch(() => ({}))) as { balance?: number };
-    return typeof data.balance === 'number' ? data.balance : null;
+    return typeof data.balance === "number" ? data.balance : null;
   } catch {
     return null;
   }

@@ -37,15 +37,13 @@ interface Tool {
   disabled?: boolean;
 }
 
+const TOOL_WIDTH = 66;
+
 const soonAlert = (label: string) =>
   Alert.alert("Coming soon", `${label} is coming soon.`);
 
 function ToolButton({ tool }: { tool: Tool }) {
-  const color = tool.soon
-    ? vela.muted2
-    : tool.danger
-      ? vela.danger
-      : vela.textLight;
+  const color = tool.soon ? vela.muted2 : vela.textLight;
   const onPress = tool.soon ? () => soonAlert(tool.label) : tool.onPress;
   const dimmed = tool.disabled && !tool.soon;
   return (
@@ -56,9 +54,7 @@ function ToolButton({ tool }: { tool: Tool }) {
         color={dimmed ? vela.muted3 : color}
         strokeWidth={1.7}
       />
-      <Text style={[styles.toolLabel, tool.danger && { color: vela.danger }]}>
-        {tool.label}
-      </Text>
+      <Text style={styles.toolLabel}>{tool.label}</Text>
       {tool.soon ? (
         <View style={styles.soonTag}>
           <Text style={styles.soonTagText}>soon</Text>
@@ -73,10 +69,14 @@ export function EditorScreen() {
   const project = useEditor((s) => s.project);
   const projectName = useEditor((s) => s.name);
   const selected = useEditor((s) => s.selected);
+  const selectedGap = useEditor((s) => s.selectedGap);
   const select = useEditor((s) => s.select);
   const closeEditor = useEditor((s) => s.closeEditor);
   const splitAtPlayhead = useEditor((s) => s.splitAtPlayhead);
   const removeSelected = useEditor((s) => s.removeSelected);
+  const rippleDeleteSelected = useEditor((s) => s.rippleDeleteSelected);
+  const rippleDelete = useEditor((s) => s.rippleDelete);
+  const removeSelectedGap = useEditor((s) => s.removeSelectedGap);
   const moveSelectedLayer = useEditor((s) => s.moveSelectedLayer);
   const togglePiP = useEditor((s) => s.togglePiP);
   const duplicateSelected = useEditor((s) => s.duplicateSelected);
@@ -132,6 +132,23 @@ export function EditorScreen() {
   const selectedIsVisual = selectedTrack?.kind === "visual";
   const selectedIsAudio = selectedTrack?.kind === "audio";
   const selectedIsText = selected?.trackId === OVERLAY_TRACK;
+  const openGapEffect = (panel: "mosaic" | "magnifier") => {
+    if (!selectedGap) return;
+    const track = tracks.find(
+      (item) => item.id === selectedGap.trackId && item.kind === "visual",
+    );
+    if (!track || track.kind !== "visual") return;
+    const next = [...track.clips]
+      .sort((a, b) => a.start - b.start)
+      .find((clip) => clip.start >= selectedGap.end - 0.001);
+    const previous = [...track.clips]
+      .sort((a, b) => b.start - a.start)
+      .find((clip) => clip.start + clip.duration <= selectedGap.start + 0.001);
+    const target = next ?? previous;
+    if (!target) return;
+    select({ trackId: track.id, clipId: target.id });
+    setPanel(panel);
+  };
 
   // Reserve a bounded timeline viewport. Expanded lane groups scroll vertically
   // inside it, so the preview can never be pushed through the fixed top bar.
@@ -187,6 +204,13 @@ export function EditorScreen() {
       onPress: () => setPanel("editmenu"),
     },
   ];
+  const deleteTool: Tool = {
+    key: "delete",
+    icon: rippleDelete ? "rippleDelete" : "trash",
+    label: rippleDelete ? "Ripple delete" : "Delete",
+    onPress: rippleDelete ? rippleDeleteSelected : removeSelected,
+    danger: true,
+  };
   // Full text toolset (CapCut). Font/Size/Color/Format/Spacing/Style all open
   // the live Text-edit sheet (where those controls live); the rest are real or
   // genuinely not built yet.
@@ -210,13 +234,7 @@ export function EditorScreen() {
       onPress: () => setPanel("textedit-size"),
     },
     { key: "split", icon: "split", label: "Split", onPress: splitAtPlayhead },
-    {
-      key: "delete",
-      icon: "trash",
-      label: "Delete",
-      onPress: removeSelected,
-      danger: true,
-    },
+    deleteTool,
     {
       key: "color",
       icon: "color",
@@ -247,8 +265,18 @@ export function EditorScreen() {
       label: "Blending",
       onPress: () => setPanel("blend"),
     },
-    { key: "opacity", icon: "opacity", label: "Opacity", soon: true },
-    { key: "position", icon: "position", label: "Position", soon: true },
+    {
+      key: "opacity",
+      icon: "opacity",
+      label: "Opacity",
+      onPress: () => setPanel("opacity"),
+    },
+    {
+      key: "position",
+      icon: "position",
+      label: "Position",
+      onPress: () => setPanel("position"),
+    },
     {
       key: "mask",
       icon: "mask",
@@ -282,13 +310,7 @@ export function EditorScreen() {
       label: "Copy",
       onPress: duplicateSelected,
     },
-    {
-      key: "delete",
-      icon: "trash",
-      label: "Delete",
-      onPress: removeSelected,
-      danger: true,
-    },
+    deleteTool,
   ];
   const visualTools: Tool[] = [
     { key: "split", icon: "split", label: "Split", onPress: splitAtPlayhead },
@@ -328,6 +350,18 @@ export function EditorScreen() {
       icon: "mask",
       label: "Mask",
       onPress: () => setPanel("mask"),
+    },
+    {
+      key: "mosaic",
+      icon: "grid",
+      label: "Mosaic",
+      onPress: () => setPanel("mosaic"),
+    },
+    {
+      key: "magnifier",
+      icon: "search",
+      label: "Magnifier",
+      onPress: () => setPanel("magnifier"),
     },
     {
       key: "blending",
@@ -384,21 +418,45 @@ export function EditorScreen() {
       label: "Copy",
       onPress: duplicateSelected,
     },
+    deleteTool,
+  ];
+  const gapTools: Tool[] = [
     {
-      key: "delete",
+      key: "delete-gap",
       icon: "trash",
-      label: "Delete",
-      onPress: removeSelected,
+      label: "Delete gap",
+      onPress: removeSelectedGap,
       danger: true,
     },
+    {
+      key: "mosaic-gap",
+      icon: "grid",
+      label: "Mosaic",
+      onPress: () => openGapEffect("mosaic"),
+    },
+    {
+      key: "magnify-gap",
+      icon: "search",
+      label: "Magnifier",
+      onPress: () => openGapEffect("magnifier"),
+    },
+    {
+      key: "story-gap",
+      icon: "list",
+      label: "Story",
+      onPress: () => setPanel("story"),
+    },
   ];
-  const bottomTools: Tool[] = selectedIsText
-    ? textTools
-    : selectedIsAudio
-      ? audioTools
-      : selected && selectedIsVisual
-        ? visualTools
-        : base;
+  const bottomTools: Tool[] = selectedGap
+    ? gapTools
+    : selectedIsText
+      ? textTools
+      : selectedIsAudio
+        ? audioTools
+        : selected && selectedIsVisual
+          ? visualTools
+          : base;
+  const bottomToolsFit = bottomTools.length * TOOL_WIDTH + 16 <= screenW;
 
   return (
     <View style={styles.root}>
@@ -439,7 +497,10 @@ export function EditorScreen() {
       </View>
 
       {/* Preview (tap to deselect — hides the selection action bar) */}
-      <Pressable style={styles.stage} onPress={() => selected && select(null)}>
+      <Pressable
+        style={styles.stage}
+        onPress={() => (selected || selectedGap) && select(null)}
+      >
         <View
           style={[
             styles.whiteFrame,
@@ -508,7 +569,10 @@ export function EditorScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.toolbarContent}
+          contentContainerStyle={[
+            styles.toolbarContent,
+            bottomToolsFit && styles.toolbarContentCentered,
+          ]}
         >
           {bottomTools.map((t) => (
             <ToolButton key={t.key} tool={t} />
@@ -718,7 +782,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingBottom: 22,
   },
-  tool: { width: 66, alignItems: "center", gap: 7 },
+  toolbarContentCentered: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  tool: { width: TOOL_WIDTH, alignItems: "center", gap: 7 },
   toolLabel: { color: vela.textLight2, fontSize: 12, fontFamily: font.medium },
   soonTag: {
     position: "absolute",

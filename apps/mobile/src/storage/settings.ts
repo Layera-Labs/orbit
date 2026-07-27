@@ -7,9 +7,15 @@ export type ViewMode = 'list' | 'grid2' | 'grid3';
 export interface Settings {
   serverUrl: string;
   viewMode: ViewMode;
+  /** When enabled, the editor's primary delete command closes the lane gap. */
+  rippleDelete: boolean;
 }
 
-const DEFAULTS: Settings = { serverUrl: DEFAULT_SERVER, viewMode: 'list' };
+const DEFAULTS: Settings = {
+  serverUrl: DEFAULT_SERVER,
+  viewMode: 'list',
+  rippleDelete: false,
+};
 
 function settingsFile(): File {
   return new File(Paths.document, 'settings.json');

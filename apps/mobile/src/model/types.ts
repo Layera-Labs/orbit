@@ -19,7 +19,7 @@ export interface BaseClip {
 }
 
 export interface VideoClip extends BaseClip {
-  type: 'video';
+  type: "video";
   src: string;
   /** Source-media in-point, seconds (default 0). */
   trimIn?: number;
@@ -31,13 +31,13 @@ export interface VideoClip extends BaseClip {
 }
 
 export interface ImageClip extends BaseClip {
-  type: 'image';
+  type: "image";
   src: string;
 }
 
 export type VisualClip = VideoClip | ImageClip;
 
-export type TextAlign = 'left' | 'center' | 'right';
+export type TextAlign = "left" | "center" | "right";
 
 /** Drop shadow behind a caption. Offsets/blur are px at the output resolution. */
 export interface TextShadow {
@@ -56,7 +56,7 @@ export interface TextStroke {
 
 export interface TextOverlay {
   id: ID;
-  type: 'text';
+  type: "text";
   text: string;
   /** Appear / disappear time on the timeline, seconds. */
   start: number;
@@ -64,6 +64,10 @@ export interface TextOverlay {
   /** Normalized anchor position (0..1 of width/height). */
   x: number;
   y: number;
+  /** Static layer opacity (0..1). Keyframes override it while animated. */
+  opacity?: number;
+  /** Optional shape mask in normalized project coordinates. */
+  mask?: ClipMask;
   /** Font size in px at the output resolution. */
   fontSize: number;
   color: string;
@@ -82,7 +86,7 @@ export interface TextOverlay {
   stroke?: TextStroke;
   /** Optional caption background box. */
   box?: { color: string; opacity?: number; padding?: number };
-  animation?: 'none' | 'fade';
+  animation?: "none" | "fade";
   /** Ken-Burns camera move animated over the caption window (preview + export). */
   motion?: Motion;
   /** Keyframes animating opacity + position over the caption (≥2 to animate). */
@@ -106,12 +110,18 @@ export interface AudioClip {
 }
 
 export type Background =
-  | { type: 'color'; color: string }
-  | { type: 'gradient'; from: string; to: string; angle?: number }
-  | { type: 'image'; src: string }
-  | { type: 'blur'; amount?: number };
+  | { type: "color"; color: string }
+  | { type: "gradient"; from: string; to: string; angle?: number }
+  | { type: "image"; src: string }
+  | { type: "blur"; amount?: number };
 
-export type TransitionType = 'cut' | 'fade' | 'dissolve' | 'slide' | 'wipe' | 'zoom';
+export type TransitionType =
+  | "cut"
+  | "fade"
+  | "dissolve"
+  | "slide"
+  | "wipe"
+  | "zoom";
 
 /** Transition between consecutive clips (legacy: project-wide; multi-track:
  *  per base-clip boundary via `VisualTrackClip.transitionIn`). */
@@ -158,7 +168,7 @@ export interface ChromaKey {
 }
 
 /** Shape mask revealing only part of a layer (coords normalized within clip). */
-export type MaskShape = 'rectangle' | 'circle';
+export type MaskShape = "rectangle" | "circle";
 export interface ClipMask {
   shape: MaskShape;
   cx: number;
@@ -168,8 +178,42 @@ export interface ClipMask {
   invert?: boolean;
 }
 
+/** Reusable, normalized region for local visual effects. */
+export type EffectRegionShape = "rectangle" | "circle" | "rounded" | "diamond";
+export interface EffectRegion {
+  shape: EffectRegionShape;
+  cx: number;
+  cy: number;
+  rx: number;
+  ry: number;
+  /** Effect-layer opacity, 0..1. */
+  opacity: number;
+}
+
+export interface ClipMosaic extends EffectRegion {
+  pattern: "mosaic" | "triangle" | "hexagon" | "blur";
+  /** Pixel/blur strength, 0..1. */
+  amount: number;
+}
+
+export interface ClipMagnifier extends EffectRegion {
+  /** Lens zoom, 1..4. */
+  zoom: number;
+  /** Border width relative to the smaller clip dimension, 0..0.05. */
+  borderWidth: number;
+  borderColor: string;
+}
+
 /** Layer blend mode against the layers below (default normal/over). */
-export type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'difference' | 'add';
+export type BlendMode =
+  | "normal"
+  | "multiply"
+  | "screen"
+  | "overlay"
+  | "darken"
+  | "lighten"
+  | "difference"
+  | "add";
 
 /** A point on a volume envelope: `t` is 0..1 of the clip duration, `v` is gain (0..2). */
 export interface VolumePoint {
@@ -179,14 +223,14 @@ export interface VolumePoint {
 
 /** Ken-Burns style camera move applied over a clip's duration. */
 export type MotionType =
-  | 'none'
-  | 'zoomIn'
-  | 'zoomOut'
-  | 'panLeft'
-  | 'panRight'
-  | 'panUp'
-  | 'panDown'
-  | 'kenBurns';
+  | "none"
+  | "zoomIn"
+  | "zoomOut"
+  | "panLeft"
+  | "panRight"
+  | "panUp"
+  | "panDown"
+  | "kenBurns";
 
 /** Per-clip motion (zoom / pan animated across the clip window). */
 export interface Motion {
@@ -220,7 +264,7 @@ export const FULL_FRAME: Rect = { x: 0, y: 0, w: 1, h: 1 };
 
 export interface VisualTrackClip {
   id: ID;
-  type: 'video' | 'image';
+  type: "video" | "image";
   src: string;
   /** ABSOLUTE start on the timeline, seconds. */
   start: number;
@@ -240,6 +284,10 @@ export interface VisualTrackClip {
   opacity?: number;
   /** Shape mask revealing only part of the layer (preview + export). */
   mask?: ClipMask;
+  /** Local obscuring effect inside a movable shape. */
+  mosaic?: ClipMosaic;
+  /** Local magnifying lens inside a movable shape. */
+  magnifier?: ClipMagnifier;
   /** Layer blend mode against the layers below (default normal/over). */
   blend?: BlendMode;
   /** Playback speed multiplier (1 = normal). */
@@ -268,14 +316,14 @@ export interface AudioTrackClip {
 
 export interface VisualTrack {
   id: ID;
-  kind: 'visual';
+  kind: "visual";
   name?: string;
   clips: VisualTrackClip[];
 }
 
 export interface AudioTrack {
   id: ID;
-  kind: 'audio';
+  kind: "audio";
   name?: string;
   clips: AudioTrackClip[];
 }

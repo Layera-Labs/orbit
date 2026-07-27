@@ -30,6 +30,8 @@ export interface GenVideoRequest {
 export interface TTSRequest {
   text: string;
   voice?: string;
+  /** Speaking-rate multiplier supported by the voice provider. */
+  speed?: number;
   /** Abort the generation (e.g. the API client disconnected). */
   signal?: AbortSignal;
 }

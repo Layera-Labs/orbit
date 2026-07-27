@@ -4,39 +4,60 @@
  * header toggles. Each tab's body is a reusable component: the caption input,
  * `FontPickerBody`, the size sliders, `ColorPickerBody`, and `ShadowStrokeBody`.
  */
-import { useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import Animated, { FadeIn, LinearTransition, useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
-import { font, mono, vela } from '../constants';
-import type { TextAlign } from '../model/types';
-import { useEditor } from '../store/editorStore';
-import { VIcon, type VIconName } from './VIcon';
-import { VSlider } from './VSlider';
-import { FontPickerBody } from './FontPickerSheet';
-import { ColorPickerBody } from './ColorSheet';
-import { ShadowStrokeBody } from './ShadowSheet';
+import { useEffect, useRef, useState } from "react";
+import {
+  KeyboardAvoidingView,
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+import Animated, {
+  FadeIn,
+  LinearTransition,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
+import { font, mono, vela } from "../constants";
+import type { TextAlign } from "../model/types";
+import { useEditor } from "../store/editorStore";
+import { VIcon, type VIconName } from "./VIcon";
+import { VSlider } from "./VSlider";
+import { FontPickerBody } from "./FontPickerSheet";
+import { ColorPickerBody } from "./ColorSheet";
+import { ShadowStrokeBody } from "./ShadowSheet";
 
-const ALIGN_ORDER: TextAlign[] = ['left', 'center', 'right'];
+const ALIGN_ORDER: TextAlign[] = ["left", "center", "right"];
 
-export type TextSettingsTab = 'text' | 'font' | 'size' | 'color' | 'stroke';
+export type TextSettingsTab = "text" | "font" | "size" | "color" | "stroke";
 type Tab = TextSettingsTab;
 const TABS: { key: Tab; label: string }[] = [
-  { key: 'text', label: 'Text' },
-  { key: 'font', label: 'Font' },
-  { key: 'size', label: 'Size' },
-  { key: 'color', label: 'Color' },
-  { key: 'stroke', label: 'Stroke' },
+  { key: "text", label: "Text" },
+  { key: "font", label: "Font" },
+  { key: "size", label: "Size" },
+  { key: "color", label: "Color" },
+  { key: "stroke", label: "Stroke" },
 ];
 
 /** Align header button whose glyph reflects the current alignment and pops on change. */
 function AlignIcon({ align }: { align: TextAlign }) {
-  const name: VIconName = align === 'left' ? 'alignLeft' : align === 'right' ? 'alignRight' : 'alignCenter';
+  const name: VIconName =
+    align === "left"
+      ? "alignLeft"
+      : align === "right"
+        ? "alignRight"
+        : "alignCenter";
   const pop = useSharedValue(1);
   useEffect(() => {
     pop.value = 0.76;
     pop.value = withSpring(1, { damping: 12, stiffness: 320, mass: 0.55 });
   }, [align, pop]);
-  const animatedStyle = useAnimatedStyle(() => ({ transform: [{ scale: pop.value }] }));
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pop.value }],
+  }));
   return (
     <Animated.View style={animatedStyle}>
       <VIcon name={name} size={22} color={vela.ink2} />
@@ -44,16 +65,22 @@ function AlignIcon({ align }: { align: TextAlign }) {
   );
 }
 
-export function TextSettingsSheet({ initialTab = 'text' }: { initialTab?: TextSettingsTab }) {
+export function TextSettingsSheet({
+  initialTab = "text",
+}: {
+  initialTab?: TextSettingsTab;
+}) {
   const setPanel = useEditor((s) => s.setPanel);
   const selected = useEditor((s) => s.selected);
   const editSelectedText = useEditor((s) => s.editSelectedText);
   const updateOverlay = useEditor((s) => s.updateSelectedOverlay);
-  const ov = useEditor((s) => s.project?.overlays.find((o) => o.id === selected?.clipId));
+  const ov = useEditor((s) =>
+    s.project?.overlays.find((o) => o.id === selected?.clipId),
+  );
   const projW = useEditor((s) => s.project?.width ?? 1080);
 
   const [tab, setTab] = useState<Tab>(initialTab);
-  const [text, setText] = useState(ov?.text ?? '');
+  const [text, setText] = useState(ov?.text ?? "");
   const inputRef = useRef<TextInput>(null);
   const close = () => setPanel(null);
   const onChangeText = (t: string) => {
@@ -61,47 +88,81 @@ export function TextSettingsSheet({ initialTab = 'text' }: { initialTab?: TextSe
     editSelectedText(t);
   };
 
-  const color = ov?.color ?? '#ffffff';
+  const color = ov?.color ?? "#ffffff";
   const fontSize = ov?.fontSize ?? Math.round(projW * 0.07);
-  const align = ov?.align ?? 'center';
+  const align = ov?.align ?? "center";
   const bold = ov?.bold ?? false;
   const letterSpacing = ov?.letterSpacing ?? 0;
   const lineHeight = ov?.lineHeight ?? 1.25;
-  const cycleAlign = () => updateOverlay({ align: ALIGN_ORDER[(ALIGN_ORDER.indexOf(align) + 1) % 3] });
+  const cycleAlign = () =>
+    updateOverlay({ align: ALIGN_ORDER[(ALIGN_ORDER.indexOf(align) + 1) % 3] });
 
-  const bodyH = tab === 'text' ? 150 : tab === 'size' ? 210 : tab === 'color' ? 324 : 380;
+  const bodyH =
+    tab === "text" ? 150 : tab === "size" ? 210 : tab === "color" ? 324 : 380;
 
   return (
     <Modal transparent visible animationType="slide" onRequestClose={close}>
       <Pressable style={styles.backdrop} onPress={close}>
-        <KeyboardAvoidingView behavior={process.env.EXPO_OS === 'ios' ? 'padding' : undefined}>
-          <Pressable style={styles.sheet} onPress={() => {}}>
+        <Pressable style={styles.sheet} onPress={() => {}}>
+          <KeyboardAvoidingView
+            behavior={process.env.EXPO_OS === "ios" ? "padding" : undefined}
+            style={styles.keyboardContent}
+          >
             {/* Header: title + align + bold + done */}
             <View style={styles.header}>
               <Text style={styles.title}>Text</Text>
               <View style={styles.headerActions}>
-                <Pressable onPress={cycleAlign} hitSlop={8}><AlignIcon align={align} /></Pressable>
-                <Pressable onPress={() => updateOverlay({ bold: !bold })} hitSlop={8}>
-                  <VIcon name="style" size={22} color={bold ? vela.accent : vela.ink3} />
+                <Pressable onPress={cycleAlign} hitSlop={8}>
+                  <AlignIcon align={align} />
+                </Pressable>
+                <Pressable
+                  onPress={() => updateOverlay({ bold: !bold })}
+                  hitSlop={8}
+                >
+                  <VIcon
+                    name="style"
+                    size={22}
+                    color={bold ? vela.accent : vela.ink3}
+                  />
                 </Pressable>
                 <View style={styles.headDivider} />
-                <Pressable onPress={close} hitSlop={8} style={styles.done}><VIcon name="check" size={21} color={vela.accent} strokeWidth={2.7} /></Pressable>
+                <Pressable onPress={close} hitSlop={8} style={styles.done}>
+                  <VIcon
+                    name="check"
+                    size={21}
+                    color={vela.accent}
+                    strokeWidth={2.7}
+                  />
+                </Pressable>
               </View>
             </View>
 
             {/* Tab bar */}
             <View style={styles.tabs}>
               {TABS.map((t) => (
-                <Pressable key={t.key} onPress={() => setTab(t.key)} style={styles.tab}>
-                  <Text style={[styles.tabText, tab === t.key && styles.tabTextOn]}>{t.label}</Text>
+                <Pressable
+                  key={t.key}
+                  onPress={() => setTab(t.key)}
+                  style={styles.tab}
+                >
+                  <Text
+                    style={[styles.tabText, tab === t.key && styles.tabTextOn]}
+                  >
+                    {t.label}
+                  </Text>
                   {tab === t.key ? <View style={styles.tabUnderline} /> : null}
                 </Pressable>
               ))}
             </View>
 
             {/* Body */}
-            <Animated.View key={tab} entering={FadeIn.duration(170)} layout={LinearTransition.duration(180)} style={[styles.body, { height: bodyH }]}>
-              {tab === 'text' ? (
+            <Animated.View
+              key={tab}
+              entering={FadeIn.duration(170)}
+              layout={LinearTransition.duration(180)}
+              style={[styles.body, { height: bodyH }]}
+            >
+              {tab === "text" ? (
                 <View style={styles.inputRow}>
                   <TextInput
                     ref={inputRef}
@@ -113,38 +174,97 @@ export function TextSettingsSheet({ initialTab = 'text' }: { initialTab?: TextSe
                     placeholderTextColor={vela.muted2}
                     style={styles.input}
                   />
-                  <Pressable onPress={() => onChangeText('')} hitSlop={8} style={styles.trash}>
-                    <VIcon name="trash" size={22} color={vela.muted} />
+                  <Pressable
+                    onPress={() => onChangeText("")}
+                    hitSlop={8}
+                    style={styles.trash}
+                  >
+                    <VIcon name="trash" size={18} color="#fff" />
                   </Pressable>
                 </View>
-              ) : tab === 'font' ? (
-                <FontPickerBody value={ov?.fontFamily} onChange={(family) => updateOverlay({ fontFamily: family })} />
-              ) : tab === 'size' ? (
+              ) : tab === "font" ? (
+                <FontPickerBody
+                  value={ov?.fontFamily}
+                  onChange={(family) => updateOverlay({ fontFamily: family })}
+                />
+              ) : tab === "size" ? (
                 <View>
-                  <SizeRow label="Size" value={Math.round(fontSize)} fmt={String(Math.round(fontSize))}>
-                    <VSlider value={fontSize} min={16} max={Math.round(projW * 0.3)} step={2} onChange={(v) => updateOverlay({ fontSize: Math.round(v) })} />
+                  <SizeRow
+                    label="Size"
+                    value={Math.round(fontSize)}
+                    fmt={String(Math.round(fontSize))}
+                  >
+                    <VSlider
+                      value={fontSize}
+                      min={16}
+                      max={Math.round(projW * 0.3)}
+                      step={2}
+                      onChange={(v) =>
+                        updateOverlay({ fontSize: Math.round(v) })
+                      }
+                    />
                   </SizeRow>
-                  <SizeRow label="Spacing" value={letterSpacing} fmt={String(Math.round(letterSpacing))}>
-                    <VSlider value={letterSpacing} min={0} max={20} step={1} onChange={(v) => updateOverlay({ letterSpacing: Math.round(v) })} />
+                  <SizeRow
+                    label="Spacing"
+                    value={letterSpacing}
+                    fmt={String(Math.round(letterSpacing))}
+                  >
+                    <VSlider
+                      value={letterSpacing}
+                      min={0}
+                      max={20}
+                      step={1}
+                      onChange={(v) =>
+                        updateOverlay({ letterSpacing: Math.round(v) })
+                      }
+                    />
                   </SizeRow>
-                  <SizeRow label="Line" value={lineHeight} fmt={lineHeight.toFixed(2)}>
-                    <VSlider value={lineHeight} min={1} max={2} step={0.05} onChange={(v) => updateOverlay({ lineHeight: Math.round(v * 100) / 100 })} />
+                  <SizeRow
+                    label="Line"
+                    value={lineHeight}
+                    fmt={lineHeight.toFixed(2)}
+                  >
+                    <VSlider
+                      value={lineHeight}
+                      min={1}
+                      max={2}
+                      step={0.05}
+                      onChange={(v) =>
+                        updateOverlay({ lineHeight: Math.round(v * 100) / 100 })
+                      }
+                    />
                   </SizeRow>
                 </View>
-              ) : tab === 'color' ? (
-                <ColorPickerBody value={color} onChange={(hex) => updateOverlay({ color: hex })} />
+              ) : tab === "color" ? (
+                <ColorPickerBody
+                  value={color}
+                  onChange={(hex) => updateOverlay({ color: hex })}
+                />
               ) : (
-                <ShadowStrokeBody shadow={ov?.shadow} stroke={ov?.stroke} onChange={updateOverlay} />
+                <ShadowStrokeBody
+                  shadow={ov?.shadow}
+                  stroke={ov?.stroke}
+                  onChange={updateOverlay}
+                />
               )}
             </Animated.View>
-          </Pressable>
-        </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </Pressable>
       </Pressable>
     </Modal>
   );
 }
 
-function SizeRow({ label, fmt, children }: { label: string; value: number; fmt: string; children: React.ReactNode }) {
+function SizeRow({
+  label,
+  fmt,
+  children,
+}: {
+  label: string;
+  value: number;
+  fmt: string;
+  children: React.ReactNode;
+}) {
   return (
     <View style={styles.sizeRow}>
       <Text style={styles.sizeLabel}>{label}</Text>
@@ -155,23 +275,87 @@ function SizeRow({ label, fmt, children }: { label: string; value: number; fmt: 
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: '#0006', justifyContent: 'flex-end' },
-  sheet: { maxHeight: '88%', backgroundColor: vela.lightCard, paddingHorizontal: 18, paddingTop: 16, paddingBottom: 28, borderTopLeftRadius: 26, borderTopRightRadius: 26, borderCurve: 'continuous' },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  backdrop: { flex: 1, backgroundColor: "#0006", justifyContent: "flex-end" },
+  sheet: {
+    maxHeight: "88%",
+    backgroundColor: vela.lightCard,
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 28,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    borderCurve: "continuous",
+  },
+  keyboardContent: { width: "100%" },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   title: { color: vela.ink, fontFamily: font.extrabold, fontSize: 20 },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 18 },
-  done: { width: 34, height: 34, borderRadius: 11, backgroundColor: vela.accentSoft, alignItems: 'center', justifyContent: 'center' },
+  headerActions: { flexDirection: "row", alignItems: "center", gap: 18 },
+  done: {
+    width: 34,
+    height: 34,
+    borderRadius: 11,
+    backgroundColor: vela.accentSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headDivider: { width: 1, height: 20, backgroundColor: vela.lightBorder },
-  tabs: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 14, borderBottomWidth: 1, borderBottomColor: vela.lightBorder },
-  tab: { paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center' },
-  tabText: { color: vela.lightMuted, fontFamily: font.semibold, fontSize: 13.5 },
+  tabs: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: vela.lightBorder,
+  },
+  tab: { paddingVertical: 10, paddingHorizontal: 8, alignItems: "center" },
+  tabText: {
+    color: vela.lightMuted,
+    fontFamily: font.semibold,
+    fontSize: 13.5,
+  },
   tabTextOn: { color: vela.accent, fontFamily: font.bold },
-  tabUnderline: { position: 'absolute', bottom: -1, left: 8, right: 8, height: 2, borderRadius: 1, backgroundColor: vela.accent },
+  tabUnderline: {
+    position: "absolute",
+    bottom: -1,
+    left: 8,
+    right: 8,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: vela.accent,
+  },
   body: { paddingTop: 12 },
-  inputRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  input: { flex: 1, color: vela.ink, fontSize: 17, fontFamily: font.medium, minHeight: 120, textAlignVertical: 'top' },
-  trash: { paddingTop: 4 },
-  sizeRow: { flexDirection: 'row', alignItems: 'center', gap: 12, height: 52 },
-  sizeLabel: { color: vela.ink2, fontSize: 14, fontFamily: font.semibold, minWidth: 62 },
-  sizeVal: { color: vela.ink2, fontFamily: mono.regular, fontSize: 13, minWidth: 40, textAlign: 'right' },
+  inputRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
+  input: {
+    flex: 1,
+    color: vela.ink,
+    fontSize: 17,
+    fontFamily: font.medium,
+    minHeight: 120,
+    textAlignVertical: "top",
+  },
+  trash: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: vela.ink2,
+  },
+  sizeRow: { flexDirection: "row", alignItems: "center", gap: 12, height: 52 },
+  sizeLabel: {
+    color: vela.ink2,
+    fontSize: 14,
+    fontFamily: font.semibold,
+    minWidth: 62,
+  },
+  sizeVal: {
+    color: vela.ink2,
+    fontFamily: mono.regular,
+    fontSize: 13,
+    minWidth: 40,
+    textAlign: "right",
+  },
 });

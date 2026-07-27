@@ -119,6 +119,13 @@ const ICONS = {
   curve: { paths: ['M5 19C6 11 13 6 19 5'], circles: [[5, 19, 1.8], [19, 5, 1.8]], sw: 1.8 },
   lock: { rects: [[5, 11, 14, 9, 2]], paths: ['M8 11V7.5a4 4 0 018 0V11'], sw: 1.8 },
   duplicate: { paths: ['M8 8h12v12H8z', 'M4 4h12v3', 'M4 4v12h3'], sw: 1.8 },
+  rippleDelete: {
+    paths: [
+      'M4 7h9M7 7V4h4v3M5 7l1 12h6l1-12',
+      'M21 12h-6M18 9l-3 3 3 3',
+    ],
+    sw: 1.8,
+  },
 
   // ---- text toolbar ----
   font: { paths: ['M5 19l5-14 5 14M7 14h6'], sw: 1.8 },

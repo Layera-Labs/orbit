@@ -4,38 +4,119 @@
  * playback) and the screen router. Mutations run pure `editor-ops` over
  * `project.tracks` and persist the result.
  */
-import { create } from 'zustand';
-import { DEFAULT_SERVER } from '../constants';
-import { createProject, projectDuration } from '../model/project';
-import * as ops from '../model/editor-ops';
-import { MIN_CLIP, newId } from '../model/editor-ops';
-import { FULL_FRAME, type AudioTrackClip, type BlendMode, type ChromaKey, type ClipFilter, type ClipMask, type ExportOutput, type Keyframe, type Motion, type Rect, type TextOverlay, type Transition, type VideoProject, type VisualTrackClip, type VolumePoint } from '../model/types';
+import { create } from "zustand";
+import { DEFAULT_SERVER } from "../constants";
+import { createProject, projectDuration } from "../model/project";
+import * as ops from "../model/editor-ops";
+import { MIN_CLIP, newId } from "../model/editor-ops";
+import {
+  FULL_FRAME,
+  type AudioTrackClip,
+  type BlendMode,
+  type ChromaKey,
+  type ClipFilter,
+  type ClipMagnifier,
+  type ClipMask,
+  type ClipMosaic,
+  type ExportOutput,
+  type Keyframe,
+  type Motion,
+  type Rect,
+  type TextOverlay,
+  type Transition,
+  type VideoProject,
+  type VisualTrackClip,
+  type VolumePoint,
+} from "../model/types";
 
 /** Sentinel track id for the text/caption lane (overlays live on project.overlays, not tracks). */
-export const OVERLAY_TRACK = '__overlays__';
+export const OVERLAY_TRACK = "__overlays__";
 
 const DEFAULT_PIP: Rect = { x: 0.52, y: 0.06, w: 0.44, h: 0.3 };
-import { deleteProject as deleteStored, listProjects, loadProject, saveProject, type StoredProject } from '../storage/projects';
-import { saveUserTemplate, type StoredTemplate } from '../storage/templates';
-import type { EditorTemplate } from '../templates';
-import { loadSettings, saveSettings, type ViewMode } from '../storage/settings';
-import { exportProject, downloadToPhotos, type ExportProgress } from '../net/renderClient';
-import { getCredits } from '../net/genClient';
-import { downloadToMedia, videoThumbnail } from '../storage/media';
-import { Alert, Share } from 'react-native';
+import {
+  deleteProject as deleteStored,
+  listProjects,
+  loadProject,
+  saveProject,
+  type StoredProject,
+} from "../storage/projects";
+import { saveUserTemplate, type StoredTemplate } from "../storage/templates";
+import type { EditorTemplate } from "../templates";
+import { loadSettings, saveSettings, type ViewMode } from "../storage/settings";
+import {
+  exportProject,
+  downloadToPhotos,
+  type ExportProgress,
+} from "../net/renderClient";
+import { getCredits } from "../net/genClient";
+import { downloadToMedia, videoThumbnail } from "../storage/media";
+import { Alert, Share } from "react-native";
 
 function progressLabel(p: ExportProgress): string {
-  return p.stage === 'uploading' ? `Uploading media ${p.current ?? 1}/${p.total ?? 1}…` : p.stage === 'rendering' ? 'Rendering on server…' : p.stage === 'downloading' ? 'Downloading…' : 'Saving…';
+  return p.stage === "uploading"
+    ? `Uploading media ${p.current ?? 1}/${p.total ?? 1}…`
+    : p.stage === "rendering"
+      ? "Rendering on server…"
+      : p.stage === "downloading"
+        ? "Downloading…"
+        : "Saving…";
 }
 
-export type Screen = 'projects' | 'discover' | 'library' | 'ai' | 'profile' | 'editor';
+export type Screen =
+  | "projects"
+  | "discover"
+  | "library"
+  | "ai"
+  | "profile"
+  | "editor";
 /** Editor sheets/panels — mirrors Vela's `panel` state machine. */
-export type EditorPanel = 'insert' | 'settings' | 'filter' | 'audio' | 'texttrack' | 'imagetrack' | 'prefs' | 'export' | 'editmenu' | 'textedit' | 'textedit-font' | 'textedit-size' | 'textedit-color' | 'textedit-stroke' | 'transition' | 'speed' | 'volume' | 'fx' | 'motion' | 'cutout' | 'trim' | 'keyframe' | 'opacity' | 'position' | 'mask' | 'voiceover' | 'blend' | 'curve' | 'library' | 'keys' | 'soundfx' | 'aigen' | 'auth' | 'genhistory' | 'tts' | 'buycredits' | 'ai' | 'addvisual';
+export type EditorPanel =
+  | "insert"
+  | "settings"
+  | "filter"
+  | "audio"
+  | "texttrack"
+  | "imagetrack"
+  | "prefs"
+  | "export"
+  | "editmenu"
+  | "textedit"
+  | "textedit-font"
+  | "textedit-size"
+  | "textedit-color"
+  | "textedit-stroke"
+  | "transition"
+  | "speed"
+  | "volume"
+  | "fx"
+  | "motion"
+  | "cutout"
+  | "trim"
+  | "keyframe"
+  | "opacity"
+  | "position"
+  | "mask"
+  | "mosaic"
+  | "magnifier"
+  | "story"
+  | "voiceover"
+  | "blend"
+  | "curve"
+  | "library"
+  | "keys"
+  | "soundfx"
+  | "aigen"
+  | "auth"
+  | "genhistory"
+  | "tts"
+  | "buycredits"
+  | "ai"
+  | "addvisual";
 
 /** Initial mode/source for the AI generate modal, set by the AI hub before opening it. */
-export type AiIntent = { mode: 'image' | 'video'; source?: 'text' | 'photo' };
+export type AiIntent = { mode: "image" | "video"; source?: "text" | "photo" };
 export interface EditorPrefs {
-  mainTrack: 'Quick' | 'Pro';
+  mainTrack: "Quick" | "Pro";
   linkage: boolean;
   snapping: boolean;
   previewFps: number;
@@ -43,6 +124,11 @@ export interface EditorPrefs {
 export interface Selection {
   trackId: string;
   clipId: string;
+}
+export interface GapSelection {
+  trackId: string;
+  start: number;
+  end: number;
 }
 
 const DEFAULT_PX_PER_SEC = 40;
@@ -52,6 +138,7 @@ interface EditorState {
   projects: StoredProject[];
   serverUrl: string;
   viewMode: ViewMode;
+  rippleDelete: boolean;
 
   projectId: string | null;
   name: string;
@@ -61,6 +148,7 @@ interface EditorState {
   sourceDims?: { width: number; height: number };
   project: VideoProject | null;
   selected: Selection | null;
+  selectedGap: GapSelection | null;
   playheadSec: number;
   pxPerSec: number;
   isPlaying: boolean;
@@ -75,7 +163,7 @@ interface EditorState {
   /** Initial mode/source the AI generate modal should open with (set by the AI hub). */
   aiIntent: AiIntent | null;
   /** Which tab the content library opens on. */
-  libraryTab: 'stickers' | 'emoji' | 'backgrounds' | 'stock' | 'generate';
+  libraryTab: "stickers" | "emoji" | "backgrounds" | "stock" | "generate";
   prefs: EditorPrefs;
   exporting: boolean;
   exportMsg: string;
@@ -86,6 +174,7 @@ interface EditorState {
   loadSettings: () => void;
   setServerUrl: (url: string) => void;
   setViewMode: (m: ViewMode) => void;
+  setRippleDelete: (enabled: boolean) => void;
   newProject: (name: string, width: number, height: number) => void;
   /** Create + open a new project seeded from a built-in template. */
   newProjectFromTemplate: (tpl: EditorTemplate) => void;
@@ -106,6 +195,7 @@ interface EditorState {
 
   // transient UI
   select: (sel: Selection | null) => void;
+  selectGap: (gap: GapSelection | null) => void;
   setPlayhead: (sec: number) => void;
   setZoom: (pxPerSec: number) => void;
   setPlaying: (v: boolean) => void;
@@ -115,7 +205,9 @@ interface EditorState {
   setMediaDuration: (src: string, sec: number) => void;
   setPanel: (panel: EditorPanel | null) => void;
   /** Open the content library on a specific tab. */
-  openLibrary: (tab: 'stickers' | 'emoji' | 'backgrounds' | 'stock' | 'generate') => void;
+  openLibrary: (
+    tab: "stickers" | "emoji" | "backgrounds" | "stock" | "generate",
+  ) => void;
   /** Undo / redo the last project mutation. */
   undo: () => void;
   redo: () => void;
@@ -131,7 +223,11 @@ interface EditorState {
   /** Add a generated image (by URL) to the timeline. */
   insertImageFromUrl: (url: string) => Promise<void>;
   /** Add a generated video (by URL) to the timeline, plus an optional synced sound-effect clip. */
-  insertVideoFromUrl: (url: string, audioUrl?: string, durationSec?: number) => Promise<void>;
+  insertVideoFromUrl: (
+    url: string,
+    audioUrl?: string,
+    durationSec?: number,
+  ) => Promise<void>;
   /** Add a generated voiceover (by URL) as an audio clip at the playhead. */
   insertVoiceoverFromUrl: (url: string) => Promise<void>;
 
@@ -150,9 +246,22 @@ interface EditorState {
   splitAtPlayhead: () => void;
   duplicateSelected: () => void;
   removeSelected: () => void;
+  /** Remove the selected element and close its interval on the same lane. */
+  rippleDeleteSelected: () => void;
+  /** Close the selected empty interval on its track. */
+  removeSelectedGap: () => void;
   setClipStart: (trackId: string, clipId: string, start: number) => void;
-  moveClipToTrack: (fromTrackId: string, toTrackId: string, clipId: string, start: number) => void;
-  trimClip: (trackId: string, clipId: string, patch: { start?: number; trimIn?: number; duration?: number }) => void;
+  moveClipToTrack: (
+    fromTrackId: string,
+    toTrackId: string,
+    clipId: string,
+    start: number,
+  ) => void;
+  trimClip: (
+    trackId: string,
+    clipId: string,
+    patch: { start?: number; trimIn?: number; duration?: number },
+  ) => void;
   setClipRect: (trackId: string, clipId: string, rect: Rect) => void;
   setSelectedFilter: (filter: ClipFilter | undefined) => void;
   /** Apply a filter to the effects target (selected visual clip, else base clip at playhead). */
@@ -165,6 +274,10 @@ interface EditorState {
   applyClipRect: (rect: Rect) => void;
   /** Apply / clear a shape mask on the effects target. */
   applyClipMask: (mask: ClipMask | undefined) => void;
+  /** Apply / clear a local mosaic region on the effects target. */
+  applyClipMosaic: (mosaic: ClipMosaic | undefined) => void;
+  /** Apply / clear a local magnifying lens on the effects target. */
+  applyClipMagnifier: (magnifier: ClipMagnifier | undefined) => void;
   /** Apply a blend mode to the effects target. */
   applyClipBlend: (blend: BlendMode) => void;
   /** Apply a Ken-Burns motion preset to the effects target. */
@@ -182,7 +295,7 @@ interface EditorState {
   /** Apply / clear a volume envelope on the selected clip (audio or video). */
   applyClipVolumeCurve: (curve: VolumePoint[] | undefined) => void;
   /** Set the project background (color / gradient / image). */
-  applyBackground: (background: VideoProject['background']) => void;
+  applyBackground: (background: VideoProject["background"]) => void;
   setSelectedSpeed: (speed: number) => void;
   setSelectedVolume: (volume: number) => void;
   setSelectedTransition: (transition: Transition | undefined) => void;
@@ -202,17 +315,19 @@ const HISTORY_MAX = 60;
 let lastHistoryAt = 0;
 
 export const useEditor = create<EditorState>((set, get) => ({
-  screen: 'projects',
+  screen: "projects",
   projects: [],
   serverUrl: DEFAULT_SERVER,
-  viewMode: 'list',
+  viewMode: "list",
+  rippleDelete: false,
   projectId: null,
-  name: '',
+  name: "",
   posterUri: undefined,
   mediaDurations: {},
   sourceDims: undefined,
   project: null,
   selected: null,
+  selectedGap: null,
   playheadSec: 0,
   pxPerSec: DEFAULT_PX_PER_SEC,
   isPlaying: false,
@@ -220,31 +335,51 @@ export const useEditor = create<EditorState>((set, get) => ({
   past: [],
   future: [],
   panel: null,
-  authNext: 'aigen',
+  authNext: "aigen",
   aiIntent: null,
-  libraryTab: 'emoji',
-  prefs: { mainTrack: 'Quick', linkage: true, snapping: false, previewFps: 30 },
+  libraryTab: "emoji",
+  prefs: { mainTrack: "Quick", linkage: true, snapping: false, previewFps: 30 },
   exporting: false,
-  exportMsg: '',
+  exportMsg: "",
 
   go: (screen) => set({ screen }),
   refreshProjects: () => set({ projects: listProjects() }),
   loadSettings: () => {
     const s = loadSettings();
-    set({ serverUrl: s.serverUrl, viewMode: s.viewMode });
+    set({
+      serverUrl: s.serverUrl,
+      viewMode: s.viewMode,
+      rippleDelete: s.rippleDelete,
+    });
   },
   setServerUrl: (url) => {
     const serverUrl = url.trim() || DEFAULT_SERVER;
     set({ serverUrl });
-    saveSettings({ serverUrl, viewMode: get().viewMode });
+    saveSettings({
+      serverUrl,
+      viewMode: get().viewMode,
+      rippleDelete: get().rippleDelete,
+    });
   },
   setViewMode: (viewMode) => {
     set({ viewMode });
-    saveSettings({ serverUrl: get().serverUrl, viewMode });
+    saveSettings({
+      serverUrl: get().serverUrl,
+      viewMode,
+      rippleDelete: get().rippleDelete,
+    });
+  },
+  setRippleDelete: (rippleDelete) => {
+    set({ rippleDelete });
+    saveSettings({
+      serverUrl: get().serverUrl,
+      viewMode: get().viewMode,
+      rippleDelete,
+    });
   },
 
   newProject: (name, width, height) => {
-    const id = newId('proj');
+    const id = newId("proj");
     const base = createProject({ id, width, height });
     const project: VideoProject = {
       ...base,
@@ -266,18 +401,19 @@ export const useEditor = create<EditorState>((set, get) => ({
       sourceDims: undefined,
       project,
       selected: null,
+      selectedGap: null,
       playheadSec: 0,
       isPlaying: false,
       pxPerSec: DEFAULT_PX_PER_SEC,
       past: [],
       future: [],
       panel: null,
-      screen: 'editor',
+      screen: "editor",
     });
   },
 
   newProjectFromTemplate: (tpl) => {
-    const id = newId('proj');
+    const id = newId("proj");
     const base = createProject({
       id,
       width: tpl.width,
@@ -286,8 +422,8 @@ export const useEditor = create<EditorState>((set, get) => ({
     });
     const overlays = tpl.texts.map((o) => ({
       ...o,
-      id: newId('ov'),
-      type: 'text' as const,
+      id: newId("ov"),
+      type: "text" as const,
     }));
     const project: VideoProject = {
       ...base,
@@ -310,18 +446,19 @@ export const useEditor = create<EditorState>((set, get) => ({
       sourceDims: undefined,
       project,
       selected: null,
+      selectedGap: null,
       playheadSec: 0,
       isPlaying: false,
       pxPerSec: DEFAULT_PX_PER_SEC,
       past: [],
       future: [],
       panel: null,
-      screen: 'editor',
+      screen: "editor",
     });
   },
 
   newProjectFromStoredTemplate: (tpl) => {
-    const id = newId('proj');
+    const id = newId("proj");
     const project: VideoProject = {
       ...JSON.parse(JSON.stringify(tpl.project)),
       id,
@@ -342,13 +479,14 @@ export const useEditor = create<EditorState>((set, get) => ({
       sourceDims: undefined,
       project,
       selected: null,
+      selectedGap: null,
       playheadSec: 0,
       isPlaying: false,
       pxPerSec: DEFAULT_PX_PER_SEC,
       past: [],
       future: [],
       panel: null,
-      screen: 'editor',
+      screen: "editor",
     });
   },
 
@@ -356,7 +494,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const { project, name } = get();
     if (!project) return;
     saveUserTemplate({
-      id: newId('tpl'),
+      id: newId("tpl"),
       name: `${name} (template)`,
       createdAt: Date.now(),
       project,
@@ -367,7 +505,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const stored = loadProject(id);
     if (!stored) return;
     saveUserTemplate({
-      id: newId('tpl'),
+      id: newId("tpl"),
       name: `${stored.name} (template)`,
       createdAt: Date.now(),
       project: stored.project,
@@ -386,13 +524,14 @@ export const useEditor = create<EditorState>((set, get) => ({
       sourceDims: undefined,
       project,
       selected: null,
+      selectedGap: null,
       playheadSec: 0,
       isPlaying: false,
       pxPerSec: DEFAULT_PX_PER_SEC,
       past: [],
       future: [],
       panel: null,
-      screen: 'editor',
+      screen: "editor",
     });
     get().ensurePoster(); // backfill a poster for older projects saved without one
   },
@@ -410,7 +549,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   renameProject: (id, name) => {
     const stored = loadProject(id);
     if (!stored) return;
-    const clean = name.trim() || 'Untitled';
+    const clean = name.trim() || "Untitled";
     saveProject({ ...stored, name: clean, updatedAt: Date.now() });
     set({ projects: listProjects() });
     if (get().projectId === id) set({ name: clean });
@@ -419,13 +558,13 @@ export const useEditor = create<EditorState>((set, get) => ({
   setProjectFolder: (id, folder) => {
     const stored = loadProject(id);
     if (!stored) return;
-    const f = folder.trim() || 'Default';
+    const f = folder.trim() || "Default";
     saveProject({ ...stored, folder: f });
     set({ projects: listProjects() });
   },
 
   setProjectsFolder: (ids, folder) => {
-    const f = folder.trim() || 'Default';
+    const f = folder.trim() || "Default";
     ids.forEach((id) => {
       const stored = loadProject(id);
       if (stored) saveProject({ ...stored, folder: f });
@@ -436,7 +575,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   duplicateProject: (id) => {
     const stored = loadProject(id);
     if (!stored) return;
-    const nid = newId('proj');
+    const nid = newId("proj");
     saveProject({
       id: nid,
       name: `${stored.name} copy`,
@@ -450,15 +589,19 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   closeEditor: () =>
     set({
-      screen: 'projects',
+      screen: "projects",
       isPlaying: false,
       panel: null,
+      selected: null,
+      selectedGap: null,
       projects: listProjects(),
     }),
 
-  select: (sel) => set({ selected: sel }),
+  select: (sel) => set({ selected: sel, selectedGap: null }),
+  selectGap: (selectedGap) => set({ selected: null, selectedGap }),
   setPlayhead: (sec) => set({ playheadSec: Math.max(0, sec) }),
-  setZoom: (pxPerSec) => set({ pxPerSec: Math.max(8, Math.min(400, pxPerSec)) }),
+  setZoom: (pxPerSec) =>
+    set({ pxPerSec: Math.max(8, Math.min(400, pxPerSec)) }),
   setPlaying: (v) => set({ isPlaying: v }),
   setPoster: (uri) => {
     set({ posterUri: uri });
@@ -478,9 +621,12 @@ export const useEditor = create<EditorState>((set, get) => ({
     const { project } = get();
     const mainId = get().mainTrackId();
     const main = project && mainId ? ops.findTrack(project, mainId) : undefined;
-    const first = main && main.kind === 'visual' ? (main.clips[0] as VisualTrackClip | undefined) : undefined;
+    const first =
+      main && main.kind === "visual"
+        ? (main.clips[0] as VisualTrackClip | undefined)
+        : undefined;
     if (!first) return;
-    if (first.type === 'image') get().setPoster(first.src);
+    if (first.type === "image") get().setPoster(first.src);
     else
       void videoThumbnail(first.src, 0).then((t) => {
         if (t && !get().posterUri) get().setPoster(t);
@@ -502,46 +648,67 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   setPanel: (panel) => set({ panel }),
-  openLibrary: (libraryTab) => set({ libraryTab, panel: 'library' }),
-  setPref: (key, value) => set((s) => ({ prefs: { ...s.prefs, [key]: value } })),
+  openLibrary: (libraryTab) => set({ libraryTab, panel: "library" }),
+  setPref: (key, value) =>
+    set((s) => ({ prefs: { ...s.prefs, [key]: value } })),
 
   exportToPhotos: async (output) => {
     const { project, serverUrl, exporting } = get();
     if (!project || exporting) return;
-    const clipCount = (project.tracks ?? []).reduce((n, t) => n + t.clips.length, 0);
+    const clipCount = (project.tracks ?? []).reduce(
+      (n, t) => n + t.clips.length,
+      0,
+    );
     if (clipCount === 0 && project.overlays.length === 0) {
-      Alert.alert('Nothing to export', 'Import a clip first.');
+      Alert.alert("Nothing to export", "Import a clip first.");
       return;
     }
-    set({ panel: null, exporting: true, exportMsg: 'Preparing…' });
+    set({ panel: null, exporting: true, exportMsg: "Preparing…" });
     try {
-      const url = await exportProject(serverUrl, project, (p) => set({ exportMsg: progressLabel(p) }), output);
-      await downloadToPhotos(url, Date.now(), (p) => set({ exportMsg: progressLabel(p) }));
+      const url = await exportProject(
+        serverUrl,
+        project,
+        (p) => set({ exportMsg: progressLabel(p) }),
+        output,
+      );
+      await downloadToPhotos(url, Date.now(), (p) =>
+        set({ exportMsg: progressLabel(p) }),
+      );
       set({ exporting: false });
-      Alert.alert('Exported', 'Your video was saved to Photos.');
+      Alert.alert("Exported", "Your video was saved to Photos.");
     } catch (e) {
       set({ exporting: false });
-      Alert.alert('Export failed', e instanceof Error ? e.message : String(e));
+      Alert.alert("Export failed", e instanceof Error ? e.message : String(e));
     }
   },
 
   shareExport: async (output) => {
     const { project, serverUrl, exporting } = get();
     if (!project || exporting) return;
-    const clipCount = (project.tracks ?? []).reduce((n, t) => n + t.clips.length, 0);
+    const clipCount = (project.tracks ?? []).reduce(
+      (n, t) => n + t.clips.length,
+      0,
+    );
     if (clipCount === 0 && project.overlays.length === 0) {
-      Alert.alert('Nothing to share', 'Import a clip first.');
+      Alert.alert("Nothing to share", "Import a clip first.");
       return;
     }
-    set({ panel: null, exporting: true, exportMsg: 'Preparing…' });
+    set({ panel: null, exporting: true, exportMsg: "Preparing…" });
     try {
-      const url = await exportProject(serverUrl, project, (p) => set({ exportMsg: progressLabel(p) }), output);
-      const fileUri = await downloadToPhotos(url, Date.now(), (p) => set({ exportMsg: progressLabel(p) }));
+      const url = await exportProject(
+        serverUrl,
+        project,
+        (p) => set({ exportMsg: progressLabel(p) }),
+        output,
+      );
+      const fileUri = await downloadToPhotos(url, Date.now(), (p) =>
+        set({ exportMsg: progressLabel(p) }),
+      );
       set({ exporting: false });
       await Share.share({ url: fileUri });
     } catch (e) {
       set({ exporting: false });
-      Alert.alert('Share failed', e instanceof Error ? e.message : String(e));
+      Alert.alert("Share failed", e instanceof Error ? e.message : String(e));
     }
   },
 
@@ -551,20 +718,30 @@ export const useEditor = create<EditorState>((set, get) => ({
     const stored = loadProject(id);
     if (!stored) return;
     const project = ops.ensureTracks(stored.project);
-    const clipCount = (project.tracks ?? []).reduce((n, t) => n + t.clips.length, 0);
+    const clipCount = (project.tracks ?? []).reduce(
+      (n, t) => n + t.clips.length,
+      0,
+    );
     if (clipCount === 0 && project.overlays.length === 0) {
-      Alert.alert('Nothing to share', 'This project has no clips yet.');
+      Alert.alert("Nothing to share", "This project has no clips yet.");
       return;
     }
-    set({ exporting: true, exportMsg: 'Preparing…' });
+    set({ exporting: true, exportMsg: "Preparing…" });
     try {
-      const url = await exportProject(serverUrl, project, (p) => set({ exportMsg: progressLabel(p) }), output);
-      const fileUri = await downloadToPhotos(url, Date.now(), (p) => set({ exportMsg: progressLabel(p) }));
+      const url = await exportProject(
+        serverUrl,
+        project,
+        (p) => set({ exportMsg: progressLabel(p) }),
+        output,
+      );
+      const fileUri = await downloadToPhotos(url, Date.now(), (p) =>
+        set({ exportMsg: progressLabel(p) }),
+      );
       set({ exporting: false });
       await Share.share({ url: fileUri });
     } catch (e) {
       set({ exporting: false });
-      Alert.alert('Share failed', e instanceof Error ? e.message : String(e));
+      Alert.alert("Share failed", e instanceof Error ? e.message : String(e));
     }
   },
 
@@ -573,8 +750,10 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   insertImageFromUrl: async (url) => {
-    const src = await downloadToMedia(url, 'jpg');
-    get().importVisual([{ id: newId('img'), type: 'image', src, start: 0, duration: 4 }]);
+    const src = await downloadToMedia(url, "jpg");
+    get().importVisual([
+      { id: newId("img"), type: "image", src, start: 0, duration: 4 },
+    ]);
   },
 
   insertVideoFromUrl: async (url, audioUrl, durationSec) => {
@@ -583,13 +762,13 @@ export const useEditor = create<EditorState>((set, get) => ({
     const mainId = get().mainTrackId();
     const main = p && mainId ? ops.findTrack(p, mainId) : undefined;
     // Where importVisual will append the video — so a paired audio clip lines up.
-    const startAt = main && main.kind === 'visual' ? ops.trackEnd(main) : 0;
-    const src = await downloadToMedia(url, 'mp4');
+    const startAt = main && main.kind === "visual" ? ops.trackEnd(main) : 0;
+    const src = await downloadToMedia(url, "mp4");
     get().setMediaDuration(src, dur);
     get().importVisual([
       {
-        id: newId('v'),
-        type: 'video',
+        id: newId("v"),
+        type: "video",
         src,
         start: 0,
         duration: dur,
@@ -598,9 +777,9 @@ export const useEditor = create<EditorState>((set, get) => ({
       },
     ]);
     if (audioUrl) {
-      const asrc = await downloadToMedia(audioUrl, 'mp3');
+      const asrc = await downloadToMedia(audioUrl, "mp3");
       get().importAudio({
-        id: newId('a'),
+        id: newId("a"),
         src: asrc,
         start: startAt,
         duration: dur,
@@ -610,10 +789,10 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   insertVoiceoverFromUrl: async (url) => {
-    const src = await downloadToMedia(url, 'mp3');
+    const src = await downloadToMedia(url, "mp3");
     // duration 0 → importAudio applies a sensible fallback (as with imported music).
     get().importAudio({
-      id: newId('a'),
+      id: newId("a"),
       src,
       start: get().playheadSec ?? 0,
       duration: 0,
@@ -621,7 +800,8 @@ export const useEditor = create<EditorState>((set, get) => ({
     });
   },
 
-  mainTrackId: () => get().project?.tracks?.find((t) => t.kind === 'visual')?.id ?? null,
+  mainTrackId: () =>
+    get().project?.tracks?.find((t) => t.kind === "visual")?.id ?? null,
 
   apply: (fn) => {
     const { project, projectId, name, posterUri, mediaDurations, past } = get();
@@ -629,12 +809,14 @@ export const useEditor = create<EditorState>((set, get) => ({
     const next = fn(project);
     const now = Date.now();
     // Push the pre-mutation state, coalescing rapid successive mutations (drags).
-    const coalesce = past.length > 0 && now - lastHistoryAt < HISTORY_COALESCE_MS;
+    const coalesce =
+      past.length > 0 && now - lastHistoryAt < HISTORY_COALESCE_MS;
     lastHistoryAt = now;
     set({
       project: next,
       past: coalesce ? past : [...past, project].slice(-HISTORY_MAX),
       future: [],
+      selectedGap: null,
     });
     saveProject({
       id: projectId,
@@ -647,7 +829,15 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   undo: () => {
-    const { past, future, project, projectId, name, posterUri, mediaDurations } = get();
+    const {
+      past,
+      future,
+      project,
+      projectId,
+      name,
+      posterUri,
+      mediaDurations,
+    } = get();
     if (!past.length || !project || !projectId) return;
     const previous = past[past.length - 1];
     lastHistoryAt = 0;
@@ -656,6 +846,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       future: [...future, project],
       project: previous,
       selected: null,
+      selectedGap: null,
     });
     saveProject({
       id: projectId,
@@ -667,7 +858,15 @@ export const useEditor = create<EditorState>((set, get) => ({
     });
   },
   redo: () => {
-    const { past, future, project, projectId, name, posterUri, mediaDurations } = get();
+    const {
+      past,
+      future,
+      project,
+      projectId,
+      name,
+      posterUri,
+      mediaDurations,
+    } = get();
     if (!future.length || !project || !projectId) return;
     const upcoming = future[future.length - 1];
     lastHistoryAt = 0;
@@ -676,6 +875,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       past: [...past, project],
       project: upcoming,
       selected: null,
+      selectedGap: null,
     });
     saveProject({
       id: projectId,
@@ -690,13 +890,19 @@ export const useEditor = create<EditorState>((set, get) => ({
   importVisual: (clips) => {
     const mainId = get().mainTrackId();
     if (!mainId) return;
+    const gap = get().selectedGap;
+    const fillsGap = gap?.trackId === mainId;
     get().apply((p) => {
       let np = p;
       const main = ops.findTrack(np, mainId);
-      let start = main ? ops.trackEnd(main) : 0;
+      let start = fillsGap ? gap.start : main ? ops.trackEnd(main) : 0;
+      let remaining = fillsGap ? gap.end - gap.start : Number.POSITIVE_INFINITY;
       for (const c of clips) {
-        np = ops.addVisualClip(np, mainId, { ...c, start });
-        start += c.duration;
+        if (remaining <= 0.001) break;
+        const duration = Math.min(c.duration, remaining);
+        np = ops.addVisualClip(np, mainId, { ...c, start, duration });
+        start += duration;
+        remaining -= duration;
       }
       return np;
     });
@@ -707,8 +913,8 @@ export const useEditor = create<EditorState>((set, get) => ({
     const at = get().playheadSec;
     get().apply((p) => {
       let np = p;
-      const trackId = newId('trk');
-      np = ops.addTrack(np, 'visual', trackId);
+      const trackId = newId("trk");
+      np = ops.addTrack(np, "visual", trackId);
       let start = at;
       for (const c of clips) {
         np = ops.addVisualClip(np, trackId, {
@@ -725,15 +931,18 @@ export const useEditor = create<EditorState>((set, get) => ({
   importAudio: (clip) => {
     get().apply((p) => {
       let np = p;
-      const existing = (np.tracks ?? []).find((t) => t.kind === 'audio');
+      const existing = (np.tracks ?? []).find((t) => t.kind === "audio");
       let trackId: string;
       if (!existing) {
-        trackId = newId('trk');
-        np = ops.addTrack(np, 'audio', trackId);
+        trackId = newId("trk");
+        np = ops.addTrack(np, "audio", trackId);
       } else {
         trackId = existing.id;
       }
-      const duration = clip.duration && clip.duration > 0 ? clip.duration : Math.max(5, projectDuration(np));
+      const duration =
+        clip.duration && clip.duration > 0
+          ? clip.duration
+          : Math.max(5, projectDuration(np));
       return ops.addAudioClip(np, trackId, {
         ...clip,
         start: clip.start ?? 0,
@@ -745,22 +954,24 @@ export const useEditor = create<EditorState>((set, get) => ({
   addText: () => {
     const { project, playheadSec } = get();
     if (!project) return;
-    const id = newId('txt');
+    const id = newId("txt");
     // New captions land on their own lane on top of any existing ones.
-    const layer = project.overlays.length ? ops.maxOverlayLayer(project) + 1 : 0;
+    const layer = project.overlays.length
+      ? ops.maxOverlayLayer(project) + 1
+      : 0;
     const overlay: TextOverlay = {
       id,
-      type: 'text',
-      text: 'Your text',
+      type: "text",
+      text: "Your text",
       start: playheadSec,
       end: playheadSec + 3,
       x: 0.5,
       y: 0.42,
       fontSize: Math.round(project.width * 0.07),
-      color: '#ffffff',
-      align: 'center',
+      color: "#ffffff",
+      align: "center",
       bold: true,
-      animation: 'fade',
+      animation: "fade",
       layer,
     };
     get().apply((p) => ops.addOverlay(p, overlay));
@@ -779,7 +990,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     get().apply((p) => ops.updateOverlay(p, s.clipId, patch));
   },
 
-  addLayer: () => get().apply((p) => ops.addTrack(p, 'visual')),
+  addLayer: () => get().apply((p) => ops.addTrack(p, "visual")),
 
   splitAtPlayhead: () => {
     const { selected, playheadSec, project } = get();
@@ -796,7 +1007,9 @@ export const useEditor = create<EditorState>((set, get) => ({
     }
     if (!target) return;
     set({ selected: target });
-    get().apply((p) => ops.splitClipAt(p, target!.trackId, target!.clipId, playheadSec));
+    get().apply((p) =>
+      ops.splitClipAt(p, target!.trackId, target!.clipId, playheadSec),
+    );
   },
 
   duplicateSelected: () => {
@@ -805,17 +1018,19 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (selected.trackId === OVERLAY_TRACK) {
       const o = project.overlays.find((x) => x.id === selected.clipId);
       if (!o) return;
-      const id = newId('txt');
+      const id = newId("txt");
       const dur = o.end - o.start;
-      get().apply((p) => ops.addOverlay(p, { ...o, id, start: o.end, end: o.end + dur }));
+      get().apply((p) =>
+        ops.addOverlay(p, { ...o, id, start: o.end, end: o.end + dur }),
+      );
       set({ selected: { trackId: OVERLAY_TRACK, clipId: id } });
       return;
     }
     const track = ops.findTrack(project, selected.trackId);
     const clip = track?.clips.find((c) => c.id === selected.clipId);
     if (!track || !clip) return;
-    if (track.kind === 'visual') {
-      const id = newId('v');
+    if (track.kind === "visual") {
+      const id = newId("v");
       get().apply((p) =>
         ops.addVisualClip(p, track.id, {
           ...(clip as VisualTrackClip),
@@ -825,7 +1040,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       );
       set({ selected: { trackId: track.id, clipId: id } });
     } else {
-      const id = newId('a');
+      const id = newId("a");
       get().apply((p) =>
         ops.addAudioClip(p, track.id, {
           ...(clip as AudioTrackClip),
@@ -840,9 +1055,47 @@ export const useEditor = create<EditorState>((set, get) => ({
   removeSelected: () => {
     const s = get().selected;
     if (!s) return;
-    if (s.trackId === OVERLAY_TRACK) get().apply((p) => ops.removeOverlay(p, s.clipId));
-    else get().apply((p) => ops.pruneEmptyTracks(ops.removeClip(p, s.trackId, s.clipId)));
+    if (s.trackId === OVERLAY_TRACK)
+      get().apply((p) => ops.removeOverlay(p, s.clipId));
+    else
+      get().apply((p) =>
+        ops.pruneEmptyTracks(ops.removeClip(p, s.trackId, s.clipId)),
+      );
     set({ selected: null });
+  },
+
+  rippleDeleteSelected: () => {
+    const selected = get().selected;
+    const project = get().project;
+    if (!selected || !project) return;
+
+    let start = 0;
+    if (selected.trackId === OVERLAY_TRACK) {
+      const overlay = project.overlays.find(
+        (item) => item.id === selected.clipId,
+      );
+      if (!overlay) return;
+      start = overlay.start;
+      get().apply((p) => ops.rippleDeleteOverlay(p, selected.clipId));
+    } else {
+      const track = ops.findTrack(project, selected.trackId);
+      const clip = track?.clips.find((item) => item.id === selected.clipId);
+      if (!clip) return;
+      start = clip.start;
+      get().apply((p) =>
+        ops.pruneEmptyTracks(
+          ops.rippleDeleteClip(p, selected.trackId, selected.clipId),
+        ),
+      );
+    }
+    set({ selected: null, playheadSec: start });
+  },
+
+  removeSelectedGap: () => {
+    const gap = get().selectedGap;
+    if (!gap) return;
+    get().apply((p) => ops.removeTrackGap(p, gap.trackId, gap.start, gap.end));
+    set({ selectedGap: null, playheadSec: gap.start });
   },
 
   setClipStart: (trackId, clipId, start) => {
@@ -860,13 +1113,19 @@ export const useEditor = create<EditorState>((set, get) => ({
     }
     get().apply((p) => ops.setClipStart(p, trackId, clipId, start));
   },
-  moveClipToTrack: (fromTrackId, toTrackId, clipId, start) => get().apply((p) => ops.pruneEmptyTracks(ops.moveClipToTrack(p, fromTrackId, toTrackId, clipId, start))),
+  moveClipToTrack: (fromTrackId, toTrackId, clipId, start) =>
+    get().apply((p) =>
+      ops.pruneEmptyTracks(
+        ops.moveClipToTrack(p, fromTrackId, toTrackId, clipId, start),
+      ),
+    ),
   trimClip: (trackId, clipId, patch) => {
     if (trackId === OVERLAY_TRACK) {
       get().apply((p) => {
         const o = p.overlays.find((x) => x.id === clipId);
         if (!o) return p;
-        const start = patch.start !== undefined ? Math.max(0, patch.start) : o.start;
+        const start =
+          patch.start !== undefined ? Math.max(0, patch.start) : o.start;
         const duration = Math.max(MIN_CLIP, patch.duration ?? o.end - o.start);
         return ops.updateOverlay(p, clipId, { start, end: start + duration });
       });
@@ -874,7 +1133,8 @@ export const useEditor = create<EditorState>((set, get) => ({
     }
     get().apply((p) => ops.trimClip(p, trackId, clipId, patch));
   },
-  setClipRect: (trackId, clipId, rect) => get().apply((p) => ops.setClipRect(p, trackId, clipId, rect)),
+  setClipRect: (trackId, clipId, rect) =>
+    get().apply((p) => ops.setClipRect(p, trackId, clipId, rect)),
 
   setSelectedFilter: (filter) => {
     const s = get().selected;
@@ -894,6 +1154,11 @@ export const useEditor = create<EditorState>((set, get) => ({
     set({ selected: { trackId: t.trackId, clipId: t.clipId } });
   },
   applyClipOpacity: (opacity) => {
+    const overlay = selectedOverlay();
+    if (overlay) {
+      get().apply((p) => ops.updateOverlay(p, overlay.id, { opacity }));
+      return;
+    }
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipOpacity(p, t.trackId, t.clipId, opacity));
@@ -906,9 +1171,26 @@ export const useEditor = create<EditorState>((set, get) => ({
     set({ selected: { trackId: t.trackId, clipId: t.clipId } });
   },
   applyClipMask: (mask) => {
+    const overlay = selectedOverlay();
+    if (overlay) {
+      get().apply((p) => ops.updateOverlay(p, overlay.id, { mask }));
+      return;
+    }
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipMask(p, t.trackId, t.clipId, mask));
+    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+  },
+  applyClipMosaic: (mosaic) => {
+    const t = effectsTarget();
+    if (!t) return;
+    get().apply((p) => ops.setClipMosaic(p, t.trackId, t.clipId, mosaic));
+    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+  },
+  applyClipMagnifier: (magnifier) => {
+    const t = effectsTarget();
+    if (!t) return;
+    get().apply((p) => ops.setClipMagnifier(p, t.trackId, t.clipId, magnifier));
     set({ selected: { trackId: t.trackId, clipId: t.clipId } });
   },
   applyClipBlend: (blend) => {
@@ -923,7 +1205,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       const id = sel.clipId;
       get().apply((p) =>
         ops.updateOverlay(p, id, {
-          motion: motion && motion.type !== 'none' ? motion : undefined,
+          motion: motion && motion.type !== "none" ? motion : undefined,
         }),
       );
       return;
@@ -943,7 +1225,10 @@ export const useEditor = create<EditorState>((set, get) => ({
     const sel = get().selected;
     if (sel && sel.trackId === OVERLAY_TRACK) {
       const id = sel.clipId;
-      const kfs = keyframes && keyframes.length ? [...keyframes].sort((a, b) => a.t - b.t) : undefined;
+      const kfs =
+        keyframes && keyframes.length
+          ? [...keyframes].sort((a, b) => a.t - b.t)
+          : undefined;
       get().apply((p) => ops.updateOverlay(p, id, { keyframes: kfs }));
       return;
     }
@@ -960,7 +1245,10 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
   applyClipVolume: (volume) => {
     const s = get().selected;
-    let target = s && s.trackId !== OVERLAY_TRACK ? { trackId: s.trackId, clipId: s.clipId } : null;
+    let target =
+      s && s.trackId !== OVERLAY_TRACK
+        ? { trackId: s.trackId, clipId: s.clipId }
+        : null;
     if (!target) {
       const t = effectsTarget();
       if (t) target = { trackId: t.trackId, clipId: t.clipId };
@@ -974,8 +1262,8 @@ export const useEditor = create<EditorState>((set, get) => ({
     const mainId = get().mainTrackId();
     const project = get().project;
     const main = project && mainId ? ops.findTrack(project, mainId) : undefined;
-    if (!main || main.kind !== 'visual') return;
-    const videos = main.clips.filter((c) => c.type === 'video');
+    if (!main || main.kind !== "visual") return;
+    const videos = main.clips.filter((c) => c.type === "video");
     if (!videos.length) return;
     const next = videos.every((c) => (c.volume ?? 1) === 0) ? 1 : 0; // unmute if all muted, else mute
     get().apply((p) => {
@@ -986,7 +1274,10 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
   applyClipVolumeCurve: (curve) => {
     const s = get().selected;
-    let target = s && s.trackId !== OVERLAY_TRACK ? { trackId: s.trackId, clipId: s.clipId } : null;
+    let target =
+      s && s.trackId !== OVERLAY_TRACK
+        ? { trackId: s.trackId, clipId: s.clipId }
+        : null;
     if (!target) {
       const t = effectsTarget();
       if (t) target = { trackId: t.trackId, clipId: t.clipId };
@@ -1012,7 +1303,9 @@ export const useEditor = create<EditorState>((set, get) => ({
   setSelectedTransition: (transition) => {
     const s = get().selected;
     if (!s || s.trackId === OVERLAY_TRACK) return;
-    get().apply((p) => ops.setClipTransition(p, s.trackId, s.clipId, transition));
+    get().apply((p) =>
+      ops.setClipTransition(p, s.trackId, s.clipId, transition),
+    );
   },
 
   moveSelectedLayer: (dir) => {
@@ -1022,10 +1315,12 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (selected.trackId === OVERLAY_TRACK) {
       const o = project.overlays.find((x) => x.id === selected.clipId);
       if (!o) return;
-      get().apply((p) => ops.setOverlayLayer(p, selected.clipId, (o.layer ?? 0) + dir));
+      get().apply((p) =>
+        ops.setOverlayLayer(p, selected.clipId, (o.layer ?? 0) + dir),
+      );
       return;
     }
-    const visual = (project.tracks ?? []).filter((t) => t.kind === 'visual');
+    const visual = (project.tracks ?? []).filter((t) => t.kind === "visual");
     const fromIdx = visual.findIndex((t) => t.id === selected.trackId);
     if (fromIdx < 0) return; // audio clips don't layer (yet)
     const targetIdx = fromIdx + dir;
@@ -1033,12 +1328,14 @@ export const useEditor = create<EditorState>((set, get) => ({
     let np = project;
     let toId: string;
     if (targetIdx >= visual.length) {
-      toId = newId('trk');
-      np = ops.addTrack(np, 'visual', toId);
+      toId = newId("trk");
+      np = ops.addTrack(np, "visual", toId);
     } else {
       toId = visual[targetIdx].id;
     }
-    np = ops.pruneEmptyTracks(ops.moveClipToTrack(np, selected.trackId, toId, selected.clipId));
+    np = ops.pruneEmptyTracks(
+      ops.moveClipToTrack(np, selected.trackId, toId, selected.clipId),
+    );
     const { projectId, name, posterUri, mediaDurations } = get();
     set({ project: np, selected: { trackId: toId, clipId: selected.clipId } });
     if (projectId)
@@ -1056,20 +1353,28 @@ export const useEditor = create<EditorState>((set, get) => ({
     const { selected, project } = get();
     if (!selected || !project) return;
     const track = ops.findTrack(project, selected.trackId);
-    if (!track || track.kind !== 'visual') return;
+    if (!track || track.kind !== "visual") return;
     const clip = track.clips.find((c) => c.id === selected.clipId);
     if (!clip) return;
     const r = clip.rect;
     const isPip = !!r && (r.w < 0.99 || r.h < 0.99 || r.x > 0.01 || r.y > 0.01);
-    get().apply((p) => ops.setClipRect(p, selected.trackId, selected.clipId, isPip ? FULL_FRAME : DEFAULT_PIP));
+    get().apply((p) =>
+      ops.setClipRect(
+        p,
+        selected.trackId,
+        selected.clipId,
+        isPip ? FULL_FRAME : DEFAULT_PIP,
+      ),
+    );
   },
 
-  setRatio: (width, height) => get().apply((p) => ops.setProjectRatio(p, width, height)),
+  setRatio: (width, height) =>
+    get().apply((p) => ops.setProjectRatio(p, width, height)),
 
   setHdr: (hdr) => get().apply((p) => ({ ...p, hdr })),
 
   setName: (name) => {
-    const clean = name.trim() || 'Untitled';
+    const clean = name.trim() || "Untitled";
     set({ name: clean });
     const { projectId, project, posterUri, mediaDurations } = get();
     if (projectId && project)
@@ -1099,14 +1404,16 @@ export function effectsTarget(): {
   const tracks = project?.tracks ?? [];
   if (selected) {
     const tr = tracks.find((t) => t.id === selected.trackId);
-    if (tr && tr.kind === 'visual') {
+    if (tr && tr.kind === "visual") {
       const clip = tr.clips.find((c) => c.id === selected.clipId);
       if (clip) return { trackId: tr.id, clipId: clip.id, clip };
     }
   }
-  const base = tracks.find((t) => t.kind === 'visual');
-  if (base && base.kind === 'visual') {
-    const clip = ops.clipAtTime(base, playheadSec) as VisualTrackClip | undefined;
+  const base = tracks.find((t) => t.kind === "visual");
+  if (base && base.kind === "visual") {
+    const clip = ops.clipAtTime(base, playheadSec) as
+      | VisualTrackClip
+      | undefined;
     if (clip) return { trackId: base.id, clipId: clip.id, clip };
   }
   return null;
@@ -1116,5 +1423,7 @@ export function effectsTarget(): {
 export function selectedOverlay(): TextOverlay | null {
   const { selected, project } = useEditor.getState();
   if (!selected || selected.trackId !== OVERLAY_TRACK) return null;
-  return (project?.overlays ?? []).find((o) => o.id === selected.clipId) ?? null;
+  return (
+    (project?.overlays ?? []).find((o) => o.id === selected.clipId) ?? null
+  );
 }
