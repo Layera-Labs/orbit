@@ -5,11 +5,13 @@ import {
   removeTitleCard,
   removeTrackGap,
   reorderVisualClips,
+  rippleInsertClip,
   rippleDeleteClip,
   rippleDeleteOverlay,
   setClipMagnifier,
   setClipMosaic,
   setClipNote,
+  setClipStart,
   splitClipAt,
   titleCardOf,
 } from "../editor-ops";
@@ -138,6 +140,59 @@ describe("splitClipAt", () => {
     };
     const [, second] = halves(splitClipAt(normal, "main", "vid", 4));
     expect(second.trimIn).toBe(4);
+  });
+});
+
+describe("rippleInsertClip", () => {
+  it("pushes later clips aside instead of stacking on top of them", () => {
+    // Duplicating image-1 (4s..6s) lands the copy at 6s — exactly where
+    // image-2 already sits. Without a ripple both occupy 6s..8s, so the
+    // preview shows one and the export composites both.
+    const copy: VisualTrackClip = {
+      id: "copy",
+      type: "image",
+      src: "first.jpg",
+      start: 6,
+      duration: 2,
+    };
+    const result = rippleInsertClip(project, "main", copy);
+    const clips = result.tracks?.find((t) => t.id === "main")
+      ?.clips as VisualTrackClip[];
+    expect(clips.map((c) => [c.id, c.start])).toEqual([
+      ["image-1", 4],
+      ["copy", 6],
+      ["image-2", 8],
+    ]);
+    // No two clips share an interval.
+    const overlaps = clips.some((a, i) =>
+      clips.some((b, j) => i !== j && a.start < b.start + b.duration && b.start < a.start + a.duration),
+    );
+    expect(overlaps).toBe(false);
+  });
+
+  it("leaves earlier clips where they are", () => {
+    const copy: VisualTrackClip = {
+      id: "late",
+      type: "image",
+      src: "x.jpg",
+      start: 8,
+      duration: 1,
+    };
+    const clips = rippleInsertClip(project, "main", copy).tracks?.find(
+      (t) => t.id === "main",
+    )?.clips as VisualTrackClip[];
+    expect(clips.map((c) => c.start)).toEqual([4, 6, 8]);
+  });
+});
+
+describe("track ordering", () => {
+  it("keeps a track sorted after a clip is dragged earlier", () => {
+    // Preview and ffmpeg both read a clip's transition from the NEIGHBOURING
+    // array entry, so an unsorted track takes the fade from the wrong clip.
+    const moved = setClipStart(project, "main", "image-2", 0);
+    const clips = moved.tracks?.find((t) => t.id === "main")?.clips ?? [];
+    expect(clips.map((c) => c.id)).toEqual(["image-2", "image-1"]);
+    expect(clips.map((c) => c.start)).toEqual([0, 4]);
   });
 });
 

@@ -10,7 +10,7 @@
  * clock advances the playhead; per-clip filters/transitions slot into the Skia
  * layers (P4/P5). The server export is the true composite.
  */
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, type ReactNode } from "react";
 import { StyleSheet, Text, View, type TextStyle } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import {
@@ -23,6 +23,7 @@ import {
   ImageShader,
   LinearGradient,
   Path as SkPath,
+  RuntimeShader,
   type SkImage,
   Shader,
   Skia,
@@ -170,6 +171,45 @@ function effectPathFor(
   return { path, cx, cy, borderPx: Math.min(w, h) };
 }
 
+/**
+ * Nearest-neighbour block pixelation, mirroring the export's
+ * `scale down (area) -> scale up (neighbor)`. The preview used to blur every
+ * mosaic pattern while ffmpeg pixelated three of them, so censoring a face
+ * previewed as a soft blur and exported as hard blocks.
+ */
+const PIXELATE = Skia.RuntimeEffect.Make(`
+uniform shader image;
+uniform float block;
+half4 main(float2 xy) {
+  float b = max(block, 1.0);
+  float2 q = floor(xy / b) * b + b * 0.5;
+  return image.eval(q);
+}`)!;
+
+/**
+ * Block size in CANVAS px for a mosaic pattern.
+ *
+ * The export downscales the region by `factor` then back up with `neighbor`, so
+ * one output block spans `1 / factor` output px — independent of the region
+ * size. Multiplying by the canvas:output scale puts the preview on the same
+ * grid. Must track MOSAIC_BLOCK in packages/video/src/ffmpeg.ts.
+ */
+const MOSAIC_BLOCK: Record<string, number> = {
+  mosaic: 0.1,
+  triangle: 0.18,
+  hexagon: 0.13,
+};
+
+function mosaicBlockPx(
+  pattern: string,
+  amount: number,
+  scale: number,
+): number {
+  const block = MOSAIC_BLOCK[pattern] ?? MOSAIC_BLOCK.mosaic;
+  const factor = Math.max(0.025, block * (1 - amount * 0.8));
+  return Math.max(1, scale / factor);
+}
+
 /** Duplicate a clip inside its local Mosaic / Magnifier regions. */
 function LocalVisualEffects({
   clip,
@@ -188,22 +228,36 @@ function LocalVisualEffects({
 }) {
   const mosaic = clip.mosaic;
   const magnifier = clip.magnifier;
-  const mg = mosaic ? effectPathFor(mosaic, x, y, w, h) : null;
-  const lens = magnifier ? effectPathFor(magnifier, x, y, w, h) : null;
-  const patternStrength =
-    mosaic?.pattern === "blur"
-      ? 22
-      : mosaic?.pattern === "triangle"
-        ? 14
-        : mosaic?.pattern === "hexagon"
-          ? 18
-          : 11;
+  // `Skia.Path.Make()` allocates a native object; this renders on every playhead
+  // tick, for every layer, so build the paths only when the region or box moves.
+  const mg = useMemo(
+    () => (mosaic ? effectPathFor(mosaic, x, y, w, h) : null),
+    [mosaic, x, y, w, h],
+  );
+  const lens = useMemo(
+    () => (magnifier ? effectPathFor(magnifier, x, y, w, h) : null),
+    [magnifier, x, y, w, h],
+  );
+  // Canvas px per OUTPUT px, so the pixelation grid matches the exported one.
+  // The export renders this clip at `rect.w * project.width` px wide.
+  const projectWidth = useEditor((s) => s.project?.width ?? 1080);
+  const outW = Math.max(1, (clip.rect?.w ?? 1) * projectWidth);
+  const scale = w / outW;
   return (
     <>
       {mosaic && mg ? (
         <Group clip={mg.path} opacity={mosaic.opacity}>
           <Group>
-            <Blur blur={Math.max(1, mosaic.amount * patternStrength)} />
+            {mosaic.pattern === "blur" ? (
+              <Blur blur={Math.max(1, mosaic.amount * 22)} />
+            ) : (
+              <RuntimeShader
+                source={PIXELATE}
+                uniforms={{
+                  block: mosaicBlockPx(mosaic.pattern, mosaic.amount, scale),
+                }}
+              />
+            )}
             {content}
           </Group>
         </Group>

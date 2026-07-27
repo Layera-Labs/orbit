@@ -117,6 +117,11 @@ function mapTracks(
   return { ...p, tracks: fn(p.tracks ?? []) };
 }
 
+/** Keep a track's clips in timeline order — neighbour lookups depend on it. */
+function byStart<C extends { start: number }>(clips: C[]): C[] {
+  return [...clips].sort((a, b) => a.start - b.start);
+}
+
 /** Update a track's clips, preserving its kind. */
 function updateClips(
   p: VideoProject,
@@ -179,7 +184,7 @@ export function addVisualClip(
   return updateClips(
     p,
     trackId,
-    (cs) => [...cs, clip].sort((a, b) => a.start - b.start),
+    (cs) => byStart([...cs, clip]),
     (cs) => cs,
   );
 }
@@ -194,6 +199,33 @@ export function addAudioClip(
     trackId,
     (cs) => cs,
     (cs) => [...cs, clip],
+  );
+}
+
+/**
+ * Insert a clip and push everything at or after its start later by its length.
+ *
+ * Plain `addVisualClip` drops the clip wherever it says, which for a duplicate
+ * placed at `start + duration` lands it exactly on top of the next clip. Two
+ * clips then occupy one interval: `clipAtTime` returns the first, so the
+ * preview shows one while the export composites both.
+ */
+export function rippleInsertClip(
+  p: VideoProject,
+  trackId: string,
+  clip: VisualTrackClip | AudioTrackClip,
+): VideoProject {
+  const shift = <T extends VisualTrackClip | AudioTrackClip>(cs: T[]): T[] =>
+    cs.map((c) =>
+      c.start >= clip.start - 0.001
+        ? { ...c, start: c.start + clip.duration }
+        : c,
+    );
+  return updateClips(
+    p,
+    trackId,
+    (cs) => byStart([...shift(cs), clip as VisualTrackClip]),
+    (cs) => byStart([...shift(cs), clip as AudioTrackClip]),
   );
 }
 
@@ -269,11 +301,14 @@ export function setClipStart(
   start: number,
 ): VideoProject {
   const s = Math.max(0, start);
+  // Re-sort: both the preview and `buildFFmpegArgs` read transitions from the
+  // NEIGHBOURING array entry, so an out-of-time-order track takes a clip's
+  // fade from the wrong neighbour after a drag.
   return updateClips(
     p,
     trackId,
-    (cs) => cs.map((c) => (c.id === clipId ? { ...c, start: s } : c)),
-    (cs) => cs.map((c) => (c.id === clipId ? { ...c, start: s } : c)),
+    (cs) => byStart(cs.map((c) => (c.id === clipId ? { ...c, start: s } : c))),
+    (cs) => byStart(cs.map((c) => (c.id === clipId ? { ...c, start: s } : c))),
   );
 }
 
@@ -301,8 +336,8 @@ export function moveClipToTrack(
       }
       if (t.id === toTrackId) {
         return t.kind === "visual"
-          ? { ...t, clips: [...t.clips, moved as VisualTrackClip] }
-          : { ...t, clips: [...t.clips, moved as AudioTrackClip] };
+          ? { ...t, clips: byStart([...t.clips, moved as VisualTrackClip]) }
+          : { ...t, clips: byStart([...t.clips, moved as AudioTrackClip]) };
       }
       return t;
     }),

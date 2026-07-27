@@ -1038,7 +1038,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (track.kind === "visual") {
       const id = newId("v");
       get().apply((p) =>
-        ops.addVisualClip(p, track.id, {
+        ops.rippleInsertClip(p, track.id, {
           ...(clip as VisualTrackClip),
           id,
           start: clip.start + clip.duration,
@@ -1048,7 +1048,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     } else {
       const id = newId("a");
       get().apply((p) =>
-        ops.addAudioClip(p, track.id, {
+        ops.rippleInsertClip(p, track.id, {
           ...(clip as AudioTrackClip),
           id,
           start: clip.start + clip.duration,

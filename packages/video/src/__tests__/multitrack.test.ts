@@ -146,8 +146,76 @@ describe("multi-track ffmpeg builder", () => {
 
     expect(effectGraph).toContain("flags=neighbor");
     expect(effectGraph).toContain("flags=lanczos");
-    expect(effectGraph).toContain("colorchannelmixer=aa=0.85");
     expect(effectGraph).toContain("[mgp0_1]");
+
+    // The region's alpha is SET to its own opacity (0.85 * 255 = 217), never
+    // multiplied into the clip's alpha — see the double-composite note below.
+    expect(effectGraph).toContain("a='if(gt(");
+    expect(effectGraph).toContain(",217,0)'");
+    expect(effectGraph).not.toContain("colorchannelmixer=aa=0.85");
+
+    // Regression: the clip's own alpha is split off before the regions and
+    // merged back exactly once after them. Without this a clip carrying alpha
+    // (opacity / mask / fade) composites that alpha with itself inside the
+    // region and renders 2a - a² — a visibly brighter block.
+    expect(effectGraph).toContain("[vr0]split[fxin0][fxa0]");
+    expect(effectGraph).toContain("[fxa0]alphaextract[fxam0]");
+    expect(effectGraph).toContain("[fxam0]alphamerge[v0]");
+
+    // The magnifier ring is drawn in the export, not just the preview:
+    // borderWidth 0.012 * min(1080,1920) = 13px of #ffffff.
+    expect(effectGraph).toContain("255,r(X,Y))");
+  });
+
+  const withClipFx = (fx: Record<string, unknown>) => {
+    const p = multiTrackProject();
+    const base = p.tracks?.[0];
+    if (!base || base.kind !== "visual")
+      throw new Error("missing visual track");
+    base.clips[0] = { ...base.clips[0], ...fx };
+    const args = buildFFmpegArgs(p, {
+      outputPath: "/tmp/out.mp4",
+      baseImage: "/tmp/bg.png",
+      hasAudio: () => true,
+    });
+    return args[args.indexOf("-filter_complex") + 1];
+  };
+
+  it("omits the magnifier ring when borderWidth rounds below a pixel", () => {
+    const g = withClipFx({
+      magnifier: {
+        shape: "circle",
+        cx: 0.5,
+        cy: 0.5,
+        rx: 0.2,
+        ry: 0.2,
+        opacity: 1,
+        zoom: 2,
+        borderWidth: 0.0001,
+        borderColor: "#ffffff",
+      },
+    });
+    expect(g).toContain("flags=lanczos");
+    expect(g).not.toContain("r(X,Y))");
+  });
+
+  it("survives non-finite region numbers instead of emitting NaN", () => {
+    const g = withClipFx({
+      mosaic: {
+        pattern: "blur",
+        shape: "circle",
+        cx: 0.5,
+        cy: 0.5,
+        rx: 0.2,
+        ry: 0.2,
+        amount: 0.5,
+        // A client that omits `opacity` used to produce
+        // `colorchannelmixer=aa=NaN`, which makes ffmpeg reject the whole graph.
+        opacity: undefined as unknown as number,
+      },
+    });
+    expect(g).not.toContain("NaN");
+    expect(g).toContain("gblur");
   });
 });
 

@@ -46,26 +46,119 @@ export interface BuildFFmpegOptions {
 }
 
 /** Alpha-mask a cropped local-effect patch to its selected lens shape. */
-function localEffectAlpha(
+/**
+ * Mosaic block size as a fraction of the region, per pattern. Exported so the
+ * Skia preview can pixelate with the SAME block sizes — the preview used to
+ * blur every pattern while the export pixelated three of them, so censoring a
+ * face previewed soft and exported as hard blocks.
+ *
+ * NOTE: `triangle` and `hexagon` currently differ from `mosaic` only in block
+ * SIZE — all three are square blocks. Real triangular / hexagonal cells have no
+ * ffmpeg equivalent, so naming them after shapes overpromises; that is a
+ * labelling decision to revisit, not a preview/export mismatch.
+ */
+export const MOSAIC_BLOCK: Record<string, number> = {
+  mosaic: 0.1,
+  triangle: 0.18,
+  hexagon: 0.13,
+};
+
+/** Corner radius factor for the "rounded" region shape. MUST match the Skia
+ *  preview's `Skia.RRectXY(box, min(hw,hh) * ROUNDED_R, …)` or the exported
+ *  corners are visibly tighter than the ones the user positioned. */
+const ROUNDED_R = 0.35;
+
+/** An ffmpeg eval expression that is true inside `shape`, inset by `inset` px. */
+function shapeInside(
   shape: "rectangle" | "circle" | "rounded" | "diamond",
   width: number,
   height: number,
+  inset = 0,
 ): string {
-  if (shape === "rectangle") return "null";
   const cx = Math.round(width / 2);
   const cy = Math.round(height / 2);
-  const ax = Math.max(1, Math.round(width / 2));
-  const ay = Math.max(1, Math.round(height / 2));
-  let inside: string;
-  if (shape === "circle") {
-    inside = `lte((X-${cx})^2/${ax * ax}+(Y-${cy})^2/${ay * ay},1)`;
-  } else if (shape === "diamond") {
-    inside = `lte(abs(X-${cx})/${ax}+abs(Y-${cy})/${ay},1)`;
-  } else {
-    const radius = Math.max(1, Math.round(Math.min(width, height) * 0.18));
-    inside = `gt(lte(abs(X-${cx}),${ax - radius})+lte(abs(Y-${cy}),${ay - radius})+lte((abs(X-${cx})-${ax - radius})^2+(abs(Y-${cy})-${ay - radius})^2,${radius * radius}),0)`;
+  const ax = Math.max(1, Math.round(width / 2) - inset);
+  const ay = Math.max(1, Math.round(height / 2) - inset);
+  if (shape === "rectangle") {
+    return inset <= 0
+      ? "1"
+      : `lte(abs(X-${cx}),${ax})*lte(abs(Y-${cy}),${ay})`;
   }
-  return `geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='if(${inside},alpha(X,Y),0)'`;
+  if (shape === "circle") {
+    return `lte((X-${cx})^2/${ax * ax}+(Y-${cy})^2/${ay * ay},1)`;
+  }
+  if (shape === "diamond") {
+    return `lte(abs(X-${cx})/${ax}+abs(Y-${cy})/${ay},1)`;
+  }
+  const radius = Math.max(
+    1,
+    Math.round(Math.min(width, height) * ROUNDED_R) - inset,
+  );
+  const bx = Math.max(0, ax - radius);
+  const by = Math.max(0, ay - radius);
+  return `gt(lte(abs(X-${cx}),${bx})*lte(abs(Y-${cy}),${ay})+lte(abs(X-${cx}),${ax})*lte(abs(Y-${cy}),${by})+lte((abs(X-${cx})-${bx})^2+(abs(Y-${cy})-${by})^2,${radius * radius}),0)`;
+}
+
+/**
+ * The alpha/colour pass applied to a local-FX patch before it is overlaid.
+ *
+ * Alpha is SET to a constant (the region's own opacity) inside the shape rather
+ * than multiplied into the source alpha. The source alpha is restored once,
+ * after every region has been composited — otherwise a clip that already
+ * carries alpha (opacity, mask, cutout, a transition fade) has that alpha
+ * composited with itself and the region renders `2a - a²` instead of `a`.
+ *
+ * `border` paints a stroke in the band just inside the shape edge, which is how
+ * the preview draws the magnifier ring.
+ */
+function localEffectPatch(
+  shape: "rectangle" | "circle" | "rounded" | "diamond",
+  width: number,
+  height: number,
+  opacity: number,
+  border?: { px: number; color: string },
+): string {
+  const a = Math.round(clamp01(opacity) * 255);
+  const inside = shapeInside(shape, width, height);
+  const alpha = shape === "rectangle" ? `${a}` : `if(${inside},${a},0)`;
+  if (!border || border.px < 1) {
+    return `geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='${alpha}'`;
+  }
+  const inner = shapeInside(shape, width, height, Math.round(border.px));
+  const ring = `(${inside})*(1-(${inner}))`;
+  const [br, bg, bb] = hexToRgb255(border.color);
+  return `geq=r='if(${ring},${br},r(X,Y))':g='if(${ring},${bg},g(X,Y))':b='if(${ring},${bb},b(X,Y))':a='${alpha}'`;
+}
+
+/** #rgb / #rrggbb → [r,g,b] 0..255 (white when unparseable). */
+function hexToRgb255(color: string): [number, number, number] {
+  const m =
+    /^#([0-9a-f]{6})$/i.exec(color.trim()) ??
+    /^#([0-9a-f]{3})$/i.exec(color.trim());
+  if (!m) return [255, 255, 255];
+  const hex =
+    m[1].length === 3
+      ? m[1]
+          .split("")
+          .map((ch) => ch + ch)
+          .join("")
+      : m[1];
+  return [
+    parseInt(hex.slice(0, 2), 16),
+    parseInt(hex.slice(2, 4), 16),
+    parseInt(hex.slice(4, 6), 16),
+  ];
+}
+
+/** Finite-guard a client number: NaN/Infinity would reach the filtergraph as
+ *  the literal "NaN" and make ffmpeg reject the whole chain. */
+function num(value: unknown, fallback: number, min: number, max: number): number {
+  const n = typeof value === "number" && Number.isFinite(value) ? value : fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+function clamp01(value: unknown): number {
+  return num(value, 1, 0, 1);
 }
 
 export function buildFFmpegArgs(
@@ -393,31 +486,55 @@ function buildMultiTrackArgs(
     const hasLocalFx = !!(c.mosaic || c.magnifier);
     const rawLabel = hasLocalFx ? `vr${i}` : `v${i}`;
     segments.push(`[${vIn[i]}:v]${chain}[${rawLabel}]`);
+    // Keep a copy of the clip's own alpha; it is merged back after every region
+    // has been composited so the regions cannot double-composite it.
     let localFxLabel = `[${rawLabel}]`;
+    if (hasLocalFx) {
+      segments.push(`[${rawLabel}]split[fxin${i}][fxa${i}]`);
+      localFxLabel = `[fxin${i}]`;
+    }
     let localFxIndex = 0;
+    const regionBox = (region: { cx: number; cy: number; rx: number; ry: number }) => {
+      const ew = even(
+        Math.max(2, Math.min(rw, num(region.rx, 0.25, 0.001, 0.5) * 2 * rw)),
+      );
+      const eh = even(
+        Math.max(2, Math.min(rh, num(region.ry, 0.25, 0.001, 0.5) * 2 * rh)),
+      );
+      return {
+        ew,
+        eh,
+        ex: Math.max(
+          0,
+          Math.min(rw - ew, Math.round(num(region.cx, 0.5, 0, 1) * rw - ew / 2)),
+        ),
+        ey: Math.max(
+          0,
+          Math.min(rh - eh, Math.round(num(region.cy, 0.5, 0, 1) * rh - eh / 2)),
+        ),
+      };
+    };
     const addRegionFx = (
       region: NonNullable<typeof c.mosaic | typeof c.magnifier>,
       filter: string,
       kind: "mo" | "mg",
+      border?: { px: number; color: string },
     ) => {
-      const ew = even(Math.max(2, Math.min(rw, region.rx * 2 * rw)));
-      const eh = even(Math.max(2, Math.min(rh, region.ry * 2 * rh)));
-      const ex = Math.max(
-        0,
-        Math.min(rw - ew, Math.round(region.cx * rw - ew / 2)),
-      );
-      const ey = Math.max(
-        0,
-        Math.min(rh - eh, Math.round(region.cy * rh - eh / 2)),
-      );
+      const { ew, eh, ex, ey } = regionBox(region);
       const base = `${kind}b${i}_${localFxIndex}`;
       const src = `${kind}s${i}_${localFxIndex}`;
       const patch = `${kind}p${i}_${localFxIndex}`;
       const out = `${kind}o${i}_${localFxIndex}`;
-      const shapeAlpha = localEffectAlpha(region.shape, ew, eh);
+      const shapeAlpha = localEffectPatch(
+        region.shape,
+        ew,
+        eh,
+        region.opacity,
+        border,
+      );
       segments.push(`${localFxLabel}split[${base}][${src}]`);
       segments.push(
-        `[${src}]crop=${ew}:${eh}:${ex}:${ey},${filter},format=rgba,colorchannelmixer=aa=${r3(region.opacity)},${shapeAlpha}[${patch}]`,
+        `[${src}]crop=${ew}:${eh}:${ex}:${ey},${filter},format=rgba,${shapeAlpha}[${patch}]`,
       );
       segments.push(
         `[${base}][${patch}]overlay=${ex}:${ey}:eof_action=pass[${out}]`,
@@ -427,22 +544,18 @@ function buildMultiTrackArgs(
     };
     if (c.mosaic) {
       const m = c.mosaic;
+      const amount = num(m.amount, 0.35, 0, 1);
       if (m.pattern === "blur") {
-        addRegionFx(m, `gblur=sigma=${r3(Math.max(1, m.amount * 22))}`, "mo");
+        // gblur's sigma maxes out at 1024; amount is already clamped to 0..1.
+        addRegionFx(m, `gblur=sigma=${r3(Math.max(1, amount * 22))}`, "mo");
       } else {
-        const block =
-          m.pattern === "triangle"
-            ? 0.18
-            : m.pattern === "hexagon"
-              ? 0.13
-              : 0.1;
-        const ew = even(Math.max(2, Math.min(rw, m.rx * 2 * rw)));
-        const eh = even(Math.max(2, Math.min(rh, m.ry * 2 * rh)));
+        const block = MOSAIC_BLOCK[m.pattern] ?? MOSAIC_BLOCK.mosaic;
+        const { ew, eh } = regionBox(m);
         const sw = even(
-          Math.max(2, ew * Math.max(0.025, block * (1 - m.amount * 0.8))),
+          Math.max(2, ew * Math.max(0.025, block * (1 - amount * 0.8))),
         );
         const sh = even(
-          Math.max(2, eh * Math.max(0.025, block * (1 - m.amount * 0.8))),
+          Math.max(2, eh * Math.max(0.025, block * (1 - amount * 0.8))),
         );
         addRegionFx(
           m,
@@ -453,19 +566,30 @@ function buildMultiTrackArgs(
     }
     if (c.magnifier) {
       const m = c.magnifier;
-      const ew = even(Math.max(2, Math.min(rw, m.rx * 2 * rw)));
-      const eh = even(Math.max(2, Math.min(rh, m.ry * 2 * rh)));
-      const sw = even(Math.max(2, ew / Math.max(1, m.zoom)));
-      const sh = even(Math.max(2, eh / Math.max(1, m.zoom)));
+      const { ew, eh } = regionBox(m);
+      const zoom = num(m.zoom, 2, 1, 20);
+      const sw = even(Math.max(2, ew / zoom));
+      const sh = even(Math.max(2, eh / zoom));
       const sx = Math.max(0, Math.round((ew - sw) / 2));
       const sy = Math.max(0, Math.round((eh - sh) / 2));
+      // The preview strokes the lens outline at borderWidth * min(W,H); match it.
+      const borderPx = Math.round(
+        num(m.borderWidth, 0, 0, 0.5) * Math.min(rw, rh),
+      );
       addRegionFx(
         m,
         `crop=${sw}:${sh}:${sx}:${sy},scale=${ew}:${eh}:flags=lanczos`,
         "mg",
+        borderPx >= 1
+          ? { px: borderPx, color: m.borderColor ?? "#ffffff" }
+          : undefined,
       );
     }
-    if (hasLocalFx) segments.push(`${localFxLabel}null[v${i}]`);
+    if (hasLocalFx) {
+      // Restore the clip's own alpha exactly once, after all regions.
+      segments.push(`[fxa${i}]alphaextract[fxam${i}]`);
+      segments.push(`${localFxLabel}[fxam${i}]alphamerge[v${i}]`);
+    }
     const blendMode = blendToFFmpeg(c.blend);
     if (blendMode) {
       // Blend the clip with the base region under its rect, then overlay the
