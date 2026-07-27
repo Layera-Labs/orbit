@@ -13,6 +13,8 @@ interface Action {
   key: string;
   icon: VIconName;
   label: string;
+  /** Full label for screen readers when `label` is abbreviated to fit. */
+  a11y?: string;
   onPress: () => void;
   disabled?: boolean;
 }
@@ -31,7 +33,10 @@ export function SelectionActionBar() {
     {
       key: "delete",
       icon: rippleDelete ? "rippleDelete" : "trash",
-      label: rippleDelete ? "Ripple delete" : "Delete",
+      // "Ripple delete" cannot fit an equal slot at this size, and a clipped
+      // label reads as broken — the distinct icon carries the difference.
+      label: rippleDelete ? "Ripple" : "Delete",
+      a11y: rippleDelete ? "Ripple delete" : "Delete",
       onPress: rippleDelete ? rippleDeleteSelected : removeSelected,
     },
     {
@@ -86,20 +91,20 @@ export function SelectionActionBar() {
             <Pressable
               key={a.key}
               accessibilityRole="button"
-              accessibilityLabel={a.label}
+              accessibilityLabel={a.a11y ?? a.label}
               accessibilityState={{ disabled: !!a.disabled }}
-              style={[styles.item, a.key === "delete" && styles.deleteItem]}
+              style={styles.item}
               onPress={a.onPress}
             >
               <VIcon
                 name={a.icon}
-                size={20}
+                size={18}
                 color={a.disabled ? "rgba(255,255,255,0.42)" : "#fff"}
-                strokeWidth={1.8}
+                strokeWidth={1.7}
               />
               <Text
                 numberOfLines={1}
-                ellipsizeMode="clip"
+                ellipsizeMode="tail"
                 style={[
                   styles.label,
                   a.disabled && { color: "rgba(255,255,255,0.42)" },
@@ -125,32 +130,33 @@ const styles = StyleSheet.create({
     zIndex: 30,
   },
   bar: {
-    width: "96%",
+    width: "92%",
     backgroundColor: vela.accent,
-    borderRadius: 16,
+    borderRadius: 14,
     borderCurve: "continuous",
     borderWidth: 1,
     borderColor: vela.accentDim,
-    boxShadow: "0 6px 16px rgba(31,22,112,0.42)",
+    boxShadow: "0 5px 13px rgba(31,22,112,0.38)",
   },
   content: {
     width: "100%",
     flexDirection: "row",
-    paddingHorizontal: 3,
-    paddingVertical: 8,
+    paddingHorizontal: 2,
+    paddingVertical: 6,
   },
+  // Every action gets an identical slot — a wider one for Delete made the gaps
+  // between labels visibly uneven across the row.
   item: {
     minWidth: 0,
-    height: 52,
+    height: 42,
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 4,
+    gap: 3,
   },
-  deleteItem: { flex: 1.18 },
   label: {
     color: "#fff",
-    fontSize: 9.5,
+    fontSize: 9,
     fontFamily: font.medium,
     textAlign: "center",
   },
