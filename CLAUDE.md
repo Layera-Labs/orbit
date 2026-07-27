@@ -81,10 +81,28 @@ Originally specced from `CapCut-style editing app UI/Vela.dc.html` (the user's m
 Tokens in `apps/mobile/src/constants.ts` — `vela` / `theme.vela`, plus `sp` (spacing),
 `r` (radii), `elev` (tight directional shadows).
 
-Current palette on `codex/ui-redesign`: **indigo/violet** — `accent`/`action` `#5b4bff`,
-`accent2` `#933ff2`, `onAccent` white, near-black editor surfaces (`editorBg` `#090c13`,
-`sheet`, `card`…), light Home (`homeBg` `#f7f7fa`). (History: an earlier pass was
-gold-on-black `#e3ac3d`; before that teal, which the user rejected.)
+Current palette on `codex/ui-redesign` — **settled deliberately 2026-07-27, don't
+re-litigate**: one hue, neutral surfaces, no gradients in chrome.
+
+- `accent`/`action` `#5b4bff` (indigo), `accent2` `#8b83ff` — a lighter step of the SAME
+  hue, not a second colour. It was `#933ff2` (purple); the indigo→purple pair was the
+  most recognizable machine-made colour move there is.
+- Dark surfaces are **neutral**, not blue-charcoal: `editorBg` `#0e0e11`, `sheet`
+  `#17171a`, `card` `#1c1c1f`, `toolbar` `#101013`… The old set leaned blue and competed
+  with the accent sitting on it.
+- **No two-hue gradients in chrome.** `orbitGradient` is gone; `orbitTonal`
+  (`[accent, accentDim]`, one hue two values) replaces it and is only for surfaces that
+  genuinely need depth. Buttons, avatars and marks are solid fills.
+- All 8 project templates are **cool** (slate / indigo / plum / graphite / blue / violet
+  / slate-green / neutral). They were warm gold-era leftovers clashing with the chrome.
+- Light Home stays `homeBg` `#f7f7fa`.
+
+`OrbitMark` (planet + tilted ring + orbiting dot) is the brand's signature artifact —
+nav, header, onboarding, and the AI Studio hero. `animate` sends the dot round the ring
+(9s, passes behind the planet on the far side, honours reduced motion); it's **off by
+default** and the resting position is the t=0 position, so nothing is gated on motion.
+
+History: gold-on-black `#e3ac3d` before this; teal before that, which the user rejected.
 
 Screens: `EditorScreen` (dark) · `HomeScreen`/`ProjectsScreen` (light) · `DiscoverScreen` ·
 `AiStudioScreen` · `MediaLibraryScreen` · `ProfileScreen` · `OnboardingScreen`, with a
