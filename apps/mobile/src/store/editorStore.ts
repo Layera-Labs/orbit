@@ -278,6 +278,12 @@ interface EditorState {
   applyClipMosaic: (mosaic: ClipMosaic | undefined) => void;
   /** Apply / clear a local magnifying lens on the effects target. */
   applyClipMagnifier: (magnifier: ClipMagnifier | undefined) => void;
+  /** Set an authoring-only storyboard note on a visual clip (Story panel). */
+  setClipNote: (trackId: string, clipId: string, note: string) => void;
+  /** Move a visual clip to a new index on its track, repacking the sequence. */
+  reorderClip: (trackId: string, from: number, to: number) => void;
+  /** Add / remove the Story title card, shifting the timeline to make room. */
+  setTitleCard: (on: boolean, text?: string) => void;
   /** Apply a blend mode to the effects target. */
   applyClipBlend: (blend: BlendMode) => void;
   /** Apply a Ken-Burns motion preset to the effects target. */
@@ -1192,6 +1198,17 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (!t) return;
     get().apply((p) => ops.setClipMagnifier(p, t.trackId, t.clipId, magnifier));
     set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+  },
+  setClipNote: (trackId, clipId, note) => {
+    get().apply((p) => ops.setClipNote(p, trackId, clipId, note));
+  },
+  reorderClip: (trackId, from, to) => {
+    get().apply((p) => ops.reorderVisualClips(p, trackId, from, to));
+  },
+  setTitleCard: (on, text) => {
+    get().apply((p) =>
+      on ? ops.addTitleCard(p, text?.trim() || "Title") : ops.removeTitleCard(p),
+    );
   },
   applyClipBlend: (blend) => {
     const t = effectsTarget();

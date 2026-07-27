@@ -455,6 +455,63 @@ export function setClipMagnifier(
   return patchVisualClip(p, trackId, clipId, { magnifier });
 }
 
+/** Authoring-only storyboard note; empty string clears it. */
+export function setClipNote(
+  p: VideoProject,
+  trackId: string,
+  clipId: string,
+  note: string,
+): VideoProject {
+  return patchVisualClip(p, trackId, clipId, {
+    note: note.trim() ? note : undefined,
+  });
+}
+
+/**
+ * Move a visual clip to a new index on its track and repack the whole track so
+ * clips sit back to back from where the sequence currently starts.
+ *
+ * Storyboard reordering is inherently a repack: swapping two clips of different
+ * lengths cannot preserve every original start time. Gaps inside the sequence
+ * are closed as a side effect, which is the same thing the Story list shows.
+ */
+export function reorderVisualClips(
+  p: VideoProject,
+  trackId: string,
+  from: number,
+  to: number,
+): VideoProject {
+  const track = findTrack(p, trackId);
+  // Bail out by IDENTITY, not by returning an equal copy — `apply` pushes every
+  // new project onto the history stack and writes it to disk.
+  if (!track || track.kind !== "visual") return p;
+  if (
+    from === to ||
+    from < 0 ||
+    to < 0 ||
+    from >= track.clips.length ||
+    to >= track.clips.length
+  )
+    return p;
+  return updateClips(
+    p,
+    trackId,
+    (cs) => {
+      const next = [...cs];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      let cursor = cs.reduce((min, c) => Math.min(min, c.start), Infinity);
+      if (!Number.isFinite(cursor)) cursor = 0;
+      return next.map((c) => {
+        const placed = { ...c, start: cursor };
+        cursor += c.duration;
+        return placed;
+      });
+    },
+    (cs) => cs,
+  );
+}
+
 export function setClipBlend(
   p: VideoProject,
   trackId: string,
@@ -573,6 +630,75 @@ export function setBackground(
 // ---------------------------------------------------------------------------
 
 /** Highest overlay layer in use (0 when there are none). */
+/**
+ * Stable id for the Story panel's title card. The card IS a text overlay over
+ * the project background sitting in a hole opened at the head of the timeline —
+ * there is no "solid colour clip" type to make a literal card out of. A fixed
+ * id is what makes the toggle derive its state from the project instead of
+ * local component state, so it survives closing the sheet.
+ */
+export const TITLE_CARD_ID = "story-title-card";
+export const TITLE_CARD_SECONDS = 2;
+
+export function titleCardOf(p: VideoProject): TextOverlay | undefined {
+  return p.overlays.find((o) => o.id === TITLE_CARD_ID);
+}
+
+/** Shift every clip and overlay in time, clamping at 0. */
+function shiftTimeline(p: VideoProject, by: number): VideoProject {
+  const at = (v: number) => Math.max(0, v + by);
+  return {
+    ...mapTracks(p, (ts) =>
+      ts.map((t) =>
+        t.kind === "visual"
+          ? { ...t, clips: t.clips.map((c) => ({ ...c, start: at(c.start) })) }
+          : { ...t, clips: t.clips.map((c) => ({ ...c, start: at(c.start) })) },
+      ),
+    ),
+    overlays: p.overlays.map((o) => ({
+      ...o,
+      start: at(o.start),
+      end: at(o.end),
+    })),
+  };
+}
+
+/**
+ * Open a hole at the head of the timeline and put a title caption in it. Every
+ * clip and overlay moves later by `seconds` — this deliberately mutates the
+ * whole timeline, so it is only reachable from an explicit toggle.
+ */
+export function addTitleCard(
+  p: VideoProject,
+  text: string,
+  seconds = TITLE_CARD_SECONDS,
+): VideoProject {
+  if (titleCardOf(p)) return p;
+  const shifted = shiftTimeline(p, seconds);
+  return addOverlay(shifted, {
+    id: TITLE_CARD_ID,
+    type: "text",
+    text,
+    start: 0,
+    end: seconds,
+    x: 0.5,
+    y: 0.5,
+    fontSize: Math.round(p.height * 0.075),
+    color: "#ffffff",
+    align: "center",
+    bold: true,
+    layer: maxOverlayLayer(p) + 1,
+  });
+}
+
+/** Remove the title card and pull the timeline back by exactly its length. */
+export function removeTitleCard(p: VideoProject): VideoProject {
+  const card = titleCardOf(p);
+  if (!card) return p;
+  const seconds = card.end - card.start;
+  return shiftTimeline(removeOverlay(p, TITLE_CARD_ID), -seconds);
+}
+
 export function maxOverlayLayer(p: VideoProject): number {
   return p.overlays.reduce((m, o) => Math.max(m, o.layer ?? 0), 0);
 }

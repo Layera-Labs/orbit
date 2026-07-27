@@ -300,6 +300,9 @@ export interface VisualTrackClip {
   keyframes?: Keyframe[];
   /** Transition INTO this clip from the previous base-track clip. */
   transitionIn?: Transition;
+  /** Authoring-only storyboard note. Never rendered — carried so the Story
+   *  panel's per-clip notes survive save/load. */
+  note?: string;
 }
 
 export interface AudioTrackClip {

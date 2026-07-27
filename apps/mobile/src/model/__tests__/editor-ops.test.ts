@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
+  addTitleCard,
   addVisualClip,
+  removeTitleCard,
   removeTrackGap,
+  reorderVisualClips,
   rippleDeleteClip,
   rippleDeleteOverlay,
   setClipMagnifier,
   setClipMosaic,
+  setClipNote,
   splitClipAt,
+  titleCardOf,
 } from "../editor-ops";
 import type { VideoProject, VisualTrackClip } from "../types";
 
@@ -133,6 +138,111 @@ describe("splitClipAt", () => {
     };
     const [, second] = halves(splitClipAt(normal, "main", "vid", 4));
     expect(second.trimIn).toBe(4);
+  });
+});
+
+describe("reorderVisualClips", () => {
+  const main = (p: VideoProject) =>
+    (p.tracks?.find((t) => t.id === "main")?.clips ?? []) as VisualTrackClip[];
+
+  it("moves a clip later and repacks the sequence back to back", () => {
+    const result = reorderVisualClips(project, "main", 0, 1);
+    expect(main(result).map((c) => [c.id, c.start])).toEqual([
+      ["image-2", 4],
+      ["image-1", 6],
+    ]);
+  });
+
+  it("keeps the sequence anchored at its original first start", () => {
+    // The fixture starts at 4s, not 0 — reordering must not slide it to zero.
+    expect(main(reorderVisualClips(project, "main", 1, 0))[0]?.start).toBe(4);
+  });
+
+  it("closes gaps left inside the sequence", () => {
+    const gapped: VideoProject = {
+      ...project,
+      tracks: [
+        {
+          id: "main",
+          kind: "visual",
+          clips: [
+            { ...main(project)[0], start: 0, duration: 2 },
+            { ...main(project)[1], start: 9, duration: 3 },
+          ],
+        },
+      ],
+    };
+    expect(main(reorderVisualClips(gapped, "main", 0, 1)).map((c) => c.start)).toEqual([0, 3]);
+  });
+
+  it("is a no-op for out-of-range or identical indices", () => {
+    expect(reorderVisualClips(project, "main", 0, 0)).toBe(project);
+    expect(reorderVisualClips(project, "main", 0, 5)).toBe(project);
+    expect(reorderVisualClips(project, "main", -1, 0)).toBe(project);
+  });
+
+  it("leaves other tracks untouched", () => {
+    const result = reorderVisualClips(project, "main", 0, 1);
+    expect(result.tracks?.find((t) => t.id === "music")?.clips[0]?.start).toBe(2);
+  });
+});
+
+describe("title card", () => {
+  it("opens a hole at the head and shifts every track and overlay", () => {
+    const result = addTitleCard(project, "Chapter one", 2);
+    const main = result.tracks?.find((t) => t.id === "main");
+    const music = result.tracks?.find((t) => t.id === "music");
+    const card = titleCardOf(result);
+
+    expect(card?.text).toBe("Chapter one");
+    expect([card?.start, card?.end]).toEqual([0, 2]);
+    expect(main?.clips.map((c) => c.start)).toEqual([6, 8]);
+    expect(music?.clips[0]?.start).toBe(4);
+    // The pre-existing caption moves with everything else.
+    expect(result.overlays.find((o) => o.id === "title")?.start).toBe(3);
+  });
+
+  it("round-trips exactly back to the original timeline", () => {
+    const restored = removeTitleCard(addTitleCard(project, "Chapter one", 2));
+    expect(titleCardOf(restored)).toBeUndefined();
+    expect(restored.tracks?.find((t) => t.id === "main")?.clips.map((c) => c.start)).toEqual([4, 6]);
+    expect(restored.tracks?.find((t) => t.id === "music")?.clips[0]?.start).toBe(2);
+    expect(restored.overlays.find((o) => o.id === "title")?.start).toBe(1);
+  });
+
+  it("refuses to add a second card", () => {
+    const once = addTitleCard(project, "One", 2);
+    expect(addTitleCard(once, "Two", 2)).toBe(once);
+  });
+
+  it("is a no-op to remove when there is no card", () => {
+    expect(removeTitleCard(project)).toBe(project);
+  });
+
+  it("sits above every existing overlay layer", () => {
+    const layered: VideoProject = {
+      ...project,
+      overlays: [{ ...project.overlays[0], layer: 4 }],
+    };
+    expect(titleCardOf(addTitleCard(layered, "T", 2))?.layer).toBe(5);
+  });
+});
+
+describe("setClipNote", () => {
+  it("stores a note on one clip only", () => {
+    const result = setClipNote(project, "main", "image-1", "wide establishing");
+    const clips = result.tracks?.find((t) => t.id === "main")
+      ?.clips as VisualTrackClip[];
+    expect(clips[0]?.note).toBe("wide establishing");
+    expect(clips[1]?.note).toBeUndefined();
+  });
+
+  it("clears the note when blanked, rather than storing whitespace", () => {
+    const set = setClipNote(project, "main", "image-1", "note");
+    const cleared = setClipNote(set, "main", "image-1", "   ");
+    const clips = cleared.tracks?.find((t) => t.id === "main")
+      ?.clips as VisualTrackClip[];
+    expect(clips[0]?.note).toBeUndefined();
   });
 });
 
