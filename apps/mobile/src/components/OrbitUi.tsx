@@ -1,15 +1,14 @@
 import { Pressable, StyleSheet, Text, TextInput, View, type ViewStyle } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { font, orbitGradient, vela } from '../constants';
+import { font, vela } from '../constants';
 import { VIcon, type VIconName } from './VIcon';
 
 export function PrimaryButton({ label, onPress, icon, style }: { label: string; onPress: () => void; icon?: VIconName; style?: ViewStyle }) {
   return (
     <Pressable accessibilityRole='button' onPress={onPress} style={({ pressed }) => [pressed && { opacity: 0.82 }]}>
-      <LinearGradient colors={orbitGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[styles.primary, style]}>
+      <View style={[styles.primary, style]}>
         {icon ? <VIcon name={icon} size={20} color='#fff' strokeWidth={2.4} /> : null}
         <Text style={styles.primaryText}>{label}</Text>
-      </LinearGradient>
+      </View>
     </Pressable>
   );
 }
@@ -47,6 +46,7 @@ export function SearchField({ value, onChangeText, placeholder }: { value: strin
 
 const styles = StyleSheet.create({
   primary: {
+    backgroundColor: vela.action,
     height: 52,
     borderRadius: 13,
     borderCurve: 'continuous',

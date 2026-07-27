@@ -74,7 +74,7 @@ export const vela = {
   // Brand
   accent: '#5b4bff',
   action: '#5b4bff',
-  accent2: '#933ff2',
+  accent2: '#8b83ff',
   accentDim: '#4938e8',
   accentSoft: 'rgba(91,75,255,0.14)',
   onAccent: '#ffffff',
@@ -89,25 +89,25 @@ export const vela = {
   trackAudio: '#2868b7',
 
   // Editor (dark)
-  editorBg: '#090c13',
-  bezel: '#070910',
-  sheet: '#121722',
-  card: '#171c28',
-  card2: '#1c2230',
-  card3: '#151a25',
-  emptyTrack: '#111722',
-  toolbar: '#0c1018',
-  toolbarBorder: '#252b38',
-  saveTile: '#1a202c',
-  toggleOff: '#363d4b',
-  divider: '#282e3b',
+  editorBg: '#0e0e11',
+  bezel: '#0a0a0d',
+  sheet: '#17171a',
+  card: '#1c1c1f',
+  card2: '#222225',
+  card3: '#1a1a1d',
+  emptyTrack: '#17171a',
+  toolbar: '#101013',
+  toolbarBorder: '#2b2b2e',
+  saveTile: '#202023',
+  toggleOff: '#3c3c3f',
+  divider: '#2e2e31',
 
   // Timeline surfaces (tokenised — no more hardcoded hex in Timeline.tsx)
-  clipBg: '#1c2230',
+  clipBg: '#222225',
   wave: '#6fb1ff',
   waveSound: '#7dbf96',
   soundBlock: '#173a29',
-  tickMinor: '#282e3b',
+  tickMinor: '#2e2e31',
 
   // Text on dark
   white: '#ffffff',
@@ -137,7 +137,13 @@ export const vela = {
 } as const;
 
 /** Reference gradient used by primary actions and the Orbit mark. */
-export const orbitGradient = [vela.accent, vela.accent2] as const;
+/**
+ * Brand accent as a TONAL pair (same hue, two values) — not a two-hue gradient.
+ * The previous `[accent, accent2]` was indigo→purple, the most recognizable
+ * machine-made colour move there is. Prefer a solid `vela.action` fill; reach
+ * for this only where a surface genuinely needs depth.
+ */
+export const orbitTonal = [vela.accent, vela.accentDim] as const;
 
 /** Spacing scale (px). */
 export const sp = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, xxl: 24 } as const;

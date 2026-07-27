@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { AppHeader } from '../components/AppHeader';
 import { BottomNav } from '../components/BottomNav';
 import { Chip, SearchField } from '../components/OrbitUi';
-import { font, mono, vela } from '../constants';
+import { font, mono, orbitTonal, vela } from '../constants';
 import { listUserTemplates } from '../storage/templates';
 import { useEditor } from '../store/editorStore';
 import { BUILTIN_TEMPLATES, type EditorTemplate } from '../templates';
@@ -90,7 +90,7 @@ export function DiscoverScreen() {
             <View style={styles.grid}>
               {userTemplates.map((template) => (
                 <Pressable key={template.id} style={styles.cell} onPress={() => newProjectFromStoredTemplate(template)}>
-                  <LinearGradient colors={['#1c2230', '#5b4bff']} style={styles.card}>
+                  <LinearGradient colors={orbitTonal} style={styles.card}>
                     <Text style={styles.cardRatio}>{ratioLabel(template.project)} · saved</Text>
                     <Text style={styles.cardHero}>{template.name.toUpperCase()}</Text>
                   </LinearGradient>

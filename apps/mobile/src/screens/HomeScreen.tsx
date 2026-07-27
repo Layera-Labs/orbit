@@ -7,7 +7,7 @@ import { BottomSheet } from '../components/BottomSheet';
 import { Glass } from '../components/Glass';
 import { SectionTitle } from '../components/OrbitUi';
 import { VIcon, type VIconName } from '../components/VIcon';
-import { font, mono, vela } from '../constants';
+import { font, mono, orbitTonal, vela } from '../constants';
 import { projectDuration } from '../model/project';
 import type { StoredProject } from '../storage/projects';
 import { useEditor } from '../store/editorStore';
@@ -73,7 +73,7 @@ function CheckCircle({ selected }: { selected: boolean }) {
 function ProjectCard({ project, onPress, layout, selecting, selected }: { project: StoredProject; onPress: () => void; layout: 'grid' | 'list'; selecting: boolean; selected: boolean }) {
   const poster = (
     <View style={layout === 'grid' ? styles.projectPoster : styles.projectRowPoster}>
-      {project.posterUri ? <Image source={{ uri: project.posterUri }} style={StyleSheet.absoluteFill} resizeMode='cover' /> : <LinearGradient colors={['#273351', '#6c4cff']} style={StyleSheet.absoluteFill} />}
+      {project.posterUri ? <Image source={{ uri: project.posterUri }} style={StyleSheet.absoluteFill} resizeMode='cover' /> : <LinearGradient colors={orbitTonal} style={StyleSheet.absoluteFill} />}
       <Text style={styles.duration}>{durationLabel(projectDuration(project.project))}</Text>
       {selecting && layout === 'grid' ? (
         <View style={styles.gridCheck}>

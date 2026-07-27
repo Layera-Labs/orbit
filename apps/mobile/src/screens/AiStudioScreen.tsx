@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { AppHeader } from '../components/AppHeader';
 import { AuthSheet } from '../components/AuthSheet';
 import { BottomNav } from '../components/BottomNav';
@@ -81,9 +80,9 @@ export function AiStudioScreen() {
       />
       <ScrollView contentInsetAdjustmentBehavior='automatic' showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.heroMark}>
-          <LinearGradient colors={['#a94cf7', '#5b4bff']} style={styles.sparkHalo}>
+          <View style={styles.sparkHalo}>
             <VIcon name='fx' size={46} color='#fff' strokeWidth={1.7} />
-          </LinearGradient>
+          </View>
         </View>
 
         {authed ? (
@@ -192,6 +191,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 22, paddingTop: 24, paddingBottom: 118 },
   heroMark: { alignItems: 'center' },
   sparkHalo: {
+    backgroundColor: vela.action,
     width: 104,
     height: 104,
     borderRadius: 52,

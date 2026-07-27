@@ -22,7 +22,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import Animated, { FadeInUp } from "react-native-reanimated";
-import { font, mono, vela, RATIOS, ratioLabel } from "../constants";
+import { font, mono, orbitTonal, vela, RATIOS, ratioLabel } from "../constants";
 import { VIcon, type VIconName } from "./VIcon";
 import { BottomSheet as BaseBottomSheet } from "./BottomSheet";
 import { InputSheet } from "./InputSheet";
@@ -960,7 +960,7 @@ function ExportSheet() {
               />
             ) : (
               <LinearGradient
-                colors={["#6b50ff", "#26366f"]}
+                colors={orbitTonal}
                 style={s.exportThumbInner}
               />
             )}

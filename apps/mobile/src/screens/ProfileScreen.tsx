@@ -9,7 +9,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { AppHeader } from "../components/AppHeader";
 import { AuthSheet } from "../components/AuthSheet";
 import { BottomNav } from "../components/BottomNav";
@@ -64,9 +63,9 @@ export function ProfileScreen() {
         contentContainerStyle={styles.content}
       >
         <View style={styles.identity}>
-          <LinearGradient colors={["#8e8cff", "#5b4bff"]} style={styles.avatar}>
+          <View style={styles.avatar}>
             <VIcon name="profile" size={38} color="#fff" strokeWidth={1.8} />
-          </LinearGradient>
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.name}>
               {authed
@@ -79,7 +78,7 @@ export function ProfileScreen() {
           </View>
         </View>
 
-        <LinearGradient colors={["#f0edff", "#f7f5ff"]} style={styles.syncCard}>
+        <View style={styles.syncCard}>
           <View style={styles.syncIcon}>
             <VIcon
               name={authed ? "check" : "export"}
@@ -105,7 +104,7 @@ export function ProfileScreen() {
               {authed ? "Sign Out" : "Sign In"}
             </Text>
           </Pressable>
-        </LinearGradient>
+        </View>
 
         <View style={styles.menu}>
           {rows.map((row, index) => (
@@ -311,6 +310,7 @@ const styles = StyleSheet.create({
   },
   identity: { flexDirection: "row", alignItems: "center", gap: 14 },
   avatar: {
+    backgroundColor: vela.action,
     width: 64,
     height: 64,
     borderRadius: 32,
@@ -325,6 +325,7 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   syncCard: {
+    backgroundColor: vela.folderFrom,
     minHeight: 86,
     borderRadius: 16,
     borderCurve: "continuous",

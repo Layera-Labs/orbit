@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { font, orbitGradient, vela } from "../constants";
+import { font, vela } from "../constants";
 import { BottomSheet } from "../components/BottomSheet";
 import { OrbitMark } from "../components/OrbitMark";
 import { PrimaryButton } from "../components/OrbitUi";
@@ -11,7 +11,7 @@ export function OnboardingScreen({ onContinue }: { onContinue: () => void }) {
   const [whyOpen, setWhyOpen] = useState(false);
   return (
     <LinearGradient
-      colors={["#ffffff", "#f1efff"]}
+      colors={["#ffffff", vela.lightSurface]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
       style={styles.root}
@@ -109,7 +109,7 @@ function WhyOrbitSheet({ onClose }: { onClose: () => void }) {
           </View>
         </View>
       ))}
-      <LinearGradient colors={orbitGradient} style={styles.whyAccent} />
+      <View style={styles.whyAccent} />
     </BottomSheet>
   );
 }
@@ -201,5 +201,10 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 2,
   },
-  whyAccent: { height: 3, borderRadius: 2, marginTop: 2 },
+  whyAccent: {
+    height: 3,
+    borderRadius: 2,
+    marginTop: 2,
+    backgroundColor: vela.action,
+  },
 });
