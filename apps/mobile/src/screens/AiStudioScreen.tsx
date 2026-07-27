@@ -4,6 +4,7 @@ import { AppHeader } from '../components/AppHeader';
 import { AuthSheet } from '../components/AuthSheet';
 import { BottomNav } from '../components/BottomNav';
 import { PrimaryButton } from '../components/OrbitUi';
+import { OrbitMark } from '../components/OrbitMark';
 import { VIcon, type VIconName } from '../components/VIcon';
 import { font, vela } from '../constants';
 import { openAi } from '../store/aiActions';
@@ -80,9 +81,7 @@ export function AiStudioScreen() {
       />
       <ScrollView contentInsetAdjustmentBehavior='automatic' showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View style={styles.heroMark}>
-          <View style={styles.sparkHalo}>
-            <VIcon name='fx' size={46} color='#fff' strokeWidth={1.7} />
-          </View>
+          <OrbitMark size={116} ringOpacity={0.85} animate surface={vela.homeBg} />
         </View>
 
         {authed ? (
@@ -189,16 +188,7 @@ function SignedInStudio({ email, credits, onImage, onVideo, onPhotoVideo, onVoic
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: vela.homeBg },
   content: { paddingHorizontal: 22, paddingTop: 24, paddingBottom: 118 },
-  heroMark: { alignItems: 'center' },
-  sparkHalo: {
-    backgroundColor: vela.action,
-    width: 104,
-    height: 104,
-    borderRadius: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    boxShadow: '0 0 34px rgba(91,75,255,0.24)',
-  },
+  heroMark: { alignItems: 'center', paddingVertical: 6 },
   intro: { alignItems: 'center', marginTop: 22 },
   title: {
     color: vela.ink,
