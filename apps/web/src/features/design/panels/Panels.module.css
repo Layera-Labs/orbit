@@ -75,8 +75,8 @@
   bottom: 5px;
   padding: 1px 5px;
   border-radius: var(--w-r-sm);
-  background: rgba(16, 15, 14, 0.82);
-  color: var(--w-ink);
+  background: var(--w-scrim);
+  color: var(--w-on-scrim);
   font-size: 9.5px;
   letter-spacing: 0.03em;
 }
@@ -249,7 +249,7 @@
 }
 
 .action:hover:not(:disabled) {
-  background: #37332f;
+  background: var(--w-s3-hover);
 }
 
 .action:disabled {
@@ -258,8 +258,8 @@
 }
 
 .danger:hover:not(:disabled) {
-  background: #3a2422;
-  color: #e8a196;
+  background: var(--w-danger-bg);
+  color: var(--w-danger-ink);
 }
 
 /* ---- generate ------------------------------------------------------------- */
@@ -326,7 +326,7 @@
 }
 
 .go:hover:not(:disabled) {
-  background: #fffdf9;
+  background: var(--w-ink-hover);
 }
 
 .go:disabled {

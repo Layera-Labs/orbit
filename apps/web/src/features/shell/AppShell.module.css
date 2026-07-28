@@ -128,3 +128,9 @@
     margin: 0 0 60px 0;
   }
 }
+
+/* Sits above Account at the foot of the rail, with a little air so the two
+   session controls read as a pair rather than as one stack of four. */
+.switch {
+  margin-bottom: var(--w-2);
+}

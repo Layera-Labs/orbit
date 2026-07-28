@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Icon } from '@/brand/Icon';
+import { ThemeSwitch } from '@/brand/ThemeSwitch';
 import { Plate } from '@/brand/Plate';
 import { renameProject } from '@/db/projects';
 import type { ProjectRow } from '@/db/schema';
@@ -88,6 +89,8 @@ export function DesignBar({
       </button>
 
       <span className={styles.barSpacer} />
+      <ThemeSwitch />
+      <span className={styles.divider} aria-hidden="true" />
       {children}
     </>
   );

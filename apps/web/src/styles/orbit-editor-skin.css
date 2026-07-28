@@ -14,7 +14,23 @@
  */
 @import '@orbit/editor/styles.css';
 
-.orbit {
+/*
+ * ALL THREE SELECTORS, not just `.orbit`.
+ *
+ * The SDK ships a `.orbit[data-theme='light']` block that re-declares TWENTY-FIVE
+ * `--o-*` variables — text, glass, hover, borders, inputs, the accent. That is
+ * specificity (0,2,0) against a plain `.orbit`'s (0,1,0), so in light mode it
+ * silently beat almost every mapping below and the embedded editor reverted to
+ * the stock palette: pure-white floating chrome and a mint-tinted artboard
+ * backdrop, sitting inside our warm stone shell.
+ *
+ * Matching the theme selectors explicitly is what makes these values win in BOTH
+ * themes. Adding a variable here is now enough; there is no second block to keep
+ * in step.
+ */
+.orbit,
+.orbit[data-theme='light'],
+.orbit[data-theme='dark'] {
   --o-bg: var(--w-base);
   /* One flat, slightly-lifted surface. The stock value stacks two radial
      emerald glows over a gradient; that is exactly the "background glow" tell. */
@@ -26,20 +42,29 @@
   --o-text-faint: var(--w-muted2);
   --o-text-soft: var(--w-muted3);
 
-  --o-glass-bg: rgba(25, 24, 23, 0.86);
+  /*
+   * Mapped to the app's own tokens rather than fixed alphas.
+   *
+   * These used to be light-on-dark rgba values, which pinned the embedded editor
+   * to the dark theme however the rest of the app was painted — chalk-alpha
+   * hovers and a near-black glass panel sitting inside a light shell. Pointing
+   * them at `--w-*` means the SDK follows the theme for free, and there is one
+   * palette in the app rather than two that have to be kept in step.
+   */
+  --o-glass-bg: var(--w-s1);
   --o-solid: var(--w-s2);
   --o-glass-border: var(--w-edge);
-  --o-glass-highlight: inset 0 1px 0 rgba(244, 241, 236, 0.05);
+  --o-glass-highlight: inset 0 1px 0 var(--w-edge);
   /* Tight and directional, not a bloom on every side. */
-  --o-glass-shadow: 0 6px 18px rgba(0, 0, 0, 0.42);
-  --o-panel-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
+  --o-glass-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  --o-panel-shadow: 0 10px 26px rgba(0, 0, 0, 0.26);
 
-  --o-hover: rgba(244, 241, 236, 0.06);
-  --o-active: rgba(244, 241, 236, 0.1);
+  --o-hover: var(--w-s2);
+  --o-active: var(--w-s3);
   --o-border: var(--w-edge);
-  --o-border-subtle: rgba(244, 241, 236, 0.06);
+  --o-border-subtle: var(--w-edge);
   --o-line: var(--w-edge-strong);
-  --o-input-bg: rgba(244, 241, 236, 0.05);
+  --o-input-bg: var(--w-s2);
 
   --o-accent: var(--w-live);
   --o-accent-strong: #a8442f;
@@ -57,19 +82,6 @@
   --o-ring: 0 0 0 2px var(--w-live-dim);
 
   font-family: var(--w-body);
-}
-
-/* The stock light theme re-declares the emerald accent and the glow, so the
-   overrides have to be repeated at the same specificity to survive it. */
-.orbit[data-theme='light'] {
-  --o-accent: var(--w-live);
-  --o-accent-strong: #a8442f;
-  --o-accent-contrast: #fdf9f7;
-  --o-accent-grad: var(--w-live);
-  --o-accent-soft: var(--w-live-dim);
-  --o-accent-glow: none;
-  --o-canvas-bg: #ece8e1;
-  --o-danger: var(--w-danger);
 }
 
 /* Two variables the SDK's own panels reference but nothing declares — the
@@ -149,5 +161,15 @@
 }
 
 .orbit .o-btn-primary:hover {
-  background: #fffdf9;
+  background: var(--w-ink-hover);
+}
+
+/*
+ * The zoom slider is chalk, not clay — the same rule the app's own sliders
+ * follow. `accent-color` fills the whole travelled track, and `--o-accent` has
+ * to stay `--w-live` because Konva paints the selection transformer from it and
+ * cannot read CSS. A zoom level is a value, not a live state.
+ */
+.orbit .o-zoom input[type='range'] {
+  accent-color: var(--w-ink);
 }

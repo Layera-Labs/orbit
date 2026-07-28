@@ -9,30 +9,129 @@
  * Deliberately not the mobile app's "Vela" (indigo over neutral near-black) —
  * this is a separate identity for the web studio.
  */
+/*
+ * LIGHT IS THE DEFAULT, and it lives on `:root` rather than behind a
+ * `[data-theme='light']` selector. That way the light palette is what paints if
+ * JavaScript never runs, if the pre-paint script is blocked, or if an attribute
+ * is dropped — the page is never left with no palette at all, and nothing about
+ * how it looks is gated on a script completing.
+ *
+ * THE LIGHT SURFACE IS A WARM STONE, and that is a decision, not a default. The
+ * two obvious light backgrounds are both slop: the cool UI-kit neutral (the
+ * gray-100/200 family, ~hue 215) reads as a wireframe left at its default, and
+ * cream/oat (~hue 45, high saturation) is the reflexive "tasteful premium"
+ * move. This sits at hue ~20 with 7-10% saturation — pulled toward the clay
+ * accent's own hue, so the light and dark themes are the same world at two
+ * exposures rather than two unrelated palettes.
+ */
 :root {
+  /* Declared in CSS, not written onto `<html>` by the theme script. An inline
+     style the server never rendered is an extra attribute at hydration, and
+     React warns about it — and this belongs with the palette anyway. It drives
+     form controls, scrollbars and the like. */
+  color-scheme: light;
+
+  /* Surfaces. The page floor is the DARKEST step and chrome lifts off it —
+     the inverse of the dark theme's ladder, same roles. */
+  --w-base: #e6e1de;
+  --w-s1: #f0ecea;
+  --w-s2: #f7f5f3;
+  --w-s3: #d8d2ce;
+  /* Pressed/hover for an --w-s3 surface. */
+  --w-s3-hover: #cbc4bf;
+
+  /* Ink — warm near-black, the same warmth as the dark theme's chalk. */
+  --w-ink: #1a1715;
+  /* Hover for an ink-FILLED control (the primary button), which lifts rather
+     than brightens — on light, "brighter" would mean invisible. */
+  --w-ink-hover: #3a3330;
+  /*
+   * Measured, not eyeballed. `--w-muted2` carries 10-11px labels and metadata,
+   * so it has to clear 4.5:1 against the DARKEST surface it ever sits on, which
+   * is the page floor rather than a panel: 4.90:1 on --w-base, 5.41:1 on --w-s1.
+   * --w-muted is 5.17:1 on the floor. --w-muted3 is disabled-only and is not
+   * held to it.
+   */
+  --w-muted: #635b55;
+  --w-muted2: #665e57;
+  --w-muted3: #a9a09a;
+
+  /* Edges are the ink's own colour at low alpha, so they read as a lip
+     catching light rather than a drawn hairline. */
+  --w-edge: rgba(26, 23, 21, 0.1);
+  --w-edge-strong: rgba(26, 23, 21, 0.2);
+
+  /* The one chromatic token. Desaturated clay — live state only. Deeper than
+     the dark theme's so it still clears a pale surface (5.06:1 on --w-s1). */
+  --w-live: #a8442f;
+  --w-live-dim: rgba(168, 68, 47, 0.16);
+
+  --w-danger: #a3392e;
+  --w-danger-bg: #f6e3df;
+  --w-danger-ink: #8c3125;
+  --w-ok: #4f6a45;
+
+  /* Timeline. Lanes recess BELOW the floor; clips are surfaces on top of them. */
+  --w-lane-audio-bg: #ded8d4;
+  --w-lane-text-bg: #dcd6d1;
+  --w-clip-audio: #ddd2c2;
+  --w-clip-text: #d6d2cd;
+}
+
+/*
+ * Dark — the original "Instrument" palette, unchanged.
+ *
+ * `:root[data-theme='dark']` and NOT `@media (prefers-color-scheme: dark)`. Light
+ * is the product's default, not merely what a light-set OS gets — a media query
+ * would hand a dark-mode machine the dark theme on first visit and then fight
+ * the user's explicit choice every time the OS flipped. Dark is opt-in, stored,
+ * and applied before paint by the script in `layout.tsx`.
+ */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
   /* Surfaces — warm, red/yellow-leaning near-black. Not blue-charcoal. */
   --w-base: #100f0e;
   --w-s1: #191817;
   --w-s2: #211f1d;
   --w-s3: #2a2724;
+  --w-s3-hover: #37332f;
 
   /* Ink — warm off-white. Pure #fff never appears. */
   --w-ink: #f4f1ec;
+  --w-ink-hover: #fffdf9;
   --w-muted: #9a938a;
   --w-muted2: #6f6961;
   --w-muted3: #4a4640;
 
-  /* Edges are the surface's own colour at low alpha, so they read as a lip
-     catching light rather than a drawn hairline. */
   --w-edge: rgba(244, 241, 236, 0.09);
   --w-edge-strong: rgba(244, 241, 236, 0.16);
 
-  /* The one chromatic token. Desaturated clay — live state only. */
   --w-live: #c4553d;
   --w-live-dim: rgba(196, 85, 61, 0.22);
 
   --w-danger: #b8463a;
+  --w-danger-bg: #3a2422;
+  --w-danger-ink: #e8a196;
   --w-ok: #6f8f63;
+
+  --w-lane-audio-bg: #141312;
+  --w-lane-text-bg: #131211;
+  --w-clip-audio: #262019;
+  --w-clip-text: #23211e;
+}
+
+/* Everything below is theme-independent — type, spacing, geometry. */
+:root {
+  /*
+   * Ink for text sitting on a dark scrim over a PHOTOGRAPH — a card's delete
+   * button, a tile's duration badge. It does not flip with the theme, because
+   * the scrim does not: the thing underneath is someone's image, not our
+   * surface. Using --w-ink here put dark text on a dark scrim in light mode.
+   */
+  --w-scrim: rgba(16, 15, 14, 0.78);
+  --w-on-scrim: #f4f1ec;
+  --w-on-scrim-dim: #b8b0a6;
 
   /* Type. Gambarino (Fontshare, FFL) is the signature display face; system-ui
      is a genuinely neutral body, not a trend pick; data uses the SYSTEM mono —

@@ -323,7 +323,7 @@
 }
 
 .primary:hover:not(:disabled) {
-  background: #fffdf9;
+  background: var(--w-ink-hover);
 }
 
 .primary:disabled {
@@ -346,7 +346,7 @@
 }
 
 .ghost:hover:not(:disabled) {
-  background: #37332f;
+  background: var(--w-s3-hover);
 }
 
 .ghost:disabled {
