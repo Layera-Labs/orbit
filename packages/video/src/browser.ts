@@ -57,6 +57,7 @@ export {
   isNeutral,
   temperatureKelvin,
   temperatureGains,
+  gradeMatrix,
 } from './filters';
 export type { FilterParams } from './filters';
 export { hasMotion, motionStateAt, motionToZoompan, motionIntensity, ZOOM_DELTA, PAN_ZOOM } from './motion';

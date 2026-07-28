@@ -64,48 +64,103 @@ export function isNeutral(f?: ClipFilter): boolean {
 type Mat = number[]; // 20 values
 const IDENTITY: Mat = [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0];
 
-/** Multiply two 4×5 colour matrices (a then b applied to a colour → b∘a). */
-function mul(a: Mat, b: Mat): Mat {
-  const A = [...a, 0, 0, 0, 0, 1];
-  const B = [...b, 0, 0, 0, 0, 1];
-  const out = new Array(25).fill(0);
-  for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) {
-    let s = 0;
-    for (let k = 0; k < 5; k++) s += A[r * 5 + k] * B[k * 5 + c];
-    out[r * 5 + c] = s;
+/*
+ * MIRRORED from `gradeMatrix` in packages/video/src/filters.ts — keep in step.
+ * (Mobile is outside the pnpm workspace and cannot import @orbit/video; the same
+ * rule that makes it vendor the model applies here.)
+ *
+ * What this replaced, and why it mattered: three matrices multiplied together,
+ * applying brightness, contrast and Rec.709 saturation to the R, G and B
+ * channels independently, plus a ±0.15·t stand-in for temperature. `eq` does
+ * none of that. It runs on the DECODED YUV PLANES — contrast and brightness over
+ * luma, saturation over chroma — and `colortemperature` is a measured
+ * per-channel gain, not a linear guess.
+ *
+ * Measured against a real exported MP4 (2026-07-28) the per-channel version was
+ * out by up to 25/255 on saturated colour; this lands within 6 for every preset
+ * but `vivid`, which reaches 10 because high saturation amplifies the 8-bit
+ * round trip. The old temperature curve was additionally wrong in its own right.
+ *
+ * Assumes BT.601 limited range, which is what an SD yuv420p stream carries.
+ */
+const LUMA_R = 0.299;
+const LUMA_G = 0.587;
+const LUMA_B = 0.114;
+const KY = 219 / 255;
+const OY = 16 / 255;
+const KC = 224 / 255;
+const OC = 128 / 255;
+
+const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+/** ffmpeg's `kelvin2rgb` (vf_colortemperature.c), ported exactly. */
+function kelvinToGains(k: number): [number, number, number] {
+  const kelvin = k / 100;
+  let r: number;
+  let g: number;
+  if (kelvin <= 66) {
+    r = 1;
+    g = clamp01(0.39008157876901960784 * Math.log(kelvin) - 0.63184144378862745098);
+  } else {
+    const t = Math.max(kelvin - 60, 0);
+    r = clamp01(1.29293618606274509804 * Math.pow(t, -0.1332047592));
+    g = clamp01(1.12989086089529411765 * Math.pow(t, -0.0755148492));
   }
-  return out.slice(0, 20);
+  const b =
+    kelvin >= 66
+      ? 1
+      : kelvin <= 19
+        ? 0
+        : clamp01(0.54320678911019607843 * Math.log(kelvin - 10) - 1.19625408914);
+  return [r, g, b];
 }
 
-function brightnessMat(b: number): Mat {
-  return [1, 0, 0, 0, b, 0, 1, 0, 0, b, 0, 0, 1, 0, b, 0, 0, 0, 1, 0];
+/** Identity at 0 — the export omits the filter entirely there. */
+function temperatureGains(temperature: number): [number, number, number] {
+  if (!temperature) return [1, 1, 1];
+  return kelvinToGains(Math.round(6500 - temperature * 2500));
 }
-function contrastMat(c: number): Mat {
-  const o = 0.5 - 0.5 * c;
-  return [c, 0, 0, 0, o, 0, c, 0, 0, o, 0, 0, c, 0, o, 0, 0, 0, 1, 0];
-}
-function saturationMat(s: number): Mat {
-  const lr = 0.2126, lg = 0.7152, lb = 0.0722;
-  const inv = 1 - s;
-  return [
-    lr * inv + s, lg * inv, lb * inv, 0, 0,
-    lr * inv, lg * inv + s, lb * inv, 0, 0,
-    lr * inv, lg * inv, lb * inv + s, 0, 0,
-    0, 0, 0, 1, 0,
-  ];
-}
-function temperatureMat(t: number): Mat {
-  const rg = 1 + 0.15 * t;
-  const bg = 1 - 0.15 * t;
-  return [rg, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, bg, 0, 0, 0, 0, 0, 1, 0];
+
+/** RGB (0..1) → eq → RGB, unclamped. Affine, which is what makes the matrix exact. */
+function eqApply(rgb: [number, number, number], p: FilterParams): [number, number, number] {
+  const [r, g, b] = rgb;
+  const luma = LUMA_R * r + LUMA_G * g + LUMA_B * b;
+
+  let y = KY * luma + OY;
+  let cb = (KC * (b - luma)) / 1.772 + OC;
+  let cr = (KC * (r - luma)) / 1.402 + OC;
+
+  y = p.contrast * (y - 0.5) + 0.5 + p.brightness;
+  cb = p.saturation * (cb - 0.5) + 0.5;
+  cr = p.saturation * (cr - 0.5) + 0.5;
+
+  const l2 = (y - OY) / KY;
+  const r2 = l2 + (1.402 * (cr - OC)) / KC;
+  const b2 = l2 + (1.772 * (cb - OC)) / KC;
+  const g2 = (l2 - LUMA_R * r2 - LUMA_B * b2) / LUMA_G;
+  return [r2, g2, b2];
 }
 
 /** Final colour matrix for a clip filter (null if neutral → no <ColorMatrix>). */
 export function colorMatrix(f?: ClipFilter): Mat | null {
   if (isNeutral(f)) return null;
   const p = resolveParams(f);
-  // applied to colour in order: saturation → contrast → brightness → temperature
-  return mul(temperatureMat(p.temperature), mul(brightnessMat(p.brightness), mul(contrastMat(p.contrast), saturationMat(p.saturation))));
+
+  // Recovered by evaluating the affine chain on the origin and the three basis
+  // colours, so there is no algebra here to get wrong.
+  const o = eqApply([0, 0, 0], p);
+  const cr = eqApply([1, 0, 0], p);
+  const cg = eqApply([0, 1, 0], p);
+  const cb = eqApply([0, 0, 1], p);
+  const gains = temperatureGains(p.temperature);
+
+  const m: Mat = [];
+  for (let i = 0; i < 3; i += 1) {
+    const gain = gains[i];
+    m.push((cr[i] - o[i]) * gain, (cg[i] - o[i]) * gain, (cb[i] - o[i]) * gain, 0, o[i] * gain);
+  }
+  m.push(0, 0, 0, 1, 0);
+  return m;
 }
 
 export { IDENTITY };

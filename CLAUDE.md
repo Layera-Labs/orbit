@@ -197,22 +197,26 @@ Next 14 App Router. **One editor** over the v2 SDK plus a browser video engine.
   `colortemperature` is a plain **per-channel gain** (ported as `temperatureGains`,
   ffmpeg's `kelvin2rgb`), so it folds into the same matrix and is EXACT — it used to be
   dropped entirely, which made Warm and Cool preview nearly identically. `eq` is NOT
-  exact: it works on YUV planes in limited range, so the saturation matrix uses **BT.601**
-  coefficients, not Rec.709 (709 put `mono` 39/255 off; 601 puts it 3 off). Residual
-  across every preset on mid-tone colours is **≤6/255**, confirmed end-to-end against a
-  real canvas. Closing it fully would need the clip's own colour space, which the browser
-  does not expose. Do not re-assert that the grade is byte-identical; it is not.
-- **How far off, measured against a real MP4 (2026-07-28).** Preview and export were
-  compared pixel-for-pixel end to end: flat-colour clips rendered by `frameStateAt` +
-  `renderFrame` in the browser, exported through `/v1/render`, frames pulled back out
-  with ffmpeg and probed at the same timestamps. Ungraded clips and the fade-through-black
+  exact: it works on YUV planes in limited range, so everything uses **BT.601**
+  coefficients, not Rec.709 (709 put `mono` 39/255 off; 601 puts it 3 off).
+- **`eq` is modelled where it actually runs, on the YUV planes** (`gradeMatrix` in
+  `packages/video/src/filters.ts`, 2026-07-28). Contrast and brightness go over luma,
+  saturation over chroma, and because every step either side is affine the whole chain
+  collapses into ONE 4×5 colour matrix — which is what both previews apply (web as an SVG
+  `feColorMatrix`, mobile as Skia `<ColorMatrix>`; mobile mirrors the function because it
+  cannot import the package). It replaced per-channel RGB contrast/saturation, which
+  agreed on mid-tones and diverged badly on saturated colour.
+- **How far off, measured against a real MP4 (2026-07-28).** Flat-colour clips rendered by
+  `frameStateAt` + `renderFrame`, exported through `/v1/render`, frames pulled back with
+  ffmpeg and probed at the same timestamps. Ungraded clips and the fade-through-black
   transition agree to **≤2/255** — timing, alpha ramp and geometry are effectively exact.
-  The GRADE is where it drifts, and on SATURATED colour it drifts much further than the
-  mid-tone figure above: warm/cool **9**, vivid **16**, film **25** on a saturated red.
-  The preview is always the more extreme one (it clipped a vivid red to 255 where the
-  export landed at 239), which is the expected signature of contrast applied per-channel
-  in full-range RGB versus ffmpeg's `eq` working on limited-range luma. So: mid-tones ≤6,
-  saturated ≤25, everything that is not the grade ≤2.
+  The grade now lands **≤6/255 for every preset except `vivid`, which reaches 10** on
+  saturated colour; before `gradeMatrix` the same sweep was as bad as **25** (film on a
+  saturated red). What is left is a systematic ~2–3% and it is not worth chasing: we are
+  handed the decoder's 8-bit RGB and have to reconstruct the chroma ffmpeg graded, so a
+  rounding step comes back multiplied by the saturation and again by the chroma→blue gain.
+  Assumes BT.601 limited range; nothing in either preview can see the stream's tagging.
+  Do not re-assert that the grade is byte-identical; it is not.
 - **Chroma key runs in a WebGL fragment shader** (`engine/cutout.ts`), not `getImageData` —
   a full-frame clip is 2M pixels and a JS loop drops the preview under 30fps. It mirrors
   ffmpeg `colorkey` (`alpha = clamp((diff − similarity)/blend)`, `diff = √(Σd²/3)`, RGB

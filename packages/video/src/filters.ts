@@ -16,6 +16,14 @@ export interface FilterParams {
 
 export const NEUTRAL: FilterParams = { brightness: 0, contrast: 1, saturation: 1, temperature: 0 };
 
+/*
+ * BT.601 luma weights, NOT Rec.709 — see `gradeMatrix` below for why the whole
+ * grade is computed in 601's YUV.
+ */
+const LUMA_R = 0.299;
+const LUMA_G = 0.587;
+const LUMA_B = 0.114;
+
 export const FILTER_PRESETS: Record<string, FilterParams> = {
   none: { ...NEUTRAL },
   vivid: { brightness: 0.03, contrast: 1.15, saturation: 1.4, temperature: 0 },
@@ -97,6 +105,97 @@ function kelvinToGains(k: number): [number, number, number] {
 export function temperatureGains(temperature: number): [number, number, number] {
   if (!temperature) return [1, 1, 1];
   return kelvinToGains(temperatureKelvin(temperature));
+}
+
+/*
+ * ---- The grade as a colour matrix, the way `eq` actually computes it ----
+ *
+ * `eq` never touches RGB. It works on the DECODED YUV PLANES: it runs a LUT over
+ * luma (`v' = contrast·(v − 0.5) + 0.5 + brightness`, `v` being the raw plane
+ * byte over 255) and the same LUT shape with `contrast = saturation` and no
+ * brightness over each chroma plane, which scales chroma about neutral.
+ *
+ * Every step of that is AFFINE, and so are the conversions either side of it, so
+ * the whole chain collapses into one 4×5 colour matrix that both previews can
+ * apply directly — no approximation, no second pass.
+ *
+ * This replaced a version that applied contrast and saturation to the R, G and B
+ * channels independently. On mid-tones the two agree; on SATURATED colour they
+ * do not, because scaling a channel that is already near an extreme is nothing
+ * like scaling the luma that channel contributes to. Measured against a real MP4
+ * (2026-07-28), that cost up to 25/255 on a saturated red under `film`.
+ *
+ * THE ONE ASSUMPTION: BT.601, limited range — what an SD `yuv420p` stream from
+ * x264 carries, and what the browser converts back with. HD sources are normally
+ * tagged 709, and for those this is again an approximation: the browser hands us
+ * RGB decoded with the 709 matrix while `eq` scaled 709-coded planes. Nothing in
+ * either preview can see the stream's tagging, so there is no better default —
+ * and 601 is the one that measures closer here (with 709 coefficients `mono` was
+ * off by 39/255; the current set puts it at 3).
+ */
+const KY = 219 / 255;
+const OY = 16 / 255;
+const KC = 224 / 255;
+const OC = 128 / 255;
+
+/** RGB (0..1) → eq → RGB, unclamped. Affine, which is what makes the matrix exact. */
+function eqApply(
+  rgb: [number, number, number],
+  p: FilterParams,
+): [number, number, number] {
+  const [r, g, b] = rgb;
+  const luma = LUMA_R * r + LUMA_G * g + LUMA_B * b;
+
+  // Forward: the limited-range 601 planes ffmpeg is handed.
+  let y = KY * luma + OY;
+  let cb = (KC * (b - luma)) / 1.772 + OC;
+  let cr = (KC * (r - luma)) / 1.402 + OC;
+
+  // `eq` itself: contrast + brightness on luma, saturation on chroma.
+  y = p.contrast * (y - 0.5) + 0.5 + p.brightness;
+  cb = p.saturation * (cb - 0.5) + 0.5;
+  cr = p.saturation * (cr - 0.5) + 0.5;
+
+  // Back to RGB.
+  const l2 = (y - OY) / KY;
+  const r2 = l2 + (1.402 * (cr - OC)) / KC;
+  const b2 = l2 + (1.772 * (cb - OC)) / KC;
+  const g2 = (l2 - LUMA_R * r2 - LUMA_B * b2) / LUMA_G;
+  return [r2, g2, b2];
+}
+
+/**
+ * The grade as a 4×5 row-major colour matrix over channels in 0..1 — the form
+ * both an SVG `feColorMatrix` and Skia's `<ColorMatrix>` take.
+ *
+ * Recovered by evaluating the affine chain on the origin and the three basis
+ * colours rather than by multiplying the conversions out by hand: same result,
+ * no algebra to get wrong, and it stays right if `eqApply` ever gains a step.
+ *
+ * `colortemperature` runs AFTER `eq` in the export chain and is a plain
+ * per-channel gain (see `temperatureGains`), so it is the diagonal applied to
+ * each finished row, offset column included.
+ */
+export function gradeMatrix(p: FilterParams): number[] {
+  const o = eqApply([0, 0, 0], p);
+  const cr = eqApply([1, 0, 0], p);
+  const cg = eqApply([0, 1, 0], p);
+  const cb = eqApply([0, 0, 1], p);
+  const gains = temperatureGains(p.temperature);
+
+  const m: number[] = [];
+  for (let i = 0; i < 3; i += 1) {
+    const gain = gains[i];
+    m.push(
+      (cr[i] - o[i]) * gain,
+      (cg[i] - o[i]) * gain,
+      (cb[i] - o[i]) * gain,
+      0,
+      o[i] * gain,
+    );
+  }
+  m.push(0, 0, 0, 1, 0);
+  return m;
 }
 
 /** ffmpeg video filter chain for a clip filter, WITH a trailing comma; '' if neutral. */
