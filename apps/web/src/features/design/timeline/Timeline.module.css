@@ -104,6 +104,23 @@
  * ran to 375 and the "Track" button was cut through. Dropping the word — the
  * only thing here that is not a control — brings it back inside.
  */
+/*
+ * A 92px gutter cannot hold an icon, a name AND a flag: measured at 390px the
+ * base track's name truncated to "Ma…" while "base" sat beside it at full
+ * width, which is exactly backwards. The flag goes, and the thing it was
+ * pointing at survives on its own — transition badges still appear only on the
+ * base track, because that is the only one the export composites them onto.
+ */
+@media (max-width: 720px) {
+  .header {
+    padding: 0 var(--w-2);
+  }
+
+  .headerFlag {
+    display: none;
+  }
+}
+
 @media (max-width: 560px) {
   .ghostLabel {
     display: none;
