@@ -386,6 +386,53 @@
   }
 }
 
+/*
+ * Phone widths.
+ *
+ * The four regions still fit — nothing here re-architects the layout — but at
+ * 390px the desktop proportions stopped making sense: the rail took a fifth of
+ * the window to show labels nobody has room to read, its tenth item scrolled
+ * out of a container with a hidden scrollbar, and the panel opened as a 312px
+ * slab over a 314px canvas, covering the artwork completely while still
+ * looking like a dock beside it.
+ *
+ * So: the rail goes icon-only and slims to a thumb-sized column, and the panel
+ * stops pretending to be a dock and becomes a sheet across the remaining width,
+ * with the rail — and its own close button — still reachable beside it.
+ */
+@media (max-width: 720px) {
+  .frame {
+    --w-rail: 52px;
+    --w-panel: calc(100dvw - 52px);
+    --w-track-gutter: 92px;
+    --w-timeline: 188px;
+  }
+
+  /* Taller targets now that the label is gone, so the row is still a thumb
+     rather than a 21px glyph. */
+  .railItem {
+    padding: 11px 4px;
+  }
+
+  /*
+   * Visually hidden, NOT `display: none` — the label is the button's accessible
+   * name, and removing it would leave ten unnamed buttons.
+   */
+  .railLabel {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .stage {
+    padding: var(--w-3);
+  }
+}
+
 @media (max-width: 560px) {
   .bar {
     gap: var(--w-1);
