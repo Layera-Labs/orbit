@@ -247,6 +247,21 @@
 .o-layer-name { flex: 1; font-size: 12.5px; color: var(--o-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .o-layer .o-icon-btn { width: 26px; height: 26px; }
 
+/* Reorder by dragging. The type mark is the grip: `touch-action: none` here and
+   nowhere else means a touch drag from the mark reorders while a touch on the
+   rest of the row still scrolls the panel. */
+.o-layer { position: relative; cursor: grab; }
+.o-layer:focus-visible { outline: 2px solid var(--o-accent); outline-offset: -2px; }
+.o-layer-grip { display: flex; color: var(--o-text-muted); touch-action: none; }
+.o-layer[data-dragging='true'] { cursor: grabbing; opacity: 0.55; }
+/* Where it would land — a rounded bar in the gap, not a hairline between rows. */
+.o-layer[data-drop]::after {
+  content: ''; position: absolute; left: 8px; right: 8px; height: 2px;
+  border-radius: 2px; background: var(--o-accent); pointer-events: none;
+}
+.o-layer[data-drop='above']::after { top: -2px; }
+.o-layer[data-drop='below']::after { bottom: -2px; }
+
 .o-drawer-h3 { font-size: 14px; font-weight: 600; margin: 4px 0 12px; color: var(--o-text-strong); }
 .o-hint { font-size: 11.5px; color: var(--o-text-soft); margin-top: 10px; line-height: 1.5; }
 
