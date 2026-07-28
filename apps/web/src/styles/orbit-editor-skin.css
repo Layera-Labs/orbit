@@ -121,17 +121,18 @@
 }
 
 /*
- * The zoom pill moves to the TOP right when embedded.
+ * The zoom pill stays BOTTOM right when embedded.
  *
- * The SDK anchors the page strip bottom-left and the zoom bottom-right, which is
- * fine across a full window but genuinely overlaps once the canvas is only as
- * wide as this shell's middle column — measured at 517px the two boxes ran into
- * each other by 58px and the zoom-out button disappeared underneath the strip.
- * Opposite corners on the same edge is a collision waiting for a narrow viewport.
+ * It was moved to the top for a while, because the SDK anchors its own page
+ * strip bottom-left and the two collided on a narrow canvas — measured at 517px
+ * they ran into each other by 58px. That strip is gone now (`PageBar` replaced
+ * it and sits in its own row beneath the canvas), and the top edge is where the
+ * property bar lives, which is 480px wide on a text selection. So the bottom is
+ * the free corner again.
  */
 .orbitEmbedded .o-zoom {
-  top: 12px;
-  bottom: auto;
+  bottom: 12px;
+  top: auto;
   /* Never wider than the column it sits in. Its own width is intrinsic, and
      `.o-canvas-wrap` clips, so without this the zoom-out button is simply gone
      at a narrow window rather than merely tight. */

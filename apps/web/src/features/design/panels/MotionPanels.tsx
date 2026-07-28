@@ -708,12 +708,30 @@ export function MotionDesignPanel({ project }: { project: VideoProject }) {
             apply((p) => ({ ...p, background: { type: 'color', color: colour } }))
           }
         />
+        {/* The video model stores a gradient as `{from, to, angle}` rather than
+            a CSS string, so the picker's CSS is parsed back apart here. Same
+            control, two storage shapes. */}
         <ColourRow
           label="Custom"
           value={background?.type === 'color' ? background.color : '#000000'}
           onChange={(colour) =>
             apply((p) => ({ ...p, background: { type: 'color', color: colour } }))
           }
+          gradient={{
+            value:
+              background?.type === 'gradient'
+                ? `linear-gradient(${background.angle ?? 180}deg, ${background.from}, ${background.to})`
+                : null,
+            onChange: (css) => {
+              const angle = Number(/(-?\d+(?:\.\d+)?)deg/.exec(css)?.[1] ?? 180);
+              const stops = [...css.matchAll(/#[0-9a-fA-F]{3,8}/g)].map((m) => m[0]);
+              if (stops.length < 2) return;
+              apply((p) => ({
+                ...p,
+                background: { type: 'gradient', from: stops[0], to: stops[stops.length - 1], angle },
+              }));
+            },
+          }}
         />
       </div>
     </div>

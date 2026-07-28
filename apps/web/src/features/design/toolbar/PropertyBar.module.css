@@ -78,26 +78,40 @@
   outline-offset: -2px;
 }
 
-/* A number with a small leading glyph, sized to its content. */
+/*
+ * A number field that LOOKS like a field.
+ *
+ * It used to be transparent with a hover background, which read as static text
+ * — there was no way to tell a value you could type from a value you could only
+ * read. It now carries a recessed surface and an edge at rest, like every other
+ * input in the app.
+ */
 .field {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
   flex: none;
   height: 28px;
-  padding: 0 6px;
+  padding: 0 7px;
   border-radius: var(--w-r-sm);
+  background: var(--w-base);
+  box-shadow: inset 0 0 0 1px var(--w-edge);
   color: var(--w-muted);
-  transition: background-color 140ms ease;
+  transition: box-shadow 140ms ease;
 }
 
-.field:hover,
+.field:hover {
+  box-shadow: inset 0 0 0 1px var(--w-edge-strong);
+}
+
 .field:focus-within {
-  background: var(--w-s3);
+  box-shadow: inset 0 0 0 2px var(--w-edge-strong);
 }
 
 .fieldInput {
-  width: 4ch;
+  /* Wide enough for a four-digit coordinate — 4ch truncated "766" to "766." and
+     a page-sized value to "262.". */
+  width: 5ch;
   padding: 0;
   border: none;
   background: transparent;
@@ -129,6 +143,37 @@
   font-size: 11px;
 }
 
+/*
+ * A menu trigger that says what it opens.
+ *
+ * Flat at rest — it is not a field you type into, so it carries no recessed
+ * surface; it takes the same tonal hover and pressed state as a bare mark.
+ */
+.textButton {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--w-r-sm);
+  color: var(--w-muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.textButton:hover,
+.textButton[data-on='true'] {
+  color: var(--w-ink);
+  background: var(--w-s3);
+}
+
+.textButton:focus-visible {
+  outline: 2px solid var(--w-live);
+  outline-offset: -2px;
+}
+
 /* A menu trigger showing the current value. */
 .select {
   display: flex;
@@ -136,17 +181,19 @@
   gap: 5px;
   flex: none;
   height: 28px;
-  max-width: 16ch;
+  max-width: 18ch;
   padding: 0 7px;
   border-radius: var(--w-r-sm);
+  background: var(--w-base);
+  box-shadow: inset 0 0 0 1px var(--w-edge);
   color: var(--w-ink);
   font-size: 12.5px;
   white-space: nowrap;
-  transition: background-color 140ms ease;
+  transition: box-shadow 140ms ease;
 }
 
 .select:hover {
-  background: var(--w-s3);
+  box-shadow: inset 0 0 0 1px var(--w-edge-strong);
 }
 
 .selectValue {
@@ -271,4 +318,41 @@
 .empty {
   color: var(--w-muted);
   font-size: 12.5px;
+}
+
+/* ---- search --------------------------------------------------------------- */
+
+/*
+ * A filter at the head of any long menu. Sticky so it stays reachable once the
+ * list below it scrolls — a search that scrolls away is only useful for the
+ * first screenful.
+ */
+.search {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--w-2);
+  padding: 6px var(--w-2);
+  border-radius: var(--w-r);
+  background: var(--w-base);
+  box-shadow: inset 0 0 0 1px var(--w-edge);
+  color: var(--w-muted);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--w-ink);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.searchInput:focus {
+  outline: none;
 }

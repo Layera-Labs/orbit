@@ -170,3 +170,129 @@
   color: var(--w-muted2);
   font-size: 11px;
 }
+
+/* ---- tabs ----------------------------------------------------------------- */
+
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin-bottom: var(--w-3);
+  padding: 2px;
+  border-radius: var(--w-r);
+  background: var(--w-base);
+}
+
+.tab {
+  padding: 5px;
+  border-radius: var(--w-r-sm);
+  color: var(--w-muted);
+  font-size: 12.5px;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.tab:hover {
+  color: var(--w-ink);
+}
+
+/* State is a raised surface and weight, not a colour pop. */
+.tab[data-on='true'] {
+  background: var(--w-s1);
+  color: var(--w-ink);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 1px var(--w-edge);
+}
+
+/* ---- hex ------------------------------------------------------------------ */
+
+.hexRow {
+  display: flex;
+  align-items: center;
+  gap: var(--w-2);
+  margin-top: var(--w-3);
+  padding: 4px 6px;
+  border-radius: var(--w-r);
+  /* A real field: recessed surface plus an edge, so it does not read as a line
+     of static text sitting in the panel. */
+  background: var(--w-base);
+  box-shadow: inset 0 0 0 1px var(--w-edge);
+}
+
+.hexInput {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--w-ink);
+  font-family: var(--w-data);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+}
+
+.hexInput:focus {
+  outline: none;
+}
+
+/* ---- gradient ------------------------------------------------------------- */
+
+.gradientGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--w-2);
+}
+
+.gradientCell {
+  border-radius: var(--w-r-sm);
+}
+
+.gradientSwatch {
+  display: block;
+  height: 34px;
+  border-radius: var(--w-r-sm);
+  box-shadow: inset 0 0 0 1px var(--w-edge-strong);
+}
+
+/* Ring around, never a plate behind — same rule as a solid swatch. */
+.gradientSwatch[data-selected] {
+  outline: 2px solid var(--w-ink);
+  outline-offset: 2px;
+}
+
+.gradientBuild {
+  display: grid;
+  gap: var(--w-2);
+}
+
+.gradientPreview {
+  display: block;
+  height: 40px;
+  border-radius: var(--w-r);
+  box-shadow: inset 0 0 0 1px var(--w-edge-strong);
+}
+
+.gradientStops {
+  display: flex;
+  align-items: center;
+  gap: var(--w-2);
+}
+
+.angle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.angle input {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--w-ink);
+}
+
+.angleValue {
+  color: var(--w-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}

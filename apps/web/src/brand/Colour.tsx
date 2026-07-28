@@ -96,6 +96,22 @@ const PALETTE = [
   '#3f6b7a', '#2f4858', '#6a5a8c', '#8c3f5a', '#b8463a', '#ffffff',
 ];
 
+/**
+ * Preset gradients, stored as the exact CSS the renderer parses.
+ *
+ * `backgroundFill` in `@orbit/render` reads an angle and two-or-more stops out
+ * of the string, so these are authored in the form it understands rather than in
+ * some richer shape that would have to be serialised down to it.
+ */
+const GRADIENTS = [
+  'linear-gradient(180deg, #1a1a1d, #4a4a52)',
+  'linear-gradient(180deg, #a8442f, #e0b252)',
+  'linear-gradient(135deg, #2f4858, #6f8f63)',
+  'linear-gradient(180deg, #f6f6f7, #c9c2bb)',
+  'linear-gradient(135deg, #6a5a8c, #8c3f5a)',
+  'linear-gradient(180deg, #3f6b7a, #1a1a1d)',
+];
+
 export interface ColourPickerProps {
   value: string;
   onChange(colour: string): void;
@@ -103,6 +119,13 @@ export interface ColourPickerProps {
   /** Rendered instead of the default swatch trigger. */
   size?: number;
   disabled?: boolean;
+  /**
+   * Supplied ONLY where the model can actually store a gradient — the page and
+   * project background. An element's `fill` is a plain colour string, so a
+   * Gradient tab there would be a control that cannot be saved. Omit it and the
+   * tabs do not appear at all.
+   */
+  gradient?: { value: string | null; onChange(css: string): void };
 }
 
 /**
@@ -113,8 +136,16 @@ export interface ColourPickerProps {
  * swatch in the grid, so a colour you invented is reusable rather than
  * something you have to mix again from memory.
  */
-export function ColourPicker({ value, onChange, label, size = 22, disabled }: ColourPickerProps) {
+export function ColourPicker({
+  value,
+  onChange,
+  label,
+  size = 22,
+  disabled,
+  gradient,
+}: ColourPickerProps) {
   const [open, setOpen] = useState(false);
+  const [tab, setTab] = useState<'solid' | 'gradient'>('solid');
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
   const nativeRef = useRef<HTMLInputElement>(null);
   const savedColours = useSaved();
@@ -156,6 +187,35 @@ export function ColourPicker({ value, onChange, label, size = 22, disabled }: Co
       </button>
 
       <Popover anchor={anchor} open={open} onClose={() => setOpen(false)} label={label} align="center">
+        {gradient && (
+          <div className={styles.tabs} role="tablist" aria-label={`${label} type`}>
+            <button
+              type="button"
+              role="tab"
+              className={styles.tab}
+              data-on={tab === 'solid'}
+              aria-selected={tab === 'solid'}
+              onClick={() => setTab('solid')}
+            >
+              Solid
+            </button>
+            <button
+              type="button"
+              role="tab"
+              className={styles.tab}
+              data-on={tab === 'gradient'}
+              aria-selected={tab === 'gradient'}
+              onClick={() => setTab('gradient')}
+            >
+              Gradient
+            </button>
+          </div>
+        )}
+
+        {gradient && tab === 'gradient' ? (
+          <GradientTab value={gradient.value} onChange={gradient.onChange} />
+        ) : (
+        <>
         <div className={styles.pickerHead}>
           <span className={styles.pickerTitle}>{label}</span>
           <span className={`${styles.pickerValue} w-data`}>{current.toUpperCase()}</span>
@@ -227,9 +287,148 @@ export function ColourPicker({ value, onChange, label, size = 22, disabled }: Co
             onChange={(e) => onChange(e.target.value)}
           />
         </div>
+
+        <HexField value={current} onChange={onChange} />
+        </>
+        )}
       </Popover>
     </>
   );
+}
+
+/**
+ * The hex field.
+ *
+ * Held as a draft while typing so a half-written value like `#ff` is not pushed
+ * to the document on every keystroke; it commits only once it parses as a real
+ * colour. Accepts input with or without the leading hash.
+ */
+function HexField({ value, onChange }: { value: string; onChange(c: string): void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+
+  const commit = (raw: string) => {
+    const hex = raw.trim().replace(/^#/, '');
+    const full =
+      hex.length === 3
+        ? hex
+            .split('')
+            .map((c) => c + c)
+            .join('')
+        : hex;
+    setDraft(null);
+    if (/^[0-9a-fA-F]{6}$/.test(full)) onChange(`#${full.toLowerCase()}`);
+  };
+
+  return (
+    <div className={styles.hexRow}>
+      <Swatch colour={value} size={20} />
+      <input
+        className={styles.hexInput}
+        value={draft ?? value}
+        aria-label="Hex colour"
+        spellCheck={false}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={(e) => commit(e.target.value)}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === 'Enter') commit((e.target as HTMLInputElement).value);
+          if (e.key === 'Escape') setDraft(null);
+        }}
+      />
+    </div>
+  );
+}
+
+/**
+ * Gradients, as presets plus a two-stop builder.
+ *
+ * Everything here emits `linear-gradient(Ndeg, A, B)` because that is exactly
+ * what `backgroundFill` parses back out — an angle and its stops. Offering
+ * radial gradients or three stops would produce CSS the renderer would silently
+ * fall back to white on.
+ */
+function GradientTab({ value, onChange }: { value: string | null; onChange(css: string): void }) {
+  const parsed = parseGradient(value);
+  const [angle, setAngle] = useState(parsed.angle);
+  const [from, setFrom] = useState(parsed.from);
+  const [to, setTo] = useState(parsed.to);
+
+  const emit = (a: number, f: string, t: string) => {
+    setAngle(a);
+    setFrom(f);
+    setTo(t);
+    onChange(`linear-gradient(${Math.round(a)}deg, ${f}, ${t})`);
+  };
+
+  return (
+    <div>
+      <p className={styles.groupLabel}>Presets</p>
+      <div className={styles.gradientGrid} role="group" aria-label="Gradient presets">
+        {GRADIENTS.map((css) => (
+          <button
+            key={css}
+            type="button"
+            className={styles.gradientCell}
+            aria-label={css}
+            aria-pressed={value === css}
+            onClick={() => {
+              const g = parseGradient(css);
+              setAngle(g.angle);
+              setFrom(g.from);
+              setTo(g.to);
+              onChange(css);
+            }}
+          >
+            <span
+              className={styles.gradientSwatch}
+              data-selected={value === css || undefined}
+              style={{ background: css }}
+            />
+          </button>
+        ))}
+      </div>
+
+      <p className={styles.groupLabel}>Build one</p>
+      <div className={styles.gradientBuild}>
+        <span
+          className={styles.gradientPreview}
+          style={{ background: `linear-gradient(${angle}deg, ${from}, ${to})` }}
+          aria-hidden="true"
+        />
+        <div className={styles.gradientStops}>
+          <ColourPicker
+            label="From"
+            value={from}
+            size={20}
+            onChange={(c) => emit(angle, c, to)}
+          />
+          <ColourPicker label="To" value={to} size={20} onChange={(c) => emit(angle, from, c)} />
+          <label className={styles.angle}>
+            <span className="sr-only">Angle</span>
+            <input
+              type="range"
+              min={0}
+              max={360}
+              step={15}
+              value={angle}
+              aria-label="Angle"
+              onChange={(e) => emit(Number(e.target.value), from, to)}
+            />
+            <span className={`${styles.angleValue} w-data`}>{Math.round(angle)}°</span>
+          </label>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function parseGradient(css: string | null): { angle: number; from: string; to: string } {
+  const fallback = { angle: 180, from: '#1a1a1d', to: '#a8442f' };
+  if (!css) return fallback;
+  const angle = Number(/(-?\d+(?:\.\d+)?)deg/.exec(css)?.[1] ?? 180);
+  const stops = [...css.matchAll(/#[0-9a-fA-F]{3,8}/g)].map((m) => m[0]);
+  if (stops.length < 2) return { ...fallback, angle };
+  return { angle, from: stops[0], to: stops[stops.length - 1] };
 }
 
 /** A labelled row wrapping the picker, for use inside panels. */
@@ -237,16 +436,20 @@ export function ColourRow({
   label,
   value,
   onChange,
+  gradient,
 }: {
   label: string;
   value: string;
   onChange(colour: string): void;
+  gradient?: ColourPickerProps['gradient'];
 }) {
   return (
     <div className={styles.row}>
       <span className={styles.rowLabel}>{label}</span>
-      <span className={`${styles.rowValue} w-data`}>{(value || '').toUpperCase()}</span>
-      <ColourPicker value={value} onChange={onChange} label={label} />
+      <span className={`${styles.rowValue} w-data`}>
+        {gradient?.value ? 'Gradient' : (value || '').toUpperCase()}
+      </span>
+      <ColourPicker value={value} onChange={onChange} label={label} gradient={gradient} />
     </div>
   );
 }

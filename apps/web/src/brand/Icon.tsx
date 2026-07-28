@@ -71,7 +71,11 @@ export type IconName =
   | 'ruler'
   | 'fullscreen'
   | 'pages'
-  | 'pageTitle';
+  | 'pageTitle'
+  | 'arrange'
+  | 'lineHeight'
+  | 'letterSpacing'
+  | 'resize';
 
 /** The house disc — a value being read. */
 const disc = (cx: number, cy: number, r = 1.7) => (
@@ -441,6 +445,36 @@ const MARKS: Record<IconName, ReactNode> = {
       <rect x={4} y={3.5} width={16} height={17} rx={1.8} />
       <path d="M7.5 8.5 H16.5 M7.5 12.5 H13" />
       <circle cx={16} cy={16.5} r={1.7} fill="currentColor" stroke="none" />
+    </>
+  ),
+  /* Two stacked plates with the front one lifted — "which of these is on top".
+     It replaced a bare chevron and a database-looking stack, neither of which
+     said anything about z-order. */
+  arrange: (
+    <>
+      <rect x={3.5} y={8.5} width={12} height={12} rx={2} />
+      <path d="M8.5 8.5 V5.5 A2 2 0 0 1 10.5 3.5 H20.5 V13.5 A2 2 0 0 1 18.5 15.5 H15.5" />
+    </>
+  ),
+  /* Arrows pushing apart between two rules — the space BETWEEN lines. */
+  lineHeight: (
+    <>
+      <path d="M3 4.5 H21 M3 19.5 H21" />
+      <path d="M12 8 V16 M9.5 10.5 L12 8 L14.5 10.5 M9.5 13.5 L12 16 L14.5 13.5" />
+    </>
+  ),
+  /* Arrows pushing apart between two uprights — the space between letters. */
+  letterSpacing: (
+    <>
+      <path d="M4.5 4 V20 M19.5 4 V20" />
+      <path d="M8 12 H16 M10.5 9.5 L8 12 L10.5 14.5 M13.5 9.5 L16 12 L13.5 14.5" />
+    </>
+  ),
+  /* A frame with a corner handle pulled out — size and position. */
+  resize: (
+    <>
+      <rect x={3.5} y={3.5} width={12} height={12} rx={2} />
+      <path d="M20.5 20.5 H14 M20.5 20.5 V14 M20.5 20.5 L14.5 14.5" />
     </>
   ),
   panel: (

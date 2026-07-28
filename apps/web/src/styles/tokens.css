@@ -16,13 +16,11 @@
  * is dropped — the page is never left with no palette at all, and nothing about
  * how it looks is gated on a script completing.
  *
- * THE LIGHT SURFACE IS A WARM STONE, and that is a decision, not a default. The
- * two obvious light backgrounds are both slop: the cool UI-kit neutral (the
- * gray-100/200 family, ~hue 215) reads as a wireframe left at its default, and
- * cream/oat (~hue 45, high saturation) is the reflexive "tasteful premium"
- * move. This sits at hue ~20 with 7-10% saturation — pulled toward the clay
- * accent's own hue, so the light and dark themes are the same world at two
- * exposures rather than two unrelated palettes.
+ * WHITE CHROME ON A GREY WORKSPACE, chosen by the user (2026-07-28). This
+ * replaced a warm-stone set: chrome is now plain white and the canvas area is a
+ * light neutral grey, so the artboard reads as paper on a desk and the panels
+ * read as tools beside it. The greys are near-neutral rather than warm, which is
+ * the point — the only colour in the light theme is the clay accent.
  */
 :root {
   /* Declared in CSS, not written onto `<html>` by the theme script. An inline
@@ -31,58 +29,57 @@
      form controls, scrollbars and the like. */
   color-scheme: light;
 
-  /* Surfaces. The page floor is the DARKEST step and chrome lifts off it —
-     the inverse of the dark theme's ladder, same roles. */
-  --w-base: #e6e1de;
-  --w-s1: #f0ecea;
-  --w-s2: #f7f5f3;
-  --w-s3: #d8d2ce;
-  /* Pressed/hover for an --w-s3 surface. */
-  --w-s3-hover: #cbc4bf;
-
-  /* Ink — warm near-black, the same warmth as the dark theme's chalk. */
-  --w-ink: #1a1715;
-  /* Hover for an ink-FILLED control (the primary button), which lifts rather
-     than brightens — on light, "brighter" would mean invisible. */
-  --w-ink-hover: #3a3330;
   /*
-   * Measured, not eyeballed. `--w-muted2` carries 10-11px labels and metadata,
-   * so it has to clear 4.5:1 against the DARKEST surface it ever sits on, which
-   * is the page floor rather than a panel: 4.90:1 on --w-base, 5.41:1 on --w-s1.
-   * --w-muted is 5.17:1 on the floor. --w-muted3 is disabled-only and is not
-   * held to it.
+   * `--w-base` is the WORKSPACE floor (behind the artboard, behind the video
+   * stage) and also the fill of inset controls; `--w-s1` is chrome. So base is
+   * the grey and s1 is the white — the inverse of a normal card-on-page ladder,
+   * and deliberately so: here the page is the tool and the artwork is the card.
    */
-  --w-muted: #635b55;
-  --w-muted2: #665e57;
-  --w-muted3: #a9a09a;
+  --w-base: #eeeef0;
+  --w-s1: #ffffff;
+  --w-s2: #f6f6f7;
+  --w-s3: #e6e6e9;
+  --w-s3-hover: #d9d9dd;
 
-  /* Edges are the ink's own colour at low alpha, so they read as a lip
-     catching light rather than a drawn hairline. */
-  --w-edge: rgba(26, 23, 21, 0.1);
-  --w-edge-strong: rgba(26, 23, 21, 0.2);
+  --w-ink: #1a1a1d;
+  /* Hover for an ink-FILLED control, which lifts rather than brightens — on
+     light, "brighter" would mean invisible. */
+  --w-ink-hover: #37373c;
+  /*
+   * Measured, not eyeballed. `--w-muted2` carries 10-11px labels, so it clears
+   * 4.5:1 against the DARKEST surface it sits on (the grey workspace, not a
+   * white panel): 4.86:1 on --w-base, 5.66:1 on white.
+   */
+  --w-muted: #5c5c61;
+  --w-muted2: #616166;
+  --w-muted3: #a3a3a9;
 
-  /* The one chromatic token. Desaturated clay — live state only. Deeper than
-     the dark theme's so it still clears a pale surface (5.06:1 on --w-s1). */
+  /* Edges are the ink at low alpha, so they read as a lip catching light rather
+     than a drawn hairline. */
+  --w-edge: rgba(26, 26, 29, 0.1);
+  --w-edge-strong: rgba(26, 26, 29, 0.2);
+
+  /* The one chromatic token. Desaturated clay — live state only. */
   --w-live: #a8442f;
   --w-live-dim: rgba(168, 68, 47, 0.16);
 
   --w-danger: #a3392e;
-  --w-danger-bg: #f6e3df;
+  --w-danger-bg: #fbe6e2;
   --w-danger-ink: #8c3125;
   --w-ok: #4f6a45;
 
   /* Timeline. Lanes recess BELOW the floor; clips are surfaces on top of them. */
-  --w-lane-audio-bg: #ded8d4;
-  --w-lane-text-bg: #dcd6d1;
-  --w-clip-audio: #ddd2c2;
-  --w-clip-text: #d6d2cd;
+  --w-lane-audio-bg: #e5e5e8;
+  --w-lane-text-bg: #e2e2e6;
+  --w-clip-audio: #e0dcd2;
+  --w-clip-text: #dcdce0;
 }
 
 /*
- * Dark — the original "Instrument" palette, unchanged.
+ * Dark is the OPT-IN theme.
  *
- * `:root[data-theme='dark']` and NOT `@media (prefers-color-scheme: dark)`. Light
- * is the product's default, not merely what a light-set OS gets — a media query
+ * It sits on `:root[data-theme='dark']` and NOT `@media (prefers-color-scheme:
+ * dark)`. Light is the product's default, not merely what a light-set OS gets — a media query
  * would hand a dark-mode machine the dark theme on first visit and then fight
  * the user's explicit choice every time the OS flipped. Dark is opt-in, stored,
  * and applied before paint by the script in `layout.tsx`.

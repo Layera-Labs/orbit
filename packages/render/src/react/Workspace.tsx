@@ -108,6 +108,23 @@ export function Workspace({ store, backdrop = '#f3f4f6', className, style, stage
 
   const beginTextEdit = useCallback((id: ID) => setEditing({ id }), []);
 
+  /*
+   * Redraw when a webfont finishes loading.
+   *
+   * Konva measures and rasterizes text the moment it renders. If the family is
+   * set before its face is available — a document opened with a font that is
+   * still downloading, or a font applied a beat early — the text is laid out in
+   * the fallback and NOTHING re-renders when the real face arrives, because no
+   * state changed. The result is text stuck in the wrong face until an unrelated
+   * edit forces a repaint. `loadingdone` is the browser telling us to look again.
+   */
+  useEffect(() => {
+    if (typeof document === 'undefined' || !('fonts' in document)) return;
+    const redraw = () => stageRef.current?.batchDraw();
+    document.fonts.addEventListener('loadingdone', redraw);
+    return () => document.fonts.removeEventListener('loadingdone', redraw);
+  }, []);
+
   /**
    * Resolve the canvas-painted chrome from the `--o-*` variables in scope.
    *
