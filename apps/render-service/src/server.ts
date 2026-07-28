@@ -419,6 +419,38 @@ export function createServer(): Express {
     }
   }
 
+  /**
+   * Pull any evicted upload back from durable storage before ffmpeg needs it.
+   *
+   * Done HERE, ahead of the render, rather than inside `resolveSrc` — that is
+   * the security boundary and it is synchronous, and making it async would push
+   * a promise through `@orbit/video`'s whole argument builder. This keeps the
+   * boundary exactly as it was: the file is restored to the media dir under its
+   * own name, and `resolveSrc` still refuses anything that escapes it.
+   *
+   * A miss is not an error. The object may genuinely be gone (local storage has
+   * no second copy at all), and ffmpeg's own failure is a better message than a
+   * guess made here.
+   */
+  async function ensureLocal(project: VideoProject): Promise<void> {
+    if (storage.kind === "local") return;
+    const names = new Set<string>();
+    for (const src of collectClientSrcs(project)) {
+      const m = typeof src === "string" && /^upload:([A-Za-z0-9._-]+)$/.exec(src);
+      if (m) names.add(m[1]);
+    }
+    await Promise.all(
+      [...names].map(async (name) => {
+        const path = resolveSrc(`upload:${name}`);
+        if (await statAsync(path).then(() => true, () => false)) return;
+        await storage.fetchTo(name, path).catch((err) => {
+          console.error(`[orbit] could not restore ${name}:`, err);
+          return false;
+        });
+      }),
+    );
+  }
+
   async function render(
     project: VideoProject,
     output?: ExportOutput,
@@ -426,6 +458,7 @@ export function createServer(): Express {
     onStart?: () => void,
   ): Promise<string> {
     await mkdirAsync(outDir, { recursive: true });
+    await ensureLocal(project);
     const name = `v_${++counter}_${Date.now()}.mp4`;
     const path = join(outDir, name);
     const safe = await normalizeProjectStills(project);
@@ -581,7 +614,8 @@ export function createServer(): Express {
     rateLimit(UPLOAD_RATE_LIMIT, RATE_WINDOW_MS),
     upload.single("file"),
     async (req: Request, res: Response) => {
-      const file = (req as Request & { file?: { filename: string } }).file;
+      const file = (req as Request & { file?: { filename: string; mimetype?: string } })
+        .file;
       if (!file) {
         res
           .status(400)
@@ -590,6 +624,14 @@ export function createServer(): Express {
       }
       try {
         const id = await normalizeStill(file.filename);
+        /*
+         * Mirror to durable storage BEFORE replying, so the token we hand back
+         * is one we can honour later. The media dir is a cache with a byte
+         * budget — eviction used to mean the file was simply gone and the
+         * client had to notice a failed render and re-upload. With a bucket
+         * behind it, `ensureLocal` fetches it back instead.
+         */
+        await storage.put(join(mediaDir, id), file.mimetype || "application/octet-stream");
         void evictMedia(); // keep the store under budget; never blocks the reply
         res.json({ id: `upload:${id}` });
       } catch (err) {

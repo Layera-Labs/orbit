@@ -1,5 +1,5 @@
 import { createHash, createHmac } from "node:crypto";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { basename } from "node:path";
 
 /**
@@ -21,6 +21,16 @@ export interface Storage {
   readonly kind: "local" | "s3";
   /** Store the file at `path` under `name`; return the URL a client can GET. */
   put(path: string, contentType: string): Promise<string>;
+  /**
+   * Copy an object back to `destPath`, `false` if it is not there.
+   *
+   * This is what makes an UPLOAD durable rather than merely backed up. The
+   * media directory is a cache with a byte budget, so a token a client cached
+   * last week may have been evicted — and until now that meant the render
+   * simply failed and the client had to re-upload. With a bucket behind it the
+   * file is fetched back on demand and eviction stops being data loss.
+   */
+  fetchTo(key: string, destPath: string): Promise<boolean>;
 }
 
 /** The historical behaviour: leave it where it is, serve it from `/files`. */
@@ -29,6 +39,10 @@ export function localStorage(): Storage {
     kind: "local",
     async put(path) {
       return `/files/${basename(path)}`;
+    },
+    // There is nowhere else to look: the disk either has it or it is gone.
+    async fetchTo() {
+      return false;
     },
   };
 }
@@ -144,42 +158,58 @@ export function signV4(args: {
   };
 }
 
+/** sha256 of an empty body — every GET's payload hash. */
+const EMPTY_SHA =
+  "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
 export function s3Storage(cfg: S3Config, now: () => Date = () => new Date()): Storage {
   const endpoint = cfg.endpoint ?? `https://s3.${cfg.region}.amazonaws.com`;
   const host = new URL(endpoint).host;
   const prefix = cfg.prefix ? `${cfg.prefix.replace(/^\/|\/$/g, "")}/` : "";
+
+  /** A signed request for one object, ready to hand to `fetch`. */
+  const signed = (
+    method: string,
+    key: string,
+    payloadHash: string,
+    extra: Record<string, string> = {},
+  ) => {
+    const objectPath = `/${cfg.bucket}/${key}`;
+    const amzDate = now().toISOString().replace(/[-:]|\.\d{3}/g, "");
+    const headers: Record<string, string> = {
+      host,
+      "x-amz-content-sha256": payloadHash,
+      "x-amz-date": amzDate,
+      ...extra,
+    };
+    const { authorization } = signV4({
+      method,
+      host,
+      path: objectPath,
+      region: cfg.region,
+      service: "s3",
+      accessKeyId: cfg.accessKeyId,
+      secretAccessKey: cfg.secretAccessKey,
+      payloadHash,
+      headers,
+      amzDate,
+    });
+    return { url: `${endpoint}${objectPath}`, headers: { ...headers, authorization } };
+  };
 
   return {
     kind: "s3",
     async put(path, contentType) {
       const key = `${prefix}${basename(path)}`;
       const body = await readFile(path);
-      const objectPath = `/${cfg.bucket}/${key}`;
-      const amzDate = now().toISOString().replace(/[-:]|\.\d{3}/g, "");
-      const payloadHash = sha256(body);
-      const headers: Record<string, string> = {
-        host,
+      const req = signed("PUT", key, sha256(body), {
         "content-type": contentType,
         "content-length": String(body.byteLength),
-        "x-amz-content-sha256": payloadHash,
-        "x-amz-date": amzDate,
-      };
-      const { authorization } = signV4({
-        method: "PUT",
-        host,
-        path: objectPath,
-        region: cfg.region,
-        service: "s3",
-        accessKeyId: cfg.accessKeyId,
-        secretAccessKey: cfg.secretAccessKey,
-        payloadHash,
-        headers,
-        amzDate,
       });
 
-      const res = await fetch(`${endpoint}${objectPath}`, {
+      const res = await fetch(req.url, {
         method: "PUT",
-        headers: { ...headers, authorization },
+        headers: req.headers,
         body: new Uint8Array(body),
       });
       if (!res.ok)
@@ -188,7 +218,19 @@ export function s3Storage(cfg: S3Config, now: () => Date = () => new Date()): St
         );
 
       const base = (cfg.publicBase ?? endpoint).replace(/\/$/, "");
-      return cfg.publicBase ? `${base}/${key}` : `${base}${objectPath}`;
+      return cfg.publicBase ? `${base}/${key}` : `${base}/${cfg.bucket}/${key}`;
+    },
+
+    async fetchTo(key, destPath) {
+      const req = signed("GET", `${prefix}${key}`, EMPTY_SHA);
+      const res = await fetch(req.url, { headers: req.headers });
+      if (res.status === 404) return false;
+      if (!res.ok)
+        throw new Error(
+          `s3 get failed ${res.status}: ${(await res.text()).slice(0, 300)}`,
+        );
+      await writeFile(destPath, Buffer.from(await res.arrayBuffer()));
+      return true;
     },
   };
 }
