@@ -8,6 +8,7 @@ import {
   type VisualTrackClip,
 } from '@orbit/video/browser';
 import { Icon } from '@/brand/Icon';
+import { ColourRow, SwatchGrid } from '@/brand/Colour';
 import { gradeIsExact } from '@/video/engine/grade';
 import { cutoutIsSupported } from '@/video/engine/cutout';
 import { newId } from '@/db/idb';
@@ -103,46 +104,25 @@ export function EffectsPanel({ clip }: { clip: VisualTrackClip | null }) {
           <h3 className={styles.groupTitle}>Cut out a colour</h3>
           {clip.cutout ? (
             <>
-              <div className={styles.presets}>
-                {KEY_COLOURS.map((k) => (
-                  <button
-                    key={k.value}
-                    className={styles.preset}
-                    data-on={clip.cutout!.color.toLowerCase() === k.value}
-                    onClick={() =>
-                      apply((p) =>
-                        patchClip(p, clip.id, { cutout: { ...clip.cutout!, color: k.value } }),
-                      )
-                    }
-                  >
-                    <span className={styles.presetSwatch} style={{ background: k.value }} />
-                    {k.label}
-                  </button>
-                ))}
-              </div>
+              <SwatchGrid
+                label="Key colour"
+                colours={KEY_COLOURS.map((k) => k.value)}
+                value={clip.cutout.color}
+                onChange={(colour) =>
+                  apply((p) => patchClip(p, clip.id, { cutout: { ...clip.cutout!, color: colour } }))
+                }
+              />
               {/* A swatch on a labelled row, not a full-width bar. The value IS
                   a colour, so it is allowed to be saturated — but a slab of key
                   green running the width of the panel would be the loudest thing
                   on screen, and it is a picker, not the subject. */}
-              <label className={styles.fieldRow}>
-                <span className={styles.fieldLabel}>Exact colour</span>
-                <span className={`${styles.fieldValue} w-data`}>
-                  {clip.cutout.color.toUpperCase()}
-                </span>
-                <input
-                  className={styles.colourWell}
-                  type="color"
-                  aria-label="Exact key colour"
-                  value={clip.cutout.color}
-                  onChange={(e) =>
-                    apply((p) =>
-                      patchClip(p, clip.id, {
-                        cutout: { ...clip.cutout!, color: e.target.value },
-                      }),
-                    )
-                  }
-                />
-              </label>
+              <ColourRow
+                label="Exact colour"
+                value={clip.cutout.color}
+                onChange={(colour) =>
+                  apply((p) => patchClip(p, clip.id, { cutout: { ...clip.cutout!, color: colour } }))
+                }
+              />
               <Slider
                 label="Range"
                 value={clip.cutout.similarity ?? 0.3}
@@ -720,21 +700,21 @@ export function MotionDesignPanel({ project }: { project: VideoProject }) {
 
       <div className={styles.group}>
         <h3 className={styles.groupTitle}>Backdrop</h3>
-        <div className={styles.presets}>
-          {BACKDROPS.map((colour) => (
-            <button
-              key={colour}
-              className={styles.preset}
-              data-on={background?.type === 'color' && background.color === colour}
-              onClick={() =>
-                apply((p) => ({ ...p, background: { type: 'color', color: colour } }))
-              }
-              aria-label={colour}
-            >
-              <span className={styles.presetSwatch} style={{ background: colour }} />
-            </button>
-          ))}
-        </div>
+        <SwatchGrid
+          label="Backdrop"
+          colours={BACKDROPS}
+          value={background?.type === 'color' ? background.color : undefined}
+          onChange={(colour) =>
+            apply((p) => ({ ...p, background: { type: 'color', color: colour } }))
+          }
+        />
+        <ColourRow
+          label="Custom"
+          value={background?.type === 'color' ? background.color : '#000000'}
+          onChange={(colour) =>
+            apply((p) => ({ ...p, background: { type: 'color', color: colour } }))
+          }
+        />
       </div>
     </div>
   );

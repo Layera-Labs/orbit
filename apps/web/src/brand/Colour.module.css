@@ -1,0 +1,172 @@
+/*
+ * A swatch is the colour and nothing else.
+ *
+ * The ring is INSET so it never adds to the box, and it is drawn from the ink at
+ * low alpha rather than a fixed grey — so a near-white swatch still has an edge
+ * on a light surface and a near-black one still has an edge on a dark surface.
+ */
+.swatch {
+  display: block;
+  flex: none;
+  border-radius: var(--w-r-sm);
+  box-shadow: inset 0 0 0 1px var(--w-edge-strong);
+}
+
+/*
+ * Selected is a RING AROUND the swatch, drawn outside it, never a plate behind.
+ * A filled selected surface sits under the colour and mixes with it — the whole
+ * bug this replaces. `outline` is used rather than a box-shadow spread so it
+ * cannot be confused with the swatch's own inset edge.
+ */
+.swatch[data-selected] {
+  outline: 2px solid var(--w-ink);
+  outline-offset: 2px;
+}
+
+.trigger {
+  display: grid;
+  place-items: center;
+  flex: none;
+  padding: 2px;
+  border-radius: var(--w-r-sm);
+  transition: background-color 140ms ease;
+}
+
+.trigger:hover:not(:disabled) {
+  background: var(--w-s3);
+}
+
+.trigger:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--w-live);
+  outline-offset: 1px;
+}
+
+/* ---- picker --------------------------------------------------------------- */
+
+.pickerHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--w-2);
+  margin-bottom: var(--w-2);
+}
+
+.pickerTitle {
+  color: var(--w-ink);
+  font-size: 12.5px;
+}
+
+.pickerValue {
+  color: var(--w-muted);
+  font-size: 11px;
+}
+
+.grid {
+  display: grid;
+  /* Fixed 26px cells: the swatch is 22 and the ring needs 2px of clearance on
+     every side, so a tighter track would clip the selected outline. */
+  grid-template-columns: repeat(6, 26px);
+  gap: var(--w-2);
+  justify-content: start;
+}
+
+.cell {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--w-r-sm);
+}
+
+.cell:focus-visible {
+  outline: 2px solid var(--w-live);
+  outline-offset: 1px;
+}
+
+.groupLabel {
+  margin: var(--w-3) 0 var(--w-2);
+  color: var(--w-muted2);
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.customRow {
+  position: relative;
+}
+
+.customCell {
+  display: flex;
+  align-items: center;
+  gap: var(--w-2);
+  width: 100%;
+  padding: 6px var(--w-2);
+  border-radius: var(--w-r);
+  background: var(--w-s3);
+  color: var(--w-ink);
+  font-size: 12.5px;
+  transition: background-color 140ms ease;
+}
+
+.customCell:hover {
+  background: var(--w-s3-hover);
+}
+
+.customPlus {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: var(--w-r-sm);
+  box-shadow: inset 0 0 0 1px var(--w-edge-strong);
+  font-size: 14px;
+  line-height: 1;
+  color: var(--w-muted);
+}
+
+.customText {
+  min-width: 0;
+}
+
+/*
+ * The native input is present but not the visible control.
+ *
+ * It cannot be `display: none` — a hidden input will not open the OS picker in
+ * every browser — so it is a 1px sliver pinned under the cell that triggers it.
+ */
+.nativeInput {
+  position: absolute;
+  left: 12px;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: none;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ---- labelled row --------------------------------------------------------- */
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--w-2);
+}
+
+.rowLabel {
+  flex: 1;
+  color: var(--w-muted);
+  font-size: 12px;
+}
+
+.rowValue {
+  color: var(--w-muted2);
+  font-size: 11px;
+}

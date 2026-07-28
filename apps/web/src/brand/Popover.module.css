@@ -1,0 +1,16 @@
+.panel {
+  position: fixed;
+  z-index: 80;
+  min-width: 0;
+  max-width: min(320px, calc(100vw - 16px));
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  padding: var(--w-3);
+  border-radius: var(--w-r-lg);
+  background: var(--w-s1);
+  /* A self-coloured edge plus one tight, directional shadow — it is lifting off
+     the surface below, not floating on a cloud. */
+  box-shadow:
+    inset 0 0 0 1px var(--w-edge-strong),
+    0 8px 22px rgba(0, 0, 0, 0.22);
+}

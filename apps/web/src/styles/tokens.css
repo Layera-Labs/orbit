@@ -157,11 +157,11 @@
   --w-rail: 76px;
   --w-header: 52px;
 
-  /* Editor docks. Panel and inspector collapse to 0 by swapping these on the
-     grid container, so a collapsed dock genuinely returns its space to the
-     canvas rather than sliding a sheet over it. */
+  /* Editor docks. The panel collapses to 0 by swapping this on the grid
+     container, so a closed dock genuinely returns its space to the canvas
+     rather than sliding a sheet over it. There is no inspector token: the
+     right-hand dock was replaced by the floating property bar. */
   --w-panel: 312px;
-  --w-inspector: 292px;
   --w-track-gutter: 132px;
   --w-timeline: 232px;
 

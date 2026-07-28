@@ -57,7 +57,21 @@ export type IconName =
   | 'zoomOut'
   | 'snap'
   | 'folder'
-  | 'panel';
+  | 'panel'
+  | 'alignLeft'
+  | 'alignCenter'
+  | 'alignRight'
+  | 'bold'
+  | 'italic'
+  | 'opacity'
+  | 'rotate'
+  | 'fill'
+  | 'fontFamily'
+  | 'grid'
+  | 'ruler'
+  | 'fullscreen'
+  | 'pages'
+  | 'pageTitle';
 
 /** The house disc — a value being read. */
 const disc = (cx: number, cy: number, r = 1.7) => (
@@ -337,6 +351,98 @@ const MARKS: Record<IconName, ReactNode> = {
     </>
   ),
   // Panel open/closed — a frame with its rail filled.
+  /* Text alignment: a stack of rules, ragged on the side that is not aligned —
+     the alignment is legible from the shape of the stack alone. */
+  alignLeft: (
+    <>
+      <path d="M4 6.5 H20 M4 11 H14 M4 15.5 H18 M4 20 H11" />
+    </>
+  ),
+  alignCenter: (
+    <>
+      <path d="M4 6.5 H20 M7 11 H17 M5 15.5 H19 M8 20 H16" />
+    </>
+  ),
+  alignRight: (
+    <>
+      <path d="M4 6.5 H20 M10 11 H20 M6 15.5 H20 M13 20 H20" />
+    </>
+  ),
+  /* Weight and slant are drawn as the letterform's own skeleton, not a serif B
+     and I lifted from a word processor. */
+  bold: (
+    <>
+      <path d="M7 5 H13.2 A3.6 3.6 0 0 1 13.2 12.2 H7 Z" />
+      <path d="M7 12.2 H14.4 A3.9 3.9 0 0 1 14.4 20 H7 Z" />
+    </>
+  ),
+  italic: (
+    <>
+      <path d="M10 5 H17 M7 20 H14 M14.5 5 L9.5 20" />
+    </>
+  ),
+  /* A frame half-filled by a disc — the value being read is how much shows. */
+  opacity: (
+    <>
+      <rect x={3.5} y={3.5} width={17} height={17} rx={2} />
+      <path d="M20.5 12 A8.5 8.5 0 0 1 12 20.5 A8.5 8.5 0 0 1 12 3.5 Z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  rotate: (
+    <>
+      <path d="M20 12 A8 8 0 1 1 17.2 5.9" />
+      <path d="M20.5 3 V7 H16.5" />
+      <circle cx={12} cy={12} r={1.9} fill="currentColor" stroke="none" />
+    </>
+  ),
+  /* A frame with its lower portion filled — the paint level. */
+  fill: (
+    <>
+      <rect x={3.5} y={3.5} width={17} height={17} rx={2} />
+      <path d="M3.5 13 H20.5 V18.5 A2 2 0 0 1 18.5 20.5 H5.5 A2 2 0 0 1 3.5 18.5 Z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  fontFamily: (
+    <>
+      <path d="M3 19 L8.5 5 L14 19 M5 14.5 H12" />
+      <path d="M21 10.5 V19 M21 12.6 A3 3 0 0 0 15.6 14.4 A3 3 0 0 0 21 16.4" />
+    </>
+  ),
+  grid: (
+    <>
+      <rect x={3.5} y={3.5} width={17} height={17} rx={2} />
+      <path d="M9.3 3.5 V20.5 M14.7 3.5 V20.5 M3.5 9.3 H20.5 M3.5 14.7 H20.5" />
+    </>
+  ),
+  /* A rule with ticks — the measuring edge, and one disc where it is read. */
+  ruler: (
+    <>
+      <path d="M3 15.5 H21" />
+      <path d="M6.5 15.5 V11 M10.5 15.5 V8.5 M14.5 15.5 V11 M18.5 15.5 V8.5" />
+      <circle cx={10.5} cy={19} r={1.7} fill="currentColor" stroke="none" />
+    </>
+  ),
+  fullscreen: (
+    <>
+      <path d="M3.5 9 V4.8 A1.3 1.3 0 0 1 4.8 3.5 H9" />
+      <path d="M15 3.5 H19.2 A1.3 1.3 0 0 1 20.5 4.8 V9" />
+      <path d="M20.5 15 V19.2 A1.3 1.3 0 0 1 19.2 20.5 H15" />
+      <path d="M9 20.5 H4.8 A1.3 1.3 0 0 1 3.5 19.2 V15" />
+    </>
+  ),
+  pages: (
+    <>
+      <rect x={3.5} y={5} width={11} height={14} rx={1.6} />
+      <path d="M17.5 7.5 H19 A1.5 1.5 0 0 1 20.5 9 V17 A1.5 1.5 0 0 1 19 18.5 H17.5" />
+    </>
+  ),
+  pageTitle: (
+    <>
+      <rect x={4} y={3.5} width={16} height={17} rx={1.8} />
+      <path d="M7.5 8.5 H16.5 M7.5 12.5 H13" />
+      <circle cx={16} cy={16.5} r={1.7} fill="currentColor" stroke="none" />
+    </>
+  ),
   panel: (
     <>
       <rect x={3} y={4.5} width={18} height={15} rx={1.5} />

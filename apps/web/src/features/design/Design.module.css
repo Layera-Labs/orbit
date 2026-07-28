@@ -1,15 +1,17 @@
 /*
  * The editor frame.
  *
- * One grid, four columns: rail · panel · canvas · inspector. The panel and
- * inspector columns are `auto`, and the element simply isn't rendered when the
- * dock is closed — so closing one GIVES ITS SPACE BACK to the canvas instead of
- * sliding a sheet over it. Nothing here overlaps anything, which is what keeps
- * the canvas from being clipped by a neighbour.
+ * One grid, three columns: rail · panel · canvas. The panel column is `auto` and
+ * the element simply isn't rendered when the dock is closed — so closing it
+ * GIVES ITS SPACE BACK to the canvas instead of sliding a sheet over it.
+ *
+ * There is no fourth column: the right-hand inspector is gone, replaced by the
+ * property bar floating over the canvas, so a selection no longer costs ~290px
+ * of the thing you are actually looking at.
  */
 .frame {
   display: grid;
-  grid-template-columns: var(--w-rail) auto minmax(0, 1fr) auto;
+  grid-template-columns: var(--w-rail) auto minmax(0, 1fr);
   grid-template-rows: var(--w-header) minmax(0, 1fr) auto;
   height: 100dvh;
   background: var(--w-base);
@@ -21,8 +23,7 @@
  *
  * Auto-placement would be positional, and the panel is conditionally rendered —
  * so with the panel closed the canvas would slide into the panel's `auto` track
- * (sizing to its content) and the inspector into the canvas's `1fr`, leaving a
- * dead gulf on the right. Explicit columns make the layout independent of which
+ * and size to its content. Explicit columns make the layout independent of which
  * children happen to exist.
  */
 .bar {
@@ -47,11 +48,6 @@
   min-height: 0;
   display: flex;
   flex-direction: column;
-}
-
-.inspector {
-  grid-column: 4;
-  grid-row: 2;
 }
 
 .strip {
@@ -223,63 +219,11 @@
   padding: var(--w-4);
 }
 
-/* ---- inspector ------------------------------------------------------------ */
 
-.inspectorInner {
-  display: flex;
-  flex-direction: column;
-  width: var(--w-inspector);
-  height: 100%;
-  min-height: 0;
-  background: var(--w-s1);
-  border-left: 1px solid var(--w-edge);
-}
 
-.inspectorHead {
-  display: flex;
-  align-items: baseline;
-  gap: var(--w-2);
-  flex: none;
-  padding: var(--w-3) var(--w-4) var(--w-2);
-  border-bottom: 1px solid var(--w-edge);
-}
 
-.inspectorTitle {
-  flex: 1;
-  font-family: var(--w-display);
-  font-size: 15px;
-  color: var(--w-ink);
-}
 
-/*
- * Data, so it wears the mono and nothing else.
- *
- * This used to be tracked-out caps like the group titles, the track flag and the
- * form labels — five different roles in one costume, which reads as a template
- * rather than a voice. Tracked caps now mark ONE thing: a section title.
- */
-.inspectorKind {
-  color: var(--w-muted2);
-  font-size: 11px;
-}
 
-.inspectorBody {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: var(--w-4) var(--w-4) var(--w-6);
-}
-
-/* A collapsed inspector still needs a way back. */
-.inspectorStub {
-  display: grid;
-  place-items: start center;
-  padding-top: var(--w-3);
-  width: 40px;
-  height: 100%;
-  background: var(--w-s1);
-  border-left: 1px solid var(--w-edge);
-}
 
 /* ---- shared controls ------------------------------------------------------ */
 
@@ -357,6 +301,8 @@
 /* ---- motion stage --------------------------------------------------------- */
 
 .stage {
+  /* The property bar positions itself against this box. */
+  position: relative;
   flex: 1;
   /* A definite height for the canvas below to resolve `max-height` against —
      without min-height:0 the flex item refuses to shrink and the canvas
@@ -405,20 +351,19 @@
  * window the canvas column was 205px wide and the SDK's zoom pill (232px) was
  * being sliced by its edge.
  *
- * So the docks give way in order: they narrow first, then the panel stops taking
- * space and floats over the canvas instead, then the inspector does the same.
- * The canvas never drops below the full remaining width.
+ * So the panel gives way in order: it narrows first, then stops taking space and
+ * floats over the canvas instead. The canvas never drops below the full
+ * remaining width.
  */
 @media (max-width: 1180px) {
   .frame {
     --w-panel: 272px;
-    --w-inspector: 248px;
   }
 }
 
 @media (max-width: 1040px) {
   .frame {
-    grid-template-columns: var(--w-rail) 0 minmax(0, 1fr) auto;
+    grid-template-columns: var(--w-rail) 0 minmax(0, 1fr);
   }
 
   .panel {
@@ -434,29 +379,6 @@
     /* Directional and tight — it is lifting off the canvas to its right, not
        floating on a cloud. */
     box-shadow: 6px 0 18px rgba(0, 0, 0, 0.4);
-  }
-}
-
-@media (max-width: 860px) {
-  .frame {
-    grid-template-columns: var(--w-rail) 0 minmax(0, 1fr) 0;
-  }
-
-  .inspector {
-    position: relative;
-    z-index: 19;
-  }
-
-  .inspectorInner,
-  .inspectorStub {
-    position: absolute;
-    top: 0;
-    right: 0;
-    height: 100%;
-  }
-
-  .inspectorInner {
-    box-shadow: -6px 0 18px rgba(0, 0, 0, 0.4);
   }
 }
 

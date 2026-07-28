@@ -78,6 +78,9 @@ export function Clip({
   return (
     <div
       className={styles.clip}
+      /* The floating toolbar anchors to this node, so the clip's own box is
+         what it is measured against — no second source of geometry. */
+      data-clip-id={view.id}
       data-kind={view.variant}
       data-selected={selected}
       data-dragging={dragging}

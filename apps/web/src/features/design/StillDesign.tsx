@@ -27,13 +27,14 @@ import { useTheme } from '@/store/themeStore';
 import { mediaSrc, type MediaRow, type ProjectRow } from '@/db/schema';
 import { useDesign } from '@/store/designStore';
 import { DesignBar } from './DesignBar';
-import { DesignFrame, InspectorShell, ToolPanel } from './Frame';
+import { DesignFrame, ToolPanel } from './Frame';
 import { ToolRail } from './ToolRail';
-import { ElementInspector } from './inspector/ElementInspector';
+import { ElementBar } from './toolbar/ElementBar';
+import { CanvasGuides } from './CanvasGuides';
+import { PageBar } from './PageBar';
 import { AiPanel } from './panels/AiPanel';
 import { MediaPanel } from './panels/MediaPanel';
 import { StillDesignPanel } from './panels/StillPanels';
-import panel from './panels/Panels.module.css';
 import styles from './Design.module.css';
 
 const SAVE_DEBOUNCE_MS = 700;
@@ -208,46 +209,16 @@ function StillShell({
       canvas={
         <div className="o-canvas-wrap">
           <Workspace store={store} stageApiRef={stageRef} backdrop="transparent" />
+          {/* The property bar is the element UI; `SelectionActions` stays because
+              it is a different job — a few quick actions pinned to the object's
+              own box, not a second copy of its properties. */}
+          <ElementBar />
           <SelectionActions />
-          <PagesPanel />
+          <CanvasGuides />
           <ZoomControl stageRef={stageRef} />
         </div>
       }
-      inspector={
-        <InspectorShell
-          title={element ? 'Element' : 'Document'}
-          kind={element?.type ?? undefined}
-        >
-          {element ? (
-            <ElementInspector />
-          ) : (
-            <div className={panel.stack}>
-              <p className={panel.empty}>
-                Nothing selected. Pick something on the canvas to edit it.
-              </p>
-              <div className={panel.group}>
-                <h3 className={panel.groupTitle}>Document</h3>
-                <div className={panel.fieldRow}>
-                  <span className={panel.fieldLabel}>Size</span>
-                  <span className={`${panel.fieldValue} w-data`}>
-                    {page.width} × {page.height}
-                  </span>
-                </div>
-                <div className={panel.fieldRow}>
-                  <span className={panel.fieldLabel}>Pages</span>
-                  <span className={`${panel.fieldValue} w-data`}>
-                    {state.doc.pages.length}
-                  </span>
-                </div>
-                <button className={panel.action} onClick={() => setTool('design')}>
-                  Open design
-                </button>
-              </div>
-            </div>
-          )}
-        </InspectorShell>
-      }
-      strip={null}
+      strip={<PageBar />}
     />
   );
 }

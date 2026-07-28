@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Icon } from '@/brand/Icon';
+import { SwatchGrid } from '@/brand/Colour';
 import { addMedia } from '@/db/media';
 import { mediaSrc, type MediaRow } from '@/db/schema';
 import { addOverlayClip, useVideo } from '@/store/videoStore';
@@ -158,19 +159,12 @@ export function StickersPanel({ time }: { time: number }) {
     <div className={styles.stack}>
       <div className={styles.group}>
         <h3 className={styles.groupTitle}>Tone</h3>
-        <div className={styles.presets}>
-          {TONES.map((t) => (
-            <button
-              key={t.id}
-              className={styles.preset}
-              data-on={tone.id === t.id}
-              onClick={() => setTone(t)}
-            >
-              <span className={styles.presetSwatch} style={{ background: t.value }} />
-              {t.label}
-            </button>
-          ))}
-        </div>
+        <SwatchGrid
+          label="Tone"
+          colours={TONES.map((t) => t.value)}
+          value={tone.value}
+          onChange={(value) => setTone(TONES.find((t) => t.value === value) ?? TONES[0])}
+        />
       </div>
 
       <div className={styles.group}>
@@ -184,16 +178,20 @@ export function StickersPanel({ time }: { time: number }) {
               onClick={() => void addMark(mark)}
               title={mark.label}
             >
-              {/* The bare mark on the panel surface — no tile behind it. An
-                  ink mark previews in --w-muted so it stays legible on a dark
-                  ground without needing a box to sit on. */}
+              {/*
+                The preview is drawn in `currentColor`, NOT in the chosen tone.
+                Painting it in the tone meant the mark took the same colour as
+                the surface it sits on — chalk on a light panel was invisible,
+                and ink on the dark theme was too. The tone is shown by the
+                swatches above; this shows the SHAPE, which is what is being
+                picked here. No tile behind it either.
+              */}
               <span
-                className={styles.presetSwatch}
-                style={{ display: 'grid', placeItems: 'center', background: 'transparent' }}
+                className={styles.markPreview}
                 dangerouslySetInnerHTML={{
                   __html: `<svg viewBox="0 0 24 24" width="24" height="24">${mark.body.replaceAll(
                     'COLOR',
-                    tone.id === 'ink' ? 'var(--w-muted)' : tone.value,
+                    'currentColor',
                   )}</svg>`,
                 }}
               />
