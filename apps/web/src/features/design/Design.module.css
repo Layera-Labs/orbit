@@ -367,6 +367,40 @@
   }
 }
 
+/*
+ * The top bar sheds by PRIORITY rather than overflowing.
+ *
+ * `.frame` is `overflow: hidden`, so a bar wider than the window does not
+ * scroll — it is simply cut off at the right edge, and Export is the last item
+ * in the row. Measured at a 400px window: Export sat at x=425..516, entirely
+ * outside the viewport, with no way to reach it. A primary action sliced off by
+ * an edge is the plainest form of the cut-off tell.
+ *
+ * So the readout goes first (it is a duplicate of what the Design panel shows),
+ * then the group rules and the gaps tighten. Every CONTROL survives to 360px;
+ * only information that exists elsewhere is dropped.
+ */
+@media (max-width: 880px) {
+  .meta {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .bar {
+    gap: var(--w-1);
+    padding: 0 var(--w-2);
+  }
+
+  .divider {
+    display: none;
+  }
+
+  .name {
+    max-width: 18ch;
+  }
+}
+
 @media (max-width: 1040px) {
   .frame {
     grid-template-columns: var(--w-rail) 0 minmax(0, 1fr);

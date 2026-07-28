@@ -98,6 +98,22 @@
   background: var(--w-s3-hover);
 }
 
+/*
+ * The transport is a plain flex row inside a frame that clips, so a row wider
+ * than the window loses its tail rather than scrolling. Measured at 360px it
+ * ran to 375 and the "Track" button was cut through. Dropping the word — the
+ * only thing here that is not a control — brings it back inside.
+ */
+@media (max-width: 560px) {
+  .ghostLabel {
+    display: none;
+  }
+
+  .ghost {
+    padding: 5px var(--w-2);
+  }
+}
+
 /* ---- scroll body ---------------------------------------------------------- */
 
 .body {

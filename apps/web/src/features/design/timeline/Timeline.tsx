@@ -265,9 +265,13 @@ export function Timeline({
           className={styles.ghost}
           onClick={() => apply((p) => addVisualTrack(p))}
           title="Add a layer above the current ones"
+          aria-label="Add track"
         >
           <Icon name="plus" size={14} />
-          Track
+          {/* Shed below 560px, where the row would otherwise run past the
+              window and this — the last item — is what gets sliced. The mark
+              and the aria-label carry it alone. */}
+          <span className={styles.ghostLabel}>Track</span>
         </button>
       </div>
 
