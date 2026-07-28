@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
   FILTER_PRESETS,
   type TextOverlay,
@@ -7,11 +8,19 @@ import {
   type VisualTrackClip,
 } from '@orbit/video/browser';
 import { Icon } from '@/brand/Icon';
+import { gradeIsExact } from '@/video/engine/grade';
+import { cutoutIsSupported } from '@/video/engine/cutout';
 import { newId } from '@/db/idb';
 import { addOverlay, nextOverlayLayer, patchClip, useVideo } from '@/store/videoStore';
 import styles from './Panels.module.css';
 
 /* ---------------------------------------------------------------- effects --- */
+
+/** The two backdrops people actually shoot against, plus a free picker. */
+const KEY_COLOURS = [
+  { label: 'Green', value: '#00d400' },
+  { label: 'Blue', value: '#0047bb' },
+];
 
 export const MOTIONS = ['none', 'zoomIn', 'zoomOut', 'panLeft', 'panRight', 'kenBurns'] as const;
 
@@ -26,6 +35,9 @@ const MOTION_LABEL: Record<string, string> = {
 
 export function EffectsPanel({ clip }: { clip: VisualTrackClip | null }) {
   const apply = useVideo((s) => s.apply);
+  // Before the early return — these are hooks.
+  const approximate = useGradeIsApproximate();
+  const keyable = useCutoutIsSupported();
 
   if (!clip)
     return (
@@ -59,10 +71,10 @@ export function EffectsPanel({ clip }: { clip: VisualTrackClip | null }) {
             </button>
           ))}
         </div>
-        {isTemperaturePreset(preset) && (
+        {approximate && (
           <p className={styles.note}>
-            <Icon name="duration" size={12} /> Warmth previews approximately here; the
-            exported file is exact.
+            <Icon name="duration" size={12} /> This browser can&rsquo;t run the exact grade,
+            so brightness and warmth preview approximately. The exported file is exact.
           </p>
         )}
       </div>
@@ -79,6 +91,111 @@ export function EffectsPanel({ clip }: { clip: VisualTrackClip | null }) {
           onChange={(v) => apply((p) => patchClip(p, clip.id, { blur: v || undefined }))}
         />
       </div>
+
+      {/*
+        Chroma key. Shipped now for the same reason the two below were: the
+        preview genuinely keys, in a fragment shader running ffmpeg's own
+        `colorkey` arithmetic. It stays hidden entirely where WebGL is missing —
+        an effect the preview cannot show is worse than no control at all.
+      */}
+      {keyable && (
+        <div className={styles.group}>
+          <h3 className={styles.groupTitle}>Cut out a colour</h3>
+          {clip.cutout ? (
+            <>
+              <div className={styles.presets}>
+                {KEY_COLOURS.map((k) => (
+                  <button
+                    key={k.value}
+                    className={styles.preset}
+                    data-on={clip.cutout!.color.toLowerCase() === k.value}
+                    onClick={() =>
+                      apply((p) =>
+                        patchClip(p, clip.id, { cutout: { ...clip.cutout!, color: k.value } }),
+                      )
+                    }
+                  >
+                    <span className={styles.presetSwatch} style={{ background: k.value }} />
+                    {k.label}
+                  </button>
+                ))}
+              </div>
+              {/* A swatch on a labelled row, not a full-width bar. The value IS
+                  a colour, so it is allowed to be saturated — but a slab of key
+                  green running the width of the panel would be the loudest thing
+                  on screen, and it is a picker, not the subject. */}
+              <label className={styles.fieldRow}>
+                <span className={styles.fieldLabel}>Exact colour</span>
+                <span className={`${styles.fieldValue} w-data`}>
+                  {clip.cutout.color.toUpperCase()}
+                </span>
+                <input
+                  className={styles.colourWell}
+                  type="color"
+                  aria-label="Exact key colour"
+                  value={clip.cutout.color}
+                  onChange={(e) =>
+                    apply((p) =>
+                      patchClip(p, clip.id, {
+                        cutout: { ...clip.cutout!, color: e.target.value },
+                      }),
+                    )
+                  }
+                />
+              </label>
+              <Slider
+                label="Range"
+                value={clip.cutout.similarity ?? 0.3}
+                min={0.01}
+                max={1}
+                step={0.01}
+                format={(v) => `${Math.round(v * 100)}%`}
+                onChange={(similarity) =>
+                  apply((p) => patchClip(p, clip.id, { cutout: { ...clip.cutout!, similarity } }))
+                }
+              />
+              <Slider
+                label="Edge"
+                value={clip.cutout.smoothness ?? 0.1}
+                min={0}
+                max={1}
+                step={0.01}
+                format={(v) => (v === 0 ? 'hard' : `${Math.round(v * 100)}%`)}
+                onChange={(smoothness) =>
+                  apply((p) => patchClip(p, clip.id, { cutout: { ...clip.cutout!, smoothness } }))
+                }
+              />
+              <button
+                className={`${styles.action} ${styles.danger}`}
+                onClick={() => apply((p) => patchClip(p, clip.id, { cutout: undefined }))}
+              >
+                <Icon name="trash" size={14} />
+                Remove key
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                className={styles.action}
+                onClick={() =>
+                  apply((p) =>
+                    patchClip(p, clip.id, {
+                      cutout: { color: '#00d400', similarity: 0.3, smoothness: 0.1 },
+                    }),
+                  )
+                }
+              >
+                <Icon name="effects" size={14} />
+                Key out a colour
+              </button>
+              <p className={styles.note}>
+                Makes one colour transparent so the track beneath shows through — a green
+                screen, or a flat backdrop.
+              </p>
+            </>
+          )}
+        </div>
+      )}
 
       {/*
         Shipped only because the canvas actually draws both now — `compose.ts`
@@ -662,9 +779,27 @@ export function Slider({
   );
 }
 
-export function isTemperaturePreset(preset: string): boolean {
-  const p = FILTER_PRESETS[preset];
-  return !!p && p.temperature !== 0;
+/**
+ * True where this browser refuses `ctx.filter = 'url(#…)'`, so the grade falls
+ * back to the CSS approximation and brightness (and temperature) drift.
+ *
+ * It replaces an `isTemperaturePreset` badge that claimed warmth was always
+ * approximate. It no longer is — `temperatureGains` reproduces ffmpeg's Kelvin
+ * shift exactly — so the honest warning is about the fallback, not the preset.
+ *
+ * Read in an effect rather than at render: the check needs a real canvas, and
+ * answering `false` during SSR and `true` after hydration is a mismatch.
+ */
+export function useCutoutIsSupported(): boolean {
+  const [ok, setOk] = useState(false);
+  useEffect(() => setOk(cutoutIsSupported()), []);
+  return ok;
+}
+
+export function useGradeIsApproximate(): boolean {
+  const [approx, setApprox] = useState(false);
+  useEffect(() => setApprox(!gradeIsExact()), []);
+  return approx;
 }
 
 /** A swatch that actually shows what the grade does, not a coloured box. */

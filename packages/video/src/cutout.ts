@@ -15,12 +15,52 @@ export function hexToRgb(hex: string): [number, number, number] {
 
 const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 
+export interface ChromaParams {
+  /** Key colour, 0..1 per channel. */
+  key: [number, number, number];
+  similarity: number;
+  blend: number;
+}
+
+/**
+ * The clamped numbers `colorkey` is actually driven with.
+ *
+ * Extracted so the browser preview keys on the SAME values as the export rather
+ * than re-deriving them — the `max(0.01, …)` floor on similarity in particular
+ * is easy to forget and would shift every edge in the matte.
+ */
+export function chromaParams(c: ChromaKey | undefined): ChromaParams | null {
+  if (!c || !c.color) return null;
+  const [r, g, b] = hexToRgb(c.color);
+  return {
+    key: [r / 255, g / 255, b / 255],
+    similarity: Math.max(0.01, clamp01(c.similarity ?? 0.3)),
+    blend: clamp01(c.smoothness ?? 0.1),
+  };
+}
+
+/**
+ * Alpha for one pixel, in ffmpeg's own terms (`do_colorkey_pixel`).
+ *
+ * Verified against this ffmpeg build over eight probe colours at three
+ * similarity/blend settings: every byte matches. The browser runs this as a
+ * fragment shader; this reference copy is what the tests pin.
+ */
+export function chromaAlphaAt(p: ChromaParams, r: number, g: number, b: number): number {
+  const dr = r - p.key[0];
+  const dg = g - p.key[1];
+  const db = b - p.key[2];
+  const diff = Math.sqrt((dr * dr + dg * dg + db * db) / 3);
+  if (p.blend > 0.0001) return clamp01((diff - p.similarity) / p.blend);
+  return diff > p.similarity ? 1 : 0;
+}
+
 /** ffmpeg `colorkey` for a chroma key (operates on an rgba clip), or '' for no-op. */
 export function chromaToFFmpeg(c: ChromaKey | undefined): string {
-  if (!c || !c.color) return '';
-  const [r, g, b] = hexToRgb(c.color);
-  const hex = `0x${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
-  const similarity = Math.max(0.01, clamp01(c.similarity ?? 0.3));
-  const blend = clamp01(c.smoothness ?? 0.1);
-  return `colorkey=color=${hex}:similarity=${similarity}:blend=${blend}`;
+  const p = chromaParams(c);
+  if (!p) return '';
+  const hex = `0x${p.key
+    .map((v) => Math.round(v * 255).toString(16).padStart(2, '0'))
+    .join('')}`;
+  return `colorkey=color=${hex}:similarity=${p.similarity}:blend=${p.blend}`;
 }

@@ -16,7 +16,7 @@ import {
   splitAt,
   useVideo,
 } from '@/store/videoStore';
-import { isTemperaturePreset, Slider } from '../panels/MotionPanels';
+import { Slider, useGradeIsApproximate } from '../panels/MotionPanels';
 import panel from '../panels/Panels.module.css';
 
 const BLENDS: BlendMode[] = [
@@ -53,6 +53,7 @@ export function ClipInspector({
 }) {
   const apply = useVideo((s) => s.apply);
   const select = useVideo((s) => s.select);
+  const approximate = useGradeIsApproximate();
   const visual = 'type' in clip;
   const end = clip.start + clip.duration;
   // `splitAt` walks visual tracks only, so offering it on audio would be a
@@ -139,9 +140,9 @@ export function ClipInspector({
               <Icon name="effects" size={14} />
               Open effects
             </button>
-            {clip.filter?.preset && isTemperaturePreset(clip.filter.preset) && (
+            {approximate && (
               <p className={panel.note}>
-                Warmth previews approximately here; the exported file is exact.
+                This browser can&rsquo;t run the exact grade, so it previews approximately.
               </p>
             )}
           </div>

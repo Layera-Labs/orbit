@@ -267,24 +267,52 @@ export function createServer(): Express {
         );
       return cache.get(src);
     };
-    const clips = await Promise.all(
-      (project.clips ?? []).map(async (c) => ({
-        ...c,
-        src: (await fix(c.src)) ?? c.src,
-      })),
-    );
-    const tracks = await Promise.all(
-      (project.tracks ?? []).map(async (t) => ({
-        ...t,
-        clips: await Promise.all(
-          t.clips.map(async (c) => ({
-            ...c,
-            src: (await fix(c.src)) ?? c.src,
-          })),
+    const out = { ...project } as VideoProject;
+
+    /*
+     * Rewrite IN PLACE, preserving which of `clips` / `tracks` was present.
+     *
+     * This used to end with `{ ...project, clips, tracks }`, which always
+     * defined both — and `buildFFmpegArgs` branches on `project.tracks !==
+     * undefined`, not on its length. A legacy client that sent only `clips`
+     * therefore got an empty `tracks: []` attached here and was routed into the
+     * multi-track compositor with no visual tracks at all: a background-coloured
+     * video, rendered successfully, with every clip silently dropped. The concat
+     * path was unreachable server-side.
+     */
+    if (project.clips)
+      out.clips = await Promise.all(
+        project.clips.map(async (c) => ({ ...c, src: (await fix(c.src)) ?? c.src })),
+      );
+    if (project.tracks)
+      out.tracks = await Promise.all(
+        // Mapped per `kind` so the Track union survives — a single spread over
+        // the union widens `clips` and loses the visual/audio discrimination.
+        project.tracks.map(async (t) =>
+          t.kind === "visual"
+            ? {
+                ...t,
+                clips: await Promise.all(
+                  t.clips.map(async (c) => ({ ...c, src: (await fix(c.src)) ?? c.src })),
+                ),
+              }
+            : {
+                ...t,
+                clips: await Promise.all(
+                  t.clips.map(async (c) => ({ ...c, src: (await fix(c.src)) ?? c.src })),
+                ),
+              },
         ),
-      })),
-    );
-    return { ...project, clips, tracks } as VideoProject;
+      );
+
+    // The background can be a still too, and it is not in either list.
+    if (project.background?.type === "image")
+      out.background = {
+        ...project.background,
+        src: (await fix(project.background.src)) ?? project.background.src,
+      };
+
+    return out;
   }
 
   async function render(
