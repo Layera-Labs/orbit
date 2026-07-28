@@ -9,44 +9,26 @@
  * rendered file is exactly the drift the dual-render invariant exists to
  * prevent.
  *
- * HOW CLOSE THIS ACTUALLY GETS. Measured against ffmpeg over eight mid-tone
- * colours, every shipped preset lands within 13/255 (~5%), most within 6. The
- * residual is `eq` working on YUV planes in limited range while this works on
- * full-range RGB; closing it completely would mean modelling the clip's own
- * colour space, which the browser does not expose. So: `colortemperature` below
- * is EXACT, and the `eq` stage is a close approximation with a known bound. It
- * is not, and never was, byte-identical — an earlier version of this comment
- * claimed CSS contrast and saturate "agree with eq", and they do not.
- *
  * So the grade is built as a single SVG `feColorMatrix`, which has an additive
- * column and can express `eq` exactly:
+ * column and can therefore express the whole of `eq` — including the part CSS
+ * cannot reach. The matrix itself comes from `gradeMatrix` in `@orbit/video`,
+ * which models `eq` where it actually runs: on the YUV planes.
  *
- *   v' = contrast · Saturate(s) · v + (0.5 − 0.5·contrast + brightness)
- *
- * The `colortemperature` stage rides in the same matrix. It turns out to be a
- * plain per-channel gain, so it is the diagonal applied after the above — see
- * `temperatureGains` in `@orbit/video`.
+ * HOW CLOSE THIS GETS, measured against a real exported MP4 (2026-07-28):
+ * within 6/255 for every preset but `vivid`, which reaches 10 on saturated
+ * colour because high saturation amplifies the 8-bit round trip. It was as far
+ * out as 25 when contrast and saturation were applied per-channel in RGB. It is
+ * still not byte-identical and never will be — an earlier version of this
+ * comment claimed CSS contrast and saturate "agree with eq", and they do not.
  *
  * `ctx.filter` accepts `url(#id)` alongside `blur()`, so the two compose. Where
  * `url()` filters are unavailable we fall back to the CSS approximation rather
  * than showing nothing, and say so through `gradeIsExact`.
  */
-import { temperatureGains, type FilterParams } from '@orbit/video/browser';
+import { gradeMatrix, type FilterParams } from '@orbit/video/browser';
 
 const NS = 'http://www.w3.org/2000/svg';
 const HOST_ID = 'orbit-grade-filters';
-
-/*
- * BT.601 luma coefficients, NOT Rec.709.
- *
- * ffmpeg's `eq` does not touch RGB — it scales the chroma planes about neutral
- * in whatever YUV the decoder handed it, and that space is 601-weighted. Grading
- * a fully desaturated clip made the mismatch obvious: with 709 coefficients the
- * `mono` preset was off by 39/255 against ffmpeg; with 601 it is off by 3.
- */
-const LR = 0.299;
-const LG = 0.587;
-const LB = 0.114;
 
 let host: SVGSVGElement | null = null;
 let exact: boolean | null = null;
@@ -98,35 +80,15 @@ export function filterFor(f: FilterParams): string | null {
   const id = `orbit-grade-${key(f)}`;
   if (registered.has(id)) return id;
 
-  const s = f.saturation;
-  const c = f.contrast;
-  const offset = 0.5 - 0.5 * c + f.brightness;
-
-  // Saturation matrix, then scaled by contrast; offset carried in column 5.
-  const m = [
-    c * (LR + (1 - LR) * s), c * (LG - LG * s), c * (LB - LB * s), 0, offset,
-    c * (LR - LR * s), c * (LG + (1 - LG) * s), c * (LB - LB * s), 0, offset,
-    c * (LR - LR * s), c * (LG - LG * s), c * (LB + (1 - LB) * s), 0, offset,
-    0, 0, 0, 1, 0,
-  ];
-
   /*
-   * Temperature, folded into the same matrix.
+   * The whole grade — eq AND colortemperature — comes from `@orbit/video`.
    *
-   * The export chain is `eq=…,colortemperature=…` — eq first, then a Kelvin
-   * shift — and measuring that shift shows it is nothing but a per-channel gain.
-   * A diagonal gain applied AFTER a colour matrix is just each output row scaled
-   * by its channel's factor, offset column included, so no second filter pass is
-   * needed and the order still matches ffmpeg's.
-   *
-   * Before this, `temperature` was dropped on the floor here and the UI carried
-   * a "the canvas cannot reproduce this" badge — which meant Warm and Cool
-   * previewed identically apart from their small brightness/saturation deltas.
+   * It lives there rather than here because the mobile Skia preview needs the
+   * identical matrix, and the export's arg builder sits beside it. Three
+   * surfaces reading one derivation is the only arrangement in which they
+   * cannot quietly drift apart, which is the entire point of this file.
    */
-  const [gr, gg, gb] = temperatureGains(f.temperature);
-  for (let i = 0; i < 5; i++) m[i] *= gr;
-  for (let i = 5; i < 10; i++) m[i] *= gg;
-  for (let i = 10; i < 15; i++) m[i] *= gb;
+  const m = gradeMatrix(f);
 
   const filter = document.createElementNS(NS, 'filter');
   filter.setAttribute('id', id);
