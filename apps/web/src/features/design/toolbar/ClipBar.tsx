@@ -88,12 +88,12 @@ export function ClipBar({
       <BarMenu label="Timing" icon="duration" value={`${clip.duration.toFixed(2)}s`}>
         <div className={styles.group}>
           <p className={styles.groupTitle}>Timing</p>
-          <div className={styles.menu}>
-            <MenuItem onClick={() => undefined}>Start · {clip.start.toFixed(2)}s</MenuItem>
-            <MenuItem onClick={() => undefined}>End · {end.toFixed(2)}s</MenuItem>
-            <MenuItem onClick={() => undefined}>
-              Source in · {(clip.trimIn ?? 0).toFixed(2)}s
-            </MenuItem>
+          {/* Read-only rows, not menu items — see `.readout`. Timing is set by
+              dragging on the timeline, which is the gesture that snaps. */}
+          <div>
+            <Readout label="Start" value={`${clip.start.toFixed(2)}s`} />
+            <Readout label="End" value={`${end.toFixed(2)}s`} />
+            <Readout label="Source in" value={`${(clip.trimIn ?? 0).toFixed(2)}s`} />
           </div>
           <p className={styles.empty}>
             Drag the clip and its ends on the timeline to change these — that is the gesture
@@ -234,6 +234,16 @@ export function ClipBar({
         )}
       </BarMenu>
     </PropertyBar>
+  );
+}
+
+/** A value the user can read here but only change on the timeline. */
+function Readout({ label, value }: { label: string; value: string }) {
+  return (
+    <p className={styles.readout}>
+      <span>{label}</span>
+      <span className={`${styles.readoutValue} w-data`}>{value}</span>
+    </p>
   );
 }
 

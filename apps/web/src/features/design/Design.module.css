@@ -176,10 +176,16 @@
   font-weight: 600;
 }
 
+/*
+ * The rail's group break is SPACE, not a rule.
+ *
+ * It used to be a 1px hairline. A bare unrounded line dropped in to separate
+ * things is decoration standing in for structure — and the structure was
+ * already there in the grouping. Air says the same thing without drawing
+ * anything, which is the version that reads as considered.
+ */
 .railGap {
-  height: 1px;
-  margin: var(--w-2) 14px;
-  background: var(--w-edge);
+  height: var(--w-4);
   flex: none;
 }
 
