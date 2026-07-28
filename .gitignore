@@ -21,3 +21,9 @@ gen.mp4
 # Expo CNG-generated native projects (app.json stays canonical)
 apps/mobile/ios
 apps/mobile/android
+
+# Next dev output — kept separate from the build so the two cannot collide.
+.next-dev/
+
+# TypeScript incremental build artifacts — build output, not source.
+*.tsbuildinfo

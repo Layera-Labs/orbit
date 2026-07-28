@@ -1,0 +1,153 @@
+/**
+ * Re-skins the embedded `@orbit/editor` so it belongs to this app.
+ *
+ * The editor is themed by ~30 `--o-*` custom properties declared on `.orbit`,
+ * so this is a pure additive override — no fork, no patched package. It also
+ * removes the parts of the stock theme our design rules disallow: the emerald
+ * accent, the radial-gradient canvas glow, the accent gradient and the accent
+ * glow shadow.
+ *
+ * What CANNOT be fixed from here: Konva paints selection chrome to a canvas and
+ * cannot read CSS variables, so the transformer handles and marquee stay
+ * emerald. That needs a change in `packages/render` — see the shared-package
+ * work item.
+ */
+@import '@orbit/editor/styles.css';
+
+.orbit {
+  --o-bg: var(--w-base);
+  /* One flat, slightly-lifted surface. The stock value stacks two radial
+     emerald glows over a gradient; that is exactly the "background glow" tell. */
+  --o-canvas-bg: var(--w-base);
+
+  --o-text: var(--w-ink);
+  --o-text-strong: var(--w-ink);
+  --o-text-muted: var(--w-muted);
+  --o-text-faint: var(--w-muted2);
+  --o-text-soft: var(--w-muted3);
+
+  --o-glass-bg: rgba(25, 24, 23, 0.86);
+  --o-solid: var(--w-s2);
+  --o-glass-border: var(--w-edge);
+  --o-glass-highlight: inset 0 1px 0 rgba(244, 241, 236, 0.05);
+  /* Tight and directional, not a bloom on every side. */
+  --o-glass-shadow: 0 6px 18px rgba(0, 0, 0, 0.42);
+  --o-panel-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
+
+  --o-hover: rgba(244, 241, 236, 0.06);
+  --o-active: rgba(244, 241, 236, 0.1);
+  --o-border: var(--w-edge);
+  --o-border-subtle: rgba(244, 241, 236, 0.06);
+  --o-line: var(--w-edge-strong);
+  --o-input-bg: rgba(244, 241, 236, 0.05);
+
+  --o-accent: var(--w-live);
+  --o-accent-strong: #a8442f;
+  --o-accent-contrast: #f7ede9;
+  /* Solid, not a two-stop gradient. */
+  --o-accent-grad: var(--w-live);
+  --o-accent-soft: var(--w-live-dim);
+  --o-accent-glow: none;
+  --o-danger: var(--w-danger);
+
+  --o-r-lg: var(--w-r);
+  --o-r-xl: var(--w-r-lg);
+  --o-r-2xl: 14px;
+  --o-blur: blur(18px) saturate(1.15);
+  --o-ring: 0 0 0 2px var(--w-live-dim);
+
+  font-family: var(--w-body);
+}
+
+/* The stock light theme re-declares the emerald accent and the glow, so the
+   overrides have to be repeated at the same specificity to survive it. */
+.orbit[data-theme='light'] {
+  --o-accent: var(--w-live);
+  --o-accent-strong: #a8442f;
+  --o-accent-contrast: #fdf9f7;
+  --o-accent-grad: var(--w-live);
+  --o-accent-soft: var(--w-live-dim);
+  --o-accent-glow: none;
+  --o-canvas-bg: #ece8e1;
+  --o-danger: var(--w-danger);
+}
+
+/* Two variables the SDK's own panels reference but nothing declares — the
+   Backgrounds and Fonts sections render with no radius and a transparent button
+   without them. Fixed here rather than in the package so the value is this
+   app's, not a new global default for every consumer. */
+.orbit {
+  --o-radius-sm: var(--w-r-sm);
+  --o-surface: var(--w-s2);
+}
+
+/*
+ * Embedded mode.
+ *
+ * `.orbit` ships as `position: absolute; inset: 0` because it expects to BE the
+ * editor. Here it is only a variable and class scope wrapped around our own
+ * grid, so the positioning has to be undone — left in place it would tear the
+ * shell out of layout and collapse the grid.
+ */
+.orbit.orbitEmbedded {
+  position: static;
+  inset: auto;
+  display: block;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+/* The canvas cell. `.o-canvas-wrap` is where the SDK's floating chrome
+   (selection actions, zoom, page strip) positions itself. */
+.orbitEmbedded .o-canvas-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 0;
+}
+
+/*
+ * The zoom pill moves to the TOP right when embedded.
+ *
+ * The SDK anchors the page strip bottom-left and the zoom bottom-right, which is
+ * fine across a full window but genuinely overlaps once the canvas is only as
+ * wide as this shell's middle column — measured at 517px the two boxes ran into
+ * each other by 58px and the zoom-out button disappeared underneath the strip.
+ * Opposite corners on the same edge is a collision waiting for a narrow viewport.
+ */
+.orbitEmbedded .o-zoom {
+  top: 12px;
+  bottom: auto;
+  /* Never wider than the column it sits in. Its own width is intrinsic, and
+     `.o-canvas-wrap` clips, so without this the zoom-out button is simply gone
+     at a narrow window rather than merely tight. */
+  max-width: calc(100% - 24px);
+}
+
+.orbitEmbedded .o-zoom input[type='range'] {
+  min-width: 0;
+}
+
+/* Same story bottom-left: the page strip must not run past the canvas. */
+.orbitEmbedded .o-pages-strip {
+  max-width: calc(100% - 24px);
+}
+
+/*
+ * The primary button is chalk on graphite, not clay.
+ *
+ * `--o-accent` has to stay `--w-live` because Konva paints the selection
+ * transformer from it and cannot read CSS — but that same variable also fills
+ * this button, which put a saturated accent on the loudest control in the app.
+ * Live means live; a button is not a state.
+ */
+.orbit .o-btn-primary {
+  background: var(--w-ink);
+  color: var(--w-base);
+}
+
+.orbit .o-btn-primary:hover {
+  background: #fffdf9;
+}

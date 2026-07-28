@@ -20,10 +20,10 @@ export default defineConfig({
       '@': resolve(__dirname, './src'),
     },
     // Ensure a single React instance across aliased package sources.
-    dedupe: ['react', 'react-dom', 'react-konva', 'konva', 'valtio', 'framer-motion', 'lucide-react'],
+    dedupe: ['react', 'react-dom', 'react-konva', 'konva', 'valtio', 'framer-motion'],
   },
   optimizeDeps: {
-    include: ['jspdf', 'lucide-react', 'framer-motion'],
+    include: ['jspdf', 'framer-motion'],
     exclude: Object.keys(workspacePackageAliases),
   },
 });

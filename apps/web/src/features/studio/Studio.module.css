@@ -1,0 +1,261 @@
+.page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.head {
+  position: relative;
+  padding: var(--w-7) var(--w-7) var(--w-5);
+  overflow: hidden;
+}
+
+.title {
+  font-family: var(--w-display);
+  font-size: clamp(34px, 5vw, 54px);
+  line-height: 1;
+  margin-bottom: var(--w-2);
+}
+
+.blurb {
+  color: var(--w-muted);
+  margin: 0;
+  max-width: 52ch;
+}
+
+.balance {
+  position: absolute;
+  top: var(--w-7);
+  right: var(--w-7);
+  color: var(--w-muted);
+}
+
+/* ---- the console ---------------------------------------------------------- */
+
+.console {
+  padding: 0 var(--w-7);
+}
+
+.rule {
+  display: block;
+  width: 100%;
+  height: 12px;
+  color: var(--w-muted3);
+  margin-bottom: var(--w-4);
+}
+
+.modes {
+  display: flex;
+  gap: var(--w-1);
+  margin-bottom: var(--w-3);
+}
+
+/* Mode is a tonal step, not a filled pill. */
+.mode {
+  padding: 6px var(--w-3);
+  border-radius: var(--w-r-sm);
+  color: var(--w-muted2);
+  font-size: 13px;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.mode:hover {
+  color: var(--w-muted);
+}
+
+.mode[data-on='true'] {
+  color: var(--w-ink);
+  background: var(--w-s2);
+}
+
+.promptRow {
+  display: flex;
+  align-items: stretch;
+  gap: var(--w-2);
+}
+
+.prompt {
+  flex: 1;
+  min-width: 0;
+  resize: none;
+  padding: var(--w-3);
+  border-radius: var(--w-r);
+  background: var(--w-s1);
+  border: 1px solid var(--w-edge);
+  color: var(--w-ink);
+  font-size: 14px;
+  line-height: 1.5;
+  min-height: 78px;
+}
+
+.prompt:focus {
+  outline: none;
+  border-color: var(--w-edge-strong);
+}
+
+.prompt::placeholder {
+  color: var(--w-muted3);
+}
+
+.go {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex: none;
+  width: 132px;
+  border-radius: var(--w-r);
+  background: var(--w-ink);
+  color: var(--w-base);
+  font-size: 14px;
+  transition: background-color 140ms ease;
+}
+
+.go:hover:not(:disabled) {
+  background: #ffffff;
+}
+
+.go:disabled {
+  background: var(--w-s2);
+  color: var(--w-muted2);
+  cursor: default;
+}
+
+.cost {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.notice {
+  margin-top: var(--w-3);
+  color: var(--w-muted2);
+  font-size: 13px;
+  max-width: 60ch;
+}
+
+/* ---- jobs + gallery ------------------------------------------------------- */
+
+.results {
+  flex: 1;
+  padding: var(--w-6) var(--w-7) var(--w-8);
+}
+
+.sectionTitle {
+  font-family: var(--w-display);
+  font-size: 22px;
+  margin-bottom: var(--w-4);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--w-4);
+}
+
+.card {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: var(--w-2);
+  padding: var(--w-3);
+  border-radius: var(--w-r-lg);
+  background: var(--w-s1);
+  border: 1px solid var(--w-edge);
+}
+
+.card[data-running='true'] {
+  border-color: var(--w-live-dim);
+}
+
+.thumb {
+  aspect-ratio: 1 / 1;
+  border-radius: var(--w-r);
+  background: var(--w-s2);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.thumb img,
+.thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.plateWrap {
+  color: var(--w-live);
+}
+
+.cardPrompt {
+  color: var(--w-ink);
+  font-size: 13px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cardMeta {
+  color: var(--w-muted2);
+  display: flex;
+  align-items: center;
+  gap: var(--w-2);
+}
+
+.cardActions {
+  display: flex;
+  gap: var(--w-1);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px var(--w-2);
+  border-radius: var(--w-r-sm);
+  color: var(--w-muted);
+  font-size: 12px;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.action:hover {
+  color: var(--w-ink);
+  background: var(--w-s3);
+}
+
+.cardError {
+  color: var(--w-danger);
+  font-size: 12px;
+}
+
+.empty {
+  color: var(--w-muted2);
+  max-width: 52ch;
+}
+
+@media (max-width: 720px) {
+  .head,
+  .console,
+  .results {
+    padding-left: var(--w-4);
+    padding-right: var(--w-4);
+  }
+  .balance {
+    position: static;
+    display: block;
+    margin-top: var(--w-2);
+  }
+  .promptRow {
+    flex-direction: column;
+  }
+  .go {
+    width: 100%;
+    padding: var(--w-3);
+  }
+}

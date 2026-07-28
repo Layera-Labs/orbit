@@ -1,0 +1,136 @@
+.page {
+  flex: 1;
+  padding: var(--w-7) var(--w-7) var(--w-8);
+}
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--w-5);
+  margin-bottom: var(--w-4);
+}
+
+.title {
+  font-family: var(--w-display);
+  font-size: clamp(34px, 5vw, 52px);
+  line-height: 1;
+  margin-bottom: var(--w-2);
+}
+
+.blurb {
+  color: var(--w-muted);
+  margin: 0;
+  max-width: 46ch;
+}
+
+.new {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--w-2);
+  flex: none;
+  padding: 9px var(--w-4);
+  border-radius: var(--w-r);
+  background: var(--w-ink);
+  color: var(--w-base);
+  font-size: 14px;
+  transition: background-color 140ms ease;
+}
+
+.new:hover {
+  background: #ffffff;
+}
+
+.rule {
+  display: block;
+  width: 100%;
+  height: 12px;
+  color: var(--w-muted3);
+  margin-bottom: var(--w-5);
+}
+
+.empty {
+  color: var(--w-muted2);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+  gap: var(--w-4);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--w-r-lg);
+  overflow: hidden;
+  background: var(--w-s1);
+  border: 1px solid var(--w-edge);
+  transition: border-color 160ms ease;
+}
+
+.card:hover {
+  border-color: var(--w-edge-strong);
+}
+
+.thumb {
+  aspect-ratio: 4 / 5;
+  background: var(--w-s2);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ghost {
+  color: var(--w-muted3);
+}
+
+.body {
+  display: flex;
+  align-items: center;
+  gap: var(--w-2);
+  padding: var(--w-3) var(--w-3) var(--w-3) var(--w-4);
+  min-width: 0;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.delete {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--w-r-sm);
+  color: var(--w-muted3);
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.delete:hover {
+  color: var(--w-danger);
+  background: var(--w-s3);
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: var(--w-5) var(--w-4) var(--w-7);
+  }
+  .head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

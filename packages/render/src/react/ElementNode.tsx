@@ -162,6 +162,7 @@ function ElementContent({
   const [image] = useImage(
     el.type === 'image' || el.type === 'svg' ? el.src : undefined,
   );
+  const { chrome } = useWorkspace();
 
   switch (el.type) {
     case 'text':
@@ -245,7 +246,7 @@ function ElementContent({
         <Rect
           width={el.width}
           height={el.height}
-          fill="#1f2937"
+          fill={chrome.mediaPlaceholder}
           cornerRadius={4}
         />
       );

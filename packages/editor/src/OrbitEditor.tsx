@@ -19,10 +19,23 @@ export interface OrbitEditorProps {
   store?: OrbitStore;
   providers?: ProviderMap;
   sections?: SectionDef[];
+  /**
+   * Controlled theme — pass this and the host owns it. The editor then ignores
+   * its own `localStorage` preference, which otherwise outlives `defaultTheme`
+   * and leaves a light editor sitting inside a dark application.
+   */
+  theme?: ThemeMode;
+  onThemeChange?: (theme: ThemeMode) => void;
+  /** Initial theme when uncontrolled. Loses to a stored preference. */
   defaultTheme?: ThemeMode;
 }
 
-function useKeyboardShortcuts() {
+/**
+ * The editor's keyboard map. Exported (via `index.ts`) so a host that composes
+ * its own shell out of `Workspace` + the section panels does not lose undo,
+ * duplicate, group, select-all and delete.
+ */
+export function useEditorShortcuts() {
   const store = useStore();
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -46,7 +59,7 @@ function useKeyboardShortcuts() {
 }
 
 function EditorShell({ sections }: { sections: SectionDef[] }) {
-  useKeyboardShortcuts();
+  useEditorShortcuts();
   const store = useStore();
   const { theme } = useTheme();
   const stageRef = useRef<Konva.Stage | null>(null);
@@ -68,9 +81,22 @@ function EditorShell({ sections }: { sections: SectionDef[] }) {
   );
 }
 
-export function OrbitEditor({ store, providers, sections = DEFAULT_SECTIONS, defaultTheme }: OrbitEditorProps) {
+export function OrbitEditor({
+  store,
+  providers,
+  sections = DEFAULT_SECTIONS,
+  theme,
+  onThemeChange,
+  defaultTheme,
+}: OrbitEditorProps) {
   return (
-    <EditorProvider store={store} providers={providers} defaultTheme={defaultTheme}>
+    <EditorProvider
+      store={store}
+      providers={providers}
+      theme={theme}
+      onThemeChange={onThemeChange}
+      defaultTheme={defaultTheme}
+    >
       <EditorShell sections={sections} />
     </EditorProvider>
   );

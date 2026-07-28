@@ -24,10 +24,10 @@ export default defineConfig({
       ...workspacePackageAliases,
       '@': resolve(__dirname, './src'),
     },
-    dedupe: ['react', 'react-dom', 'react-konva', 'konva', 'valtio', 'framer-motion', 'lucide-react'],
+    dedupe: ['react', 'react-dom', 'react-konva', 'konva', 'valtio', 'framer-motion'],
   },
   optimizeDeps: {
-    include: ['jspdf', 'lucide-react', 'framer-motion'],
+    include: ['jspdf', 'framer-motion'],
     exclude: Object.keys(workspacePackageAliases),
   },
 });

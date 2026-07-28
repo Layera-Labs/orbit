@@ -1,0 +1,352 @@
+.page {
+  display: grid;
+  align-content: start;
+  gap: var(--w-6);
+  padding: var(--w-6) var(--w-6) var(--w-8);
+  /*
+   * `width: 100%` is load-bearing, not belt-and-braces. The shell's <main> is a
+   * COLUMN flex container, and `margin: 0 auto` on a flex item cancels the
+   * default cross-axis stretch — without an explicit width this shrink-wraps to
+   * its content and the whole page renders as a narrow strip.
+   */
+  width: 100%;
+  max-width: 1240px;
+  /* A real gutter on every edge — copy never arrives at the viewport rim. */
+  margin: 0 auto;
+}
+
+/* ---- search ---------------------------------------------------------------- */
+
+/*
+ * The top of the page is ONE centred console — the line, the search, the
+ * formats and the custom size share an axis and a width. Letting the head
+ * centre while the shortcut row ran flush to the left margin read as two
+ * unrelated compositions stacked on top of each other.
+ */
+.console {
+  display: grid;
+  gap: var(--w-5);
+  width: 100%;
+  max-width: 940px;
+  margin: 0 auto;
+}
+
+.head {
+  display: grid;
+  gap: var(--w-4);
+  justify-items: center;
+  padding-top: var(--w-5);
+}
+
+.line {
+  color: var(--w-muted);
+  font-size: 13px;
+  letter-spacing: 0.01em;
+}
+
+.searchWrap {
+  position: relative;
+  width: 100%;
+  max-width: 620px;
+}
+
+.searchIcon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--w-muted2);
+  pointer-events: none;
+}
+
+.search {
+  width: 100%;
+  padding: 12px var(--w-4) 12px 42px;
+  border-radius: var(--w-r-lg);
+  background: var(--w-s1);
+  border: 1px solid var(--w-edge);
+  color: var(--w-ink);
+  font: inherit;
+  font-size: 14px;
+  transition: border-color 160ms ease, background-color 160ms ease;
+}
+
+.search::placeholder {
+  color: var(--w-muted2);
+}
+
+.search:focus {
+  outline: none;
+  background: var(--w-s2);
+  border-color: var(--w-edge-strong);
+}
+
+/* ---- start shortcuts ------------------------------------------------------- */
+
+.starts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  gap: var(--w-2);
+}
+
+.start {
+  display: grid;
+  justify-items: center;
+  gap: var(--w-2);
+  padding: var(--w-3) var(--w-2) var(--w-3);
+  border-radius: var(--w-r-lg);
+  color: var(--w-muted);
+  /* No tile behind the mark, no lift on hover — the surface warms instead. */
+  transition: color 160ms ease, background-color 160ms ease;
+}
+
+.start:hover {
+  color: var(--w-ink);
+  background: var(--w-s1);
+}
+
+/*
+ * The mark IS the format: a hairline frame drawn at the shortcut's true aspect
+ * ratio, so "Story" and "Wide" are told apart by their shape rather than by a
+ * generic glyph. Motion formats carry the house disc — the same reading that
+ * rides the Plate's limb and the timeline playhead.
+ */
+.startMark {
+  display: grid;
+  place-items: center;
+  height: 46px;
+  width: 100%;
+}
+
+.startFrame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 2px;
+  opacity: 0.85;
+}
+
+.startDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.startLabel {
+  font-size: 11.5px;
+  line-height: 1.25;
+  text-align: center;
+}
+
+/* ---- custom size ----------------------------------------------------------- */
+
+/* Hugs its controls and sits on the console's centre line — a full-width slab
+   with everything bunched at the left is space stranded, not composition. */
+.custom {
+  display: flex;
+  align-items: flex-end;
+  justify-self: center;
+  gap: var(--w-2);
+  padding: var(--w-3);
+  border-radius: var(--w-r-lg);
+  background: var(--w-s1);
+}
+
+.customField {
+  display: grid;
+  gap: 4px;
+}
+
+/* A form label reads as a form label — sentence case, no costume. */
+.customLabel {
+  color: var(--w-muted);
+  font-size: 11.5px;
+}
+
+.customInput {
+  width: 92px;
+  padding: 6px var(--w-2);
+  border-radius: var(--w-r-sm);
+  background: var(--w-base);
+  border: 1px solid var(--w-edge);
+  color: var(--w-ink);
+  font: inherit;
+  font-size: 12.5px;
+}
+
+.customInput:focus {
+  outline: none;
+  border-color: var(--w-edge-strong);
+}
+
+.customKind {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--w-r);
+  background: var(--w-base);
+}
+
+.customKindOption {
+  padding: 6px var(--w-3);
+  border-radius: var(--w-r-sm);
+  color: var(--w-muted);
+  font-size: 12px;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.customKindOption[data-on='true'] {
+  background: var(--w-s3);
+  color: var(--w-ink);
+  font-weight: 600;
+}
+
+.make {
+  padding: 8px var(--w-4);
+  border-radius: var(--w-r);
+  background: var(--w-ink);
+  color: var(--w-base);
+  font-size: 13px;
+  transition: background-color 140ms ease;
+}
+
+.make:hover {
+  background: #fffdf9;
+}
+
+/* ---- recents --------------------------------------------------------------- */
+
+.section {
+  display: grid;
+  gap: var(--w-3);
+}
+
+.sectionHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--w-3);
+  flex-wrap: wrap;
+}
+
+.sectionTitle {
+  font-family: var(--w-display);
+  font-size: 20px;
+  color: var(--w-ink);
+}
+
+.count {
+  color: var(--w-muted2);
+  font-size: 11.5px;
+}
+
+.filters {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+  padding: 2px;
+  border-radius: var(--w-r);
+  background: var(--w-s1);
+}
+
+.filter {
+  padding: 5px var(--w-3);
+  border-radius: var(--w-r-sm);
+  color: var(--w-muted);
+  font-size: 12px;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.filter:hover {
+  color: var(--w-ink);
+}
+
+.filter[data-on='true'] {
+  background: var(--w-s3);
+  color: var(--w-ink);
+  font-weight: 600;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(178px, 1fr));
+  gap: var(--w-4);
+}
+
+.card {
+  position: relative;
+  display: grid;
+  gap: var(--w-2);
+  align-content: start;
+}
+
+.thumb {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: var(--w-r);
+  background: var(--w-s1);
+  display: grid;
+  place-items: center;
+  color: var(--w-muted3);
+  box-shadow: inset 0 0 0 1px var(--w-edge);
+  transition: box-shadow 160ms ease;
+}
+
+.card:hover .thumb {
+  box-shadow: inset 0 0 0 1px var(--w-edge-strong);
+}
+
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cardName {
+  font-size: 13px;
+  color: var(--w-ink);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardMeta {
+  color: var(--w-muted2);
+  font-size: 11px;
+}
+
+.delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--w-r-sm);
+  background: rgba(16, 15, 14, 0.78);
+  color: var(--w-muted);
+  opacity: 0;
+  transition: opacity 140ms ease, color 140ms ease;
+}
+
+.card:hover .delete,
+.delete:focus-visible {
+  opacity: 1;
+}
+
+.delete:hover {
+  color: var(--w-ink);
+}
+
+.empty {
+  padding: var(--w-6) 0;
+  color: var(--w-muted2);
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 52ch;
+}

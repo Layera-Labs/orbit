@@ -23,7 +23,7 @@ function geometryKey(
 }
 
 export function SelectionTransformer() {
-  const { store, registry } = useWorkspace();
+  const { store, registry, chrome } = useWorkspace();
   const snap = useSnapshot(store.state);
   const trRef = useRef<Konva.Transformer>(null);
 
@@ -59,9 +59,9 @@ export function SelectionTransformer() {
       ignoreStroke
       anchorSize={9}
       anchorCornerRadius={2}
-      borderStroke="#34d399"
-      anchorStroke="#10b981"
-      anchorFill="#ffffff"
+      borderStroke={chrome.accent}
+      anchorStroke={chrome.accentStrong}
+      anchorFill={chrome.onAccent}
       boundBoxFunc={(oldBox, newBox) =>
         newBox.width < 5 || newBox.height < 5 ? oldBox : newBox
       }
