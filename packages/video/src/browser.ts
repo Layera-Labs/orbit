@@ -70,7 +70,7 @@ export { hasKeyframes, sampleKeyframes, keyframeExpr, animatesOpacity, animatesP
 export { createProject, projectDuration, transitionDuration } from './project';
 export { buildFFmpegArgs, MOSAIC_BLOCK } from './ffmpeg';
 export type { BuildFFmpegOptions } from './ffmpeg';
-export { overlayToSVG } from './overlay-svg';
+export { overlayBox, overlayToSVG } from './overlay-svg';
 export { backgroundToSVG } from './background-svg';
 export { captionReel, lyricVideo, quoteCard, TEMPLATE_LIST } from './templates';
 export type { CaptionReelInput, LyricVideoInput, QuoteCardInput, TemplateId } from './templates';

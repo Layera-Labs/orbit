@@ -25,6 +25,7 @@ import {
   useVideo,
 } from '@/store/videoStore';
 import { usePreview } from '@/video/engine/usePreview';
+import { boxOf, pickAt } from './motion/pick';
 import { DesignBar } from './DesignBar';
 import { DesignFrame, ToolPanel } from './Frame';
 import { ToolRail } from './ToolRail';
@@ -353,7 +354,35 @@ export function MotionDesign({
             />
           ) : null}
           {hasClips ? (
-            <canvas ref={canvasRef} className={styles.canvas} />
+            /*
+             * The canvas and its selection chrome share a box, so the outline
+             * can be positioned in the canvas's own displayed pixels. The
+             * outline is a DOM element and NOT painted into the 2D context on
+             * purpose: that bitmap is the export-parity render, and drawing
+             * editor furniture into it would put a selection rectangle into
+             * anything ever read back out of it.
+             */
+            <div className={styles.canvasWrap}>
+              <canvas
+                ref={canvasRef}
+                className={styles.canvas}
+                onPointerDown={(e) => {
+                  const r = e.currentTarget.getBoundingClientRect();
+                  // Displayed pixels → project pixels. The canvas is sized to
+                  // the project and scaled down by CSS, so one factor does it.
+                  const scale = live.width / r.width;
+                  select(
+                    pickAt(
+                      live,
+                      preview.time,
+                      (e.clientX - r.left) * scale,
+                      (e.clientY - r.top) * scale,
+                    ),
+                  );
+                }}
+              />
+              <SelectionFrame project={live} time={preview.time} id={selection} />
+            </div>
           ) : (
             <div className={styles.stageEmpty}>
               <Icon name="video" size={26} />
@@ -383,6 +412,43 @@ export function MotionDesign({
           onDropMedia={dropMedia}
         />
       }
+    />
+  );
+}
+
+/**
+ * The outline over whatever is selected.
+ *
+ * Percentages rather than pixels, so it tracks the canvas through every resize
+ * without measuring anything or listening to anything — the wrapper is sized by
+ * the canvas, and the canvas is the project's own aspect.
+ *
+ * Nothing is drawn when the selection is not on screen at this instant, which
+ * is the honest answer: a clip that starts at 0:08 genuinely has no box at
+ * 0:00. The timeline still shows which row is selected.
+ */
+function SelectionFrame({
+  project,
+  time,
+  id,
+}: {
+  project: VideoProject;
+  time: number;
+  id: string | null;
+}) {
+  const box = useMemo(() => boxOf(project, time, id), [project, time, id]);
+  if (!box) return null;
+  const pc = (v: number, of: number) => `${(v / of) * 100}%`;
+  return (
+    <div
+      className={styles.selectFrame}
+      style={{
+        left: pc(box.x, project.width),
+        top: pc(box.y, project.height),
+        width: pc(box.w, project.width),
+        height: pc(box.h, project.height),
+      }}
+      aria-hidden="true"
     />
   );
 }
