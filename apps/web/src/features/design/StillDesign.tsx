@@ -166,15 +166,24 @@ function StillShell({
         return <LayersSection.Panel />;
       case 'uploads':
         return (
+          /*
+           * `image`, not `visual`.
+           *
+           * `visual` is "anything that is not audio", so a still project was
+           * listing every video in the library — thirty tiles, in a panel whose
+           * own file picker only accepts `image/*`. Clicking one added an
+           * element of `type: 'image'` pointing at a video blob, which Konva
+           * cannot decode: a control that answers a click with nothing.
+           */
           <MediaPanel
-            filter="visual"
+            filter="image"
             accept="image/*"
             empty="Nothing uploaded yet. Images you add here stay in this browser."
             onInsert={insertMedia}
           />
         );
       case 'ai':
-        return <AiPanel filter="visual" onInsert={insertMedia} />;
+        return <AiPanel filter="image" modes={['image']} onInsert={insertMedia} />;
       default:
         return null;
     }
