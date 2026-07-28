@@ -64,6 +64,8 @@ import { collectClientSrcs, isClientSrc, makeResolveSrc } from "./resolve.js";
 import { PgLedgerStore, PgUserStore, makePgPool } from "./pg-store.js";
 import { InMemoryUserStore } from "./user-store.js";
 import { emailSenderFromEnv } from "./email.js";
+import { JobRegistry } from "./jobs.js";
+import { storageFromEnv } from "./storage.js";
 
 /** Per-file upload cap, and the total media-store budget before eviction. */
 const MAX_UPLOAD_BYTES = Number(
@@ -71,6 +73,17 @@ const MAX_UPLOAD_BYTES = Number(
 );
 const MAX_MEDIA_BYTES = Number(
   process.env.ORBIT_MAX_MEDIA_BYTES ?? 5 * 1024 * 1024 * 1024,
+);
+/**
+ * The same budget for finished renders.
+ *
+ * Uploads have been evicted since the audit; outputs never were, so on local
+ * disk the directory grew without limit until the volume filled — a slow, total
+ * outage with no signal until it lands. With S3 configured the local copy is
+ * only a staging file and this bound matters even more.
+ */
+const MAX_OUTPUT_BYTES = Number(
+  process.env.ORBIT_MAX_OUTPUT_BYTES ?? 5 * 1024 * 1024 * 1024,
 );
 /** Requests per IP per window for the two unauthenticated, expensive endpoints. */
 const RATE_WINDOW_MS = Number(process.env.ORBIT_RATE_WINDOW_MS ?? 60_000);
@@ -89,6 +102,42 @@ export function createServer(): Express {
   const resolveSrc = makeResolveSrc(mediaDir);
   let counter = 0;
   let mediaCounter = 0;
+
+  // Local unless the S3 variables are set; throws on a half-set configuration
+  // rather than silently keeping everything on a disk that is about to vanish.
+  const storage = storageFromEnv();
+  const jobs = new JobRegistry();
+  if (storage.kind === "local")
+    console.warn(
+      "[orbit] output storage is LOCAL DISK — renders do not survive a restart and a second replica cannot see them. Set ORBIT_S3_BUCKET for durable storage.",
+    );
+
+  /*
+   * One structured line per request.
+   *
+   * The service logged only failures, so there was no way to answer "is it
+   * slow, and where" without adding a print and redeploying. JSON because the
+   * first thing any log pipeline does is parse it, and a human can still read
+   * it. No bodies and no query strings — they carry upload tokens.
+   */
+  app.use((req: Request, res: Response, next: () => void) => {
+    const started = Date.now();
+    res.on("finish", () => {
+      const ms = Date.now() - started;
+      // Health checks would otherwise be most of the log.
+      if (req.path === "/health") return;
+      console.log(
+        JSON.stringify({
+          t: new Date().toISOString(),
+          method: req.method,
+          path: req.path,
+          status: res.statusCode,
+          ms,
+        }),
+      );
+    });
+    next();
+  });
 
   /**
    * Turn a client-supplied source image into something the generation provider
@@ -178,13 +227,13 @@ export function createServer(): Express {
       next();
     };
 
-  /** Delete the oldest media once the store exceeds its budget. */
-  async function evictMedia(): Promise<void> {
+  /** Delete the oldest files in `dir` once it exceeds `budget`. */
+  async function evictDir(dir: string, budget: number): Promise<void> {
     try {
-      const names = await readdir(mediaDir);
+      const names = await readdir(dir);
       const entries = await Promise.all(
         names.map(async (name) => {
-          const path = join(mediaDir, name);
+          const path = join(dir, name);
           try {
             const s = await statAsync(path);
             return { path, size: s.size, at: s.mtimeMs };
@@ -195,16 +244,19 @@ export function createServer(): Express {
       );
       const files = entries.filter((e): e is NonNullable<typeof e> => !!e);
       let total = files.reduce((sum, f) => sum + f.size, 0);
-      if (total <= MAX_MEDIA_BYTES) return;
+      if (total <= budget) return;
       for (const f of files.sort((a, b) => a.at - b.at)) {
-        if (total <= MAX_MEDIA_BYTES) break;
+        if (total <= budget) break;
         await rmAsync(f.path, { force: true });
         total -= f.size;
       }
     } catch {
-      // Eviction is best-effort; never fail an upload because of it.
+      // Eviction is best-effort; never fail an upload or a render because of it.
     }
   }
+
+  const evictMedia = () => evictDir(mediaDir, MAX_MEDIA_BYTES);
+  const evictOutputs = () => evictDir(outDir, MAX_OUTPUT_BYTES);
 
   /**
    * HEIF-family stills (iPhone's default photo format) are read by ffmpeg's
@@ -370,18 +422,27 @@ export function createServer(): Express {
   async function render(
     project: VideoProject,
     output?: ExportOutput,
+    /** Called once a render slot is actually held — see `JobRegistry.start`. */
+    onStart?: () => void,
   ): Promise<string> {
     await mkdirAsync(outDir, { recursive: true });
     const name = `v_${++counter}_${Date.now()}.mp4`;
+    const path = join(outDir, name);
     const safe = await normalizeProjectStills(project);
-    await withRenderSlot(() =>
-      renderProject(safe, {
-        outputPath: join(outDir, name),
-        resolveSrc,
-        output,
-      }),
-    );
-    return `/files/${name}`;
+    await withRenderSlot(() => {
+      onStart?.();
+      return renderProject(safe, { outputPath: path, resolveSrc, output });
+    });
+    /*
+     * ffmpeg can only write a local file, so a render always lands on disk
+     * first; `storage.put` decides whether that IS the artifact (local) or a
+     * staging copy on its way to a bucket (s3). Either way the local file is
+     * then subject to the output budget, which is why eviction runs here and
+     * not only on upload.
+     */
+    const url = await storage.put(path, "video/mp4");
+    void evictOutputs();
+    return url;
   }
 
   // ---- generation + credit metering ----
@@ -492,8 +553,27 @@ export function createServer(): Express {
     return makeAccountId(LICENSE_KEY, user.endUserId);
   }
 
+  /*
+   * Health, with the numbers you actually need during an incident.
+   *
+   * `ok` stays true while the queue is merely busy — a load balancer pulling
+   * the one box that is doing work is precisely wrong. What it reports instead
+   * is depth, so saturation is visible before it turns into 503s.
+   */
   app.get("/health", (_req: Request, res: Response) => {
-    res.json({ ok: true, service: "orbit-render" });
+    res.json({
+      ok: true,
+      service: "orbit-render",
+      storage: storage.kind,
+      renders: {
+        running,
+        queued: waiting.length,
+        capacity: MAX_CONCURRENT_RENDERS,
+        queueLimit: MAX_QUEUED_RENDERS,
+      },
+      jobs: jobs.size,
+      uptimeSec: Math.round(process.uptime()),
+    });
   });
 
   app.post(
@@ -526,7 +606,7 @@ export function createServer(): Express {
     rateLimit(RENDER_RATE_LIMIT, RATE_WINDOW_MS),
     async (req: Request, res: Response) => {
       const body = req.body as
-        | { project?: VideoProject; output?: ExportOutput }
+        | { project?: VideoProject; output?: ExportOutput; async?: boolean }
         | undefined;
       const project = body?.project;
       if (
@@ -575,12 +655,30 @@ export function createServer(): Express {
         }
       }
 
-      try {
-        const url = await render(project, body?.output);
-        // Charged only once the file exists. A failed encode the user never
-        // received is not a render, and billing for it is indefensible.
+      // Charged only once the file exists. A failed encode the user never
+      // received is not a render, and billing for it is indefensible.
+      const settle = async (url: string) => {
         if (account)
           await ledger.debit(account, RENDER_COST, "render").catch(() => undefined);
+        return url;
+      };
+
+      /*
+       * Opt-in, so both shipped clients keep the synchronous reply they expect.
+       * `{ async: true }` returns an id straight away and the encode runs on:
+       * nothing is holding a connection open for a minute of 1080p, which is
+       * what every proxy in front of this eventually kills.
+       */
+      if (body?.async === true) {
+        const job = jobs.start((markRunning) =>
+          render(project, body?.output, markRunning).then(settle),
+        );
+        res.status(202).json({ id: job.id, status: job.status });
+        return;
+      }
+
+      try {
+        const url = await settle(await render(project, body?.output));
         res.json({ url });
       } catch (err) {
         if (err instanceof QueueFullError) {
@@ -601,6 +699,28 @@ export function createServer(): Express {
       }
     },
   );
+
+  /*
+   * Poll a job started with `{ async: true }`.
+   *
+   * 404 covers both "never existed" and "finished long enough ago to be swept"
+   * — the client cannot act differently on the two, and pretending to know
+   * which would mean keeping every id forever.
+   */
+  app.get("/v1/render/:id", (req: Request, res: Response) => {
+    const job = jobs.get(req.params.id);
+    if (!job) {
+      res.status(404).json({ error: "no such render job" });
+      return;
+    }
+    res.json({
+      id: job.id,
+      status: job.status,
+      url: job.url,
+      error: job.error,
+      elapsedMs: (job.finishedAt ?? Date.now()) - job.createdAt,
+    });
+  });
 
   app.get("/v1/credits", async (req: Request, res: Response) => {
     const account = await accountOf(req, res);
