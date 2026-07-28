@@ -54,9 +54,10 @@ import {
 import {
   exportProject,
   downloadToPhotos,
+  uploadMedia,
   type ExportProgress,
 } from "../net/renderClient";
-import { getCredits } from "../net/genClient";
+import { getCredits, transcribe } from "../net/genClient";
 import { downloadToMedia, videoThumbnail } from "../storage/media";
 import { Alert, Share } from "react-native";
 
@@ -239,6 +240,12 @@ interface EditorState {
 
   // mutations
   apply: (fn: (p: VideoProject) => VideoProject) => void;
+  /**
+   * Transcribe the selected clip (or the project's first sound) and lay the
+   * result down as captions. Resolves to a human-readable outcome; the sheet
+   * shows it and does not need to know about HTTP.
+   */
+  autoCaption: () => Promise<string>;
   importVisual: (clips: VisualTrackClip[]) => void;
   importOverlay: (clips: VisualTrackClip[]) => void;
   importAudio: (clip: AudioTrackClip) => void;
@@ -829,6 +836,41 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   mainTrackId: () =>
     get().project?.tracks?.find((t) => t.kind === "visual")?.id ?? null,
+
+  autoCaption: async () => {
+    const { project, selected, serverUrl } = get();
+    if (!project) return "Nothing to caption yet.";
+
+    /*
+     * What gets transcribed, in order of what the user most likely means: the
+     * clip they have selected, then the first sound on the timeline, then the
+     * first clip of the main track. Captions follow speech, and speech is
+     * usually in a voiceover — but if they picked a clip, that is the answer.
+     */
+    const visual = project.tracks?.filter((t) => t.kind === "visual") ?? [];
+    const audio = project.tracks?.filter((t) => t.kind === "audio") ?? [];
+    const chosen =
+      (selected &&
+        [...visual, ...audio]
+          .flatMap((t) => t.clips.map((c) => ({ clip: c, track: t })))
+          .find((x) => x.clip.id === selected.clipId)) ||
+      audio.flatMap((t) => t.clips.map((c) => ({ clip: c, track: t })))[0] ||
+      visual.flatMap((t) => t.clips.map((c) => ({ clip: c, track: t })))[0];
+
+    const src = chosen?.clip.src;
+    if (!src) return "Add a clip or a sound first.";
+
+    // The clip is a local file; the service needs a token. This is the same
+    // upload the export path does, so a clip captioned then exported is
+    // uploaded once.
+    const token = await uploadMedia(serverUrl, src);
+    const { lines } = await transcribe(serverUrl, token);
+    if (!lines.length) return "No speech found in that clip.";
+
+    // The transcript is relative to the audio; the overlays are absolute.
+    get().apply((p) => ops.setAutoCaptions(p, lines, chosen.clip.start));
+    return `Added ${lines.length} caption${lines.length === 1 ? "" : "s"}.`;
+  },
 
   apply: (fn) => {
     const { project, projectId, name, posterUri, mediaDurations, past } = get();

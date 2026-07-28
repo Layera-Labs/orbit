@@ -87,6 +87,108 @@ export class ElevenLabsProvider implements MediaProvider {
       },
     };
   }
+
+  /**
+   * Speech → timed segments, for auto-captions.
+   *
+   * ElevenLabs rather than a second vendor: the operator has already given this
+   * service an ElevenLabs key for TTS, so captions cost no new secret, no new
+   * account and no new billing relationship.
+   *
+   * Word timings, not the paragraph. The API returns a word list with start and
+   * end seconds, and grouping those into readable lines is a decision about
+   * captions — how long a line may be, where it may break — that belongs to us,
+   * not to whatever sentence splitting the model happens to do.
+   */
+  async transcribe(req: TranscribeRequest): Promise<TranscriptWord[]> {
+    if (!this.apiKey) throw new Error("ElevenLabsProvider: missing API key");
+    const form = new FormData();
+    form.append("file", new Blob([new Uint8Array(req.audio)]), "audio");
+    form.append("model_id", req.model ?? "scribe_v1");
+    if (req.language) form.append("language_code", req.language);
+
+    const res = await this.fetchImpl(`${this.apiBase}/v1/speech-to-text`, {
+      method: "POST",
+      headers: { "xi-api-key": this.apiKey },
+      body: form,
+      signal: req.signal,
+    });
+    if (!res.ok)
+      throw new ProviderError(
+        `ElevenLabs ${res.status}: ${await safeText(res)}`,
+        res.status,
+      );
+
+    const body = (await res.json()) as {
+      words?: { text?: string; start?: number; end?: number; type?: string }[];
+    };
+    return (body.words ?? [])
+      // The response interleaves spacing entries with the real words; only
+      // `type: "word"` carries meaning, and keeping the rest would put stray
+      // gaps on screen as if they were captions.
+      .filter((w) => (w.type ?? "word") === "word" && (w.text ?? "").trim())
+      .map((w) => ({
+        text: (w.text ?? "").trim(),
+        start: w.start ?? 0,
+        end: w.end ?? w.start ?? 0,
+      }));
+  }
+}
+
+export interface TranscribeRequest {
+  audio: ArrayBuffer;
+  language?: string;
+  model?: string;
+  signal?: AbortSignal;
+}
+
+export interface TranscriptWord {
+  text: string;
+  start: number;
+  end: number;
+}
+
+/**
+ * Group words into caption lines.
+ *
+ * Pure, and separate from the provider, because this is the part with taste in
+ * it: a caption that runs too long is unreadable at a glance and one that
+ * breaks every three words flickers. A line ends when it would get too long,
+ * when it has been up too long, or when the speaker pauses — the pause being
+ * the one that makes captions track speech rather than chop it evenly.
+ */
+export function groupWords(
+  words: TranscriptWord[],
+  opts: { maxChars?: number; maxSeconds?: number; gapSeconds?: number } = {},
+): { text: string; start: number; end: number }[] {
+  const maxChars = opts.maxChars ?? 42;
+  const maxSeconds = opts.maxSeconds ?? 3.5;
+  const gapSeconds = opts.gapSeconds ?? 0.6;
+
+  const lines: { text: string; start: number; end: number }[] = [];
+  let cur: TranscriptWord[] = [];
+
+  const flush = () => {
+    if (!cur.length) return;
+    lines.push({
+      text: cur.map((w) => w.text).join(" "),
+      start: cur[0].start,
+      end: cur[cur.length - 1].end,
+    });
+    cur = [];
+  };
+
+  for (const w of words) {
+    if (cur.length) {
+      const chars = cur.reduce((n, x) => n + x.text.length + 1, 0) + w.text.length;
+      const span = w.end - cur[0].start;
+      const gap = w.start - cur[cur.length - 1].end;
+      if (chars > maxChars || span > maxSeconds || gap > gapSeconds) flush();
+    }
+    cur.push(w);
+  }
+  flush();
+  return lines;
 }
 
 /** Base64-encode bytes without depending on Node's Buffer (keeps `types: []`). */

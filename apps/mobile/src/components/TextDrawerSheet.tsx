@@ -16,6 +16,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { LinearGradient } from "expo-linear-gradient";
 import { font, vela } from "../constants";
+import { clearAutoCaptions, hasAutoCaptions } from "../model/editor-ops";
 import type { TextOverlay } from "../model/types";
 import { useEditor } from "../store/editorStore";
 import { BottomSheet } from "./BottomSheet";
@@ -56,7 +57,7 @@ function useScrollEdges() {
   };
 }
 
-type DrawerTab = "default" | "recent" | "templates";
+type DrawerTab = "default" | "recent" | "templates" | "captions";
 type TemplateCategory = "all" | "titles" | "social" | "editorial" | "utility";
 
 type TextStylePatch = Pick<
@@ -96,6 +97,7 @@ const RAIL_TABS: Array<{
     icon: "templates",
     color: "#a44cf2",
   },
+  { key: "captions", label: "Captions", icon: "subtitle", color: "#0f8f7a" },
 ];
 
 const CATEGORIES: Array<{ key: TemplateCategory; label: string }> = [
@@ -709,6 +711,8 @@ export function TextDrawerSheet() {
                 )}
               </ScrollView>
             </View>
+          ) : tab === "captions" ? (
+            <CaptionsPanel />
           ) : (
             <View style={styles.panelFill}>
               <PanelHeading
@@ -911,6 +915,87 @@ function RecentPreviewCard({
   );
 }
 
+/**
+ * Auto captions.
+ *
+ * One action, and the truth about what it will do before it does it. It
+ * transcribes the selected clip — or the first sound if nothing is selected —
+ * and REPLACES any previous run, which is stated up front because "Add
+ * captions" pressed twice would otherwise silently double them.
+ *
+ * There is no progress bar: the service reports none, and inventing one would
+ * be a lie. What it shows instead is which clip it is about to use, and then
+ * plainly what happened.
+ */
+function CaptionsPanel() {
+  const project = useEditor((state) => state.project);
+  const autoCaption = useEditor((state) => state.autoCaption);
+  const apply = useEditor((state) => state.apply);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+
+  const existing = project ? hasAutoCaptions(project) : false;
+
+  const run = async () => {
+    setBusy(true);
+    setNote(null);
+    try {
+      setNote(await autoCaption());
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Could not add captions.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View style={styles.panelFill}>
+      <PanelHeading
+        title="Captions"
+        detail={existing ? "Replaces the current set" : "From the spoken audio"}
+      />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.defaultList}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: busy }}
+          disabled={busy}
+          onPress={() => void run()}
+          style={[styles.captionAction, busy && styles.captionActionBusy]}
+        >
+          <VIcon name="subtitle" size={22} color="#0f8f7a" />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.captionActionName}>
+              {busy ? "Listening…" : existing ? "Redo captions" : "Add captions"}
+            </Text>
+            <Text style={styles.captionActionSub}>
+              Uses the selected clip, or the first sound on the timeline.
+            </Text>
+          </View>
+        </Pressable>
+
+        {existing ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              apply((p) => clearAutoCaptions(p));
+              setNote("Captions removed.");
+            }}
+            style={styles.captionClear}
+          >
+            <VIcon name="trash" size={18} color={vela.lightMuted} />
+            <Text style={styles.captionClearText}>Remove captions</Text>
+          </Pressable>
+        ) : null}
+
+        {note ? <Text style={styles.captionNote}>{note}</Text> : null}
+      </ScrollView>
+    </View>
+  );
+}
+
 function PanelHeading({ title, detail }: { title: string; detail: string }) {
   return (
     <View style={styles.panelHeading}>
@@ -992,6 +1077,49 @@ function EmptyRecent() {
 }
 
 const styles = StyleSheet.create({
+  captionAction: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: "#e9f8f4",
+  },
+  captionActionBusy: { opacity: 0.6 },
+  captionActionName: {
+    fontFamily: font.semibold,
+    fontSize: 15,
+    color: vela.ink,
+  },
+  captionActionSub: {
+    marginTop: 2,
+    fontFamily: font.regular,
+    fontSize: 12,
+    color: vela.lightMuted,
+    lineHeight: 16,
+  },
+  captionClear: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    backgroundColor: vela.lightCard,
+  },
+  captionClearText: {
+    fontFamily: font.medium,
+    fontSize: 13.5,
+    color: vela.lightMuted,
+  },
+  captionNote: {
+    marginTop: 12,
+    fontFamily: font.regular,
+    fontSize: 13,
+    lineHeight: 18,
+    color: vela.lightMuted,
+  },
   sheet: {
     height: "72%",
     backgroundColor: vela.lightCard,

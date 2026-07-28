@@ -235,6 +235,72 @@ export async function generateTts(
   return { url: data.url, balance: data.balance ?? 0 };
 }
 
+export interface CaptionLine {
+  text: string;
+  start: number;
+  end: number;
+}
+
+/**
+ * Transcribe an already-uploaded clip into caption lines.
+ *
+ * Takes the `upload:` token the export path produces, so captioning a clip you
+ * have already uploaded costs no second upload of the same file. The grouping
+ * into lines happens server-side, so every client gets the same captions from
+ * the same audio.
+ */
+export async function transcribe(
+  base: string,
+  src: string,
+  language?: string,
+  signal?: AbortSignal,
+): Promise<{ lines: CaptionLine[]; balance: number }> {
+  const account = await getAccount();
+  let res: Response;
+  try {
+    res = await fetch(`${clean(base)}/v1/transcribe`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "X-Orbit-Account": account,
+        ...authHeader(),
+      },
+      body: JSON.stringify({ src, language }),
+      signal,
+    });
+  } catch (e) {
+    if (isAbort(e)) throw new GenError("cancelled", "Cancelled.");
+    throw new GenError(
+      "no-server",
+      "Could not reach the render server. Check the server URL in settings.",
+    );
+  }
+  const data = (await res.json().catch(() => ({}))) as {
+    lines?: CaptionLine[];
+    balance?: number;
+    error?: string;
+  };
+  if (res.status === 401)
+    throw new GenError("unauthenticated", "Please sign in to use AI.");
+  if (res.status === 402)
+    throw new GenError(
+      "out-of-credits",
+      data.error ?? "Out of credits.",
+      data.balance,
+    );
+  if (res.status === 503)
+    throw new GenError(
+      "not-configured",
+      data.error ?? "Auto captions are not configured on the render server.",
+    );
+  if (!res.ok || !data.lines)
+    throw new GenError(
+      "failed",
+      data.error ?? `Transcription failed (HTTP ${res.status}).`,
+    );
+  return { lines: data.lines, balance: data.balance ?? 0 };
+}
+
 /** Current credit balance for this device's account (null if unreachable). */
 export async function getCredits(
   base: string,

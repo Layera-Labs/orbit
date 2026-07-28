@@ -854,6 +854,63 @@ export function addTitleCard(
   });
 }
 
+/** The layer captions land on, and the prefix that identifies them later. */
+export const CAPTION_ID_PREFIX = "caption-";
+
+/**
+ * Replace the auto-captions with a fresh set.
+ *
+ * REPLACE, not append. Running this twice is the normal thing to do — you
+ * re-record the voiceover, or you fix the trim and want the timings again — and
+ * appending would stack two full transcripts on top of each other with no way
+ * to tell which caption came from which run. Captions carry an id prefix so
+ * they can be found again; a caption you have edited by hand keeps that prefix
+ * and will be replaced too, which is why the sheet says so before it runs.
+ *
+ * `offset` is where the transcribed clip starts on the timeline: the transcript
+ * is relative to the audio, the overlays are absolute.
+ */
+export function setAutoCaptions(
+  p: VideoProject,
+  lines: { text: string; start: number; end: number }[],
+  offset = 0,
+): VideoProject {
+  const kept = p.overlays.filter((o) => !o.id.startsWith(CAPTION_ID_PREFIX));
+  const layer = kept.reduce((n, o) => Math.max(n, o.layer ?? 0), 0) + 1;
+  const captions: TextOverlay[] = lines.map((line, i) => ({
+    id: `${CAPTION_ID_PREFIX}${i}`,
+    type: "text",
+    text: line.text,
+    start: Math.max(0, line.start + offset),
+    end: Math.max(0, line.end + offset),
+    x: 0.5,
+    // Low in the frame, where captions belong — clear of the safe area a phone
+    // UI puts over the bottom edge.
+    y: 0.82,
+    fontSize: Math.round(p.height * 0.038),
+    color: "#ffffff",
+    align: "center",
+    bold: true,
+    // Captions sit over footage of unknown brightness, so they carry their own
+    // legibility rather than hoping the picture behind them is dark.
+    stroke: { color: "#000000", width: Math.max(2, Math.round(p.height * 0.004)) },
+    layer,
+  }));
+  return { ...p, overlays: [...kept, ...captions] };
+}
+
+/** Are there auto-captions to replace or clear? */
+export function hasAutoCaptions(p: VideoProject): boolean {
+  return p.overlays.some((o) => o.id.startsWith(CAPTION_ID_PREFIX));
+}
+
+export function clearAutoCaptions(p: VideoProject): VideoProject {
+  return {
+    ...p,
+    overlays: p.overlays.filter((o) => !o.id.startsWith(CAPTION_ID_PREFIX)),
+  };
+}
+
 /** Remove the title card and pull the timeline back by exactly its length. */
 export function removeTitleCard(p: VideoProject): VideoProject {
   const card = titleCardOf(p);
