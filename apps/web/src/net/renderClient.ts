@@ -90,6 +90,30 @@ export interface ExportOptions {
   onProgress?: (p: ExportProgress) => void;
 }
 
+/**
+ * Poll a render job until it settles.
+ *
+ * Backs off from 500ms to 4s: a short clip is ready almost at once, and a long
+ * one should not be asked about eighty times a minute. There is no deadline —
+ * the service's own queue bound is what stops work piling up, and a client-side
+ * timeout would only abandon a render that is still going to finish.
+ */
+async function awaitJob(id: string, signal?: AbortSignal): Promise<string> {
+  let wait = 500;
+  for (;;) {
+    if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
+    await new Promise((r) => setTimeout(r, wait));
+    wait = Math.min(wait * 1.5, 4000);
+
+    const res = await fetch(`${BASE}/v1/render/${id}`, { signal });
+    if (res.status === 404)
+      throw new ExportError('the render job expired before it was collected', 'failed');
+    const job = (await res.json()) as { status: string; url?: string; error?: string };
+    if (job.status === 'error') throw new ExportError(job.error ?? 'render failed', 'failed');
+    if (job.status === 'done' && job.url) return job.url;
+  }
+}
+
 /** Render a project and return a blob URL for the finished MP4. */
 export async function exportProject(
   project: VideoProject,
@@ -104,7 +128,14 @@ export async function exportProject(
     res = await fetch(`${BASE}/v1/render`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ project: resolved, output: opts.output }),
+      /*
+       * `async`, so the connection is not held for the length of the encode.
+       * A minute of 1080p outlives the idle timeout of essentially every proxy
+       * one of these ends up behind, and when that fires the browser sees a
+       * network error while the server keeps rendering something nobody will
+       * collect. We take an id instead and ask about it.
+       */
+      body: JSON.stringify({ project: resolved, output: opts.output, async: true }),
       signal: opts.signal,
     });
   } catch (err) {
@@ -127,11 +158,16 @@ export async function exportProject(
     );
   }
 
-  const data = (await res.json()) as { url?: string };
-  if (!data.url) throw new ExportError('render returned no url', 'failed');
+  const started = (await res.json()) as { id?: string; url?: string };
+  /* A server from before the job API answers 200 with the url outright, so an
+     older service and a newer client still work. */
+  const url = started.id ? await awaitJob(started.id, opts.signal) : started.url;
+  if (!url) throw new ExportError('render returned no url', 'failed');
 
   onProgress({ stage: 'downloading' });
-  const file = await fetch(`${BASE}${data.url}`, { signal: opts.signal });
+  /* Absolute once output storage is a bucket; still relative on local disk. */
+  const fileUrl = /^https?:\/\//.test(url) ? url : `${BASE}${url}`;
+  const file = await fetch(fileUrl, { signal: opts.signal });
   const blob = await file.blob();
   onProgress({ stage: 'done' });
   return { url: URL.createObjectURL(blob), blob };

@@ -97,11 +97,32 @@ export async function exportProject(
   const res = await fetch(`${cleanBase}/v1/render`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ project: resolved, output }),
+    // Ask for a job rather than holding one connection open for the whole
+    // encode — on a phone that connection also has to survive the radio
+    // dozing, a handover, and every proxy between here and the box.
+    body: JSON.stringify({ project: resolved, output, async: true }),
   });
-  const data = (await res.json()) as { url?: string; error?: string };
-  if (!res.ok || !data.url) throw new Error(data.error ?? `render failed (HTTP ${res.status})`);
-  return `${cleanBase}${data.url}`;
+  const data = (await res.json()) as { id?: string; url?: string; error?: string };
+  if (!res.ok) throw new Error(data.error ?? `render failed (HTTP ${res.status})`);
+  // A server from before the job API answers with the url outright.
+  const url = data.id ? await awaitJob(cleanBase, data.id) : data.url;
+  if (!url) throw new Error('render returned no url');
+  // Absolute once output storage is a bucket; still relative on local disk.
+  return /^https?:\/\//.test(url) ? url : `${cleanBase}${url}`;
+}
+
+/** Poll a render job until it settles, backing off 500ms → 4s. */
+async function awaitJob(base: string, id: string): Promise<string> {
+  let wait = 500;
+  for (;;) {
+    await new Promise((r) => setTimeout(r, wait));
+    wait = Math.min(wait * 1.5, 4000);
+    const res = await fetch(`${base}/v1/render/${id}`);
+    if (res.status === 404) throw new Error('the render job expired before it was collected');
+    const job = (await res.json()) as { status: string; url?: string; error?: string };
+    if (job.status === 'error') throw new Error(job.error ?? 'render failed');
+    if (job.status === 'done' && job.url) return job.url;
+  }
 }
 
 /** Download the rendered MP4 and save it to the device photo library.
