@@ -9,7 +9,8 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./styles.css": "./dist/style.css"
   },
@@ -29,7 +30,6 @@
     "@orbit/render": "workspace:*",
     "framer-motion": "^12.40.0",
     "jspdf": "^2.5.2",
-    "lucide-react": "^1.17.0",
     "valtio": "^2.1.2"
   },
   "peerDependencies": {

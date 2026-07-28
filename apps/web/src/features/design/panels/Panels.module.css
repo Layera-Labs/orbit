@@ -1,0 +1,372 @@
+/* Shared panel interior. Every dock body scrolls; nothing here is absolute. */
+
+.stack {
+  display: grid;
+  gap: var(--w-4);
+  align-content: start;
+}
+
+.group {
+  display: grid;
+  gap: var(--w-2);
+}
+
+.groupTitle {
+  color: var(--w-muted2);
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.note {
+  color: var(--w-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.empty {
+  color: var(--w-muted2);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* ---- media grid ----------------------------------------------------------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--w-2);
+}
+
+.tile {
+  display: grid;
+  gap: 5px;
+  text-align: left;
+}
+
+.tileArt {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: var(--w-r);
+  background: var(--w-s3);
+  display: grid;
+  place-items: center;
+  color: var(--w-muted);
+  box-shadow: inset 0 0 0 1px var(--w-edge);
+  transition: box-shadow 140ms ease;
+}
+
+.tile:hover .tileArt {
+  box-shadow: inset 0 0 0 1px var(--w-edge-strong);
+}
+
+.tileArt img,
+.tileArt video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.tileBadge {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  padding: 1px 5px;
+  border-radius: var(--w-r-sm);
+  background: rgba(16, 15, 14, 0.82);
+  color: var(--w-ink);
+  font-size: 9.5px;
+  letter-spacing: 0.03em;
+}
+
+.tileName {
+  font-size: 11px;
+  color: var(--w-muted);
+  line-height: 1.3;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* ---- preset grids --------------------------------------------------------- */
+
+.presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--w-2);
+}
+
+/* Four options in a three-wide grid leaves one stranded on its own row. Pair
+   them instead so the block reads as a set rather than as a wrap. */
+.presetsPair {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.preset {
+  display: grid;
+  gap: 4px;
+  padding: var(--w-2) 4px;
+  border-radius: var(--w-r);
+  background: var(--w-s2);
+  color: var(--w-muted);
+  font-size: 11px;
+  text-align: center;
+  box-shadow: inset 0 0 0 1px transparent;
+  transition: color 140ms ease, background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.preset:hover {
+  color: var(--w-ink);
+  background: var(--w-s3);
+}
+
+.preset[data-on='true'] {
+  color: var(--w-ink);
+  background: var(--w-s3);
+  box-shadow: inset 0 0 0 1px var(--w-edge-strong);
+}
+
+.presetSwatch {
+  height: 34px;
+  border-radius: var(--w-r-sm);
+  background: var(--w-s3);
+}
+
+/* ---- fields --------------------------------------------------------------- */
+
+.field {
+  display: grid;
+  gap: 5px;
+}
+
+.fieldRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--w-2);
+}
+
+.fieldLabel {
+  color: var(--w-muted);
+  font-size: 12px;
+}
+
+.fieldValue {
+  color: var(--w-ink);
+  font-size: 11px;
+}
+
+/*
+ * Chalk, not clay.
+ *
+ * `accent-color` fills the whole travelled track, so `--w-live` here would put a
+ * saturated bar across every control in the inspector — both the "saturated
+ * accent" tell and a breach of the rule that clay means something is genuinely
+ * live (the playhead, a selection, a running job). A value is not a state.
+ */
+.range {
+  width: 100%;
+  accent-color: var(--w-ink);
+}
+
+.select,
+.input {
+  width: 100%;
+  padding: 6px var(--w-2);
+  border-radius: var(--w-r-sm);
+  background: var(--w-base);
+  border: 1px solid var(--w-edge);
+  color: var(--w-ink);
+  font: inherit;
+  font-size: 12.5px;
+  transition: border-color 140ms ease;
+}
+
+.select:focus,
+.input:focus {
+  outline: none;
+  border-color: var(--w-edge-strong);
+}
+
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--w-2);
+}
+
+.action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px var(--w-3);
+  border-radius: var(--w-r);
+  background: var(--w-s3);
+  color: var(--w-ink);
+  font-size: 12.5px;
+  transition: background-color 140ms ease;
+}
+
+.action:hover:not(:disabled) {
+  background: #37332f;
+}
+
+.action:disabled {
+  color: var(--w-muted2);
+  cursor: default;
+}
+
+.danger:hover:not(:disabled) {
+  background: #3a2422;
+  color: #e8a196;
+}
+
+/* ---- generate ------------------------------------------------------------- */
+
+.modes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--w-r);
+  background: var(--w-base);
+}
+
+.mode {
+  padding: 6px 4px;
+  border-radius: var(--w-r-sm);
+  color: var(--w-muted);
+  font-size: 12px;
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.mode:hover {
+  color: var(--w-ink);
+}
+
+.mode[data-on='true'] {
+  background: var(--w-s3);
+  color: var(--w-ink);
+  font-weight: 600;
+}
+
+.prompt {
+  width: 100%;
+  min-height: 92px;
+  padding: var(--w-2);
+  border-radius: var(--w-r);
+  background: var(--w-base);
+  border: 1px solid var(--w-edge);
+  color: var(--w-ink);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.5;
+  resize: vertical;
+  transition: border-color 140ms ease;
+}
+
+.prompt:focus {
+  outline: none;
+  border-color: var(--w-edge-strong);
+}
+
+.go {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--w-2);
+  width: 100%;
+  padding: 8px var(--w-3);
+  border-radius: var(--w-r);
+  background: var(--w-ink);
+  color: var(--w-base);
+  font-size: 13px;
+  transition: background-color 140ms ease;
+}
+
+.go:hover:not(:disabled) {
+  background: #fffdf9;
+}
+
+.go:disabled {
+  background: var(--w-s3);
+  color: var(--w-muted2);
+  cursor: default;
+}
+
+.cost {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.balance {
+  color: var(--w-muted);
+  font-size: 11px;
+}
+
+.notice {
+  padding: var(--w-2) var(--w-3);
+  border-radius: var(--w-r);
+  background: var(--w-s2);
+  box-shadow: inset 0 0 0 1px var(--w-edge-strong);
+  color: var(--w-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.job {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: var(--w-3);
+  align-items: center;
+  padding: var(--w-2);
+  border-radius: var(--w-r);
+  background: var(--w-s2);
+}
+
+.jobBody {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.jobPrompt {
+  font-size: 12px;
+  color: var(--w-ink);
+  line-height: 1.35;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.jobMeta {
+  color: var(--w-muted);
+  font-size: 10.5px;
+}
+
+.jobError {
+  color: var(--w-danger);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.jobCancel {
+  justify-self: start;
+  padding: 3px 7px;
+  border-radius: var(--w-r-sm);
+  background: var(--w-s3);
+  color: var(--w-muted);
+  font-size: 11px;
+  transition: color 140ms ease;
+}
+
+.jobCancel:hover {
+  color: var(--w-ink);
+}

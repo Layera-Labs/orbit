@@ -23,6 +23,7 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
 |---|---|
 | `apps/mobile` | **The video editor app.** Expo SDK 55 / RN 0.83 / React 19 / Skia dev build. |
 | `apps/render-service` | Express service: `/v1/upload`, `/v1/render`, AI gen endpoints, auth, billing. |
+| `apps/web` | **The web product.** Next 14 / React 18. Image editor + AI studio + video editor. |
 | `apps/studio`, `apps/demo`, `apps/demo-next`, `apps/webview-host` | Web demos for the SDK. |
 | `packages/video` | **Canonical video engine** — ffmpeg arg builder + `renderProject`, effect math. |
 | `packages/video-gen`, `packages/video-ai` | AI providers (ElevenLabs TTS, image/video gen). |
@@ -134,6 +135,78 @@ Editor panels are in `EditorSheets.tsx` plus dedicated sheets (`MosaicSheet`,
   here (SCContentFilter) and sim taps don't register. To reach a specific screen/sheet, drive
   `useEditor.getState()` from a `// TEMP-VERIFY` mount effect in `App.tsx`, relaunch
   (`simctl terminate` + `launch`), then **`grep -rn TEMP-VERIFY` and revert before committing**.
+
+## The web app (`apps/web`)
+
+Next 14 App Router. **One editor** over the v2 SDK plus a browser video engine.
+
+- **`/design/[id]` is the only editor.** `/image/[id]` and `/video/[id]` are `redirect()`
+  stubs so old links still open. The shell is a four-column CSS grid — rail · panel ·
+  canvas · inspector — with a full-width strip beneath. **Every cell names its own
+  `grid-column`**: the panel is conditionally rendered, and with auto-placement its absence
+  slides the canvas into the panel's `auto` track and the inspector into the canvas's `1fr`,
+  leaving a dead gulf on the right.
+- **Two document kinds, one shell.** `OrbitDocument` and `VideoProject` stay separate —
+  merging them would mean rewriting the ffmpeg arg builder and re-proving dual-render.
+  `DesignClient` branches into `StillDesign` / `MotionDesign` because each owns a different
+  set of hooks; one component with conditionals would call hooks conditionally.
+- **The still surface does NOT mount `<OrbitEditor>`.** It renders `Workspace` plus the
+  SDK's section `Panel`s inside its own chrome, wrapped in
+  `<div className="orbit orbitEmbedded">` — `.orbit` scopes the ~30 `--o-*` variables AND
+  the `.o-*` class rules both the panels and the Konva selection chrome depend on, and
+  `orbitEmbedded` undoes its `position: absolute` so the grid survives.
+- **The timeline is a single sticky-scrolled grid.** Visual tracks render in REVERSE array
+  order (array order is z-order, so the last track belongs at the top on screen); caption
+  lanes sit above everything because overlays composite last. `useClipDrag` handles move,
+  trim and cross-lane in one gesture and commits **once on pointerup** — per-pointermove
+  would push sixty history entries per drag.
+- **`removeClip` and `applyToClip` deliberately do not re-pack the track.** Packing lays a
+  track end-to-end from zero, which destroys every deliberate gap once clips can be dragged.
+  Closing a hole is a separate, explicitly-chosen edit: `rippleDeleteClip`, and it ripples
+  ONLY the clip's own track so captions and music stay where they were put.
+- **Local-effect geometry is shared, not reimplemented.** `regionBoxPx`, `mosaicStepPx`,
+  `mosaicBlurSigma`, `magnifierCropPx` and `ROUNDED_R` live in `packages/video/src/layout.ts`
+  and are called by BOTH `ffmpeg.ts` and `compose.ts`, so a mosaic or lens lands on the same
+  pixels in preview and export. `scratch()` in `compose.ts` is namespaced for the same
+  reason a mosaic must not be handed the canvas it is reading from.
+- Stickers are image clips on an overlay track with a normalized `rect`, so they are
+  dual-rendered for free. House marks are authored as SVG and **rasterized to PNG before
+  storage** — ffmpeg cannot read SVG.
+- Transitions offer **only Cut and Fade**: `buildMultiTrackArgs` applies them to the first
+  visual track only and collapses every other type to a fade, and `frameStateAt` reproduces
+  that collapse so the preview is never better than the export.
+
+- **Versions are pinned exactly** — `next 14.2.35` / `react 18.3.1`. Every v2 package peers
+  React 18 and `react-konva@18.2.x` is the React-18 line; two React copies is a hard crash
+  in Konva's reconciler. Do not bump without migrating `packages/{editor,render}` and
+  `react-konva` together.
+- **Never alias `react`/`react-dom` in `next.config.mjs`.** Next resolves them through export
+  conditions (the server needs the `react-server` build with `React.cache`); an alias bypasses
+  the exports map and hydration dies leaving an EMPTY DOCUMENT. Only konva/react-konva/valtio
+  are deduped, client-bundle only. `canvas: false` stubs Konva's native Node build.
+- **`next dev` and `next build` use different output dirs** (`NEXT_DIST_DIR=.next-dev`).
+  Sharing one made `pnpm build` corrupt a running dev server into blank pages.
+- **Browser video engine** (`src/video/engine/`): canvas 2D, one rAF loop on a project clock,
+  `<video>` elements as decoders, WebAudio for sound. It **computes nothing** — `frameStateAt`
+  in `@orbit/video` returns a `DrawOp[]` and the compositor executes it. Each clip is drawn
+  into a **scratch canvas** first, because `ctx.filter` and `globalCompositeOperation` apply to
+  the whole canvas, not the clip rect. Grades use an SVG `feColorMatrix`, not CSS
+  `brightness()`, because ffmpeg's `eq=brightness` ADDS and CSS multiplies.
+- **Dual-render is enforced by tests, not comments**:
+  `packages/video/src/__tests__/dual-render.test.ts` parses the real filtergraph out of
+  `buildFFmpegArgs` and asserts it agrees with `frameStateAt`; `browser-safety.test.ts` walks
+  the `browser.ts` import graph for `node:`/`@resvg`. Both were mutation-tested.
+- **Media**: projects store `orbit-media:<id>` (IndexedDB blob), swapped to `upload:<token>`
+  at export. Tokens are NOT durable (the service evicts oldest-first), so a failed render
+  clears them and re-uploads.
+- **`/api/orbit/*` proxies only the credit-metered endpoints** so the account id lives in an
+  httpOnly cookie. Upload and render go direct — they are too long/large for a function.
+- Design system "The Instrument" — see `src/styles/tokens.css` and `src/brand/Plate.tsx`.
+  Warm graphite, one clay accent for LIVE state only, Gambarino (Fontshare) + system-ui.
+  Deliberately NOT mobile's Vela.
+
+`packages/video` now has subpath exports: `@orbit/video/browser` (pure, browser-safe) and
+`@orbit/video` (adds ffmpeg/resvg/fs). Never import the default entry from a web bundle.
 
 ## Web SDK commands
 

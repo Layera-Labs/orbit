@@ -1,0 +1,130 @@
+.shell {
+  display: flex;
+  min-height: 100dvh;
+}
+
+/* The rail is a decision, not a row of links: fixed, narrow, carrying the Plate
+   at its head and marks — not labels — beneath. */
+.rail {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--w-rail);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--w-1);
+  padding: var(--w-4) 0 var(--w-4);
+  background: var(--w-s1);
+  border-right: 1px solid var(--w-edge);
+  z-index: 40;
+}
+
+.mark {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  margin-bottom: var(--w-5);
+  color: var(--w-ink);
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--w-1);
+  flex: 1;
+}
+
+.item {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: var(--w-r);
+  color: var(--w-muted2);
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.item:hover {
+  color: var(--w-muted);
+  background: var(--w-s2);
+}
+
+/*
+ * Active state is a VALUE shift and a raised surface — nothing is added beside
+ * or beneath the mark.
+ *
+ * This used to draw a short clay graduation on the rail edge. Two reasons it is
+ * gone: `--w-live` is reserved for things that are genuinely live (the playhead,
+ * a selection, a running job) and "you are here" is not one of them; and a lone
+ * coloured rule tacked next to an item is decoration standing in for a real
+ * state, the same reflex as a dot underneath.
+ */
+.item[data-active='true'] {
+  color: var(--w-ink);
+  background: var(--w-s3);
+}
+
+.label {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 5px 9px;
+  border-radius: var(--w-r-sm);
+  background: var(--w-s3);
+  border: 1px solid var(--w-edge);
+  color: var(--w-ink);
+  font-size: 12px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+
+.item:hover .label,
+.item:focus-visible .label {
+  opacity: 1;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  margin-left: var(--w-rail);
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+@media (max-width: 720px) {
+  .rail {
+    inset: auto 0 0 0;
+    width: auto;
+    height: 60px;
+    flex-direction: row;
+    justify-content: center;
+    gap: var(--w-2);
+    padding: 0 var(--w-3);
+    border-right: 0;
+    border-top: 1px solid var(--w-edge);
+  }
+
+  .mark {
+    margin: 0 var(--w-3) 0 0;
+  }
+
+  .items {
+    flex: 0 1 auto;
+    flex-direction: row;
+  }
+
+  .label {
+    display: none;
+  }
+
+  .main {
+    margin: 0 0 60px 0;
+  }
+}

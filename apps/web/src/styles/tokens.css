@@ -1,0 +1,72 @@
+/**
+ * Orbit Web design tokens — "The Instrument".
+ *
+ * One warm world. Hierarchy comes from TONE, not hue: the palette is a value
+ * ladder in warm graphite, and the only chromatic token is `--w-live`, reserved
+ * for things that are genuinely live (the playhead, a selection, a job that is
+ * running). It is never a button fill.
+ *
+ * Deliberately not the mobile app's "Vela" (indigo over neutral near-black) —
+ * this is a separate identity for the web studio.
+ */
+:root {
+  /* Surfaces — warm, red/yellow-leaning near-black. Not blue-charcoal. */
+  --w-base: #100f0e;
+  --w-s1: #191817;
+  --w-s2: #211f1d;
+  --w-s3: #2a2724;
+
+  /* Ink — warm off-white. Pure #fff never appears. */
+  --w-ink: #f4f1ec;
+  --w-muted: #9a938a;
+  --w-muted2: #6f6961;
+  --w-muted3: #4a4640;
+
+  /* Edges are the surface's own colour at low alpha, so they read as a lip
+     catching light rather than a drawn hairline. */
+  --w-edge: rgba(244, 241, 236, 0.09);
+  --w-edge-strong: rgba(244, 241, 236, 0.16);
+
+  /* The one chromatic token. Desaturated clay — live state only. */
+  --w-live: #c4553d;
+  --w-live-dim: rgba(196, 85, 61, 0.22);
+
+  --w-danger: #b8463a;
+  --w-ok: #6f8f63;
+
+  /* Type. Gambarino (Fontshare, FFL) is the signature display face; system-ui
+     is a genuinely neutral body, not a trend pick; data uses the SYSTEM mono —
+     no Google mono anywhere, and never as the house voice. */
+  --w-display: 'Gambarino', Georgia, serif;
+  --w-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --w-data: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+
+  /* Spacing — a 4px base. */
+  --w-1: 4px;
+  --w-2: 8px;
+  --w-3: 12px;
+  --w-4: 16px;
+  --w-5: 24px;
+  --w-6: 32px;
+  --w-7: 48px;
+  --w-8: 72px;
+
+  --w-r-sm: 3px;
+  --w-r: 6px;
+  --w-r-lg: 10px;
+
+  --w-rail: 76px;
+  --w-header: 52px;
+
+  /* Editor docks. Panel and inspector collapse to 0 by swapping these on the
+     grid container, so a collapsed dock genuinely returns its space to the
+     canvas rather than sliding a sheet over it. */
+  --w-panel: 312px;
+  --w-inspector: 292px;
+  --w-track-gutter: 132px;
+  --w-timeline: 232px;
+
+  /* Track lanes. A clip is a surface, not an outlined box. */
+  --w-lane: 52px;
+  --w-lane-audio: 40px;
+}

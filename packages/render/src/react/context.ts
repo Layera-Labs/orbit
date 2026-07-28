@@ -24,6 +24,39 @@ export class NodeRegistry {
   }
 }
 
+/**
+ * Colours for the editing chrome Konva paints onto the canvas.
+ *
+ * Konva draws to a bitmap and cannot read CSS custom properties, so selection
+ * handles, the marquee and the text-edit outline used to be hardcoded hex. In a
+ * re-skinned host that left Orbit-green furniture sitting inside someone else's
+ * palette — the one part of the editor a theme could not reach. `Workspace`
+ * resolves these from the `--o-*` variables in scope and republishes them here.
+ */
+export interface WorkspaceChrome {
+  /** Selection border. */
+  accent: string;
+  /** Transformer anchor stroke. */
+  accentStrong: string;
+  /** Anchor fill, and the inline text-edit caret surface. */
+  onAccent: string;
+  /** Marquee stroke and its translucent fill. */
+  marquee: string;
+  marqueeFill: string;
+  /** Placeholder block for media with no renderer yet. */
+  mediaPlaceholder: string;
+}
+
+/** The values used before this was themeable; also the fallback. */
+export const DEFAULT_CHROME: WorkspaceChrome = {
+  accent: '#34d399',
+  accentStrong: '#10b981',
+  onAccent: '#ffffff',
+  marquee: '#10b981',
+  marqueeFill: 'rgba(16,185,129,0.14)',
+  mediaPlaceholder: '#1f2937',
+};
+
 export interface WorkspaceContextValue {
   store: OrbitStore;
   registry: NodeRegistry;
@@ -31,6 +64,8 @@ export interface WorkspaceContextValue {
   setGuides: (guides: Guide[]) => void;
   /** Enter inline text-edit mode for a text element. */
   beginTextEdit: (id: ID) => void;
+  /** Canvas-painted chrome, resolved from CSS variables. */
+  chrome: WorkspaceChrome;
 }
 
 export const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);

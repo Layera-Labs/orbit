@@ -182,9 +182,6 @@ importers:
       konva:
         specifier: ^9.3.16
         version: 9.3.22
-      lucide-react:
-        specifier: ^1.17.0
-        version: 1.17.0(react@18.3.1)
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -214,6 +211,67 @@ importers:
         specifier: ^5.2.0
         version: 5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0)
 
+  apps/web:
+    dependencies:
+      '@orbit/editor':
+        specifier: workspace:*
+        version: link:../../packages/editor
+      '@orbit/model':
+        specifier: workspace:*
+        version: link:../../packages/model
+      '@orbit/providers':
+        specifier: workspace:*
+        version: link:../../packages/providers
+      '@orbit/render':
+        specifier: workspace:*
+        version: link:../../packages/render
+      '@orbit/video':
+        specifier: workspace:*
+        version: link:../../packages/video
+      framer-motion:
+        specifier: ^12.40.0
+        version: 12.40.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      idb:
+        specifier: ^8.0.0
+        version: 8.0.3
+      jspdf:
+        specifier: ^2.5.2
+        version: 2.5.2
+      konva:
+        specifier: ^9.3.16
+        version: 9.3.22
+      next:
+        specifier: 14.2.35
+        version: 14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react:
+        specifier: 18.3.1
+        version: 18.3.1
+      react-dom:
+        specifier: 18.3.1
+        version: 18.3.1(react@18.3.1)
+      react-konva:
+        specifier: ^18.2.10
+        version: 18.2.16(@types/react@18.3.28)(konva@9.3.22)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      valtio:
+        specifier: ^2.1.2
+        version: 2.3.2(@types/react@18.3.28)(react@18.3.1)
+      zustand:
+        specifier: ^5.0.0
+        version: 5.0.14(@types/react@18.3.28)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
+    devDependencies:
+      '@types/node':
+        specifier: ^20.12.0
+        version: 20.19.39
+      '@types/react':
+        specifier: ^18.2.0
+        version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.2.0
+        version: 18.3.7(@types/react@18.3.28)
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+
   apps/webview-host:
     dependencies:
       '@orbit/editor':
@@ -240,9 +298,6 @@ importers:
       konva:
         specifier: ^9.3.16
         version: 9.3.22
-      lucide-react:
-        specifier: ^1.17.0
-        version: 1.17.0(react@18.3.1)
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -383,9 +438,6 @@ importers:
       jspdf:
         specifier: ^2.5.2
         version: 2.5.2
-      lucide-react:
-        specifier: ^1.17.0
-        version: 1.17.0(react@18.3.1)
       valtio:
         specifier: ^2.1.2
         version: 2.3.2(@types/react@18.3.28)(react@18.3.1)
@@ -2835,6 +2887,9 @@ packages:
     resolution: {integrity: sha512-4fCk79wshMdzMp2rH06qWrJE4iolqLhCUH+OiuIgU++RB0+94NlDL81atO7GX55uUKueo0txHNtvEyI6D7WdMw==}
     engines: {node: '>=0.10.0'}
 
+  idb@8.0.3:
+    resolution: {integrity: sha512-LtwtVyVYO5BqRvcsKuB2iUMnHwPVByPCXFXOpuU96IZPPoPN6xjOGxZQ74pgSVVLQWtUOYgyeL4GE98BY5D3wg==}
+
   image-size@1.2.1:
     resolution: {integrity: sha512-rH+46sQJ2dlwfjfhCyNx5thzrv+dtmBIhPHk0zgRUukHzZ/kRueTJXoYYsclBaKcSMBWuGbOFXtioLpzTb5euw==}
     engines: {node: '>=16.x'}
@@ -3148,11 +3203,6 @@ packages:
   lru-cache@6.0.0:
     resolution: {integrity: sha512-Jo6dJ04CmSjuznwJSS3pUeWmd/H0ffTlkXXgwZi+eq1UCmqQwCh+eLsYOYCwY991i2Fah4h1BEMCx4qThGbsiA==}
     engines: {node: '>=10'}
-
-  lucide-react@1.17.0:
-    resolution: {integrity: sha512-9FA9evdox/JQL5PT57fdA1x/yg8T7knJ98+zjTL3UfKza6pflQUUh3XtaQIHKvnsJw1lmsEyHVlt5jchYxOQ5w==}
-    peerDependencies:
-      react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
@@ -4615,6 +4665,24 @@ packages:
       immer:
         optional: true
       react:
+        optional: true
+
+  zustand@5.0.14:
+    resolution: {integrity: sha512-/8tAspM5LMPr28b3fwLYrtdj77ECpfZviaP75CMTnwO8ISyaE4GDIG/9rDDYq/cH9D2Xw2A2RXglLInmVBQB/g==}
+    engines: {node: '>=12.20.0'}
+    peerDependencies:
+      '@types/react': '>=18.0.0'
+      immer: '>=9.0.6'
+      react: '>=18.0.0'
+      use-sync-external-store: '>=1.2.0'
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
+      immer:
+        optional: true
+      react:
+        optional: true
+      use-sync-external-store:
         optional: true
 
   zwitch@2.0.4:
@@ -6848,6 +6916,8 @@ snapshots:
       safer-buffer: 2.1.2
     optional: true
 
+  idb@8.0.3: {}
+
   image-size@1.2.1:
     dependencies:
       queue: 6.0.2
@@ -7181,10 +7251,6 @@ snapshots:
   lru-cache@6.0.0:
     dependencies:
       yallist: 4.0.0
-
-  lucide-react@1.17.0(react@18.3.1):
-    dependencies:
-      react: 18.3.1
 
   magic-string@0.30.21:
     dependencies:
@@ -8831,5 +8897,11 @@ snapshots:
     optionalDependencies:
       '@types/react': 18.3.28
       react: 18.3.1
+
+  zustand@5.0.14(@types/react@18.3.28)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1)):
+    optionalDependencies:
+      '@types/react': 18.3.28
+      react: 18.3.1
+      use-sync-external-store: 1.6.0(react@18.3.1)
 
   zwitch@2.0.4: {}

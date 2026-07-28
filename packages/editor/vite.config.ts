@@ -21,7 +21,6 @@ export default defineConfig({
         'react-konva',
         'valtio',
         'valtio/vanilla',
-        'lucide-react',
         'framer-motion',
       ],
     },

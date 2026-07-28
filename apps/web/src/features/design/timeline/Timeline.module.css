@@ -1,0 +1,416 @@
+/*
+ * The timeline strip.
+ *
+ * One scroll container holds everything, and the gutter and ruler stay put with
+ * `position: sticky` rather than with a second scroller kept in sync by hand —
+ * synchronised scrollers drift by a frame and read as broken.
+ */
+.strip {
+  display: flex;
+  flex-direction: column;
+  height: var(--w-timeline);
+  background: var(--w-s1);
+  border-top: 1px solid var(--w-edge);
+}
+
+/* ---- transport ------------------------------------------------------------ */
+
+.transport {
+  display: flex;
+  align-items: center;
+  gap: var(--w-2);
+  flex: none;
+  padding: var(--w-2) var(--w-3);
+  border-bottom: 1px solid var(--w-edge);
+}
+
+.spacer {
+  flex: 1;
+}
+
+.playButton {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: var(--w-r);
+  background: var(--w-s3);
+  color: var(--w-ink);
+  transition: background-color 140ms ease;
+}
+
+.playButton:hover {
+  background: #37332f;
+}
+
+.clock {
+  color: var(--w-muted);
+  font-size: 12px;
+  flex: none;
+}
+
+.clock b {
+  color: var(--w-ink);
+  font-weight: 400;
+}
+
+.iconButton {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: var(--w-r-sm);
+  color: var(--w-muted);
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.iconButton:hover:not(:disabled) {
+  color: var(--w-ink);
+  background: var(--w-s3);
+}
+
+.iconButton[data-on='true'] {
+  color: var(--w-ink);
+  background: var(--w-s3);
+}
+
+.iconButton:disabled {
+  color: var(--w-muted3);
+  cursor: default;
+}
+
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  padding: 5px var(--w-3);
+  border-radius: var(--w-r);
+  background: var(--w-s3);
+  color: var(--w-ink);
+  font-size: 12px;
+  transition: background-color 140ms ease;
+}
+
+.ghost:hover {
+  background: #37332f;
+}
+
+/* ---- scroll body ---------------------------------------------------------- */
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  /* The drag hook reads clientY against lane rects; a touch scroll mid-drag
+     would fight it. */
+  overscroll-behavior: contain;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: var(--w-track-gutter) max-content;
+  align-content: start;
+}
+
+.corner {
+  position: sticky;
+  left: 0;
+  top: 0;
+  z-index: 4;
+  height: 24px;
+  background: var(--w-s1);
+  border-right: 1px solid var(--w-edge);
+  border-bottom: 1px solid var(--w-edge);
+}
+
+/* ---- ruler ---------------------------------------------------------------- */
+
+.ruler {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  height: 24px;
+  background: var(--w-s1);
+  border-bottom: 1px solid var(--w-edge);
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--w-edge-strong);
+}
+
+.tickLabel {
+  position: absolute;
+  top: 5px;
+  left: 4px;
+  /* Was --w-muted3 in the old strip and was genuinely hard to read at this
+     size. Small text needs a real value gap, not the faintest tone available. */
+  color: var(--w-muted);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ---- track headers -------------------------------------------------------- */
+
+.header {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 var(--w-2) 0 var(--w-3);
+  background: var(--w-s1);
+  border-right: 1px solid var(--w-edge);
+  border-bottom: 1px solid var(--w-edge);
+  color: var(--w-muted);
+}
+
+.headerName {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+  color: var(--w-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Lowercase, and a step up in value: 9.5px on --w-muted2 was barely separable
+   from the gutter it sits on. */
+.headerFlag {
+  flex: none;
+  color: var(--w-muted);
+  font-size: 10.5px;
+}
+
+/* ---- lanes ---------------------------------------------------------------- */
+
+.lane {
+  position: relative;
+  z-index: 1;
+  background: var(--w-base);
+  border-bottom: 1px solid var(--w-edge);
+  touch-action: none;
+}
+
+.lane[data-kind='audio'] {
+  background: #141312;
+}
+
+.lane[data-kind='text'] {
+  background: #131211;
+}
+
+/* ---- clips ---------------------------------------------------------------- */
+
+.clip {
+  position: absolute;
+  top: 0;
+  overflow: hidden;
+  border-radius: var(--w-r-sm);
+  background: var(--w-s3);
+  /* A self-coloured edge, so the clip reads as a raised surface rather than an
+     outlined box. No shadow: a lane of shadowed cards is exactly the fluffy
+     look to avoid. */
+  box-shadow: inset 0 0 0 1px var(--w-edge);
+  cursor: grab;
+  user-select: none;
+  transition: box-shadow 120ms ease;
+}
+
+.clip[data-kind='audio'] {
+  background: #262019;
+}
+
+/* Captions read as ink on the surface, not as footage. */
+.clip[data-kind='text'] {
+  background: #23211e;
+}
+
+.clip:hover {
+  box-shadow: inset 0 0 0 1px var(--w-edge-strong);
+}
+
+.clip[data-selected='true'] {
+  box-shadow: inset 0 0 0 1.5px var(--w-live);
+  z-index: 2;
+}
+
+.clip[data-dragging='true'] {
+  cursor: grabbing;
+  z-index: 3;
+  opacity: 0.92;
+}
+
+.clipArt {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.66;
+  pointer-events: none;
+}
+
+.clipLabel {
+  position: absolute;
+  /* Clears the trim handles on both sides so a name is never sliced by one. */
+  left: 10px;
+  right: 10px;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.clipName {
+  min-width: 0;
+  font-size: 11px;
+  color: var(--w-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* The art underneath can be any brightness, so the label carries its own
+     legibility rather than relying on the surface. */
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+}
+
+.clipTime {
+  flex: none;
+  margin-left: auto;
+  font-size: 10px;
+  color: var(--w-ink);
+  opacity: 0.75;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+}
+
+.clipFlag {
+  position: absolute;
+  right: 10px;
+  bottom: 3px;
+  color: var(--w-muted);
+  pointer-events: none;
+}
+
+/* ---- trim handles --------------------------------------------------------- */
+
+.handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 9px;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.handle::after {
+  content: '';
+  position: absolute;
+  top: 25%;
+  bottom: 25%;
+  left: 3px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--w-ink);
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.clip:hover .handle::after,
+.clip[data-selected='true'] .handle::after {
+  opacity: 0.55;
+}
+
+.handleIn {
+  left: 0;
+}
+
+.handleOut {
+  right: 0;
+}
+
+/* ---- playhead, guides, transitions ---------------------------------------- */
+
+.playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--w-live);
+  pointer-events: none;
+  z-index: 4;
+}
+
+.playheadHead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--w-live);
+  pointer-events: none;
+}
+
+/* The disc that rides the ruler — the same mark as the Plate's reading. */
+.playheadHead::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: -3.5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--w-live);
+}
+
+.snapGuide {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--w-ink);
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.transitionBadge {
+  position: absolute;
+  top: 50%;
+  /* Centred ON the boundary, not beside it — half its own width back. */
+  margin-left: -11px;
+  transform: translateY(-50%);
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--w-s1);
+  box-shadow: inset 0 0 0 1px var(--w-edge-strong);
+  color: var(--w-muted);
+  z-index: 5;
+  transition: color 120ms ease, box-shadow 120ms ease;
+}
+
+.transitionBadge:hover {
+  color: var(--w-ink);
+  box-shadow: inset 0 0 0 1px var(--w-ink);
+}
+
+/* Set, not live. Clay stays with the playhead and the selection. */
+.transitionBadge[data-set='true'] {
+  color: var(--w-ink);
+  background: var(--w-s3);
+  box-shadow: inset 0 0 0 1px var(--w-ink);
+}

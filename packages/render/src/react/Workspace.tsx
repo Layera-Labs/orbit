@@ -13,7 +13,7 @@ import type { ID, OrbitStore } from '@orbit/model';
 import { ElementNode } from './ElementNode';
 import { SelectionTransformer } from './SelectionTransformer';
 import { SmartGuides } from './SmartGuides';
-import { NodeRegistry, WorkspaceContext } from './context';
+import { DEFAULT_CHROME, NodeRegistry, WorkspaceContext, type WorkspaceChrome } from './context';
 import { backgroundFill } from './background';
 import type { Guide } from '../types';
 
@@ -42,6 +42,8 @@ export function Workspace({ store, backdrop = '#f3f4f6', className, style, stage
   const [guides, setGuides] = useState<Guide[]>([]);
   const [editing, setEditing] = useState<{ id: ID } | null>(null);
   const fitKeyRef = useRef('');
+  /** The viewport the last auto-fit set, so we can tell if the user moved it. */
+  const lastFitRef = useRef<{ zoom: number; x: number; y: number } | null>(null);
 
   const snap = useSnapshot(store.state);
   const page = useMemo(
@@ -62,12 +64,32 @@ export function Workspace({ store, backdrop = '#f3f4f6', className, style, stage
     return () => ro.disconnect();
   }, []);
 
-  // Fit the active page to the viewport — re-fit whenever the page (or its
-  // size) changes, so switching/adding a page always shows one page centered.
+  /**
+   * Fit the active page to the viewport.
+   *
+   * Re-fits when the page changes, AND when the container resizes — but only
+   * while the viewport is still exactly where the last fit put it. The key used
+   * to be `page.id:WxH` alone, which meant the canvas fitted once against
+   * whatever the container measured first and never again: dock a panel beside
+   * it, or mount it in a shell that reflows, and the artboard stayed at a zoom
+   * chosen for a width that no longer exists.
+   *
+   * The "untouched" check is what keeps this from fighting the user — once they
+   * have zoomed or panned, a resize leaves their view alone.
+   */
   useEffect(() => {
     if (size.width === 0 || !page) return;
     const key = `${page.id}:${page.width}x${page.height}`;
-    if (fitKeyRef.current === key) return;
+    const pageChanged = fitKeyRef.current !== key;
+    const vp = store.state.viewport;
+    const last = lastFitRef.current;
+    const untouched =
+      !!last &&
+      Math.abs(vp.zoom - last.zoom) < 1e-6 &&
+      Math.abs(vp.x - last.x) < 0.5 &&
+      Math.abs(vp.y - last.y) < 0.5;
+    if (!pageChanged && !untouched) return;
+
     fitKeyRef.current = key;
     const margin = 0.88;
     const fit = Math.min(
@@ -75,18 +97,52 @@ export function Workspace({ store, backdrop = '#f3f4f6', className, style, stage
       (size.height / page.height) * margin,
     );
     const z = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, fit));
-    store.setViewport({
+    const next = {
       zoom: z,
       x: (size.width - page.width * z) / 2,
       y: (size.height - page.height * z) / 2,
-    });
+    };
+    lastFitRef.current = next;
+    store.setViewport(next);
   }, [size, page, store]);
 
   const beginTextEdit = useCallback((id: ID) => setEditing({ id }), []);
 
+  /**
+   * Resolve the canvas-painted chrome from the `--o-*` variables in scope.
+   *
+   * Konva rasterizes to a bitmap and cannot read CSS, so without this the
+   * selection furniture stays Orbit-green inside any re-skinned host. Re-read
+   * whenever `data-theme` changes on an ancestor, since the light and dark
+   * themes declare different accents.
+   */
+  const [chrome, setChrome] = useState<WorkspaceChrome>(DEFAULT_CHROME);
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof getComputedStyle === 'undefined') return;
+    const read = () => {
+      const cs = getComputedStyle(el);
+      const v = (name: string, fallback: string) =>
+        cs.getPropertyValue(name).trim() || fallback;
+      setChrome({
+        accent: v('--o-accent', DEFAULT_CHROME.accent),
+        accentStrong: v('--o-accent-strong', DEFAULT_CHROME.accentStrong),
+        onAccent: v('--o-accent-contrast', DEFAULT_CHROME.onAccent),
+        marquee: v('--o-accent-strong', DEFAULT_CHROME.marquee),
+        marqueeFill: v('--o-accent-soft', DEFAULT_CHROME.marqueeFill),
+        mediaPlaceholder: v('--o-solid', DEFAULT_CHROME.mediaPlaceholder),
+      });
+    };
+    read();
+    const root = el.closest('[data-theme]') ?? document.documentElement;
+    const observer = new MutationObserver(read);
+    observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+    return () => observer.disconnect();
+  }, []);
+
   const ctx = useMemo(
-    () => ({ store, registry, setGuides, beginTextEdit }),
-    [store, registry, beginTextEdit],
+    () => ({ store, registry, setGuides, beginTextEdit, chrome }),
+    [store, registry, beginTextEdit, chrome],
   );
 
   // Wheel: zoom to cursor.
@@ -227,8 +283,8 @@ export function Workspace({ store, backdrop = '#f3f4f6', className, style, stage
             {marqueeRect && (
               <Rect
                 {...marqueeRect}
-                fill="rgba(16,185,129,0.14)"
-                stroke="#10b981"
+                fill={chrome.marqueeFill}
+                stroke={chrome.marquee}
                 strokeWidth={1 / zoom}
                 listening={false}
               />
@@ -305,7 +361,7 @@ function TextOverlayEditor({
         position: 'absolute',
         margin: 0,
         padding: 0,
-        border: '1px solid #10b981',
+        border: '1px solid var(--o-accent-strong, #10b981)',
         outline: 'none',
         resize: 'none',
         overflow: 'hidden',

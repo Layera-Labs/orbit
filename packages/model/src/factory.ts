@@ -52,7 +52,11 @@ const TYPE_DEFAULTS: Record<ElementType, Record<string, unknown>> = {
   svg: { src: '', keepRatio: true, name: 'Graphic' },
   shape: {
     shape: 'rect',
-    fill: '#4f46e5',
+    // A quiet neutral, not indigo. The default fill lands in every new document
+    // and on every SDK consumer's first screenshot, so it should read as an
+    // unstyled placeholder the user will change — not as a brand colour the
+    // library picked for them.
+    fill: '#8a8580',
     stroke: 'transparent',
     strokeWidth: 0,
     name: 'Shape',

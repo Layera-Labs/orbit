@@ -40,11 +40,24 @@ function initialTheme(defaultTheme?: ThemeMode): ThemeMode {
 export function EditorProvider({
   store,
   providers,
+  theme: controlled,
+  onThemeChange,
   defaultTheme,
   children,
 }: {
   store?: OrbitStore;
   providers?: ProviderMap;
+  /**
+   * Controlled theme. When supplied, the host owns the value: `localStorage` is
+   * neither read nor written, and the editor always matches its surroundings.
+   *
+   * Without this the stored preference wins over `defaultTheme` forever, so a
+   * user who once toggled the editor to light gets a light editor embedded in a
+   * dark application and no way to reconcile them — which is what happens to any
+   * host that re-skins the editor to its own palette.
+   */
+  theme?: ThemeMode;
+  onThemeChange?: (theme: ThemeMode) => void;
   defaultTheme?: ThemeMode;
   children: ReactNode;
 }) {
@@ -56,26 +69,27 @@ export function EditorProvider({
     [store, providers],
   );
 
-  const [theme, setThemeState] = useState<ThemeMode>(() => initialTheme(defaultTheme));
-  const setTheme = useCallback((t: ThemeMode) => {
-    setThemeState(t);
-    try {
-      localStorage.setItem(THEME_KEY, t);
-    } catch {
-      /* ignore */
-    }
-  }, []);
-  const toggleTheme = useCallback(
-    () => setThemeState((prev) => {
-      const next = prev === 'dark' ? 'light' : 'dark';
+  const [uncontrolled, setThemeState] = useState<ThemeMode>(() => initialTheme(defaultTheme));
+  const isControlled = controlled != null;
+  const theme = isControlled ? controlled : uncontrolled;
+
+  const setTheme = useCallback(
+    (t: ThemeMode) => {
+      onThemeChange?.(t);
+      if (isControlled) return;
+      setThemeState(t);
       try {
-        localStorage.setItem(THEME_KEY, next);
+        localStorage.setItem(THEME_KEY, t);
       } catch {
         /* ignore */
       }
-      return next;
-    }),
-    [],
+    },
+    [isControlled, onThemeChange],
+  );
+
+  const toggleTheme = useCallback(
+    () => setTheme(theme === 'dark' ? 'light' : 'dark'),
+    [setTheme, theme],
   );
 
   const value = useMemo<EditorContextValue>(

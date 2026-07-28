@@ -29,6 +29,15 @@ import {
   hasKeyframes,
   keyframeExpr,
 } from "./keyframes";
+import {
+  even,
+  magnifierCropPx,
+  mosaicBlurSigma,
+  mosaicStepPx,
+  r3,
+  regionBoxPx,
+} from "./layout";
+import { buildFadeMap } from "./transitions";
 
 export interface BuildFFmpegOptions {
   outputPath: string;
@@ -57,16 +66,14 @@ export interface BuildFFmpegOptions {
  * ffmpeg equivalent, so naming them after shapes overpromises; that is a
  * labelling decision to revisit, not a preview/export mismatch.
  */
-export const MOSAIC_BLOCK: Record<string, number> = {
-  mosaic: 0.1,
-  triangle: 0.18,
-  hexagon: 0.13,
-};
+/** Re-exported from `layout.ts`, where the preview reads it too. */
+export { MOSAIC_BLOCK } from "./layout";
 
 /** Corner radius factor for the "rounded" region shape. MUST match the Skia
  *  preview's `Skia.RRectXY(box, min(hw,hh) * ROUNDED_R, …)` or the exported
  *  corners are visibly tighter than the ones the user positioned. */
-const ROUNDED_R = 0.35;
+// Lives in `layout.ts` so the browser compositor rounds by the same factor.
+import { ROUNDED_R } from "./layout";
 
 /** An ffmpeg eval expression that is true inside `shape`, inset by `inset` px. */
 function shapeInside(
@@ -360,26 +367,12 @@ function buildMultiTrackArgs(
     .filter((t): t is AudioTrack => t.kind === "audio")
     .flatMap((t) => t.clips);
   const textOverlays = project.overlays.filter((o) => images[o.id]);
-  const even = (n: number) => Math.max(2, Math.round(n / 2) * 2);
-  const r3 = (n: number) => Math.round(n * 1000) / 1000;
 
   // Transitions (fade-through-black) on the MAIN (first visual) track: a clip's
   // `transitionIn` fades it in; the previous clip then fades out. clip.id → fade.
+  // Shared with the browser preview via `transitions.ts` — see `frame.ts`.
   const mainTrack = tracks.find((t): t is VisualTrack => t.kind === "visual");
-  const mainClips = mainTrack?.clips ?? [];
-  const fadeMap = new Map<string, { fin: number; fout: number }>();
-  mainClips.forEach((c, i) => {
-    const fin =
-      c.transitionIn && c.transitionIn.type !== "cut"
-        ? c.transitionIn.duration
-        : 0;
-    const next = mainClips[i + 1];
-    const fout =
-      next?.transitionIn && next.transitionIn.type !== "cut"
-        ? next.transitionIn.duration
-        : 0;
-    if (fin || fout) fadeMap.set(c.id, { fin, fout });
-  });
+  const fadeMap = buildFadeMap(mainTrack?.clips ?? []);
 
   // ---- inputs: base(0), visual clips, text overlays, audio clips ----
   const inputs: string[] = [];
@@ -494,26 +487,10 @@ function buildMultiTrackArgs(
       localFxLabel = `[fxin${i}]`;
     }
     let localFxIndex = 0;
-    const regionBox = (region: { cx: number; cy: number; rx: number; ry: number }) => {
-      const ew = even(
-        Math.max(2, Math.min(rw, num(region.rx, 0.25, 0.001, 0.5) * 2 * rw)),
-      );
-      const eh = even(
-        Math.max(2, Math.min(rh, num(region.ry, 0.25, 0.001, 0.5) * 2 * rh)),
-      );
-      return {
-        ew,
-        eh,
-        ex: Math.max(
-          0,
-          Math.min(rw - ew, Math.round(num(region.cx, 0.5, 0, 1) * rw - ew / 2)),
-        ),
-        ey: Math.max(
-          0,
-          Math.min(rh - eh, Math.round(num(region.cy, 0.5, 0, 1) * rh - eh / 2)),
-        ),
-      };
-    };
+    // Shared with the browser compositor — see `layout.ts`. Not reimplemented
+    // here, so a lens cannot land on different pixels in preview and export.
+    const regionBox = (region: { cx: number; cy: number; rx: number; ry: number }) =>
+      regionBoxPx(region, rw, rh);
     const addRegionFx = (
       region: NonNullable<typeof c.mosaic | typeof c.magnifier>,
       filter: string,
@@ -547,16 +524,10 @@ function buildMultiTrackArgs(
       const amount = num(m.amount, 0.35, 0, 1);
       if (m.pattern === "blur") {
         // gblur's sigma maxes out at 1024; amount is already clamped to 0..1.
-        addRegionFx(m, `gblur=sigma=${r3(Math.max(1, amount * 22))}`, "mo");
+        addRegionFx(m, `gblur=sigma=${mosaicBlurSigma(amount)}`, "mo");
       } else {
-        const block = MOSAIC_BLOCK[m.pattern] ?? MOSAIC_BLOCK.mosaic;
         const { ew, eh } = regionBox(m);
-        const sw = even(
-          Math.max(2, ew * Math.max(0.025, block * (1 - amount * 0.8))),
-        );
-        const sh = even(
-          Math.max(2, eh * Math.max(0.025, block * (1 - amount * 0.8))),
-        );
+        const { sw, sh } = mosaicStepPx(m.pattern, amount, ew, eh);
         addRegionFx(
           m,
           `scale=${sw}:${sh}:flags=area,scale=${ew}:${eh}:flags=neighbor`,
@@ -567,11 +538,7 @@ function buildMultiTrackArgs(
     if (c.magnifier) {
       const m = c.magnifier;
       const { ew, eh } = regionBox(m);
-      const zoom = num(m.zoom, 2, 1, 20);
-      const sw = even(Math.max(2, ew / zoom));
-      const sh = even(Math.max(2, eh / zoom));
-      const sx = Math.max(0, Math.round((ew - sw) / 2));
-      const sy = Math.max(0, Math.round((eh - sh) / 2));
+      const { sw, sh, sx, sy } = magnifierCropPx(m.zoom, ew, eh);
       // The preview strokes the lens outline at borderWidth * min(W,H); match it.
       const borderPx = Math.round(
         num(m.borderWidth, 0, 0, 0.5) * Math.min(rw, rh),

@@ -1,0 +1,178 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Icon } from '@/brand/Icon';
+import { Plate } from '@/brand/Plate';
+import type { MediaRow } from '@/db/schema';
+import { MODES, useJobs, type Job } from '@/store/jobsStore';
+import { MediaPanel, type MediaFilter } from './MediaPanel';
+import styles from './Panels.module.css';
+
+/**
+ * Generation, as a dock rather than a destination.
+ *
+ * The old studio page created a NEW project from every result, which is the
+ * opposite of what you want once you are already working on something. Here a
+ * result inserts into the open document.
+ */
+export function AiPanel({
+  filter = 'all',
+  onInsert,
+}: {
+  /** Stills cannot take a speech result, so they never list one. */
+  filter?: MediaFilter;
+  onInsert(row: MediaRow): void;
+}) {
+  const [mode, setMode] = useState<'image' | 'video' | 'speech'>('image');
+  const [prompt, setPrompt] = useState('');
+
+  const jobs = useJobs((s) => s.jobs);
+  const balance = useJobs((s) => s.balance);
+  const notice = useJobs((s) => s.notice);
+  const run = useJobs((s) => s.run);
+  const cancel = useJobs((s) => s.cancel);
+  const dismiss = useJobs((s) => s.dismiss);
+  const refreshBalance = useJobs((s) => s.refreshBalance);
+
+  const active = MODES.find((m) => m.key === mode)!;
+  const running = jobs.some((j) => j.status === 'running');
+
+  useEffect(refreshBalance, [refreshBalance]);
+
+  // A refresh mid-generation loses the request, but the credits were charged
+  // server-side before it started — so warn before that happens.
+  useEffect(() => {
+    if (!running) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [running]);
+
+  const fire = () => {
+    void run(mode, prompt);
+    setPrompt('');
+  };
+
+  return (
+    <div className={styles.stack}>
+      <div className={styles.modes} role="tablist">
+        {MODES.map((m) => (
+          <button
+            key={m.key}
+            role="tab"
+            aria-selected={mode === m.key}
+            className={styles.mode}
+            data-on={mode === m.key}
+            onClick={() => setMode(m.key)}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      <textarea
+        className={styles.prompt}
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
+        placeholder={active.placeholder}
+        aria-label={`${active.label} prompt`}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && prompt.trim()) fire();
+        }}
+      />
+
+      <button className={styles.go} onClick={fire} disabled={!prompt.trim()}>
+        <span>Generate</span>
+        {/* Never surprise anyone with the charge — show it before firing. */}
+        <span className={`${styles.cost} w-data`}>{active.cost} credits</span>
+      </button>
+
+      {balance != null && (
+        <span className={`${styles.balance} w-data`}>{balance} credits remaining</span>
+      )}
+
+      {notice && <p className={styles.notice}>{notice}</p>}
+
+      {jobs.length > 0 && (
+        <div className={styles.group}>
+          <h3 className={styles.groupTitle}>Working</h3>
+          {jobs.map((job) => (
+            <JobRow
+              key={job.id}
+              job={job}
+              onCancel={() => cancel(job.id)}
+              onDismiss={() => dismiss(job.id)}
+            />
+          ))}
+        </div>
+      )}
+
+      <div className={styles.group}>
+        <h3 className={styles.groupTitle}>Generated</h3>
+        <MediaPanel
+          filter={filter}
+          origin="ai"
+          allowUpload={false}
+          empty="Nothing generated yet. Results are stored in this browser, not on a server."
+          onInsert={onInsert}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** No progress bar: the service surfaces none, and a fake one is a lie. */
+function JobRow({
+  job,
+  onCancel,
+  onDismiss,
+}: {
+  job: Job;
+  onCancel(): void;
+  onDismiss(): void;
+}) {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (job.status !== 'running') return;
+    const id = setInterval(
+      () => setElapsed(Math.round((Date.now() - job.startedAt) / 1000)),
+      500,
+    );
+    return () => clearInterval(id);
+  }, [job.status, job.startedAt]);
+
+  const expect = MODES.find((m) => m.key === job.mode)?.expect ?? '';
+
+  return (
+    <article className={styles.job}>
+      <Plate size={44} running={job.status === 'running'} live={job.status === 'running'} />
+      <div className={styles.jobBody}>
+        <span className={styles.jobPrompt}>{job.prompt}</span>
+        {job.status === 'error' ? (
+          <>
+            <span className={styles.jobError}>{job.error}</span>
+            <button className={styles.jobCancel} onClick={onDismiss}>
+              Dismiss
+            </button>
+          </>
+        ) : (
+          <>
+            <span className={`${styles.jobMeta} w-data`}>
+              {elapsed}s · {expect}
+            </span>
+            <button
+              className={styles.jobCancel}
+              onClick={onCancel}
+              title="Credits are charged before generation, so cancelling does not refund them."
+            >
+              <Icon name="close" size={11} /> Cancel
+            </button>
+          </>
+        )}
+      </div>
+    </article>
+  );
+}

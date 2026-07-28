@@ -1,0 +1,470 @@
+/*
+ * The editor frame.
+ *
+ * One grid, four columns: rail · panel · canvas · inspector. The panel and
+ * inspector columns are `auto`, and the element simply isn't rendered when the
+ * dock is closed — so closing one GIVES ITS SPACE BACK to the canvas instead of
+ * sliding a sheet over it. Nothing here overlaps anything, which is what keeps
+ * the canvas from being clipped by a neighbour.
+ */
+.frame {
+  display: grid;
+  grid-template-columns: var(--w-rail) auto minmax(0, 1fr) auto;
+  grid-template-rows: var(--w-header) minmax(0, 1fr) auto;
+  height: 100dvh;
+  background: var(--w-base);
+  overflow: hidden;
+}
+
+/*
+ * Every cell names its own column.
+ *
+ * Auto-placement would be positional, and the panel is conditionally rendered —
+ * so with the panel closed the canvas would slide into the panel's `auto` track
+ * (sizing to its content) and the inspector into the canvas's `1fr`, leaving a
+ * dead gulf on the right. Explicit columns make the layout independent of which
+ * children happen to exist.
+ */
+.bar {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.rail {
+  grid-column: 1;
+  grid-row: 2;
+}
+
+.panel {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.canvasCol {
+  grid-column: 3;
+  grid-row: 2;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.inspector {
+  grid-column: 4;
+  grid-row: 2;
+}
+
+.strip {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  min-width: 0;
+}
+
+/* ---- top bar -------------------------------------------------------------- */
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--w-2);
+  padding: 0 var(--w-3);
+  background: var(--w-s1);
+  border-bottom: 1px solid var(--w-edge);
+}
+
+.mark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  color: var(--w-ink);
+  border-radius: var(--w-r);
+  transition: background-color 140ms ease;
+}
+
+.mark:hover {
+  background: var(--w-s3);
+}
+
+.name {
+  min-width: 6ch;
+  max-width: 34ch;
+  padding: 5px var(--w-2);
+  border-radius: var(--w-r-sm);
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--w-ink);
+  font: inherit;
+  font-size: 14px;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.name:hover {
+  border-color: var(--w-edge);
+}
+
+.name:focus {
+  outline: none;
+  background: var(--w-base);
+  border-color: var(--w-edge-strong);
+}
+
+.meta {
+  color: var(--w-muted2);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.barSpacer {
+  flex: 1;
+  min-width: var(--w-2);
+}
+
+.divider {
+  width: 1px;
+  height: 20px;
+  background: var(--w-edge);
+  flex: none;
+}
+
+/* ---- rail ----------------------------------------------------------------- */
+
+.railInner {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--w-2) 0;
+  width: var(--w-rail);
+  height: 100%;
+  overflow-y: auto;
+  background: var(--w-s1);
+  border-right: 1px solid var(--w-edge);
+  scrollbar-width: none;
+}
+
+.railInner::-webkit-scrollbar {
+  display: none;
+}
+
+.railItem {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 5px;
+  /* Generous, because the label below the glyph must never crowd it. */
+  padding: 9px 4px 8px;
+  color: var(--w-muted);
+  /* No lift, no scale. State is a value step. */
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.railItem:hover {
+  color: var(--w-ink);
+  background: var(--w-s2);
+}
+
+.railItem[data-active='true'] {
+  color: var(--w-ink);
+  background: var(--w-s3);
+}
+
+.railLabel {
+  font-size: 10.5px;
+  line-height: 1.1;
+  letter-spacing: 0.01em;
+  text-align: center;
+}
+
+/* Active weight, not a dot. */
+.railItem[data-active='true'] .railLabel {
+  font-weight: 600;
+}
+
+.railGap {
+  height: 1px;
+  margin: var(--w-2) 14px;
+  background: var(--w-edge);
+  flex: none;
+}
+
+/* ---- panel ---------------------------------------------------------------- */
+
+.panelInner {
+  display: flex;
+  flex-direction: column;
+  width: var(--w-panel);
+  height: 100%;
+  min-height: 0;
+  background: var(--w-s1);
+  border-right: 1px solid var(--w-edge);
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  gap: var(--w-2);
+  flex: none;
+  padding: var(--w-3) var(--w-3) var(--w-2) var(--w-4);
+  border-bottom: 1px solid var(--w-edge);
+}
+
+.panelTitle {
+  flex: 1;
+  font-family: var(--w-display);
+  font-size: 17px;
+  line-height: 1.2;
+  color: var(--w-ink);
+}
+
+.panelBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--w-4);
+}
+
+/* ---- inspector ------------------------------------------------------------ */
+
+.inspectorInner {
+  display: flex;
+  flex-direction: column;
+  width: var(--w-inspector);
+  height: 100%;
+  min-height: 0;
+  background: var(--w-s1);
+  border-left: 1px solid var(--w-edge);
+}
+
+.inspectorHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--w-2);
+  flex: none;
+  padding: var(--w-3) var(--w-4) var(--w-2);
+  border-bottom: 1px solid var(--w-edge);
+}
+
+.inspectorTitle {
+  flex: 1;
+  font-family: var(--w-display);
+  font-size: 15px;
+  color: var(--w-ink);
+}
+
+/*
+ * Data, so it wears the mono and nothing else.
+ *
+ * This used to be tracked-out caps like the group titles, the track flag and the
+ * form labels — five different roles in one costume, which reads as a template
+ * rather than a voice. Tracked caps now mark ONE thing: a section title.
+ */
+.inspectorKind {
+  color: var(--w-muted2);
+  font-size: 11px;
+}
+
+.inspectorBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--w-4) var(--w-4) var(--w-6);
+}
+
+/* A collapsed inspector still needs a way back. */
+.inspectorStub {
+  display: grid;
+  place-items: start center;
+  padding-top: var(--w-3);
+  width: 40px;
+  height: 100%;
+  background: var(--w-s1);
+  border-left: 1px solid var(--w-edge);
+}
+
+/* ---- shared controls ------------------------------------------------------ */
+
+.iconButton {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: var(--w-r-sm);
+  color: var(--w-muted);
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.iconButton:hover:not(:disabled) {
+  color: var(--w-ink);
+  background: var(--w-s3);
+}
+
+.iconButton[data-on='true'] {
+  color: var(--w-ink);
+  background: var(--w-s3);
+}
+
+.iconButton:disabled {
+  color: var(--w-muted3);
+  cursor: default;
+}
+
+.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px var(--w-4);
+  border-radius: var(--w-r);
+  background: var(--w-ink);
+  color: var(--w-base);
+  font-size: 13px;
+  white-space: nowrap;
+  transition: background-color 140ms ease;
+}
+
+.primary:hover:not(:disabled) {
+  background: #fffdf9;
+}
+
+.primary:disabled {
+  background: var(--w-s3);
+  color: var(--w-muted2);
+  cursor: default;
+}
+
+.ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px var(--w-3);
+  border-radius: var(--w-r);
+  background: var(--w-s3);
+  color: var(--w-ink);
+  font-size: 13px;
+  white-space: nowrap;
+  transition: background-color 140ms ease;
+}
+
+.ghost:hover:not(:disabled) {
+  background: #37332f;
+}
+
+.ghost:disabled {
+  color: var(--w-muted2);
+  cursor: default;
+}
+
+/* ---- motion stage --------------------------------------------------------- */
+
+.stage {
+  flex: 1;
+  /* A definite height for the canvas below to resolve `max-height` against —
+     without min-height:0 the flex item refuses to shrink and the canvas
+     overflows the page instead of fitting. */
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--w-5);
+  background: var(--w-base);
+  overflow: hidden;
+}
+
+/*
+ * Sized to the PROJECT resolution so compositing matches the export pixel for
+ * pixel; CSS scales it down for display. It must be a DIRECT child of a
+ * definite-height box.
+ */
+.canvas {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  background: #000;
+  border-radius: var(--w-r);
+  box-shadow: inset 0 0 0 1px var(--w-edge);
+}
+
+.stageEmpty {
+  display: grid;
+  justify-items: center;
+  gap: var(--w-3);
+  max-width: 38ch;
+  color: var(--w-muted);
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* ---- narrow windows ------------------------------------------------------- */
+
+/*
+ * Three fixed columns plus the rail need roughly 1100px before the canvas — the
+ * thing you are actually working on — starts losing. Measured at an 885px
+ * window the canvas column was 205px wide and the SDK's zoom pill (232px) was
+ * being sliced by its edge.
+ *
+ * So the docks give way in order: they narrow first, then the panel stops taking
+ * space and floats over the canvas instead, then the inspector does the same.
+ * The canvas never drops below the full remaining width.
+ */
+@media (max-width: 1180px) {
+  .frame {
+    --w-panel: 272px;
+    --w-inspector: 248px;
+  }
+}
+
+@media (max-width: 1040px) {
+  .frame {
+    grid-template-columns: var(--w-rail) 0 minmax(0, 1fr) auto;
+  }
+
+  .panel {
+    position: relative;
+    z-index: 20;
+  }
+
+  .panelInner {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    /* Directional and tight — it is lifting off the canvas to its right, not
+       floating on a cloud. */
+    box-shadow: 6px 0 18px rgba(0, 0, 0, 0.4);
+  }
+}
+
+@media (max-width: 860px) {
+  .frame {
+    grid-template-columns: var(--w-rail) 0 minmax(0, 1fr) 0;
+  }
+
+  .inspector {
+    position: relative;
+    z-index: 19;
+  }
+
+  .inspectorInner,
+  .inspectorStub {
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 100%;
+  }
+
+  .inspectorInner {
+    box-shadow: -6px 0 18px rgba(0, 0, 0, 0.4);
+  }
+}
+
+.missing {
+  display: grid;
+  place-content: center;
+  gap: var(--w-3);
+  height: 100dvh;
+  color: var(--w-muted);
+  text-align: center;
+}

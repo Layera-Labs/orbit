@@ -5,7 +5,7 @@
   "description": "Orbit Agentic Canvas Editor SDK",
   "scripts": {
     "build": "turbo run build",
-    "dev": "turbo run dev --concurrency=11",
+    "dev": "turbo run dev --concurrency=13",
     "lint": "turbo run lint",
     "test": "turbo run test && pnpm test:mobile",
     "//test:mobile": "apps/mobile is outside the pnpm workspace, so turbo never sees it. Globs all of src so a test added outside src/model still runs.",

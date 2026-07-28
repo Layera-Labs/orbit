@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { Moon, Sun } from 'lucide-react';
+import { Icon } from './Icon';
 import { useTheme } from '../context';
 
 export function ThemeToggle() {
@@ -20,7 +20,7 @@ export function ThemeToggle() {
           transition={{ duration: 0.2, ease: 'easeOut' }}
           style={{ display: 'grid', placeItems: 'center' }}
         >
-          {theme === 'dark' ? <Moon size={18} strokeWidth={1.9} /> : <Sun size={18} strokeWidth={1.9} />}
+          <Icon name={theme === 'dark' ? 'moon' : 'sun'} size={18} strokeWidth={1.7} />
         </motion.span>
       </AnimatePresence>
     </button>
