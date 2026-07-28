@@ -50,6 +50,7 @@ import {
   GenerationService,
   ProviderError,
   RunwayProvider,
+  groupWords,
 } from "@orbit/video-gen";
 import {
   InMemoryLedgerStore,
@@ -502,17 +503,22 @@ export function createServer(): Express {
     ledger,
   );
   // TTS runs through a separate provider (ElevenLabs) but the same metered ledger.
-  const ttsGen = new GenerationService(
-    new ElevenLabsProvider({
-      apiKey: process.env.ELEVENLABS_API_KEY,
-      voiceId: process.env.ELEVENLABS_VOICE_ID,
-      model: process.env.ELEVENLABS_MODEL,
-    }),
-    ledger,
-  );
+  // The provider instance is shared with /v1/transcribe: same vendor, same key,
+  // so captions need no second account and no second secret.
+  const elevenLabs = new ElevenLabsProvider({
+    apiKey: process.env.ELEVENLABS_API_KEY,
+    voiceId: process.env.ELEVENLABS_VOICE_ID,
+    model: process.env.ELEVENLABS_MODEL,
+  });
+  const ttsGen = new GenerationService(elevenLabs, ledger);
   const FREE_CREDITS = Number(process.env.ORBIT_FREE_CREDITS ?? 100);
   /** Credits an export costs. 0 (the default) leaves rendering unmetered. */
   const RENDER_COST = Math.max(0, Number(process.env.ORBIT_RENDER_COST ?? 0));
+  /** Credits a transcription costs. Priced like TTS: one pass over the audio. */
+  const TRANSCRIBE_COST = Math.max(
+    0,
+    Number(process.env.ORBIT_TRANSCRIBE_COST ?? 5),
+  );
   const seeded = new Set<AccountId>();
 
   // ---- auth (pluggable) ----
@@ -1081,6 +1087,77 @@ export function createServer(): Express {
       // The upstream AI provider rejected the request for billing/quota reasons
       // (e.g. free ElevenLabs plan, exhausted Runway credits) — surface a clear
       // 502 rather than a raw provider error. Distinct from our own 402.
+      if (err instanceof ProviderError && err.upstreamStatus === 402) {
+        res.status(502).json({
+          error:
+            "The AI provider rejected the request — its account is out of credits or needs a paid plan.",
+        });
+        return;
+      }
+      res
+        .status(500)
+        .json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  /**
+   * Speech → caption lines. The server half of auto-captions.
+   *
+   * Takes an `upload:` token rather than raw audio: the client has already
+   * uploaded its media to render it, so captioning costs no second upload of
+   * the same file, and the token goes through `resolveSrc` — the same boundary
+   * every other src crosses.
+   *
+   * Metered like the other AI routes, and charged only on success. The grouping
+   * into lines happens here rather than on the device so every client gets the
+   * same captions from the same audio.
+   */
+  app.post("/v1/transcribe", async (req: Request, res: Response) => {
+    const body = req.body as { src?: string; language?: string } | undefined;
+    if (!body?.src || !isClientSrc(body.src)) {
+      res
+        .status(400)
+        .json({ error: "request body must be { src: 'upload:<id>' }" });
+      return;
+    }
+    if (!process.env.ELEVENLABS_API_KEY) {
+      res.status(503).json({ error: "server is missing ELEVENLABS_API_KEY" });
+      return;
+    }
+    const account = await accountOf(req, res);
+    if (!account) return;
+    if (!(await ledger.canAfford(account, TRANSCRIBE_COST))) {
+      res.status(402).json({
+        error: "insufficient credits",
+        balance: await ledger.balance(account),
+        cost: TRANSCRIBE_COST,
+      });
+      return;
+    }
+
+    const ac = new AbortController();
+    req.on("close", () => {
+      if (!res.writableEnded) ac.abort();
+    });
+    try {
+      // ffmpeg is not involved: the model takes the container as uploaded, and
+      // extracting the audio first would cost a transcode for no gain.
+      const audio = await readFile(resolveSrc(body.src));
+      const words = await elevenLabs.transcribe({
+        audio: audio.buffer.slice(
+          audio.byteOffset,
+          audio.byteOffset + audio.byteLength,
+        ) as ArrayBuffer,
+        language: body.language,
+        signal: ac.signal,
+      });
+      const lines = groupWords(words);
+      await ledger
+        .debit(account, TRANSCRIBE_COST, "transcribe")
+        .catch(() => undefined);
+      res.json({ lines, balance: await ledger.balance(account) });
+    } catch (err) {
+      if (ac.signal.aborted) return;
       if (err instanceof ProviderError && err.upstreamStatus === 402) {
         res.status(502).json({
           error:
