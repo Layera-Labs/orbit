@@ -66,9 +66,56 @@ function rebaseDeep<T>(value: T): T {
   return value;
 }
 
+/*
+ * Deferred writes.
+ *
+ * `File.write` is SYNCHRONOUS, and the editor's `apply` runs on every pointer
+ * event of a drag — so dragging a clip serialised the whole project and hit the
+ * disk sixty times a second, on the JS thread, while the gesture was trying to
+ * stay at sixty frames. History was already coalesced; the write was not.
+ *
+ * `saveProjectSoon` keeps the newest state and writes it once the edits stop.
+ * The window is deliberately short: everything is in memory, so the only thing
+ * at risk is the last fraction of a second if the app is killed outright —
+ * `flushProjectSave` covers backgrounding, which is the case that actually
+ * happens.
+ */
+const SAVE_DEBOUNCE_MS = 400;
+let pending: StoredProject | null = null;
+let timer: ReturnType<typeof setTimeout> | null = null;
+
 export function saveProject(p: StoredProject): void {
+  // A direct write wins, but it must not land BEHIND a queued one for the same
+  // project or the deferred copy would resurrect the state this call replaces.
+  if (pending?.id === p.id) {
+    pending = null;
+    if (timer) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  }
   ensureDirs();
   projectFile(p.id).write(JSON.stringify(p));
+}
+
+/** Queue a write, replacing any still-pending one. Trailing edge only. */
+export function saveProjectSoon(p: StoredProject): void {
+  // A different project queued means we are switching away mid-window; that
+  // one still deserves its write.
+  if (pending && pending.id !== p.id) flushProjectSave();
+  pending = p;
+  if (!timer) timer = setTimeout(flushProjectSave, SAVE_DEBOUNCE_MS);
+}
+
+/** Write any queued project now. Safe to call when nothing is queued. */
+export function flushProjectSave(): void {
+  if (timer) {
+    clearTimeout(timer);
+    timer = null;
+  }
+  const p = pending;
+  pending = null;
+  if (p) saveProject(p);
 }
 
 export function loadProject(id: string): StoredProject | null {

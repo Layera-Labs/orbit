@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { AppState, View } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import * as SecureStore from 'expo-secure-store';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -7,6 +7,7 @@ import { useFonts } from 'expo-font';
 import { HankenGrotesk_400Regular, HankenGrotesk_500Medium, HankenGrotesk_600SemiBold, HankenGrotesk_700Bold, HankenGrotesk_800ExtraBold } from '@expo-google-fonts/hanken-grotesk';
 import { JetBrainsMono_400Regular, JetBrainsMono_500Medium, JetBrainsMono_700Bold } from '@expo-google-fonts/jetbrains-mono';
 import { useEditor } from './src/store/editorStore';
+import { flushProjectSave } from './src/storage/projects';
 import { useAuth } from './src/store/authStore';
 import { configurePurchases } from './src/net/purchases';
 import { vela } from './src/constants';
@@ -49,6 +50,19 @@ export default function App() {
       .catch(() => setShowOnboarding(false))
       .finally(() => setOnboardingReady(true));
   }, [loadSettings, refreshProjects]);
+
+  /*
+   * Project edits are written on a short trailing debounce (see
+   * `saveProjectSoon`), so leaving the app is where that window has to close.
+   * Backgrounding is the moment a session realistically ends — the user swipes
+   * away, and iOS may terminate the process without another chance to write.
+   */
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state !== 'active') flushProjectSave();
+    });
+    return () => sub.remove();
+  }, []);
 
   // Hold a flat screen in the app's first-screen colour until fonts are ready,
   // so we never flash unstyled (system-font) text.

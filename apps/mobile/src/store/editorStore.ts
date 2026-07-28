@@ -35,9 +35,11 @@ export const OVERLAY_TRACK = "__overlays__";
 const DEFAULT_PIP: Rect = { x: 0.52, y: 0.06, w: 0.44, h: 0.3 };
 import {
   deleteProject as deleteStored,
+  flushProjectSave,
   listProjects,
   loadProject,
   saveProject,
+  saveProjectSoon,
   type StoredProject,
 } from "../storage/projects";
 import { saveUserTemplate, type StoredTemplate } from "../storage/templates";
@@ -524,6 +526,8 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   openProject: (id) => {
+    // Land any deferred edit to the project being left before reading from disk.
+    flushProjectSave();
     const stored = loadProject(id);
     if (!stored) return;
     const project = ops.ensureTracks(stored.project); // migrate legacy → tracks
@@ -547,12 +551,16 @@ export const useEditor = create<EditorState>((set, get) => ({
     get().ensurePoster(); // backfill a poster for older projects saved without one
   },
 
+  // Flush BEFORE deleting: a queued write would otherwise fire afterwards and
+  // put the file the user just deleted straight back.
   removeProject: (id) => {
+    flushProjectSave();
     deleteStored(id);
     set({ projects: listProjects() });
   },
 
   removeProjects: (ids) => {
+    flushProjectSave();
     ids.forEach((id) => deleteStored(id));
     set({ projects: listProjects() });
   },
@@ -837,7 +845,9 @@ export const useEditor = create<EditorState>((set, get) => ({
       future: [],
       selectedGap: null,
     });
-    saveProject({
+    // Deferred: this runs on every pointer event of a drag, and the write is
+    // synchronous. See `saveProjectSoon`.
+    saveProjectSoon({
       id: projectId,
       name,
       updatedAt: Date.now(),
