@@ -29,17 +29,20 @@ const PX_PER_SECOND_MAX = 240;
 
 interface DesignState {
   tool: ToolId | null;
-  inspectorOpen: boolean;
   /** Timeline scale. Read by every lane, the ruler and the drag hook. */
   pxPerSec: number;
   snap: boolean;
+  /** Canvas guides for the still surface, toggled from the page bar. */
+  showRuler: boolean;
+  showGrid: boolean;
 
   setTool(tool: ToolId | null): void;
   toggleTool(tool: ToolId): void;
-  setInspectorOpen(open: boolean): void;
   setPxPerSec(px: number): void;
   zoomBy(factor: number): void;
   setSnap(snap: boolean): void;
+  toggleRuler(): void;
+  toggleGrid(): void;
 }
 
 const clampZoom = (px: number) =>
@@ -47,16 +50,20 @@ const clampZoom = (px: number) =>
 
 export const useDesign = create<DesignState>((set, get) => ({
   tool: null,
-  inspectorOpen: true,
   pxPerSec: 64,
   snap: true,
+  // Both off by default: they are measuring aids, and a grid laid under every
+  // document by default is exactly the graph-paper backdrop to avoid.
+  showRuler: false,
+  showGrid: false,
 
   setTool: (tool) => set({ tool }),
   toggleTool: (tool) => set({ tool: get().tool === tool ? null : tool }),
-  setInspectorOpen: (inspectorOpen) => set({ inspectorOpen }),
   setPxPerSec: (px) => set({ pxPerSec: clampZoom(px) }),
   zoomBy: (factor) => set({ pxPerSec: clampZoom(get().pxPerSec * factor) }),
   setSnap: (snap) => set({ snap }),
+  toggleRuler: () => set({ showRuler: !get().showRuler }),
+  toggleGrid: () => set({ showGrid: !get().showGrid }),
 }));
 
 export { PX_PER_SECOND_MAX, PX_PER_SECOND_MIN };

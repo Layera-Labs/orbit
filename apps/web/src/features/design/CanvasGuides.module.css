@@ -1,0 +1,94 @@
+/*
+ * Every guide is inert: `pointer-events: none` throughout, so nothing here can
+ * swallow a click meant for the artwork underneath.
+ */
+
+.grid {
+  position: absolute;
+  z-index: 4;
+  pointer-events: none;
+  /* Two hairlines per axis, drawn from the ink at low alpha so the grid reads on
+     a white page and a black one alike. */
+  background-image:
+    linear-gradient(to right, var(--w-edge) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--w-edge) 1px, transparent 1px);
+}
+
+.rulerX,
+.rulerY {
+  position: absolute;
+  z-index: 12;
+  pointer-events: none;
+  background: var(--w-s1);
+  color: var(--w-muted2);
+  overflow: hidden;
+}
+
+.rulerX {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 18px;
+  border-bottom: 1px solid var(--w-edge);
+}
+
+.rulerY {
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 18px;
+  border-right: 1px solid var(--w-edge);
+}
+
+.corner {
+  position: absolute;
+  z-index: 13;
+  top: 0;
+  left: 0;
+  width: 18px;
+  height: 18px;
+  background: var(--w-s1);
+  border-right: 1px solid var(--w-edge);
+  border-bottom: 1px solid var(--w-edge);
+  pointer-events: none;
+}
+
+.tick {
+  position: absolute;
+  color: inherit;
+}
+
+.rulerX .tick {
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--w-edge-strong);
+}
+
+.rulerY .tick {
+  left: 0;
+  right: 0;
+  border-top: 1px solid var(--w-edge-strong);
+}
+
+.tickLabel {
+  position: absolute;
+  font-size: 9px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.rulerX .tickLabel {
+  left: 3px;
+  top: 4px;
+}
+
+/*
+ * Rotated to run along the vertical rule, and given its own transform origin so
+ * it sits beside the tick rather than pivoting away from it.
+ */
+.rulerY .tickLabel {
+  top: 3px;
+  left: 4px;
+  transform-origin: left top;
+  transform: rotate(90deg);
+}

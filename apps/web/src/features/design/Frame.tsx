@@ -2,11 +2,14 @@
 
 import type { ReactNode } from 'react';
 import { Icon } from '@/brand/Icon';
-import { useDesign } from '@/store/designStore';
 import styles from './Design.module.css';
 
 /**
- * The editor's four docks plus the strip along the bottom.
+ * The editor's three docks plus the strip along the bottom.
+ *
+ * There is no right-hand inspector any more: a selection is edited through the
+ * floating property bar over the canvas, so the space it used to take is the
+ * artwork's.
  *
  * Slots rather than children so the grid areas are assigned here, once, and no
  * surface can accidentally position itself over another.
@@ -16,14 +19,12 @@ export function DesignFrame({
   rail,
   panel,
   canvas,
-  inspector,
   strip,
 }: {
   bar: ReactNode;
   rail: ReactNode;
   panel: ReactNode;
   canvas: ReactNode;
-  inspector: ReactNode;
   strip: ReactNode;
 }) {
   return (
@@ -34,7 +35,6 @@ export function DesignFrame({
           zero wide, so the canvas actually gets the space back. */}
       {panel && <div className={styles.panel}>{panel}</div>}
       <div className={styles.canvasCol}>{canvas}</div>
-      <div className={styles.inspector}>{inspector}</div>
       <div className={styles.strip}>{strip}</div>
     </div>
   );
@@ -58,49 +58,6 @@ export function ToolPanel({
         </button>
       </div>
       <div className={styles.panelBody}>{children}</div>
-    </section>
-  );
-}
-
-export function InspectorShell({
-  title,
-  kind,
-  children,
-}: {
-  title: string;
-  kind?: string;
-  children: ReactNode;
-}) {
-  const open = useDesign((s) => s.inspectorOpen);
-  const setOpen = useDesign((s) => s.setInspectorOpen);
-
-  if (!open)
-    return (
-      <div className={styles.inspectorStub}>
-        <button
-          className={styles.iconButton}
-          onClick={() => setOpen(true)}
-          aria-label="Show inspector"
-        >
-          <Icon name="sliders" size={17} />
-        </button>
-      </div>
-    );
-
-  return (
-    <section className={styles.inspectorInner} aria-label="Inspector">
-      <div className={styles.inspectorHead}>
-        <h2 className={styles.inspectorTitle}>{title}</h2>
-        {kind && <span className={`${styles.inspectorKind} w-data`}>{kind}</span>}
-        <button
-          className={styles.iconButton}
-          onClick={() => setOpen(false)}
-          aria-label="Hide inspector"
-        >
-          <Icon name="chevronRight" size={16} />
-        </button>
-      </div>
-      <div className={styles.inspectorBody}>{children}</div>
     </section>
   );
 }

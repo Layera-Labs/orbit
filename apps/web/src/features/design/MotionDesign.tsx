@@ -26,9 +26,8 @@ import {
 } from '@/store/videoStore';
 import { usePreview } from '@/video/engine/usePreview';
 import { DesignBar } from './DesignBar';
-import { DesignFrame, InspectorShell, ToolPanel } from './Frame';
+import { DesignFrame, ToolPanel } from './Frame';
 import { ToolRail } from './ToolRail';
-import { ClipInspector } from './inspector/ClipInspector';
 import { AiPanel } from './panels/AiPanel';
 import { MediaPanel, mediaKind } from './panels/MediaPanel';
 import {
@@ -38,8 +37,8 @@ import {
   TransitionsPanel,
 } from './panels/MotionPanels';
 import { StockPanel } from './panels/StockPanel';
+import { ClipBar, OverlayBar } from './toolbar/ClipBar';
 import { StickersPanel } from './panels/StickersPanel';
-import { TextInspector } from './inspector/TextInspector';
 import { Timeline } from './timeline/Timeline';
 import panel from './panels/Panels.module.css';
 import styles from './Design.module.css';
@@ -341,6 +340,18 @@ export function MotionDesign({
       }
       canvas={
         <div className={styles.stage}>
+          {/* Anchored to the stage, so it reads over the picture the clip is
+              actually producing rather than over the timeline row. */}
+          {selectedText ? (
+            <OverlayBar overlay={selectedText} />
+          ) : selected ? (
+            <ClipBar
+              clip={selected.clip}
+              project={live}
+              time={preview.time}
+              onOpenEffects={() => setTool('effects')}
+            />
+          ) : null}
           {hasClips ? (
             <canvas ref={canvasRef} className={styles.canvas} />
           ) : (
@@ -357,55 +368,6 @@ export function MotionDesign({
             </div>
           )}
         </div>
-      }
-      inspector={
-        <InspectorShell
-          title={selectedText ? 'Text' : selected ? 'Clip' : 'Project'}
-          kind={
-            selectedText
-              ? 'text'
-              : selected
-                ? 'type' in selected.clip
-                  ? selected.clip.type
-                  : 'audio'
-                : undefined
-          }
-        >
-          {selectedText ? (
-            <TextInspector overlay={selectedText} time={preview.time} />
-          ) : selected ? (
-            <ClipInspector
-              clip={selected.clip}
-              project={live}
-              time={preview.time}
-              onOpenEffects={() => setTool('effects')}
-            />
-          ) : (
-            <div className={panel.stack}>
-              <p className={panel.empty}>
-                Nothing selected. Pick a clip on the timeline to edit it.
-              </p>
-              <div className={panel.group}>
-                <h3 className={panel.groupTitle}>Project</h3>
-                <div className={panel.fieldRow}>
-                  <span className={panel.fieldLabel}>Frame</span>
-                  <span className={`${panel.fieldValue} w-data`}>
-                    {live.width} × {live.height}
-                  </span>
-                </div>
-                <div className={panel.fieldRow}>
-                  <span className={panel.fieldLabel}>Length</span>
-                  <span className={`${panel.fieldValue} w-data`}>
-                    {preview.duration.toFixed(2)}s
-                  </span>
-                </div>
-                <button className={panel.action} onClick={() => setTool('design')}>
-                  Open design
-                </button>
-              </div>
-            </div>
-          )}
-        </InspectorShell>
       }
       strip={
         <Timeline

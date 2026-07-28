@@ -1,0 +1,274 @@
+/*
+ * The contextual property bar.
+ *
+ * Pinned at the top of the canvas cell rather than tracking the selection. A bar
+ * this wide, following an element, has to dodge the canvas edges, the zoom pill
+ * and the page strip, and it covers the artwork whenever the selection is near
+ * the top. Keeping it in one predictable place also means a control does not
+ * move under the pointer when you select a different object.
+ *
+ * The per-object quick actions DO float on the selection — that is the SDK's
+ * `SelectionActions`, pinned to the element's own bounding box.
+ */
+.bar {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 18;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: calc(100% - 20px);
+  padding: 5px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  border-radius: var(--w-r-lg);
+  background: var(--w-s1);
+  box-shadow:
+    inset 0 0 0 1px var(--w-edge-strong),
+    0 6px 18px rgba(0, 0, 0, 0.18);
+  scrollbar-width: none;
+}
+
+.bar::-webkit-scrollbar {
+  display: none;
+}
+
+/* A thin rule between groups of related controls, not a border on every item. */
+.sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  flex: none;
+  background: var(--w-edge);
+}
+
+/* ---- controls ------------------------------------------------------------- */
+
+.iconButton {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: var(--w-r-sm);
+  color: var(--w-muted);
+  transition: color 140ms ease, background-color 140ms ease;
+}
+
+.iconButton:hover:not(:disabled) {
+  color: var(--w-ink);
+  background: var(--w-s3);
+}
+
+/* State is tone and weight — never a dot, never a colour pop. */
+.iconButton[data-on='true'] {
+  color: var(--w-ink);
+  background: var(--w-s3);
+}
+
+.iconButton:disabled {
+  color: var(--w-muted3);
+  cursor: default;
+}
+
+.iconButton:focus-visible {
+  outline: 2px solid var(--w-live);
+  outline-offset: -2px;
+}
+
+/* A number with a small leading glyph, sized to its content. */
+.field {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: none;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: var(--w-r-sm);
+  color: var(--w-muted);
+  transition: background-color 140ms ease;
+}
+
+.field:hover,
+.field:focus-within {
+  background: var(--w-s3);
+}
+
+.fieldInput {
+  width: 4ch;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--w-ink);
+  font-family: var(--w-data);
+  font-size: 12px;
+  text-align: left;
+}
+
+.fieldInput:focus {
+  outline: none;
+}
+
+/* Strip the spinners — the value is typed or dragged, not stepped. */
+.fieldInput::-webkit-outer-spin-button,
+.fieldInput::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.fieldInput[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.fieldSuffix {
+  color: var(--w-muted2);
+  font-family: var(--w-data);
+  font-size: 11px;
+}
+
+/* A menu trigger showing the current value. */
+.select {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: none;
+  height: 28px;
+  max-width: 16ch;
+  padding: 0 7px;
+  border-radius: var(--w-r-sm);
+  color: var(--w-ink);
+  font-size: 12.5px;
+  white-space: nowrap;
+  transition: background-color 140ms ease;
+}
+
+.select:hover {
+  background: var(--w-s3);
+}
+
+.selectValue {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.selectCaret {
+  color: var(--w-muted2);
+  flex: none;
+}
+
+/* ---- popover contents ----------------------------------------------------- */
+
+.menu {
+  display: grid;
+  gap: 1px;
+  min-width: 168px;
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: var(--w-2);
+  padding: 7px var(--w-2);
+  border-radius: var(--w-r-sm);
+  color: var(--w-ink);
+  font-size: 13px;
+  text-align: left;
+  transition: background-color 140ms ease;
+}
+
+.menuItem:hover {
+  background: var(--w-s3);
+}
+
+.menuItem[data-on='true'] {
+  background: var(--w-s3);
+  font-weight: 600;
+}
+
+.menuLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sliderRow {
+  display: grid;
+  gap: 5px;
+  min-width: 190px;
+  padding: var(--w-1) 0;
+}
+
+.sliderHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--w-2);
+}
+
+.sliderLabel {
+  color: var(--w-muted);
+  font-size: 12px;
+}
+
+.sliderValue {
+  color: var(--w-ink);
+  font-size: 11px;
+}
+
+.range {
+  width: 100%;
+  accent-color: var(--w-ink);
+}
+
+.group {
+  display: grid;
+  gap: var(--w-2);
+}
+
+.groupTitle {
+  color: var(--w-muted2);
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.textArea {
+  width: 100%;
+  min-height: 68px;
+  padding: var(--w-2);
+  border-radius: var(--w-r);
+  background: var(--w-base);
+  border: 1px solid var(--w-edge);
+  color: var(--w-ink);
+  font: inherit;
+  font-size: 12.5px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.textArea:focus {
+  outline: none;
+  border-color: var(--w-edge-strong);
+}
+
+/* A row of equal segments — alignment, weight, and the like. */
+.segmented {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+
+.danger:hover {
+  background: var(--w-danger-bg);
+  color: var(--w-danger-ink);
+}
+
+.empty {
+  color: var(--w-muted);
+  font-size: 12.5px;
+}

@@ -200,6 +200,8 @@ export type Background =
 
 export interface Page {
   id: ID;
+  /** Optional page title, shown in the pages overview. */
+  name?: string;
   width: number;
   height: number;
   background: Background;

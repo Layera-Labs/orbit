@@ -406,3 +406,16 @@
 .jobCancel:hover {
   color: var(--w-ink);
 }
+
+/*
+ * A sticker mark's preview: the bare glyph in the button's own ink, on the panel
+ * surface. It inherits `color` from `.preset`, so it lightens on hover and
+ * darkens when selected along with the label — which is what keeps it legible in
+ * both themes without a tile behind it.
+ */
+.markPreview {
+  display: grid;
+  place-items: center;
+  height: 34px;
+  color: inherit;
+}

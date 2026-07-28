@@ -1,6 +1,7 @@
 'use client';
 
 import { useEditorState, useStore } from '@orbit/editor';
+import { ColourRow, SwatchGrid } from '@/brand/Colour';
 import styles from './Panels.module.css';
 
 const SIZES = [
@@ -69,19 +70,20 @@ export function StillDesignPanel() {
 
       <div className={styles.group}>
         <h3 className={styles.groupTitle}>Backdrop</h3>
-        <div className={styles.presets}>
-          {SOLIDS.map((colour) => (
-            <button
-              key={colour}
-              className={styles.preset}
-              data-on={page?.background?.type === 'solid' && page.background.color === colour}
-              onClick={() => store.setBackground({ type: 'solid', color: colour })}
-              aria-label={colour}
-            >
-              <span className={styles.presetSwatch} style={{ background: colour }} />
-            </button>
-          ))}
-        </div>
+        {/* Small squares in a grid, and the selected one is ringed rather than
+            sat on a tinted plate — a plate behind a swatch mixes with the very
+            colour it is meant to be showing. */}
+        <SwatchGrid
+          label="Backdrop"
+          colours={SOLIDS}
+          value={page?.background?.type === 'solid' ? page.background.color : undefined}
+          onChange={(colour) => store.setBackground({ type: 'solid', color: colour })}
+        />
+        <ColourRow
+          label="Custom"
+          value={page?.background?.type === 'solid' ? page.background.color : '#ffffff'}
+          onChange={(colour) => store.setBackground({ type: 'solid', color: colour })}
+        />
       </div>
 
       <div className={styles.group}>

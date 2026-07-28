@@ -252,6 +252,18 @@ export class OrbitStore {
     });
   }
 
+  /** Give a page a title, or clear it by passing an empty string. */
+  renamePage(id: ID, name: string): void {
+    this.transaction(() => {
+      const page = this.state.doc.pages.find((p) => p.id === id);
+      if (!page) return;
+      const next = name.trim();
+      if (next) page.name = next;
+      else delete page.name;
+      this.emit('pageChange');
+    });
+  }
+
   setActivePage(id: ID): void {
     if (this.state.doc.pages.some((p) => p.id === id)) {
       this.state.activePageId = id;
