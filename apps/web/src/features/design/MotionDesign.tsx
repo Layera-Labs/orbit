@@ -25,7 +25,8 @@ import {
   useVideo,
 } from '@/store/videoStore';
 import { usePreview } from '@/video/engine/usePreview';
-import { boxOf, pickAt } from './motion/pick';
+import { boxOf } from './motion/pick';
+import { useCanvasDrag } from './motion/useCanvasDrag';
 import { DesignBar } from './DesignBar';
 import { DesignFrame, ToolPanel } from './Frame';
 import { ToolRail } from './ToolRail';
@@ -113,6 +114,7 @@ export function MotionDesign({
   const hasClips = !!live.tracks?.some((t) => t.clips.length) || !!live.overlays?.length;
   const selected = useMemo(() => findClip(live, selection), [live, selection]);
   const selectedText = useMemo(() => findOverlay(live, selection), [live, selection]);
+  const canvasDrag = useCanvasDrag(live, preview.time);
 
   /*
    * Keyboard.
@@ -363,24 +365,7 @@ export function MotionDesign({
              * anything ever read back out of it.
              */
             <div className={styles.canvasWrap}>
-              <canvas
-                ref={canvasRef}
-                className={styles.canvas}
-                onPointerDown={(e) => {
-                  const r = e.currentTarget.getBoundingClientRect();
-                  // Displayed pixels → project pixels. The canvas is sized to
-                  // the project and scaled down by CSS, so one factor does it.
-                  const scale = live.width / r.width;
-                  select(
-                    pickAt(
-                      live,
-                      preview.time,
-                      (e.clientX - r.left) * scale,
-                      (e.clientY - r.top) * scale,
-                    ),
-                  );
-                }}
-              />
+              <canvas ref={canvasRef} className={styles.canvas} {...canvasDrag} />
               <SelectionFrame project={live} time={preview.time} id={selection} />
             </div>
           ) : (

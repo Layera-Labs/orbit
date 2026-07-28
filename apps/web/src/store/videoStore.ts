@@ -36,6 +36,17 @@ interface VideoState {
   /** Keep the name the next `apply` will persist in step with a rename. */
   setName(name: string): void;
   apply(op: (p: VideoProject) => VideoProject): void;
+  /**
+   * Update the document with NO history entry and NO write to disk.
+   *
+   * For the frames of a continuous gesture — dragging a caption across the
+   * canvas is sixty of these a second, and `apply` would push sixty history
+   * entries and sixty IndexedDB writes for one movement. Pair it with `commit`,
+   * which turns the whole run into a single undoable step.
+   */
+  stage(op: (p: VideoProject) => VideoProject): void;
+  /** End a staged run: `before` becomes the one state undo returns to. */
+  commit(before: VideoProject): void;
   select(id: string | null): void;
   undo(): void;
   redo(): void;
@@ -66,6 +77,22 @@ export const useVideo = create<VideoState>((set, get) => ({
       future: [],
     });
     if (projectId) void saveProject({ id: projectId, kind: 'video', name, data: next });
+  },
+
+  stage: (op) => {
+    const { project } = get();
+    if (!project) return;
+    const next = op(project);
+    if (next !== project) set({ project: next });
+  },
+
+  commit: (before) => {
+    const { project, projectId, name, past } = get();
+    // Nothing moved — a click that happened to be a one-pixel drag should not
+    // put a step in the history someone then has to undo.
+    if (!project || project === before) return;
+    set({ past: [...past, before].slice(-HISTORY_LIMIT), future: [] });
+    if (projectId) void saveProject({ id: projectId, kind: 'video', name, data: project });
   },
 
   select: (id) => set({ selection: id }),
