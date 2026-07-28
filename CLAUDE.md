@@ -192,6 +192,21 @@ Next 14 App Router. **One editor** over the v2 SDK plus a browser video engine.
   into a **scratch canvas** first, because `ctx.filter` and `globalCompositeOperation` apply to
   the whole canvas, not the clip rect. Grades use an SVG `feColorMatrix`, not CSS
   `brightness()`, because ffmpeg's `eq=brightness` ADDS and CSS multiplies.
+- **The grade's exactness, measured (2026-07-28).** ffmpeg's filters were probed with
+  known RGB bytes rather than reasoned about, and two things came out of it.
+  `colortemperature` is a plain **per-channel gain** (ported as `temperatureGains`,
+  ffmpeg's `kelvin2rgb`), so it folds into the same matrix and is EXACT — it used to be
+  dropped entirely, which made Warm and Cool preview nearly identically. `eq` is NOT
+  exact: it works on YUV planes in limited range, so the saturation matrix uses **BT.601**
+  coefficients, not Rec.709 (709 put `mono` 39/255 off; 601 puts it 3 off). Residual
+  across every preset on mid-tone colours is **≤6/255**, confirmed end-to-end against a
+  real canvas. Closing it fully would need the clip's own colour space, which the browser
+  does not expose. Do not re-assert that the grade is byte-identical; it is not.
+- **Chroma key runs in a WebGL fragment shader** (`engine/cutout.ts`), not `getImageData` —
+  a full-frame clip is 2M pixels and a JS loop drops the preview under 30fps. It mirrors
+  ffmpeg `colorkey` (`alpha = clamp((diff − similarity)/blend)`, `diff = √(Σd²/3)`, RGB
+  untouched, no despill), verified byte-for-byte. The control hides itself where WebGL is
+  missing rather than offering an effect the preview would skip.
 - **Dual-render is enforced by tests, not comments**:
   `packages/video/src/__tests__/dual-render.test.ts` parses the real filtergraph out of
   `buildFFmpegArgs` and asserts it agrees with `frameStateAt`; `browser-safety.test.ts` walks

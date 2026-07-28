@@ -14,7 +14,8 @@ import { describe, expect, it } from 'vitest';
 import type { VideoProject, VisualTrack } from '../types';
 import { buildFFmpegArgs } from '../ffmpeg';
 import { frameStateAt } from '../frame';
-import { resolveFilter } from '../filters';
+import { resolveFilter, temperatureGains, temperatureKelvin } from '../filters';
+import { chromaAlphaAt, chromaParams } from '../cutout';
 import { fadeFactorAt, projectFadeMap } from '../transitions';
 
 /**
@@ -220,26 +221,98 @@ describe('preview draw list matches the exported filtergraph', () => {
   });
 });
 
-describe('effects the canvas cannot reproduce are declared, not hidden', () => {
+describe('colour temperature agrees between the filtergraph and the preview', () => {
+  /**
+   * `colortemperature` is a per-channel gain — measured against ffmpeg at
+   * 4000/5000/6500/8000/9000 K over eight probe colours, every channel matching.
+   * These are the fixed points of that measurement, so a change to the ported
+   * curve has to break here before it can reach a preview.
+   */
+  it('reproduces ffmpeg kelvin2rgb at the measured points', () => {
+    const at = (kelvin: number) => temperatureGains((6500 - kelvin) / 2500);
+    // Byte values ffmpeg produced for pure white, over 255. ffmpeg truncates to
+    // uint8, so the tolerance is one step of that quantisation.
+    const near = (got: number, byte: number) => expect(got).toBeCloseTo(byte / 255, 2);
+    const [r4, g4, b4] = at(4000);
+    near(r4, 255); near(g4, 205); near(b4, 166);
+    const [r8, g8, b8] = at(8000);
+    near(r8, 221); near(g8, 229); near(b8, 255);
+  });
+
+  it('is identity at neutral, matching an omitted filter', () => {
+    // `filterToFFmpeg` emits NO colortemperature at 0, so the preview must not
+    // tint either — note this is deliberately not `kelvin2rgb(6500)`, which is
+    // (1, 0.9965, 0.9806).
+    expect(temperatureGains(0)).toEqual([1, 1, 1]);
+  });
+
+  it('drives the same Kelvin the real filtergraph carries', () => {
+    const p = fixture();
+    (p.tracks![1] as VisualTrack).clips[0].filter = { preset: 'warm' };
+    const built = buildFFmpegArgs(p, {
+      outputPath: '/tmp/out.mp4',
+      baseImage: '/tmp/bg.png',
+      overlayImages: { cap: '/tmp/cap.png' },
+      hasAudio: () => false,
+    });
+    const g = built[built.indexOf('-filter_complex') + 1];
+    const kelvin = Number(/colortemperature=temperature=(\d+)/.exec(g)![1]);
+    const c = frameStateAt(p, 3).find((o) => o.id === 'c')!;
+    expect(temperatureKelvin(c.filter.temperature)).toBe(kelvin);
+  });
+});
+
+describe('chroma key agrees between the filtergraph and the preview', () => {
   /** The PiP clip, typed — `Track` is a union so `clips` needs narrowing. */
   const pipClip = (p: VideoProject) => (p.tracks![1] as VisualTrack).clips[0];
 
-  it('flags a temperature grade', () => {
+  const keyed = () => {
     const p = fixture();
-    pipClip(p).filter = { preset: 'warm' };
-    const c = frameStateAt(p, 3).find((o) => o.id === 'c')!;
-    expect(c.unsupported).toContain('temperature');
+    pipClip(p).cutout = { color: '#00ff00', similarity: 0.3, smoothness: 0.2 };
+    return p;
+  };
+
+  it('carries the key through to the draw list', () => {
+    const c = frameStateAt(keyed(), 3).find((o) => o.id === 'c')!;
+    expect(c.cutout).toEqual({ color: '#00ff00', similarity: 0.3, smoothness: 0.2 });
   });
 
-  it('flags a chroma key', () => {
-    const p = fixture();
-    pipClip(p).cutout = { color: '#00ff00', similarity: 0.3, smoothness: 0.1 };
-    const c = frameStateAt(p, 3).find((o) => o.id === 'c')!;
-    expect(c.unsupported).toContain('cutout');
+  it('drives the same colour, similarity and blend the filtergraph does', () => {
+    const built = buildFFmpegArgs(keyed(), {
+      outputPath: '/tmp/out.mp4',
+      baseImage: '/tmp/bg.png',
+      overlayImages: { cap: '/tmp/cap.png' },
+      hasAudio: () => false,
+    });
+    const g = built[built.indexOf('-filter_complex') + 1];
+    const m = /colorkey=color=0x([0-9a-f]{6}):similarity=([\d.]+):blend=([\d.]+)/.exec(g)!;
+    const p = chromaParams(frameStateAt(keyed(), 3).find((o) => o.id === 'c')!.cutout)!;
+    expect(p.key.map((v) => Math.round(v * 255))).toEqual([0, 255, 0]);
+    expect(m[1]).toBe('00ff00');
+    expect(Number(m[2])).toBe(p.similarity);
+    expect(Number(m[3])).toBe(p.blend);
   });
 
-  it('says nothing when everything is reproducible', () => {
-    const c = frameStateAt(fixture(), 3).find((o) => o.id === 'c')!;
-    expect(c.unsupported).toBeUndefined();
+  /**
+   * Alpha at the exact bytes ffmpeg produced for these pixels. If the shader and
+   * this reference ever disagree the matte moves, so the numbers are pinned.
+   */
+  it('reproduces ffmpeg alpha at the measured pixels', () => {
+    const p = chromaParams({ color: '#00ff00', similarity: 0.1, smoothness: 0.5 })!;
+    const a = (r: number, g: number, b: number) =>
+      Math.floor(chromaAlphaAt(p, r / 255, g / 255, b / 255) * 255);
+    expect(a(0, 255, 0)).toBe(0); // the key itself
+    expect(a(0, 200, 0)).toBe(12);
+    expect(a(64, 255, 64)).toBe(53);
+    expect(a(128, 255, 128)).toBe(158);
+    expect(a(0, 255, 255)).toBe(243);
+    expect(a(128, 128, 128)).toBe(204);
+    expect(a(255, 0, 0)).toBe(255);
+  });
+
+  it('is a hard cut when blend is zero', () => {
+    const p = chromaParams({ color: '#00ff00', similarity: 0.3, smoothness: 0 })!;
+    expect(chromaAlphaAt(p, 0.5, 1, 0.5)).toBe(1);
+    expect(chromaAlphaAt(p, 64 / 255, 1, 64 / 255)).toBe(0);
   });
 });

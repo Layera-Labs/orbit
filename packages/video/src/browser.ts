@@ -48,10 +48,20 @@ export type {
   VideoProject,
 } from './types';
 export { FULL_FRAME } from './types';
-export { FILTER_PRESETS, NEUTRAL, resolveFilter, filterToFFmpeg, atempoChain, isNeutral } from './filters';
+export {
+  FILTER_PRESETS,
+  NEUTRAL,
+  resolveFilter,
+  filterToFFmpeg,
+  atempoChain,
+  isNeutral,
+  temperatureKelvin,
+  temperatureGains,
+} from './filters';
 export type { FilterParams } from './filters';
 export { hasMotion, motionStateAt, motionToZoompan, motionIntensity, ZOOM_DELTA, PAN_ZOOM } from './motion';
-export { chromaToFFmpeg, hexToRgb } from './cutout';
+export { chromaToFFmpeg, chromaParams, chromaAlphaAt, hexToRgb } from './cutout';
+export type { ChromaParams } from './cutout';
 export { maskToFFmpeg } from './mask';
 export { blendToFFmpeg, blendToSkia, blendToCanvas, BLEND_MODES } from './blend';
 export { hasVolumeCurve, sampleVolume, volumeCurveExpr } from './curve';

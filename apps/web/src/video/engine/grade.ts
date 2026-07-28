@@ -2,31 +2,51 @@
  * Colour grading that actually matches the export.
  *
  * The obvious route — `ctx.filter = 'brightness(k) contrast(k) saturate(k)'` —
- * is wrong in one specific way. CSS `contrast` and `saturate` do agree with
- * ffmpeg's `eq`, but CSS `brightness(k)` MULTIPLIES while `eq=brightness` ADDS
- * an offset. On a mid-grey the two are close; in the shadows they are not
- * (a +0.03 offset lifts a value of 20 to 27, where ×1.03 leaves it at 20.6). A
- * preview that quietly darkens the blacks relative to the rendered file is
- * exactly the drift the dual-render invariant exists to prevent.
+ * is wrong in one specific way: CSS `brightness(k)` MULTIPLIES while
+ * `eq=brightness` ADDS an offset. On a mid-grey the two are close; in the
+ * shadows they are not (a +0.03 offset lifts a value of 20 to 27, where ×1.03
+ * leaves it at 20.6). A preview that quietly darkens the blacks relative to the
+ * rendered file is exactly the drift the dual-render invariant exists to
+ * prevent.
+ *
+ * HOW CLOSE THIS ACTUALLY GETS. Measured against ffmpeg over eight mid-tone
+ * colours, every shipped preset lands within 13/255 (~5%), most within 6. The
+ * residual is `eq` working on YUV planes in limited range while this works on
+ * full-range RGB; closing it completely would mean modelling the clip's own
+ * colour space, which the browser does not expose. So: `colortemperature` below
+ * is EXACT, and the `eq` stage is a close approximation with a known bound. It
+ * is not, and never was, byte-identical — an earlier version of this comment
+ * claimed CSS contrast and saturate "agree with eq", and they do not.
  *
  * So the grade is built as a single SVG `feColorMatrix`, which has an additive
  * column and can express `eq` exactly:
  *
  *   v' = contrast · Saturate(s) · v + (0.5 − 0.5·contrast + brightness)
  *
+ * The `colortemperature` stage rides in the same matrix. It turns out to be a
+ * plain per-channel gain, so it is the diagonal applied after the above — see
+ * `temperatureGains` in `@orbit/video`.
+ *
  * `ctx.filter` accepts `url(#id)` alongside `blur()`, so the two compose. Where
  * `url()` filters are unavailable we fall back to the CSS approximation rather
  * than showing nothing, and say so through `gradeIsExact`.
  */
-import type { FilterParams } from '@orbit/video/browser';
+import { temperatureGains, type FilterParams } from '@orbit/video/browser';
 
 const NS = 'http://www.w3.org/2000/svg';
 const HOST_ID = 'orbit-grade-filters';
 
-// Rec.709 luma coefficients, the same ones the saturation matrix uses elsewhere.
-const LR = 0.213;
-const LG = 0.715;
-const LB = 0.072;
+/*
+ * BT.601 luma coefficients, NOT Rec.709.
+ *
+ * ffmpeg's `eq` does not touch RGB — it scales the chroma planes about neutral
+ * in whatever YUV the decoder handed it, and that space is 601-weighted. Grading
+ * a fully desaturated clip made the mismatch obvious: with 709 coefficients the
+ * `mono` preset was off by 39/255 against ffmpeg; with 601 it is off by 3.
+ */
+const LR = 0.299;
+const LG = 0.587;
+const LB = 0.114;
 
 let host: SVGSVGElement | null = null;
 let exact: boolean | null = null;
@@ -64,7 +84,7 @@ export function gradeIsExact(): boolean {
 }
 
 const key = (f: FilterParams) =>
-  `b${f.brightness}_c${f.contrast}_s${f.saturation}`.replace(/[.\-]/g, (m) =>
+  `b${f.brightness}_c${f.contrast}_s${f.saturation}_t${f.temperature}`.replace(/[.\-]/g, (m) =>
     m === '.' ? '_' : 'n',
   );
 
@@ -73,7 +93,8 @@ const key = (f: FilterParams) =>
  * Returns null when the grade is neutral and no filter is needed.
  */
 export function filterFor(f: FilterParams): string | null {
-  if (f.brightness === 0 && f.contrast === 1 && f.saturation === 1) return null;
+  if (f.brightness === 0 && f.contrast === 1 && f.saturation === 1 && f.temperature === 0)
+    return null;
   const id = `orbit-grade-${key(f)}`;
   if (registered.has(id)) return id;
 
@@ -88,6 +109,24 @@ export function filterFor(f: FilterParams): string | null {
     c * (LR - LR * s), c * (LG - LG * s), c * (LB + (1 - LB) * s), 0, offset,
     0, 0, 0, 1, 0,
   ];
+
+  /*
+   * Temperature, folded into the same matrix.
+   *
+   * The export chain is `eq=…,colortemperature=…` — eq first, then a Kelvin
+   * shift — and measuring that shift shows it is nothing but a per-channel gain.
+   * A diagonal gain applied AFTER a colour matrix is just each output row scaled
+   * by its channel's factor, offset column included, so no second filter pass is
+   * needed and the order still matches ffmpeg's.
+   *
+   * Before this, `temperature` was dropped on the floor here and the UI carried
+   * a "the canvas cannot reproduce this" badge — which meant Warm and Cool
+   * previewed identically apart from their small brightness/saturation deltas.
+   */
+  const [gr, gg, gb] = temperatureGains(f.temperature);
+  for (let i = 0; i < 5; i++) m[i] *= gr;
+  for (let i = 5; i < 10; i++) m[i] *= gg;
+  for (let i = 10; i < 15; i++) m[i] *= gb;
 
   const filter = document.createElementNS(NS, 'filter');
   filter.setAttribute('id', id);

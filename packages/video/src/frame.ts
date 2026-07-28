@@ -60,15 +60,9 @@ export interface DrawOp {
   /** Centred zoom + pan as a fraction of the box, or undefined when static. */
   motion?: { scale: number; tx: number; ty: number };
   mask?: ClipMask;
-  /** Present but NOT renderable on canvas 2D yet — see `unsupported`. */
   cutout?: ChromaKey;
   mosaic?: ClipMosaic;
   magnifier?: ClipMagnifier;
-  /**
-   * Effects this op carries that the canvas renderer cannot reproduce, so the
-   * UI can say so instead of silently showing something the export won't match.
-   */
-  unsupported?: ('temperature' | 'cutout')[];
 }
 
 /**
@@ -110,15 +104,6 @@ function backgroundOp(bg: Background | undefined, W: number, H: number): DrawOp 
   };
   if (bg?.type === 'image') return { ...base, src: bg.src };
   return { ...base, svg: backgroundToSVG(bg ?? { type: 'color', color: '#000000' }, W, H) };
-}
-
-function unsupportedOf(filter: FilterParams, cutout?: ChromaKey) {
-  const list: ('temperature' | 'cutout')[] = [];
-  // Canvas 2D has no Kelvin shift; `ctx.filter` offers sepia/hue-rotate, neither
-  // of which is `colortemperature`. Chroma keying is per-pixel.
-  if (Math.abs(filter.temperature) > 0.001) list.push('temperature');
-  if (cutout) list.push('cutout');
-  return list.length ? list : undefined;
 }
 
 /**
@@ -176,7 +161,6 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
       cutout: c.cutout,
       mosaic: c.mosaic,
       magnifier: c.magnifier,
-      unsupported: unsupportedOf(filter, c.cutout),
     });
   }
 

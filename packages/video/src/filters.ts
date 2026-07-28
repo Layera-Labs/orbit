@@ -51,14 +51,61 @@ export function isNeutral(p: FilterParams): boolean {
   return p.brightness === 0 && p.contrast === 1 && p.saturation === 1 && p.temperature === 0;
 }
 
+/** The Kelvin `colortemperature` is driven at. Lower = warmer; 6500 = daylight. */
+export function temperatureKelvin(temperature: number): number {
+  return Math.round(6500 - temperature * 2500);
+}
+
+const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
+
+/**
+ * ffmpeg's `kelvin2rgb` (vf_colortemperature.c) — the Tanner Helland black-body
+ * approximation. Ported rather than approximated because `colortemperature`
+ * turns out to be a plain per-channel gain, which means the browser preview can
+ * reproduce it EXACTLY inside the grade's colour matrix instead of guessing.
+ *
+ * Verified against this ffmpeg build at 4000/5000/6500/8000/9000 K over eight
+ * probe colours: every channel agrees. ffmpeg truncates to uint8 where a canvas
+ * matrix rounds, so single values can differ by 1/255 — below the h264 noise
+ * floor the export already carries.
+ */
+function kelvinToGains(k: number): [number, number, number] {
+  const kelvin = k / 100;
+  let r: number;
+  let g: number;
+  if (kelvin <= 66) {
+    r = 1;
+    g = clamp01(0.39008157876901960784 * Math.log(kelvin) - 0.63184144378862745098);
+  } else {
+    const t = Math.max(kelvin - 60, 0);
+    r = clamp01(1.29293618606274509804 * Math.pow(t, -0.1332047592));
+    g = clamp01(1.12989086089529411765 * Math.pow(t, -0.0755148492));
+  }
+  const b =
+    kelvin >= 66 ? 1 : kelvin <= 19 ? 0 : clamp01(0.54320678911019607843 * Math.log(kelvin - 10) - 1.19625408914);
+  return [r, g, b];
+}
+
+/**
+ * Per-channel RGB gain for a temperature in our -1..1 units.
+ *
+ * Identity at 0 — deliberately, and not the same as `kelvinToGains(6500)`, which
+ * is (1, 0.9965, 0.9806). `filterToFFmpeg` omits the filter entirely at 0, so a
+ * neutral grade must be a true no-op here too or the preview would tint where
+ * the export does not.
+ */
+export function temperatureGains(temperature: number): [number, number, number] {
+  if (!temperature) return [1, 1, 1];
+  return kelvinToGains(temperatureKelvin(temperature));
+}
+
 /** ffmpeg video filter chain for a clip filter, WITH a trailing comma; '' if neutral. */
 export function filterToFFmpeg(f?: ClipFilter): string {
   const p = resolveFilter(f);
   if (isNeutral(p)) return '';
   const parts = [`eq=brightness=${p.brightness}:contrast=${p.contrast}:saturation=${p.saturation}`];
   if (p.temperature !== 0) {
-    // ffmpeg colortemperature: lower Kelvin = warmer. 6500 = neutral.
-    parts.push(`colortemperature=temperature=${Math.round(6500 - p.temperature * 2500)}`);
+    parts.push(`colortemperature=temperature=${temperatureKelvin(p.temperature)}`);
   }
   return `${parts.join(',')},`;
 }

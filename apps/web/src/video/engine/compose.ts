@@ -26,6 +26,7 @@ import {
   type DrawOp,
 } from '@orbit/video/browser';
 import { filterString } from './grade';
+import { applyCutout, cutoutIsSupported } from './cutout';
 import type { MediaPool, Decoded } from './sources';
 
 /** Reusable scratch canvases, keyed by size, so we don't allocate per frame. */
@@ -127,13 +128,37 @@ export function renderFrame(
       sctx.translate(-dw / 2 + op.motion.tx * dw, -dh / 2 + op.motion.ty * dh);
     }
 
+    /*
+     * The export orders these `grade → colorkey → blur`. So when a clip is being
+     * keyed the blur has to be held back to a second pass: blurring first would
+     * smear the key colour into its neighbours and the matte would be cut on
+     * different pixels than the rendered file cuts it on.
+     */
+    const keying = !!op.cutout && cutoutIsSupported();
     if (deps.filterOK) {
-      const filter = cssFilter(op);
+      const filter = keying ? filterString(op.filter, 0) : cssFilter(op);
       if (filter) sctx.filter = filter;
     }
 
     drawFitted(sctx, source, op, dw, dh, deps);
     sctx.restore();
+
+    if (keying && applyCutout(patch, sctx, op.cutout!, dw, dh) && op.blurSigma > 0) {
+      // Deferred blur. `copy` through a separate namespace, because a canvas
+      // cannot read and write itself in one drawImage.
+      const blurred = scratch(dw, dh, 'blur');
+      const bctx = blurred.getContext('2d');
+      if (bctx) {
+        bctx.setTransform(1, 0, 0, 1, 0, 0);
+        bctx.globalCompositeOperation = 'copy';
+        bctx.filter = filterString({ ...op.filter, brightness: 0, contrast: 1, saturation: 1, temperature: 0 }, op.blurSigma);
+        bctx.drawImage(patch, 0, 0);
+        bctx.filter = 'none';
+        sctx.globalCompositeOperation = 'copy';
+        sctx.drawImage(blurred, 0, 0);
+        sctx.globalCompositeOperation = 'source-over';
+      }
+    }
 
     // Local region effects run AFTER the clip is drawn and inside its own patch,
     // exactly as the filtergraph does — they resample what is already there.
