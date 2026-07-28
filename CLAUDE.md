@@ -275,10 +275,32 @@ pnpm --filter @orbit/studio dev # v2 demo
 
 ## Known gaps / deliberate non-features
 
-- **Not production-ready**: needs durable media/output storage, an async render queue,
-  deployment + observability, purchase config, social login, cloud project sync.
-- Multi-clip projects drop each clip's *own* audio (concat uses `a=0`); only single-clip
-  original audio + separate `project.audio` tracks mix.
+- **Not production-ready**, but three of the blockers closed 2026-07-28:
+  - **Output storage has a seam** — `apps/render-service/src/storage.ts`. Local disk (serve
+    from `/files`) is still the default; set `ORBIT_S3_BUCKET` + keys and output goes to any
+    S3-compatible bucket instead. SigV4 is hand-rolled (no 2MB AWS SDK for one PUT) and
+    pinned to AWS's own published example in `storage.test.ts`. A HALF-set config throws
+    rather than falling back to disk. Outputs are now evicted like uploads
+    (`ORBIT_MAX_OUTPUT_BYTES`) — the directory previously grew until the volume filled.
+    **Uploads are still local-only**; only rendered output goes through the seam.
+  - **Renders can be jobs** — `POST /v1/render {async:true}` → 202 `{id}`, poll
+    `GET /v1/render/:id`. Both clients use it and fall back if the server answers with a
+    url outright. The synchronous path is unchanged for older clients. The registry
+    (`jobs.ts`) is in-process on purpose: the encode is in this process too.
+    `status` goes `queued`→`running` only when a render SLOT is actually held, so waiting
+    behind the semaphore is distinguishable from encoding.
+  - **Observability** — one JSON line per request (no bodies/query: they carry upload
+    tokens), and `/health` reports storage kind, `renders.{running,queued,capacity}` and
+    job count. `ok` stays true while merely busy, so a load balancer will not pull the box
+    that is doing the work.
+  - Still open: durable UPLOAD storage, a real worker pool, deployment, purchase config,
+    social login, cloud project sync.
+- Per-clip audio: the **legacy concat path drops it** (`buildFFmpegArgs` concats with `a=0`,
+  `ffmpeg.ts:254`) — only a lone clip's original audio plus `project.audio` mix there. The
+  **multi-track path does NOT**: `buildMultiTrackArgs` gives every visual clip's stream its
+  own `atrim` → `adelay` → gain chain into the same `amix` as the audio tracks. Both web and
+  mobile send `tracks`, so no current client hits the lossy path. Corrected 2026-07-28 — the
+  note here read as a live gap for months and was not one.
 - Genuinely not built, with reasons: **speed ramping** (ffmpeg can't smoothly ramp audio
   tempo, no faithful preview — constant per-clip speed IS shipped), **keyframe
   scale/rotation** (scale can't animate per-frame in ffmpeg).
