@@ -219,6 +219,25 @@ Next 14 App Router. **One editor** over the v2 SDK plus a browser video engine.
 - Design system "The Instrument" — see `src/styles/tokens.css` and `src/brand/Plate.tsx`.
   Warm graphite, one clay accent for LIVE state only, Gambarino (Fontshare) + system-ui.
   Deliberately NOT mobile's Vela.
+- **Light is the DEFAULT theme** (added 2026-07-28). The light palette sits on bare
+  `:root`; dark is `:root[data-theme='dark']`, opt-in and stored, applied before paint
+  by a script in `layout.tsx`. Not a `prefers-color-scheme` media query — light is the
+  product's default, not merely what a light-set OS gets. The light surface is a **warm
+  stone at hue ~20**, pulled toward the clay accent: NOT the cool UI-kit gray and NOT
+  cream, both of which the design law names. `color-scheme` is declared in CSS, never
+  written onto `<html>` (an inline style the server didn't render warns at hydration).
+  Anything constant across themes — a dark scrim over a photograph and its text — uses
+  `--w-scrim`/`--w-on-scrim`, which do not flip.
+- **The SDK skin must match the theme selectors explicitly.** `@orbit/editor` ships a
+  `.orbit[data-theme='light']` block re-declaring ~25 `--o-*` vars, which outranks a
+  plain `.orbit`. `orbit-editor-skin.css` therefore declares on
+  `.orbit, .orbit[data-theme='light'], .orbit[data-theme='dark']` — drop that and the
+  embedded editor silently reverts to the stock palette in light mode.
+- **Never import a value into a server component from a `'use client'` module.** It
+  arrives as a client reference proxy, not the value. `THEME_KEY` did, and
+  `JSON.stringify` inlined `{}` into the pre-paint script, so the stored theme never
+  came back — with no error anywhere. Shared constants live in plain modules
+  (`store/themeKey.ts`).
 
 `packages/video` now has subpath exports: `@orbit/video/browser` (pure, browser-safe) and
 `@orbit/video` (adds ffmpeg/resvg/fs). Never import the default entry from a web bundle.
