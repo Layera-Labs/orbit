@@ -146,9 +146,11 @@ export function createServer(): Express {
    *
    * `/v1/upload` and `/v1/render` are deliberately unauthenticated — the app is
    * guest-first, so requiring a token here would break the primary flow. That
-   * leaves no per-account meter, so an anonymous caller could fill the disk or
-   * pin every core with concurrent encodes. This is the floor, not a
-   * replacement for a real queue and quota.
+   * leaves no per-account meter by default, so an anonymous caller could still
+   * fill the disk. Two things now sit behind this: `withRenderSlot` caps encodes
+   * in flight (the "pin every core" half of the problem), and `ORBIT_RENDER_COST`
+   * can price an export against the ledger for deployments that want a quota.
+   * Requiring identity to render remains a product decision, not this file's.
    */
   const hits = new Map<string, { n: number; resetAt: number }>();
   const rateLimit =
@@ -315,6 +317,56 @@ export function createServer(): Express {
     return out;
   }
 
+  /*
+   * Render admission control.
+   *
+   * Every render spawns ffmpeg, which will happily use every core it is given.
+   * With nothing in front of it, N concurrent callers meant N encodes competing
+   * for the same CPU: each one slower than if it had waited, and the box
+   * unresponsive for everyone including the requests that only wanted to
+   * upload. A rate limit does not help here — it counts requests per window,
+   * not work in flight.
+   *
+   * So: a hard cap on encodes at once, and a BOUNDED line for the rest. The
+   * bound matters more than the cap. An unbounded queue turns overload into a
+   * pile of connections all held open past any sane client timeout, which is a
+   * worse failure than being told plainly to come back later.
+   */
+  const MAX_CONCURRENT_RENDERS = Math.max(
+    1,
+    Number(process.env.ORBIT_MAX_CONCURRENT_RENDERS ?? 2),
+  );
+  const MAX_QUEUED_RENDERS = Math.max(
+    0,
+    Number(process.env.ORBIT_MAX_QUEUED_RENDERS ?? 8),
+  );
+
+  class QueueFullError extends Error {
+    constructor() {
+      super("render queue is full");
+      this.name = "QueueFullError";
+    }
+  }
+
+  let running = 0;
+  const waiting: (() => void)[] = [];
+
+  async function withRenderSlot<T>(fn: () => Promise<T>): Promise<T> {
+    if (running >= MAX_CONCURRENT_RENDERS) {
+      if (waiting.length >= MAX_QUEUED_RENDERS) throw new QueueFullError();
+      await new Promise<void>((resolve) => waiting.push(resolve));
+    }
+    running += 1;
+    try {
+      return await fn();
+    } finally {
+      running -= 1;
+      // Hand the slot to the next in line rather than letting every waiter wake
+      // and race for it.
+      waiting.shift()?.();
+    }
+  }
+
   async function render(
     project: VideoProject,
     output?: ExportOutput,
@@ -322,11 +374,13 @@ export function createServer(): Express {
     await mkdirAsync(outDir, { recursive: true });
     const name = `v_${++counter}_${Date.now()}.mp4`;
     const safe = await normalizeProjectStills(project);
-    await renderProject(safe, {
-      outputPath: join(outDir, name),
-      resolveSrc,
-      output,
-    });
+    await withRenderSlot(() =>
+      renderProject(safe, {
+        outputPath: join(outDir, name),
+        resolveSrc,
+        output,
+      }),
+    );
     return `/files/${name}`;
   }
 
@@ -363,6 +417,8 @@ export function createServer(): Express {
     ledger,
   );
   const FREE_CREDITS = Number(process.env.ORBIT_FREE_CREDITS ?? 100);
+  /** Credits an export costs. 0 (the default) leaves rendering unmetered. */
+  const RENDER_COST = Math.max(0, Number(process.env.ORBIT_RENDER_COST ?? 0));
   const seeded = new Set<AccountId>();
 
   // ---- auth (pluggable) ----
@@ -492,9 +548,47 @@ export function createServer(): Express {
           });
         return;
       }
+
+      /*
+       * Metering, OFF by default and deliberately so.
+       *
+       * The app is guest-first ("No Login Required" on onboarding), so this
+       * route cannot start demanding a token — that was settled, and this does
+       * not reopen it. What it adds is the ability to PRICE a render for
+       * deployments that need one: set ORBIT_RENDER_COST and exports draw on
+       * the same ledger the AI routes use, resolved through the same
+       * `accountOf` (a verified user where auth is configured, the anonymous
+       * per-device account otherwise). Left at 0, every byte of this is inert
+       * and the route behaves exactly as before.
+       */
+      let account: AccountId | null = null;
+      if (RENDER_COST > 0) {
+        account = await accountOf(req, res);
+        if (!account) return;
+        if (!(await ledger.canAfford(account, RENDER_COST))) {
+          res.status(402).json({
+            error: "not enough credits to export",
+            balance: await ledger.balance(account),
+            cost: RENDER_COST,
+          });
+          return;
+        }
+      }
+
       try {
-        res.json({ url: await render(project, body?.output) });
+        const url = await render(project, body?.output);
+        // Charged only once the file exists. A failed encode the user never
+        // received is not a render, and billing for it is indefensible.
+        if (account)
+          await ledger.debit(account, RENDER_COST, "render").catch(() => undefined);
+        res.json({ url });
       } catch (err) {
+        if (err instanceof QueueFullError) {
+          res
+            .status(503)
+            .json({ error: "the renderer is busy — try again in a moment" });
+          return;
+        }
         // Log the full failure server-side — the client only shows a truncated
         // message, so without this an ffmpeg error is effectively undebuggable.
         console.error(
