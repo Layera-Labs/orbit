@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { Icon } from '@/brand/Icon';
 import { addMedia, listMedia } from '@/db/media';
@@ -16,16 +16,32 @@ interface Start {
   kind: ProjectKind;
   w: number;
   h: number;
+  /** Extra air before this one — the still/motion break. */
+  breakBefore?: boolean;
 }
 
+/*
+ * The formats, in the order they stand on the bench: the three stills, then the
+ * three motion cuts. Grouping them that way puts every disc — the mark that
+ * says a format moves — in the right-hand half, so the row reads as two
+ * families rather than six unrelated shapes.
+ */
 const STARTS: Start[] = [
   { label: 'Square post', kind: 'image', w: 1080, h: 1080 },
   { label: 'Story', kind: 'image', w: 1080, h: 1920 },
   { label: 'Presentation', kind: 'image', w: 1920, h: 1080 },
-  { label: 'Reel', kind: 'video', w: 1080, h: 1920 },
+  { label: 'Reel', kind: 'video', w: 1080, h: 1920, breakBefore: true },
   { label: 'Wide film', kind: 'video', w: 1920, h: 1080 },
   { label: 'Square film', kind: 'video', w: 1080, h: 1080 },
 ];
+
+/*
+ * The bench's scale lives in `Home.module.css` as `--bench-h`, against a 1920
+ * long edge. ONE divisor for the whole row is the entire point: a Story really
+ * is twice a Presentation's height, and drawing each mark to its own cap —
+ * which is what a row of equal buttons does — throws away the only information
+ * the shapes carry.
+ */
 
 type Filter = 'all' | 'image' | 'video';
 
@@ -164,55 +180,78 @@ export function Home() {
 
   return (
     <div className={styles.page}>
-      <div className={styles.console}>
-        <header className={styles.head}>
-          <p className={styles.line}>Stills and motion, one bench.</p>
-          <div className={styles.searchWrap}>
-            <span className={styles.searchIcon}>
-              <Icon name="search" size={17} />
-            </span>
-            <input
-              className={styles.search}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search your work"
-              aria-label="Search your work"
-              type="search"
-            />
-          </div>
-        </header>
+      {/*
+       * The bench.
+       *
+       * Not a headline stacked over a row of shortcut tiles — the formats ARE
+       * the composition. Every one is drawn to a single scale and stands on one
+       * rule, so the row is a true proportion chart: a Story is literally twice
+       * a Presentation's height, and the discs mark the three that move. It is
+       * the only thing on the page that could not be lifted onto some other
+       * product, and it is a working control rather than an illustration.
+       */}
+      <header className={styles.hero}>
+        <h1 className={styles.heroLine}>Stills and motion, one bench.</h1>
 
-        <section aria-label="Start something">
-          <div className={styles.starts}>
-            {STARTS.map((s) => (
-              <button key={s.label} className={styles.start} onClick={() => void open(s)}>
-                <span className={styles.startMark}>
-                  <FormatMark w={s.w} h={s.h} motion={s.kind === 'video'} />
-                </span>
-                <span className={styles.startLabel}>{s.label}</span>
-              </button>
-            ))}
-            <input
-              ref={fileRef}
-              type="file"
-              accept="video/*,image/*,audio/*"
-              hidden
-              onChange={(e) => {
-                void openWithFile(e.target.files);
-                e.target.value = '';
-              }}
-            />
-            <button className={styles.start} onClick={() => fileRef.current?.click()}>
-              <span className={styles.startMark}>
-                <Icon name="upload" size={26} />
+        <div className={styles.searchWrap}>
+          <span className={styles.searchIcon}>
+            <Icon name="search" size={17} />
+          </span>
+          <input
+            className={styles.search}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search your work"
+            aria-label="Search your work"
+            type="search"
+          />
+        </div>
+
+        <div className={styles.bench} role="group" aria-label="Start something">
+          {STARTS.map((s) => (
+            <button
+              key={s.label}
+              className={styles.start}
+              data-break={s.breakBefore || undefined}
+              onClick={() => void open(s)}
+            >
+              {/* The proportions travel as numbers and the SCALE lives in CSS,
+                  so a media query that shrinks the bench shrinks the frames
+                  with it — a height computed here would leave them standing
+                  through the rule at the first breakpoint. */}
+              <span
+                className={styles.startFrame}
+                style={{ '--fw': s.w, '--fh': s.h } as CSSProperties}
+                aria-hidden="true"
+              >
+                {s.kind === 'video' && <span className={styles.startDot} />}
               </span>
-              <span className={styles.startLabel}>Upload</span>
+              <span className={styles.startLabel}>{s.label}</span>
+              <span className={`${styles.startSize} w-data`}>
+                {s.w} × {s.h}
+              </span>
             </button>
-          </div>
-        </section>
+          ))}
+        </div>
 
-        <CustomSize onOpen={open} />
-      </div>
+        <div className={styles.benchFoot}>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="video/*,image/*,audio/*"
+            hidden
+            onChange={(e) => {
+              void openWithFile(e.target.files);
+              e.target.value = '';
+            }}
+          />
+          <button className={styles.fromFile} onClick={() => fileRef.current?.click()}>
+            <Icon name="upload" size={15} />
+            Start from a file
+          </button>
+          <CustomSize onOpen={open} />
+        </div>
+      </header>
 
       <section className={styles.section} aria-label="Your work">
         <div className={styles.sectionHead}>
@@ -269,21 +308,6 @@ export function Home() {
         </section>
       )}
     </div>
-  );
-}
-
-/** A hairline frame at the format's true proportions. */
-function FormatMark({ w, h, motion }: { w: number; h: number; motion: boolean }) {
-  const cap = 40;
-  const scale = cap / Math.max(w, h);
-  return (
-    <span
-      className={styles.startFrame}
-      style={{ width: Math.round(w * scale), height: Math.round(h * scale) }}
-      aria-hidden="true"
-    >
-      {motion && <span className={styles.startDot} />}
-    </span>
   );
 }
 
