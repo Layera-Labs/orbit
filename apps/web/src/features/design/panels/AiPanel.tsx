@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Icon } from '@/brand/Icon';
 import { Plate } from '@/brand/Plate';
 import type { MediaRow } from '@/db/schema';
-import { MODES, useJobs, type Job } from '@/store/jobsStore';
+import { MODES, useJobs, type GenMode, type Job } from '@/store/jobsStore';
 import { MediaPanel, type MediaFilter } from './MediaPanel';
 import styles from './Panels.module.css';
 
@@ -17,13 +17,22 @@ import styles from './Panels.module.css';
  */
 export function AiPanel({
   filter = 'all',
+  modes,
   onInsert,
 }: {
   /** Stills cannot take a speech result, so they never list one. */
   filter?: MediaFilter;
+  /**
+   * Which kinds this document can actually receive. Offering all three
+   * everywhere meant a still project could spend credits on speech and then
+   * show nothing at all — the result is real, but `filter` hides it from the
+   * list and `insertMedia` refuses it. A mode you cannot use is not a choice.
+   */
+  modes?: GenMode[];
   onInsert(row: MediaRow): void;
 }) {
-  const [mode, setMode] = useState<'image' | 'video' | 'speech'>('image');
+  const offered = modes ? MODES.filter((m) => modes.includes(m.key)) : MODES;
+  const [mode, setMode] = useState<GenMode>(offered[0].key);
   const [prompt, setPrompt] = useState('');
 
   const jobs = useJobs((s) => s.jobs);
@@ -34,7 +43,7 @@ export function AiPanel({
   const dismiss = useJobs((s) => s.dismiss);
   const refreshBalance = useJobs((s) => s.refreshBalance);
 
-  const active = MODES.find((m) => m.key === mode)!;
+  const active = offered.find((m) => m.key === mode) ?? offered[0];
   const running = jobs.some((j) => j.status === 'running');
 
   useEffect(refreshBalance, [refreshBalance]);
@@ -52,26 +61,30 @@ export function AiPanel({
   }, [running]);
 
   const fire = () => {
-    void run(mode, prompt);
+    void run(active.key, prompt);
     setPrompt('');
   };
 
   return (
     <div className={styles.stack}>
-      <div className={styles.modes} role="tablist">
-        {MODES.map((m) => (
-          <button
-            key={m.key}
-            role="tab"
-            aria-selected={mode === m.key}
-            className={styles.mode}
-            data-on={mode === m.key}
-            onClick={() => setMode(m.key)}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
+      {/* One option is not a choice — a lone "tab" that cannot be switched away
+          from is chrome pretending to be a control. */}
+      {offered.length > 1 && (
+        <div className={styles.modes} role="tablist">
+          {offered.map((m) => (
+            <button
+              key={m.key}
+              role="tab"
+              aria-selected={active.key === m.key}
+              className={styles.mode}
+              data-on={active.key === m.key}
+              onClick={() => setMode(m.key)}
+            >
+              {m.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <textarea
         className={styles.prompt}

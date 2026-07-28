@@ -41,6 +41,20 @@ function Panel() {
     });
   };
 
+  /*
+   * With no photo provider registered the effect never runs, so the field sat
+   * there searching nothing, forever, with no results and no explanation. Say
+   * so instead — and do not render a search box that cannot search.
+   */
+  if (!provider) {
+    return (
+      <div className="o-hint" style={{ padding: 16, textAlign: 'center', lineHeight: 1.5 }}>
+        No photo provider is registered, so there is nothing to search. Pass one to the
+        editor’s <code>providers</code> to turn this panel on.
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="o-search">
@@ -48,6 +62,11 @@ function Panel() {
         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search photos…" />
       </div>
       {loading && <div className="o-hint">Searching…</div>}
+      {!loading && photos.length === 0 && (
+        <div className="o-hint" style={{ padding: 16, textAlign: 'center' }}>
+          {query ? `Nothing matched “${query}”.` : 'No photos came back.'}
+        </div>
+      )}
       <div className="o-grid-2">
         {photos.map((p) => (
           <div key={p.id} className="o-thumb" style={{ aspectRatio: '1' }} onClick={() => addPhoto(p)}>
