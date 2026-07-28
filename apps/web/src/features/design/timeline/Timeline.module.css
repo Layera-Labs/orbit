@@ -393,6 +393,12 @@
   transform: translateY(-50%);
   display: grid;
   place-items: center;
+  /* Zeroed deliberately: the shared button rule sets `1px 6px`, which left a
+     22px badge only 10px of content box for a 13px mark — so `place-items:
+     center` centred it inside a box narrower than the glyph and the icon sat
+     1.5px right of the circle it lives in. A fixed-size round target has no
+     use for padding. */
+  padding: 0;
   width: 22px;
   height: 22px;
   border-radius: 999px;

@@ -235,6 +235,28 @@
   font-weight: 600;
 }
 
+/*
+ * A value you can read but not change.
+ *
+ * These were `.menuItem`s with an empty handler — they took a hover, took a
+ * click, and answered neither. A control that invites a press it cannot honour
+ * is worse than no control, so a readout now looks like what it is: a label and
+ * a figure, no button affordance anywhere near it.
+ */
+.readout {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--w-3);
+  padding: 5px var(--w-2);
+  font-size: 12.5px;
+  color: var(--w-muted);
+}
+
+.readoutValue {
+  color: var(--w-ink);
+}
+
 .menuLabel {
   flex: 1;
   min-width: 0;

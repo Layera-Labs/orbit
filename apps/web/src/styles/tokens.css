@@ -97,8 +97,22 @@
   /* Ink — warm off-white. Pure #fff never appears. */
   --w-ink: #f4f1ec;
   --w-ink-hover: #fffdf9;
-  --w-muted: #9a938a;
-  --w-muted2: #6f6961;
+  /*
+   * Measured against the LIGHTEST surface each one sits on (--w-s3), the same
+   * way the light ladder is measured — not eyeballed against the page floor,
+   * which is the darkest and therefore the flattering case.
+   *
+   * `--w-muted2` was #6f6961, which carried 11px labels at 3.27:1 on a panel:
+   * the editor's own "1920 × 816 · 30 fps" was the visible one, and it is used
+   * for small text in a dozen other places that simply were not on screen when
+   * the palette was set. `--w-muted` moved up with it so the two stay a real
+   * step apart rather than collapsing into one grey.
+   *
+   * `--w-muted3` is deliberately NOT held to this: it is the disabled state,
+   * where reading "unavailable" from the value is the point.
+   */
+  --w-muted: #a9a298; /* 5.88:1 on --w-s3 */
+  --w-muted2: #948d84; /* 4.53:1 on --w-s3 */
   --w-muted3: #4a4640;
 
   --w-edge: rgba(244, 241, 236, 0.09);
