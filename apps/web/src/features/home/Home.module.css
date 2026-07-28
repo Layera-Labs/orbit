@@ -15,39 +15,46 @@
   margin: 0 auto;
 }
 
-/* ---- search ---------------------------------------------------------------- */
+/* ---- the bench ------------------------------------------------------------- */
 
 /*
- * The top of the page is ONE centred console — the line, the search, the
- * formats and the custom size share an axis and a width. Letting the head
- * centre while the shortcut row ran flush to the left margin read as two
- * unrelated compositions stacked on top of each other.
+ * ONE axis for the whole page.
+ *
+ * The head used to centre inside a 940px console while the recents ran the full
+ * 1240 — two compositions stacked, with the shortcut row starting at neither
+ * margin. Everything now hangs off the page's single left margin, so the
+ * display line, the rule under the formats and the card grid all begin on the
+ * same vertical.
  */
-.console {
+.hero {
   display: grid;
   gap: var(--w-5);
-  width: 100%;
-  max-width: 940px;
-  margin: 0 auto;
+  justify-items: start;
+  padding-top: var(--w-4);
 }
 
-.head {
-  display: grid;
-  gap: var(--w-4);
-  justify-items: center;
-  padding-top: var(--w-5);
-}
-
-.line {
-  color: var(--w-muted);
-  font-size: 13px;
-  letter-spacing: 0.01em;
+/*
+ * The one place the display face is set large. It is the signature voice of the
+ * page, so it is not competing with a kicker above it or a subline below it —
+ * there is nothing else here but the line and the work.
+ */
+.heroLine {
+  max-width: 16ch;
+  /* Two even lines rather than a long one and an orphan — the phrase breaks
+     where it reads, not where the box happens to end. */
+  text-wrap: balance;
+  font-family: var(--w-display);
+  font-size: clamp(30px, 4.4vw, 52px);
+  font-weight: 400;
+  line-height: 1.06;
+  letter-spacing: -0.015em;
+  color: var(--w-ink);
 }
 
 .searchWrap {
   position: relative;
   width: 100%;
-  max-width: 620px;
+  max-width: 480px;
 }
 
 .searchIcon {
@@ -81,77 +88,246 @@
   border-color: var(--w-edge-strong);
 }
 
-/* ---- start shortcuts ------------------------------------------------------- */
-
-.starts {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
-  gap: var(--w-2);
-}
-
-.start {
-  display: grid;
-  justify-items: center;
-  gap: var(--w-2);
-  padding: var(--w-3) var(--w-2) var(--w-3);
-  border-radius: var(--w-r-lg);
-  color: var(--w-muted);
-  /* No tile behind the mark, no lift on hover — the surface warms instead. */
-  transition: color 160ms ease, background-color 160ms ease;
-}
-
-.start:hover {
-  color: var(--w-ink);
-  background: var(--w-s1);
-}
+/* ---- the formats ----------------------------------------------------------- */
 
 /*
- * The mark IS the format: a hairline frame drawn at the shortcut's true aspect
- * ratio, so "Story" and "Wide" are told apart by their shape rather than by a
- * generic glyph. Motion formats carry the house disc — the same reading that
- * rides the Plate's limb and the timeline playhead.
+ * Six frames standing on one rule.
+ *
+ * A fixed frame TRACK is what makes it a chart rather than a row of buttons:
+ * every frame is bottom-aligned in a row of the same height, so they share a
+ * floor and their heights are directly comparable. The rule is drawn at that
+ * floor and runs the full width, so the shapes sit ON something instead of
+ * floating in the page.
  */
-.startMark {
-  display: grid;
-  place-items: center;
-  height: 46px;
+.bench {
+  /* The scale: a 1920px long edge, drawn this tall. Everything on the bench —
+     the frame heights, their widths, the rule — derives from this one value. */
+  --bench-h: 148px;
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--w-5);
   width: 100%;
 }
 
+/*
+ * The rule, drawn at the frame row's exact floor.
+ *
+ * Both the rule's offset and every frame's height come from `--bench-h`, so the
+ * line and the shapes cannot drift apart — a rule positioned by a hand-tuned
+ * offset would slice the frames the first time the scale changed.
+ */
+.bench::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--bench-h);
+  height: 1px;
+  background: var(--w-edge-strong);
+}
+
+/* The still/motion break is air, not a mark. */
+.start[data-break] {
+  margin-left: var(--w-6);
+}
+
+/* The frame row is a FIXED track, so every frame's floor lands on the rule
+   whatever its own height. */
+.start {
+  display: grid;
+  grid-template-rows: var(--bench-h) auto auto;
+  align-items: end;
+  justify-items: start;
+  gap: var(--w-2);
+  /* Zeroed deliberately: the shared button rule leaves 1px of padding here,
+     which pushed the frame row 1px below the rule's offset and left every
+     frame standing a pixel through the line it is meant to rest on. */
+  padding: 0;
+  flex: none;
+  color: var(--w-muted);
+  /* No tile, no lift, no shadow. The frame's edge takes the ink. */
+  transition: color 160ms ease;
+}
+
+.start:hover,
+.start:focus-visible {
+  color: var(--w-ink);
+  outline: none;
+}
+
+/*
+ * The frame IS the format, drawn to the bench's single scale, so shape and size
+ * both carry meaning. Motion formats carry the house disc — the same reading
+ * that rides the Plate's limb and the timeline playhead.
+ *
+ * `border-bottom` is deliberately absent: the frame stands on the bench rule,
+ * so drawing its own floor would double the line.
+ */
 .startFrame {
   position: relative;
   display: grid;
   place-items: center;
+  height: calc(var(--bench-h) * var(--fh) / 1920);
+  aspect-ratio: var(--fw) / var(--fh);
   border: 1px solid currentColor;
-  border-radius: 2px;
-  opacity: 0.85;
+  border-bottom: none;
+  border-radius: 2px 2px 0 0;
+  opacity: 0.72;
+  transition: opacity 160ms ease;
+}
+
+.start:hover .startFrame,
+.start:focus-visible .startFrame {
+  opacity: 1;
 }
 
 .startDot {
-  width: 7px;
-  height: 7px;
+  width: 9px;
+  height: 9px;
+  /*
+   * No nudge. `place-items: center` centres in the CONTENT box, which already
+   * excludes the top border and — since there is no bottom border here — is
+   * exactly the frame's opening. Measured: dead centre in both the open and
+   * the closed (narrow) frame. A 1px "correction" put it half a pixel low.
+   */
   border-radius: 999px;
   background: currentColor;
 }
 
 .startLabel {
-  font-size: 11.5px;
-  line-height: 1.25;
-  text-align: center;
+  font-size: 13px;
+  line-height: 1.2;
+  color: currentColor;
 }
 
-/* ---- custom size ----------------------------------------------------------- */
+/* Real numbers, in the data face, because the frame above is drawn from them. */
+.startSize {
+  margin-top: -4px;
+  font-size: 10.5px;
+  color: var(--w-muted2);
+}
 
-/* Hugs its controls and sits on the console's centre line — a full-width slab
-   with everything bunched at the left is space stranded, not composition. */
+/*
+ * Narrow.
+ *
+ * The chart shrinks first — it is still a chart at 96px tall. Below that the
+ * row cannot hold six frames on one floor at any readable size, so it wraps,
+ * and the moment it wraps the shared rule is a lie: it would run under the
+ * first line only. It goes, and each frame takes its own bottom edge back.
+ */
+@media (max-width: 980px) {
+  .bench {
+    --bench-h: 96px;
+    gap: var(--w-4);
+  }
+
+  .start[data-break] {
+    margin-left: var(--w-5);
+  }
+}
+
+/*
+ * 680, measured: at 640 the last frame overran the bench by 9px with nothing to
+ * scroll it back into view.
+ *
+ * A GRID of three, not `flex-wrap`. Wrapping packs as many as fit and leaves
+ * whatever is left over stranded on a line of its own — at 640 that was five
+ * frames and one orphan, which is the ragged row this layout exists to avoid.
+ * Three columns also lands the split exactly where the families do: stills on
+ * the first line, motion on the second, so the group break has nothing left to
+ * do and the extra margin comes off.
+ *
+ * The shared rule goes with it. Once there are two lines it would run under the
+ * first only, which is worse than no rule — so each frame takes its own bottom
+ * edge back and the row still reads as a set of true proportions.
+ */
+@media (max-width: 680px) {
+  .bench {
+    display: grid;
+    grid-template-columns: repeat(3, max-content);
+    justify-content: start;
+    align-items: end;
+    row-gap: var(--w-4);
+  }
+
+  .bench::after {
+    display: none;
+  }
+
+  .start[data-break] {
+    margin-left: 0;
+  }
+
+  .startFrame {
+    border-bottom: 1px solid currentColor;
+    border-radius: 2px;
+  }
+}
+
+/*
+ * Once the foot wraps onto two lines, `margin-left: auto` stops meaning
+ * "opposite end of the row" and starts meaning "shoved against the window" —
+ * measured at 420px the custom-size row ran to the viewport edge with no
+ * gutter at all, and its own controls were wider than the measure.
+ */
+@media (max-width: 680px) {
+  .custom {
+    margin-left: 0;
+    flex-wrap: wrap;
+  }
+
+  .customInput {
+    width: 76px;
+  }
+}
+
+@media (max-width: 420px) {
+  .bench {
+    --bench-h: 72px;
+    gap: var(--w-3) var(--w-4);
+  }
+}
+
+/* ---- from a file, and a size of your own ----------------------------------- */
+
+.benchFoot {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: var(--w-3);
+  width: 100%;
+}
+
+.fromFile {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px var(--w-3);
+  border-radius: var(--w-r);
+  /*
+   * Tonal, not outlined. An outlined button here would sit on the same row as
+   * the filled "Make it" and read as the stock filled-plus-ghost pair, which
+   * these two are not: they are separate ways in, at opposite ends of the row,
+   * with a form between them.
+   */
+  background: var(--w-s3);
+  color: var(--w-ink);
+  font-size: 13px;
+  transition: background-color 160ms ease;
+}
+
+.fromFile:hover {
+  background: var(--w-s3-hover);
+}
+
+/* Sits on the same line as the file button, hard against the right of the
+   measure rather than stranded in the middle of it. */
 .custom {
   display: flex;
   align-items: flex-end;
-  justify-self: center;
+  margin-left: auto;
   gap: var(--w-2);
-  padding: var(--w-3);
-  border-radius: var(--w-r-lg);
-  background: var(--w-s1);
 }
 
 .customField {
