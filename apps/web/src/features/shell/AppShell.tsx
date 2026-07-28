@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { Icon, type IconName } from '@/brand/Icon';
+import { ThemeSwitch } from '@/brand/ThemeSwitch';
 import { Plate } from '@/brand/Plate';
 import styles from './AppShell.module.css';
 
@@ -56,6 +57,12 @@ export function AppShell({ children }: { children: ReactNode }) {
               </span>
             </Link>
           ))}
+        </div>
+        {/* Sits with Account at the foot of the rail: both are about the
+            session rather than the work. The editor has its own copy in
+            `DesignBar`, because it opts out of this shell entirely. */}
+        <div className={styles.switch}>
+          <ThemeSwitch />
         </div>
         <Link href="/profile" className={styles.item} data-active={pathname.startsWith('/profile')}>
           <Icon name="profile" size={21} title="Account" />

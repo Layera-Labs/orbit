@@ -38,7 +38,7 @@
 }
 
 .new:hover {
-  background: #ffffff;
+  background: var(--w-ink-hover);
 }
 
 .rule {

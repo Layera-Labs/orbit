@@ -23,6 +23,7 @@ import {
 } from '@orbit/providers';
 import { createStore, type Document as OrbitDocument } from '@orbit/model';
 import { saveProject } from '@/db/projects';
+import { useTheme } from '@/store/themeStore';
 import { mediaSrc, type MediaRow, type ProjectRow } from '@/db/schema';
 import { useDesign } from '@/store/designStore';
 import { DesignBar } from './DesignBar';
@@ -63,6 +64,7 @@ export function StillDesign({
   row: ProjectRow;
   onRename(name: string): void;
 }) {
+  const theme = useTheme();
   const store = useMemo(() => {
     const s = createStore({ width: 1080, height: 1080 });
     s.loadJSON(row.data as OrbitDocument);
@@ -96,11 +98,15 @@ export function StillDesign({
   }, [store, row.id, row.name]);
 
   return (
-    <EditorProvider store={store} providers={providers} theme="dark">
+    <EditorProvider store={store} providers={providers} theme={theme}>
       {/* `.orbit` scopes the SDK's ~30 custom properties AND its `.o-*` class
           rules, both of which the reused section panels and the Konva selection
           chrome depend on. `orbitEmbedded` undoes its `position: absolute`. */}
-      <div className="orbit orbitEmbedded" data-theme="dark">
+      {/* `data-theme` follows the app, not a constant. Konva paints the
+          selection chrome from the resolved `--o-*` values and re-reads on a
+          `data-theme` mutation on an ancestor, so this attribute is also what
+          makes the on-canvas handles change colour with the theme. */}
+      <div className="orbit orbitEmbedded" data-theme={theme}>
         <StillShell row={row} store={store} onRename={onRename} />
       </div>
     </EditorProvider>

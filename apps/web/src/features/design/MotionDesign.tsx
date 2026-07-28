@@ -37,6 +37,7 @@ import {
   MotionTextPanel,
   TransitionsPanel,
 } from './panels/MotionPanels';
+import { StockPanel } from './panels/StockPanel';
 import { StickersPanel } from './panels/StickersPanel';
 import { TextInspector } from './inspector/TextInspector';
 import { Timeline } from './timeline/Timeline';
@@ -286,6 +287,8 @@ export function MotionDesign({
             onSelect={select}
           />
         );
+      case 'photos':
+        return <StockPanel onInsert={(m) => insertMedia(m)} />;
       case 'stickers':
         return <StickersPanel time={preview.time} />;
       case 'effects':

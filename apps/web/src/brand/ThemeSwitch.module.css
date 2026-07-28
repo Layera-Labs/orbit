@@ -1,0 +1,66 @@
+.group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  flex: none;
+  border-radius: var(--w-r);
+  background: var(--w-base);
+  box-shadow: inset 0 0 0 1px var(--w-edge);
+}
+
+.option {
+  display: grid;
+  place-items: center;
+  padding: 3px;
+  border-radius: var(--w-r-sm);
+  /* No lift, no scale — the state change is tonal, like every other control. */
+  transition: background-color 140ms ease, box-shadow 140ms ease;
+}
+
+.option:hover {
+  background: var(--w-s2);
+}
+
+/*
+ * Active is a ring on the plate, not a dot beneath the item and not a colour
+ * pop. It has to be visible on BOTH plates, which are near-black and near-white,
+ * so it is drawn in the surrounding chrome's ink rather than in either plate's.
+ */
+.option[data-on='true'] {
+  background: var(--w-s3);
+  box-shadow: inset 0 0 0 1px var(--w-edge-strong);
+}
+
+.option:focus-visible {
+  outline: 2px solid var(--w-live);
+  outline-offset: 1px;
+}
+
+.plate {
+  display: grid;
+  align-content: end;
+  width: 22px;
+  height: 16px;
+  padding: 3px;
+  border-radius: 2px;
+}
+
+/* A stroke of that theme's ink — the plate is a miniature of the palette. */
+.bar {
+  height: 2px;
+  width: 100%;
+  border-radius: 1px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

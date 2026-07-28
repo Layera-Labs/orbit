@@ -41,7 +41,7 @@
 }
 
 .playButton:hover {
-  background: #37332f;
+  background: var(--w-s3-hover);
 }
 
 .clock {
@@ -95,7 +95,7 @@
 }
 
 .ghost:hover {
-  background: #37332f;
+  background: var(--w-s3-hover);
 }
 
 /* ---- scroll body ---------------------------------------------------------- */
@@ -205,11 +205,11 @@
 }
 
 .lane[data-kind='audio'] {
-  background: #141312;
+  background: var(--w-lane-audio-bg);
 }
 
 .lane[data-kind='text'] {
-  background: #131211;
+  background: var(--w-lane-text-bg);
 }
 
 /* ---- clips ---------------------------------------------------------------- */
@@ -230,12 +230,12 @@
 }
 
 .clip[data-kind='audio'] {
-  background: #262019;
+  background: var(--w-clip-audio);
 }
 
 /* Captions read as ink on the surface, not as footage. */
 .clip[data-kind='text'] {
-  background: #23211e;
+  background: var(--w-clip-text);
 }
 
 .clip:hover {

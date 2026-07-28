@@ -26,11 +26,11 @@ export const SECTIONS: ToolSection[] = [
   { id: 'video', label: 'Video', icon: 'video', kinds: ['video'] },
   { id: 'audio', label: 'Audio', icon: 'music', kinds: ['video'] },
   { id: 'text', label: 'Text', icon: 'text', kinds: ['image', 'video'] },
-  // Stills only: the Photos panel is the SDK's `PhotosSection`, which writes an
-  // image ELEMENT through `OrbitStore`. A timeline has no store to write to, and
-  // a stock-photo browser that silently did nothing there would be a dead
-  // control. Uploads and Generate cover motion.
-  { id: 'photos', label: 'Photos', icon: 'image', kinds: ['image'] },
+  // Both kinds, by different routes. A still uses the SDK's `PhotosSection`,
+  // which writes an image ELEMENT through `OrbitStore`; a timeline has no store
+  // to write to, so motion gets `StockPanel`, which imports the file locally and
+  // appends it as a clip. Same shelf, two documents.
+  { id: 'photos', label: 'Photos', icon: 'image', kinds: ['image', 'video'] },
   { id: 'stickers', label: 'Stickers', icon: 'elements', kinds: ['video'] },
   { id: 'uploads', label: 'Uploads', icon: 'folder', kinds: ['image', 'video'] },
   { id: 'effects', label: 'Effects', icon: 'effects', kinds: ['video'], gapBefore: true },

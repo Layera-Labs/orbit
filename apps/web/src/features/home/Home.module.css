@@ -213,7 +213,7 @@
 }
 
 .make:hover {
-  background: #fffdf9;
+  background: var(--w-ink-hover);
 }
 
 /* ---- recents --------------------------------------------------------------- */
@@ -328,8 +328,8 @@
   width: 26px;
   height: 26px;
   border-radius: var(--w-r-sm);
-  background: rgba(16, 15, 14, 0.78);
-  color: var(--w-muted);
+  background: var(--w-scrim);
+  color: var(--w-on-scrim-dim);
   opacity: 0;
   transition: opacity 140ms ease, color 140ms ease;
 }
