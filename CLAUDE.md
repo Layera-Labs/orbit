@@ -234,6 +234,13 @@ Next 14 App Router. **One editor** over the v2 SDK plus a browser video engine.
 - Design system "The Instrument" — see `src/styles/tokens.css` and `src/brand/Plate.tsx`.
   Warm graphite, one clay accent for LIVE state only, Gambarino (Fontshare) + system-ui.
   Deliberately NOT mobile's Vela.
+- **Home's signature is "the bench"** (2026-07-28) — the six start formats drawn to ONE
+  scale (`--bench-h` against a 1920 long edge, in `Home.module.css`) standing on one rule,
+  so the row is a true proportion chart rather than six equal tiles. The proportions travel
+  from JS as `--fw`/`--fh` and the scale stays in CSS, so a breakpoint shrinks frames and
+  rule together. Below 680px it becomes a grid of three — NOT `flex-wrap`, which stranded a
+  sixth frame on its own row — and the shared rule is dropped, since it would run under the
+  first line only.
 - **Light is the DEFAULT theme** (added 2026-07-28). The light palette sits on bare
   `:root`; dark is `:root[data-theme='dark']`, opt-in and stored, applied before paint
   by a script in `layout.tsx`. Not a `prefers-color-scheme` media query — light is the
