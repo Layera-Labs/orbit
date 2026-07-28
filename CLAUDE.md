@@ -202,6 +202,17 @@ Next 14 App Router. **One editor** over the v2 SDK plus a browser video engine.
   across every preset on mid-tone colours is **≤6/255**, confirmed end-to-end against a
   real canvas. Closing it fully would need the clip's own colour space, which the browser
   does not expose. Do not re-assert that the grade is byte-identical; it is not.
+- **How far off, measured against a real MP4 (2026-07-28).** Preview and export were
+  compared pixel-for-pixel end to end: flat-colour clips rendered by `frameStateAt` +
+  `renderFrame` in the browser, exported through `/v1/render`, frames pulled back out
+  with ffmpeg and probed at the same timestamps. Ungraded clips and the fade-through-black
+  transition agree to **≤2/255** — timing, alpha ramp and geometry are effectively exact.
+  The GRADE is where it drifts, and on SATURATED colour it drifts much further than the
+  mid-tone figure above: warm/cool **9**, vivid **16**, film **25** on a saturated red.
+  The preview is always the more extreme one (it clipped a vivid red to 255 where the
+  export landed at 239), which is the expected signature of contrast applied per-channel
+  in full-range RGB versus ffmpeg's `eq` working on limited-range luma. So: mid-tones ≤6,
+  saturated ≤25, everything that is not the grade ≤2.
 - **Chroma key runs in a WebGL fragment shader** (`engine/cutout.ts`), not `getImageData` —
   a full-frame clip is 2M pixels and a JS loop drops the preview under 30fps. It mirrors
   ffmpeg `colorkey` (`alpha = clamp((diff − similarity)/blend)`, `diff = √(Σd²/3)`, RGB
