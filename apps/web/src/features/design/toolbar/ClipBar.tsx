@@ -118,9 +118,9 @@ export function ClipBar({
             </div>
           </BarMenu>
 
-          <BarButton icon="effects" label="Grade and effects" onClick={onOpenEffects} />
+          <BarButton icon="effects" label="Grade and effects" text="Effects" onClick={onOpenEffects} />
 
-          <BarMenu label="Opacity and blending" icon="opacity">
+          <BarMenu label="Opacity and blending" text="Opacity" icon="opacity">
             <div className={styles.group}>
               <SliderRow
                 label="Opacity"
@@ -146,14 +146,14 @@ export function ClipBar({
             </div>
           </BarMenu>
 
-          <BarMenu label="Placement" icon="panel">
+          <BarMenu label="Placement" text="Placement" icon="panel">
             <PlacementMenu clip={clip} />
           </BarMenu>
         </>
       )}
 
       {visual && clip.type === 'video' && (
-        <BarMenu label="Sound" icon={clip.muted ? 'mute' : 'sound'}>
+        <BarMenu label="Sound" text="Sound" icon={clip.muted ? 'mute' : 'sound'}>
           <div className={styles.group}>
             <SliderRow
               label="Volume"
@@ -215,7 +215,7 @@ export function ClipBar({
           drop();
         }}
       />
-      <BarMenu label="More" icon="more">
+      <BarMenu label="More" text="More" icon="more">
         {(close) => (
           <div className={styles.menu}>
             {/* Ripple delete closes the hole and shifts everything after it on
@@ -349,7 +349,7 @@ export function OverlayBar({ overlay }: { overlay: TextOverlay }) {
         onChange={(align) => set({ align })}
       />
 
-      <BarMenu label="Placement and timing" icon="sliders">
+      <BarMenu label="Placement and timing" text="Placement" icon="sliders">
         <div className={styles.group}>
           <SliderRow
             label="Across"
@@ -401,7 +401,7 @@ export function OverlayBar({ overlay }: { overlay: TextOverlay }) {
           select(null);
         }}
       />
-      <BarMenu label="More" icon="more">
+      <BarMenu label="More" text="More" icon="more">
         {(close) => (
           <div className={styles.menu}>
             <MenuItem

@@ -54,9 +54,6 @@ const SelectionActions = dynamic(
 const ZoomControl = dynamic(() => import('@orbit/editor').then((m) => m.ZoomControl), {
   ssr: false,
 });
-const PagesPanel = dynamic(() => import('@orbit/editor').then((m) => m.PagesPanel), {
-  ssr: false,
-});
 
 export function StillDesign({
   row,

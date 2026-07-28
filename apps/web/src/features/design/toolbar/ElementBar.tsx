@@ -10,6 +10,7 @@ import {
   MenuItem,
   NumField,
   PropertyBar,
+  MenuSearch,
   Segmented,
   Sep,
   SliderRow,
@@ -89,12 +90,37 @@ export function ElementBar() {
         </>
       )}
 
+      {isText && (
+        <BarMenu label="Line height and spacing" text="Spacing" icon="lineHeight">
+          <div className={styles.group}>
+            <SliderRow
+              label="Line height"
+              value={Number(el.lineHeight ?? 1.2)}
+              min={0.7}
+              max={3}
+              step={0.05}
+              format={(v) => v.toFixed(2)}
+              onChange={(lineHeight) => set({ lineHeight })}
+            />
+            <SliderRow
+              label="Letter spacing"
+              value={Number(el.letterSpacing ?? 0)}
+              min={-20}
+              max={80}
+              step={1}
+              format={(v) => `${Math.round(v)}px`}
+              onChange={(letterSpacing) => set({ letterSpacing })}
+            />
+          </div>
+        </BarMenu>
+      )}
+
       <Sep />
 
       {/* Geometry lives in a menu rather than four permanent fields — it is
           precise work you reach for, not something you read at a glance, and
           four number boxes would push everything else off a narrow canvas. */}
-      <BarMenu label="Size and position" icon="sliders">
+      <BarMenu label="Size and position" text="Size" icon="resize">
         <div className={styles.group}>
           <p className={styles.groupTitle}>Position</p>
           <div style={{ display: 'flex', gap: 4 }}>
@@ -118,7 +144,7 @@ export function ElementBar() {
         </div>
       </BarMenu>
 
-      <BarMenu label="Opacity and blending" icon="opacity">
+      <BarMenu label="Opacity and blending" text="Opacity" icon="opacity">
         <div className={styles.group}>
           <SliderRow
             label="Opacity"
@@ -140,10 +166,32 @@ export function ElementBar() {
         </div>
       </BarMenu>
 
+      {/*
+        One Arrange menu with WORDS, not two bare glyphs. A chevron and a
+        stack-of-plates icon said nothing about z-order — they read as "collapse"
+        and "database". Four labelled items cost one click and are unambiguous.
+      */}
+      <BarMenu label="Arrange" text="Arrange" icon="arrange">
+        {(close) => (
+          <div className={styles.menu}>
+            <MenuItem onClick={() => { store.bringToFront(element.id); close(); }}>
+              Bring to front
+            </MenuItem>
+            <MenuItem onClick={() => { store.bringForward(element.id); close(); }}>
+              Bring forward
+            </MenuItem>
+            <MenuItem onClick={() => { store.sendBackward(element.id); close(); }}>
+              Send backward
+            </MenuItem>
+            <MenuItem onClick={() => { store.sendToBack(element.id); close(); }}>
+              Send to back
+            </MenuItem>
+          </div>
+        )}
+      </BarMenu>
+
       <Sep />
 
-      <BarButton icon="chevronDown" label="Send back" onClick={() => store.sendBackward(element.id)} />
-      <BarButton icon="layers" label="Bring forward" onClick={() => store.bringForward(element.id)} />
       <BarButton icon="duplicate" label="Duplicate" onClick={() => store.duplicateElement(element.id)} />
       <BarButton icon="trash" label="Delete" danger onClick={() => store.removeElement(element.id)} />
     </PropertyBar>
@@ -151,57 +199,78 @@ export function ElementBar() {
 }
 
 /**
- * Font family, loaded before it is applied.
- *
- * `provider.load` injects the webfont and resolves once it is ready. Applying
- * the family first would set a name the browser cannot render yet, and Konva
- * rasterizes immediately — the canvas would fall back to a default face and then
- * silently not repaint when the real font arrived. So: load, then set.
+ * Font family, searchable, and applied only once the face can actually render.
  */
 function FontMenu({ value, onChange }: { value: string; onChange(family: string): void }) {
   const providers = useProviders();
   const provider = providers.get('fonts');
   const [items, setItems] = useState<FontItem[]>([]);
+  const [query, setQuery] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
     if (!provider) return;
     let live = true;
-    void provider.list({}).then((list) => {
+    void provider.list({ query }).then((list) => {
       if (!live) return;
       setItems(list);
-      // Preload the first handful so the menu previews in the real faces.
+      // Preload so the menu previews in the real faces.
       list.slice(0, 12).forEach((f) => void provider.load(f.family, f.weights));
     });
     return () => {
       live = false;
     };
-  }, [provider]);
+  }, [provider, query]);
 
   if (!provider) return null;
+
+  /**
+   * `GoogleFontProvider.load` short-circuits on any family it has already SEEN,
+   * and this menu preloads its first dozen for the previews — so by the time one
+   * is clicked, `load` resolves instantly while the stylesheet may still be in
+   * flight. Konva measures text the moment the family changes, so it laid the
+   * text out in the fallback face and only corrected on the next unrelated edit.
+   * That is why applying a font appeared to take two steps.
+   *
+   * Awaiting `document.fonts.load` asks the browser about the REAL face rather
+   * than trusting the provider's cache.
+   */
+  const apply = async (f: FontItem, close: () => void) => {
+    setBusy(f.family);
+    try {
+      await provider.load(f.family, f.weights);
+      if (typeof document !== 'undefined' && 'fonts' in document) {
+        await Promise.all(
+          (f.weights ?? [400]).map((w) =>
+            document.fonts.load(`${w} 16px "${f.family}"`).catch(() => undefined),
+          ),
+        );
+      }
+      onChange(f.family);
+    } finally {
+      setBusy(null);
+      close();
+    }
+  };
 
   return (
     <BarMenu label="Font" icon="fontFamily" value={value || 'Font'}>
       {(close) => (
-        <div className={styles.menu}>
-          {items.length === 0 && <p className={styles.empty}>No fonts available.</p>}
-          {items.map((f) => (
-            <MenuItem
-              key={f.family}
-              on={value === f.family}
-              style={{ fontFamily: `"${f.family}", var(--w-body)`, fontSize: 15 }}
-              onClick={() => {
-                setBusy(f.family);
-                void provider.load(f.family, f.weights).then(() => {
-                  onChange(f.family);
-                  setBusy(null);
-                  close();
-                });
-              }}
-            >
-              {busy === f.family ? `${f.family}…` : f.family}
-            </MenuItem>
-          ))}
+        <div>
+          <MenuSearch value={query} onChange={setQuery} placeholder="Search fonts" />
+          <div className={styles.menu}>
+            {items.length === 0 && <p className={styles.empty}>No fonts match that.</p>}
+            {items.map((f) => (
+              <MenuItem
+                key={f.family}
+                on={value === f.family}
+                style={{ fontFamily: `"${f.family}", var(--w-body)`, fontSize: 15 }}
+                onClick={() => void apply(f, close)}
+              >
+                {busy === f.family ? `${f.family}…` : f.family}
+              </MenuItem>
+            ))}
+          </div>
         </div>
       )}
     </BarMenu>

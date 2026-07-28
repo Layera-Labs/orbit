@@ -79,10 +79,17 @@ export function StillDesignPanel() {
           value={page?.background?.type === 'solid' ? page.background.color : undefined}
           onChange={(colour) => store.setBackground({ type: 'solid', color: colour })}
         />
+        {/* The Gradient tab appears here and NOT on an element's fill, because
+            `Page.background` is the only thing in the model that can store one —
+            an element's `fill` is a plain colour string. */}
         <ColourRow
           label="Custom"
           value={page?.background?.type === 'solid' ? page.background.color : '#ffffff'}
           onChange={(colour) => store.setBackground({ type: 'solid', color: colour })}
+          gradient={{
+            value: page?.background?.type === 'gradient' ? page.background.css : null,
+            onChange: (css) => store.setBackground({ type: 'gradient', css }),
+          }}
         />
       </div>
 

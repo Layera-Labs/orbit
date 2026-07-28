@@ -21,6 +21,7 @@ export function Sep() {
 export function BarButton({
   icon,
   label,
+  text,
   on,
   disabled,
   danger,
@@ -28,6 +29,8 @@ export function BarButton({
 }: {
   icon: IconName;
   label: string;
+  /** Renders the mark beside a word. Same reasoning as `BarMenu`'s `text`. */
+  text?: string;
   on?: boolean;
   disabled?: boolean;
   danger?: boolean;
@@ -36,7 +39,7 @@ export function BarButton({
   return (
     <button
       type="button"
-      className={`${styles.iconButton} ${danger ? styles.danger : ''}`}
+      className={`${text ? styles.textButton : styles.iconButton} ${danger ? styles.danger : ''}`}
       data-on={on || undefined}
       aria-pressed={on === undefined ? undefined : on}
       aria-label={label}
@@ -44,7 +47,8 @@ export function BarButton({
       disabled={disabled}
       onClick={onClick}
     >
-      <Icon name={icon} size={15} />
+      <Icon name={icon} size={text ? 13 : 15} />
+      {text && <span>{text}</span>}
     </button>
   );
 }
@@ -63,6 +67,7 @@ export function NumField({
   min,
   max,
   suffix,
+  precision = 0,
   onChange,
 }: {
   icon?: IconName;
@@ -71,10 +76,13 @@ export function NumField({
   min?: number;
   max?: number;
   suffix?: string;
+  /** Decimals to SHOW. Geometry is whole pixels, so it defaults to none. */
+  precision?: number;
   onChange(v: number): void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
-  const shown = draft ?? String(Math.round(value * 100) / 100);
+  const factor = 10 ** precision;
+  const shown = draft ?? String(Math.round(value * factor) / factor);
 
   const commit = (raw: string) => {
     const n = Number(raw);
@@ -116,16 +124,29 @@ export function NumField({
   );
 }
 
-/** A trigger that opens arbitrary content in a popover. */
+/**
+ * A trigger that opens arbitrary content in a popover.
+ *
+ * Three shapes, in order of how much the trigger has to say:
+ * - `value` — a select showing the current setting ("Oswald").
+ * - `text` — an icon plus a WORD. Menus get this by default, because a mark on
+ *   its own could not carry "arrange" or "size and position": those were read as
+ *   "collapse" and "database" respectively. A tooltip is not an answer when the
+ *   question is what the button does at a glance.
+ * - neither — a bare mark, only for verbs a glyph genuinely carries (duplicate,
+ *   delete) or a state toggle sitting in a labelled group.
+ */
 export function BarMenu({
   label,
   value,
+  text,
   icon,
   children,
   wide,
 }: {
   label: string;
   value?: string;
+  text?: string;
   icon?: IconName;
   children: ReactNode | ((close: () => void) => ReactNode);
   wide?: boolean;
@@ -133,13 +154,14 @@ export function BarMenu({
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
   const close = () => setOpen(false);
+  const shape = value !== undefined ? styles.select : text ? styles.textButton : styles.iconButton;
 
   return (
     <>
       <button
         ref={setAnchor}
         type="button"
-        className={value === undefined ? styles.iconButton : styles.select}
+        className={shape}
         data-on={open || undefined}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -147,8 +169,9 @@ export function BarMenu({
         title={label}
         onClick={() => setOpen((o) => !o)}
       >
-        {icon && <Icon name={icon} size={value === undefined ? 15 : 13} />}
+        {icon && <Icon name={icon} size={value === undefined && !text ? 15 : 13} />}
         {value !== undefined && <span className={styles.selectValue}>{value}</span>}
+        {text && <span>{text}</span>}
         {value !== undefined && (
           <span className={styles.selectCaret}>
             <Icon name="chevronDown" size={12} />
@@ -165,6 +188,39 @@ export function BarMenu({
         {typeof children === 'function' ? children(close) : children}
       </Popover>
     </>
+  );
+}
+
+/**
+ * A filter for a menu that can run long.
+ *
+ * Autofocused, because the only reason to open a searchable menu is to look for
+ * something — and `stopPropagation` on keys so typing "b" does not reach the
+ * canvas shortcut handler and do something to the selection.
+ */
+export function MenuSearch({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange(v: string): void;
+  placeholder: string;
+}) {
+  return (
+    <div className={styles.search}>
+      <Icon name="search" size={14} />
+      <input
+        className={styles.searchInput}
+        value={value}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        autoFocus
+        spellCheck={false}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => e.stopPropagation()}
+      />
+    </div>
   );
 }
 
