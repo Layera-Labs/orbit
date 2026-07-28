@@ -21,6 +21,39 @@ function n(v: number): string {
   return String(Math.round(v * 100) / 100);
 }
 
+/**
+ * The caption's box in project pixels.
+ *
+ * An overlay's `DrawOp.dst` is the WHOLE FRAME — the caption is rasterized
+ * full-frame with the text baked at its anchor — so `dst` cannot say where the
+ * words actually are. Anything that needs that (hit-testing a click on the
+ * canvas, drawing a selection outline) asks here.
+ *
+ * The width is an approximation: 0.58em per character, no font metrics, which
+ * is the same guess `overlayToSVG` has always used to size a caption's
+ * background box. Sharing it is the point — an outline derived from different
+ * numbers than the box it outlines would visibly disagree with it.
+ */
+export function overlayBox(
+  o: TextOverlay,
+  width: number,
+  height: number,
+): { x: number; y: number; w: number; h: number } {
+  const lines = (o.text ?? '').split('\n');
+  const lineH = o.fontSize * (o.lineHeight ?? 1.25);
+  const letterSpacing = o.letterSpacing ?? 0;
+  const maxLen = Math.max(1, ...lines.map((l) => l.length));
+  const textW = maxLen * o.fontSize * 0.58 + maxLen * letterSpacing;
+  const pad = o.box ? (o.box.padding ?? 16) : 0;
+  const w = textW + pad * 2;
+  const h = lines.length * lineH + pad * 2;
+  const align = o.align ?? 'center';
+  const anchorX = width * o.x;
+  const x =
+    align === 'left' ? anchorX - pad : align === 'right' ? anchorX - w + pad : anchorX - w / 2;
+  return { x, y: height * o.y - h / 2, w, h };
+}
+
 /** Produce a `width`×`height` SVG containing the positioned caption. */
 export function overlayToSVG(o: TextOverlay, width: number, height: number): string {
   const lines = (o.text ?? '').split('\n');
@@ -33,18 +66,14 @@ export function overlayToSVG(o: TextOverlay, width: number, height: number): str
   const fontFamily = o.fontFamily ?? 'Arial';
   const letterSpacing = o.letterSpacing ?? 0;
 
-  // Approximate caption box sized to the text (no metrics pre-render).
+  // Approximate caption box sized to the text (no metrics pre-render), from the
+  // shared measurement so the editor's outline lands on the same rectangle.
   let boxEl = '';
   if (o.box) {
-    const maxLen = Math.max(1, ...lines.map((l) => l.length));
-    const textW = maxLen * o.fontSize * 0.58 + maxLen * letterSpacing;
+    const b = overlayBox(o, width, height);
     const pad = o.box.padding ?? 16;
-    const boxW = textW + pad * 2;
-    const boxH = lines.length * lineH + pad * 2;
-    const bx = align === 'left' ? anchorX - pad : align === 'right' ? anchorX - boxW + pad : anchorX - boxW / 2;
-    const by = anchorY - boxH / 2;
     boxEl =
-      `<rect x="${n(bx)}" y="${n(by)}" width="${n(boxW)}" height="${n(boxH)}" ` +
+      `<rect x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" ` +
       `rx="${n(Math.min(18, pad))}" fill="${esc(o.box.color)}" fill-opacity="${o.box.opacity ?? 1}"/>`;
   }
 
