@@ -70,8 +70,10 @@ These are decisions, not omissions.
   first visual track and collapses everything else to a fade — so the preview
   reproduces that collapse deliberately, and the panel offers only what both
   surfaces can actually do. Slide/wipe/zoom would be a lie in two places.
-- **Chroma key and colour temperature are hidden where the preview cannot
-  reproduce them** rather than offered and silently skipped.
+- **Chroma key hides itself where WebGL is missing** rather than being offered
+  and silently skipped on export. (Colour temperature used to be in this list
+  and no longer is: `colortemperature` turned out to be a plain per-channel
+  gain, so it folds into the same colour matrix and the preview reproduces it.)
 
 ## Known limits worth stating
 
