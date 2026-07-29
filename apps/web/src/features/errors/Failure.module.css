@@ -1,0 +1,93 @@
+/*
+ * The one screen nobody designs and everybody eventually sees.
+ *
+ * It has to do two things at once: stay calm, and be genuinely useful — which
+ * means the actual error text is present, not hidden behind "something went
+ * wrong". A person can paste that into a bug report; they cannot paste a
+ * shrug.
+ */
+.wrap {
+  display: grid;
+  place-content: center;
+  justify-items: start;
+  gap: var(--w-4);
+  min-height: 100dvh;
+  padding: var(--w-6);
+  max-width: 62ch;
+  margin-inline: auto;
+}
+
+.title {
+  font-family: var(--w-display);
+  font-size: clamp(28px, 5vw, 44px);
+  line-height: 1.05;
+  color: var(--w-ink);
+}
+
+.body {
+  color: var(--w-muted);
+  line-height: 1.55;
+}
+
+/*
+ * The message itself, set as data because that is what it is. Wrapping is on
+ * purpose: a long stack must not force the page to scroll sideways, and it
+ * must not be clipped either — a truncated error is worse than none, because
+ * it looks like the whole message.
+ */
+.detail {
+  width: 100%;
+  padding: var(--w-3) var(--w-4);
+  border: 1px solid var(--w-edge);
+  border-radius: var(--w-r);
+  background: var(--w-s2);
+  color: var(--w-muted2);
+  font-family: var(--w-data);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--w-3);
+  align-items: center;
+}
+
+/*
+ * One real action, and one quiet way out. Deliberately not the
+ * filled-plus-outlined pair: the difference is weight and tone, not a border
+ * drawn around the second one.
+ */
+.primary {
+  padding: 10px 18px;
+  border: 1px solid var(--w-ink);
+  border-radius: var(--w-r);
+  background: var(--w-ink);
+  color: var(--w-base);
+  font: inherit;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+
+.primary:hover {
+  background: var(--w-ink-hover);
+  border-color: var(--w-ink-hover);
+}
+
+.quiet {
+  color: var(--w-muted);
+  text-decoration: none;
+  border-bottom: 1px solid var(--w-edge-strong);
+  padding-bottom: 1px;
+  transition: color 140ms ease, border-color 140ms ease;
+}
+
+.quiet:hover {
+  color: var(--w-ink);
+  border-color: currentColor;
+}

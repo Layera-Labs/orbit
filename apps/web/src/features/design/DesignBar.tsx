@@ -7,6 +7,7 @@ import { ThemeSwitch } from '@/brand/ThemeSwitch';
 import { Plate } from '@/brand/Plate';
 import { renameProject } from '@/db/projects';
 import type { ProjectRow } from '@/db/schema';
+import { SaveIndicator } from './SaveIndicator';
 import styles from './Design.module.css';
 
 export interface HistoryApi {
@@ -89,6 +90,7 @@ export function DesignBar({
       </button>
 
       <span className={styles.barSpacer} />
+      <SaveIndicator />
       <ThemeSwitch />
       <span className={styles.divider} aria-hidden="true" />
       {children}

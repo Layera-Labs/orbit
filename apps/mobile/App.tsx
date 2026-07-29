@@ -17,6 +17,7 @@ import { EditorScreen } from './src/screens/EditorScreen';
 import { AiStudioScreen } from './src/screens/AiStudioScreen';
 import { MediaLibraryScreen } from './src/screens/MediaLibraryScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 
 const ONBOARDING_KEY = 'orbit.onboarding.complete';
@@ -79,7 +80,9 @@ export default function App() {
     return (
       <GestureHandlerRootView style={{ flex: 1 }}>
         <StatusBar style='dark' />
-        <OnboardingScreen onContinue={finishOnboarding} />
+        <ErrorBoundary>
+          <OnboardingScreen onContinue={finishOnboarding} />
+        </ErrorBoundary>
       </GestureHandlerRootView>
     );
   }
@@ -90,7 +93,11 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar style={darkTop ? 'light' : 'dark'} />
-      {isEditor ? <EditorScreen /> : screen === 'discover' ? <DiscoverScreen /> : screen === 'library' ? <MediaLibraryScreen /> : screen === 'ai' ? <AiStudioScreen /> : screen === 'profile' ? <ProfileScreen /> : <HomeScreen />}
+      {/* Inside the root view, so a throw in any screen still leaves a usable
+          app rather than a black rectangle with no way out. */}
+      <ErrorBoundary>
+        {isEditor ? <EditorScreen /> : screen === 'discover' ? <DiscoverScreen /> : screen === 'library' ? <MediaLibraryScreen /> : screen === 'ai' ? <AiStudioScreen /> : screen === 'profile' ? <ProfileScreen /> : <HomeScreen />}
+      </ErrorBoundary>
     </GestureHandlerRootView>
   );
 }
