@@ -394,6 +394,18 @@ pnpm --filter @orbit/studio dev # v2 demo
          nearly unreachable. `local.updatedAt > since` is what "edited here since the last
          successful sync" means, and it is the only signal that the copy about to be
          replaced is not merely an older download.
+    **The copies it already made** are cleaned up from Account → Sync
+    (`apps/web/src/db/duplicates.ts`). The rule is narrow on purpose, because being wrong
+    deletes someone's work: a project goes only when it carries the machine suffix AND is
+    byte-identical to a survivor AND their base names match. Content alone is too loose —
+    three projects from one preset are identical while being three different things, and
+    their names are all that separate them. The fingerprint sorts keys at every level,
+    since a round-tripped project came back from `jsonb` with its key order changed and a
+    plain `JSON.stringify` comparison would clean up nothing.
+    **A failed delete is remembered and retried** before the next listing, on both clients.
+    `syncDelete` used to catch only a THROWN error, so a 500 or an expired session answered
+    it successfully; and an absent tombstone is indistinguishable from a project the server
+    was never told about, so the next full pull handed it straight back.
   - Still open: purchase config, social login.
 - Per-clip audio: the **legacy concat path drops it** (`buildFFmpegArgs` concats with `a=0`,
   `ffmpeg.ts:254`) — only a lone clip's original audio plus `project.audio` mix there. The
