@@ -351,6 +351,17 @@ pnpm --filter @orbit/studio dev # v2 demo
     `apps/render-service/` is silently ignored and `.env` lands in the image.
     `pnpm prune --prod` does NOT work here — it strips the per-package `node_modules` a
     workspace resolves through; install with `--prod --filter` a second time instead.
+  - **Shutdown is a real shutdown** (2026-07-29) — `main.ts` owns SIGTERM/SIGINT and
+    ACTUALLY EXITS. Installing a listener REPLACES Node's default terminate, so the old
+    handler (which only set `stopping = true`, inside the queue block) left the process
+    alive until Docker's grace period ran out and SIGKILLed it — stranding whatever was
+    mid-encode in `running`, owned by a worker that no longer existed, until the 15-minute
+    stale sweep. Now a worker hands its claim back (`PgJobQueue.release`) and
+    `killLiveRenders()` stops the encoders, because a signal reaches the SERVICE, not its
+    children: ffmpeg is a separate process and survives its parent outside a container.
+    `heartbeat`/`finish`/`fail` are all guarded on `claimed_by`, so a superseded worker
+    cannot reach back into a job that now belongs to someone else — which is also what
+    makes the shutdown ordering safe (release, then kill; the resulting `fail` no-ops).
   - **Observability** — one JSON line per request (no bodies/query: they carry upload
     tokens), and `/health` reports storage kind, queue mode, `renders.{running,queued,
     capacity}`, cluster depth when shared, and job count. `ok` stays true while merely

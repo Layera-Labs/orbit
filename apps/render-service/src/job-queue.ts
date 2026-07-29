@@ -133,25 +133,54 @@ export class PgJobQueue {
     };
   }
 
-  /** Still working — pushes the stale deadline out. */
-  async heartbeat(id: string): Promise<void> {
+  /**
+   * Still working — pushes the stale deadline out.
+   *
+   * Guarded on the claim, like `finish` and `fail`. A worker that was declared
+   * stale and superseded must not be able to reach back into a job that now
+   * belongs to someone else, whichever of the three calls it makes next.
+   */
+  async heartbeat(id: string, workerId: string): Promise<void> {
     await this.pool.query(
-      `UPDATE render_jobs SET claimed_at = now() WHERE id = $1 AND status = 'running'`,
-      [id],
+      `UPDATE render_jobs SET claimed_at = now()
+       WHERE id = $1 AND status = 'running' AND claimed_by = $2`,
+      [id, workerId],
     );
   }
 
-  async finish(id: string, url: string): Promise<void> {
+  async finish(id: string, url: string, workerId: string): Promise<void> {
     await this.pool.query(
-      `UPDATE render_jobs SET status = 'done', url = $2, finished_at = now() WHERE id = $1`,
-      [id, url],
+      `UPDATE render_jobs SET status = 'done', url = $2, finished_at = now()
+       WHERE id = $1 AND claimed_by = $3`,
+      [id, url, workerId],
     );
   }
 
-  async fail(id: string, error: string): Promise<void> {
+  async fail(id: string, error: string, workerId: string): Promise<void> {
     await this.pool.query(
-      `UPDATE render_jobs SET status = 'error', error = $2, finished_at = now() WHERE id = $1`,
-      [id, error.slice(0, 2000)],
+      `UPDATE render_jobs SET status = 'error', error = $2, finished_at = now()
+       WHERE id = $1 AND claimed_by = $3`,
+      [id, error.slice(0, 2000), workerId],
+    );
+  }
+
+  /**
+   * Give a claimed job back, unstarted.
+   *
+   * What a worker does on the way out. Without it a deploy strands whatever was
+   * mid-encode in `running` until the stale sweep notices — fifteen minutes by
+   * default, during which the client polls a job nobody is working on and the
+   * queue looks busy while it is idle. Releasing turns a rolling restart into a
+   * few seconds of delay instead.
+   *
+   * Guarded on the claim so a superseded worker cannot yank a job out from
+   * under the one that legitimately took it over.
+   */
+  async release(id: string, workerId: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE render_jobs SET status = 'queued', claimed_by = NULL, claimed_at = NULL
+       WHERE id = $1 AND status = 'running' AND claimed_by = $2`,
+      [id, workerId],
     );
   }
 

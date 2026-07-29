@@ -28,6 +28,44 @@ export interface RenderOptions extends Omit<BuildFFmpegOptions, 'overlayImages' 
 const DEFAULT_RENDER_TIMEOUT_MS = 10 * 60_000;
 const DEFAULT_PROBE_TIMEOUT_MS = 30_000;
 
+/**
+ * Every encoder this process has running right now.
+ *
+ * A signal sent to the service reaches the SERVICE, not its children — ffmpeg
+ * is a separate process, and `docker stop`/`kill -TERM <pid>` signal one pid,
+ * not the tree. So a shutdown that simply exits leaves the encoder alive,
+ * burning a core and writing to a temp file nobody will ever collect. Inside a
+ * container the namespace teardown hides it; run under systemd or bare node and
+ * it is a genuine orphan.
+ */
+const live = new Set<{ kill: (sig?: NodeJS.Signals) => boolean }>();
+
+/**
+ * Stop every encode this process started. Called on the way out.
+ *
+ * SIGTERM, then SIGKILL for anything still there a moment later — ffmpeg does
+ * usually honour SIGTERM, and the point of shutting down is not to wait.
+ */
+export function killLiveRenders(): number {
+  const n = live.size;
+  for (const proc of live) {
+    try {
+      proc.kill('SIGTERM');
+      setTimeout(() => {
+        try {
+          proc.kill('SIGKILL');
+        } catch {
+          /* already gone */
+        }
+      }, 2_000).unref?.();
+    } catch {
+      /* already gone */
+    }
+  }
+  live.clear();
+  return n;
+}
+
 /** Kill a child after `ms`; SIGKILL if it ignores SIGTERM. Returns a canceller. */
 function killAfter(proc: { kill: (sig?: NodeJS.Signals) => boolean }, ms: number, onKill: () => void) {
   const t = setTimeout(() => {
@@ -124,6 +162,7 @@ function runFFmpeg(
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(bin, args, { stdio: ['ignore', 'ignore', 'pipe'] });
+    live.add(proc);
     let stderr = '';
     let timedOut = false;
     const cancel = killAfter(proc, timeoutMs, () => { timedOut = true; });
@@ -132,9 +171,10 @@ function runFFmpeg(
       stderr += s;
       onProgress?.(s);
     });
-    proc.on('error', (err) => { cancel(); reject(err); });
+    proc.on('error', (err) => { cancel(); live.delete(proc); reject(err); });
     proc.on('close', (code) => {
       cancel();
+      live.delete(proc);
       if (timedOut) reject(new Error(`ffmpeg timed out after ${timeoutMs}ms`));
       else if (code === 0) resolve();
       else reject(new Error(`ffmpeg exited with code ${code}\n${stderr.slice(-2000)}`));

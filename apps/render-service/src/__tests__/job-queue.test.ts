@@ -29,6 +29,10 @@ beforeAll(async () => {
   pool = makePgPool(URL);
   await pool.query('DROP TABLE IF EXISTS render_jobs');
   queue = new PgJobQueue(pool, 500); // a short stale window, so the sweep is testable
+  // The constructor STARTS schema creation; it does not finish it. Without this
+  // the first `beforeEach` truncates a table that does not exist yet — a
+  // failure in whichever test happens to run first, and only after a DROP.
+  await queue.get('warm-up');
 });
 
 // Each test starts from an empty queue. Without this the FIRST test's rows are
@@ -101,7 +105,7 @@ suite('PgJobQueue', () => {
     await queue.enqueue('long', project);
     await queue.claim('busy');
     await new Promise((r) => setTimeout(r, 350));
-    await queue.heartbeat('long');
+    await queue.heartbeat('long', 'busy');
     await new Promise((r) => setTimeout(r, 350));
     // Would be past the 500ms window without the heartbeat.
     expect(await queue.claim('thief')).toBeNull();
@@ -110,12 +114,12 @@ suite('PgJobQueue', () => {
   it('records a result, and a failure', async () => {
     await queue.enqueue('ok', project);
     await queue.claim('w');
-    await queue.finish('ok', '/files/v.mp4');
+    await queue.finish('ok', '/files/v.mp4', 'w');
     expect(await queue.get('ok')).toMatchObject({ status: 'done', url: '/files/v.mp4' });
 
     await queue.enqueue('bad', project);
     await queue.claim('w');
-    await queue.fail('bad', 'ffmpeg exited 1');
+    await queue.fail('bad', 'ffmpeg exited 1', 'w');
     expect(await queue.get('bad')).toMatchObject({ status: 'error', error: 'ffmpeg exited 1' });
   });
 
@@ -126,10 +130,56 @@ suite('PgJobQueue', () => {
     expect(await queue.depth()).toEqual({ queued: 1, running: 1 });
   });
 
+  /*
+   * A deploy is the common case, not an exotic one. Without a release the job
+   * sits in `running`, owned by a process that no longer exists, until the
+   * stale window elapses — fifteen minutes in production, during which the
+   * client polls a render nobody is performing.
+   */
+  it('hands a claimed job straight back on shutdown', async () => {
+    await queue.enqueue('deploying', project);
+    expect((await queue.claim('leaving'))?.id).toBe('deploying');
+    expect(await queue.claim('staying')).toBeNull(); // claimed, not stale yet
+
+    await queue.release('deploying', 'leaving');
+
+    expect((await queue.get('deploying'))?.status).toBe('queued');
+    // Available IMMEDIATELY, not after the stale window.
+    expect((await queue.claim('staying'))?.id).toBe('deploying');
+  });
+
+  /*
+   * A worker declared stale and superseded must not be able to reach back into
+   * a job that now belongs to someone else — not to finish it, not to fail it,
+   * not to release it out from under the worker legitimately doing the work.
+   */
+  it('ignores a superseded worker', async () => {
+    await queue.enqueue('contested', project);
+    await queue.claim('slow');
+    await new Promise((r) => setTimeout(r, 700)); // past the stale window
+    expect((await queue.claim('rescuer'))?.id).toBe('contested');
+
+    await queue.release('contested', 'slow');
+    expect((await queue.get('contested'))?.status).toBe('running');
+
+    await queue.finish('contested', '/files/stale.mp4', 'slow');
+    expect((await queue.get('contested'))?.status).toBe('running');
+
+    await queue.fail('contested', 'stale worker gave up', 'slow');
+    expect((await queue.get('contested'))?.status).toBe('running');
+
+    // The one that actually holds the claim still can.
+    await queue.finish('contested', '/files/real.mp4', 'rescuer');
+    expect(await queue.get('contested')).toMatchObject({
+      status: 'done',
+      url: '/files/real.mp4',
+    });
+  });
+
   it('sweeps finished rows and leaves live ones alone', async () => {
     await queue.enqueue('old', project);
     await queue.claim('w');
-    await queue.finish('old', '/files/old.mp4');
+    await queue.finish('old', '/files/old.mp4', 'w');
     const before = await queue.depth();
     expect(await queue.sweep(0)).toBeGreaterThan(0);
     expect(await queue.get('old')).toBeNull();
