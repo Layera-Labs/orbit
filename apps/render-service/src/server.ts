@@ -50,6 +50,7 @@ import { tmpdir } from "node:os";
 import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  killLiveRenders,
   renderProject,
   type ExportOutput,
   type VideoProject,
@@ -181,8 +182,18 @@ const BUILD_VERSION = (() => {
 })();
 const BUILD_SHA = process.env.ORBIT_BUILD_SHA?.trim() || undefined;
 
+/**
+ * What has to happen before this process may exit.
+ *
+ * Registered by whatever set it up, run by `main.ts` on a signal. It exists
+ * because a background worker owns state in a SHARED database: exiting without
+ * unwinding it leaves a job marked as running on a machine that is gone.
+ */
+export type ShutdownTask = () => Promise<void>;
+
 export function createServer(): Express {
   const app = express();
+  const shutdownTasks: ShutdownTask[] = [];
   /*
    * CORS is open by default, and that is a decision rather than a default left
    * standing.
@@ -1033,6 +1044,8 @@ export function createServer(): Express {
    * indexed query per interval.
    */
   const WORKER_ID = `${process.pid}@${process.env.HOSTNAME ?? "local"}`;
+  /** The job this process is encoding right now, so shutdown can hand it back. */
+  let inFlight: string | null = null;
   const WORKER_POLL_MS = Math.max(
     250,
     Number(process.env.ORBIT_WORKER_POLL_MS ?? 2000),
@@ -1054,17 +1067,18 @@ export function createServer(): Express {
           continue;
         }
         const job = claimed;
+        inFlight = job.id;
         // A long encode has to keep saying it is alive, or the stale sweep
         // hands its job to someone else and it gets rendered twice.
         const beat = setInterval(() => {
-          void q.heartbeat(job.id).catch(() => undefined);
+          void q.heartbeat(job.id, WORKER_ID).catch(() => undefined);
         }, 30_000);
         try {
           const url = await render(
             job.project as VideoProject,
             job.output as ExportOutput | undefined,
           );
-          await q.finish(job.id, url);
+          await q.finish(job.id, url, WORKER_ID);
           /*
            * Charge here, not at enqueue. A queued render used to be free while
            * the synchronous one was billed — the debit lived in `settle`, which
@@ -1077,10 +1091,11 @@ export function createServer(): Express {
               .catch(() => undefined);
         } catch (err) {
           await q
-            .fail(job.id, err instanceof Error ? err.message : String(err))
+            .fail(job.id, err instanceof Error ? err.message : String(err), WORKER_ID)
             .catch(() => undefined);
         } finally {
           clearInterval(beat);
+          inFlight = null;
         }
       }
     };
@@ -1091,8 +1106,20 @@ export function createServer(): Express {
       10 * 60_000,
     );
     sweeper.unref?.();
-    process.once("SIGTERM", () => {
+
+    /*
+     * On the way out: stop taking work, and HAND BACK whatever was in flight.
+     *
+     * The encode itself dies with the process — there is no resuming an ffmpeg
+     * that was killed — so the honest thing is to put the job back in the queue
+     * for whoever is still up. Leaving it `running` means the client polls a
+     * job nobody owns until the stale sweep notices it, which is fifteen
+     * minutes of a render that looks alive and is not.
+     */
+    shutdownTasks.push(async () => {
       stopping = true;
+      clearInterval(sweeper);
+      if (inFlight) await q.release(inFlight, WORKER_ID).catch(() => undefined);
     });
   }
 
@@ -1767,6 +1794,29 @@ export function createServer(): Express {
       res.json({ balance: await ledger.balance(account) });
     });
   }
+
+  /*
+   * Exposed rather than wired to a signal here: `createServer` is also called
+   * by the test suite, dozens of times in one process, and each call installing
+   * its own SIGTERM listener would blow past Node's max-listeners warning and
+   * leave handlers pointing at long-dead servers.
+   */
+  /*
+   * Last, and unconditional: the synchronous render path spawns ffmpeg too.
+   *
+   * It runs AFTER the queue has handed its claim back, which is deliberate —
+   * killing the encoder makes `runFFmpeg` reject, and the worker loop's catch
+   * then calls `fail`, which the claim guard turns into a no-op because the job
+   * is already back in the queue for someone who can actually finish it.
+   */
+  shutdownTasks.push(async () => {
+    const killed = killLiveRenders();
+    if (killed) console.log(`[orbit] stopped ${killed} encode(s) in flight`);
+  });
+
+  app.locals.shutdown = async (): Promise<void> => {
+    for (const task of shutdownTasks) await task().catch(() => undefined);
+  };
 
   return app;
 }
