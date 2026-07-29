@@ -376,6 +376,24 @@ pnpm --filter @orbit/studio dev # v2 demo
     both rather than dropping the edit. Deletes are tombstones; an absent row is
     indistinguishable from one a device has never synced. Both clients reconcile with the
     SAME rules — divergent clients against one server is a data-loss bug waiting to happen.
+    **Three rules the first pass got wrong** (fixed 2026-07-29, regression-tested in
+    `apps/mobile/src/net/__tests__/syncClient.test.ts` against a fake server reproducing
+    the store's LWW semantics; each fix mutation-checked):
+      1. **Never push back what the pull just wrote.** `since` is still the OLD watermark
+         while the push runs, so a freshly-pulled project looked like a local edit and went
+         up at the exact timestamp it came down with. The server refuses an equal timestamp
+         — correctly, for two real writers — the client read 409 as "both sides changed",
+         and a first sync duplicated EVERY project, compounding into names like
+         `Video (this browser) (this browser)`.
+      2. **A pulled project keeps the SERVER'S `updatedAt`.** Web's `saveProject` stamped
+         `Date.now()` unconditionally, so the copy just pulled looked newer than the one it
+         came from and bounced back — two devices trading one unchanged document forever.
+         Mobile already preserved it; that divergence is what this note warns about.
+      3. **A pull must not overwrite a local edit.** It did, silently, and it ran BEFORE
+         the push-side 409 handler written to prevent exactly that, so "keep both" was
+         nearly unreachable. `local.updatedAt > since` is what "edited here since the last
+         successful sync" means, and it is the only signal that the copy about to be
+         replaced is not merely an older download.
   - Still open: purchase config, social login.
 - Per-clip audio: the **legacy concat path drops it** (`buildFFmpegArgs` concats with `a=0`,
   `ffmpeg.ts:254`) — only a lone clip's original audio plus `project.audio` mix there. The

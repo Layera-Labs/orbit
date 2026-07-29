@@ -19,8 +19,21 @@ export async function getProject(id: string): Promise<ProjectRow | undefined> {
   return (await db()).get('projects', id);
 }
 
+/**
+ * Write a project.
+ *
+ * `updatedAt` defaults to now, which is what every EDIT wants. A caller may
+ * pass one instead, and exactly one does: a sync pulling someone else's copy
+ * has to keep the timestamp the server gave it. Stamping local time there makes
+ * the freshly-pulled document look newer than the server's own, so the next
+ * push sends it straight back — two devices then trade the same unchanged
+ * project forever, each reporting work it did not do. It also silently diverged
+ * from the phone, which preserves the server's value; two clients reconciling
+ * by different rules against one server is how edits get lost.
+ */
 export async function saveProject(
-  row: Omit<ProjectRow, 'createdAt' | 'updatedAt'> & Partial<Pick<ProjectRow, 'createdAt'>>,
+  row: Omit<ProjectRow, 'createdAt' | 'updatedAt'> &
+    Partial<Pick<ProjectRow, 'createdAt' | 'updatedAt'>>,
 ): Promise<void> {
   const database = await db();
   const existing = await database.get('projects', row.id);
@@ -28,7 +41,7 @@ export async function saveProject(
     ...existing,
     ...row,
     createdAt: existing?.createdAt ?? row.createdAt ?? Date.now(),
-    updatedAt: Date.now(),
+    updatedAt: row.updatedAt ?? Date.now(),
   } as ProjectRow);
 }
 
