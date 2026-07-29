@@ -34,6 +34,8 @@ vi.mock("../../storage/projects", () => ({
 }));
 
 let markValue = 0;
+/** The watermark and the pending-delete list both live in files. */
+const files = new Map<string, string>();
 vi.mock("expo-file-system", () => {
   class File {
     constructor(
@@ -41,16 +43,20 @@ vi.mock("expo-file-system", () => {
       public name: string,
     ) {}
     get exists() {
-      return markValue > 0;
+      return this.name === "sync-mark.json" ? markValue > 0 : files.has(this.name);
     }
     textSync() {
-      return JSON.stringify({ at: markValue });
+      return this.name === "sync-mark.json"
+        ? JSON.stringify({ at: markValue })
+        : (files.get(this.name) ?? "");
     }
     write(s: string) {
-      markValue = (JSON.parse(s) as { at: number }).at;
+      if (this.name === "sync-mark.json") markValue = (JSON.parse(s) as { at: number }).at;
+      else files.set(this.name, s);
     }
     delete() {
-      markValue = 0;
+      if (this.name === "sync-mark.json") markValue = 0;
+      else files.delete(this.name);
     }
     get uri() {
       return `file:///${this.name}`;
@@ -61,7 +67,7 @@ vi.mock("expo-file-system", () => {
 
 vi.mock("../session", () => ({ authHeaders: async () => ({}) }));
 
-const { syncNow } = await import("../syncClient");
+const { syncNow, syncDelete } = await import("../syncClient");
 
 /** A server that behaves like `PgProjectStore`: last write wins, ties refused. */
 function server(initial: Stored[] = []) {
@@ -133,8 +139,11 @@ function server(initial: Stored[] = []) {
 
 const doc = (id: string, name: string, updatedAt: number): Stored => ({ id, name, updatedAt });
 
+const PENDING = "sync-pending-deletes.json";
+
 beforeEach(() => {
   disk.clear();
+  files.clear();
   markValue = 0;
 });
 
@@ -216,5 +225,68 @@ describe("syncNow", () => {
     globalThis.fetch = (async () => new Response("{}", { status: 500 })) as unknown as typeof fetch;
     expect(await syncNow("http://s")).toMatchObject({ state: "failed" });
     expect(markValue).toBe(0);
+  });
+});
+
+/**
+ * A delete has to survive the network being down.
+ *
+ * An absent tombstone is indistinguishable from a project the server has never
+ * been told about, so a delete that never lands is not merely forgotten — the
+ * next full pull hands the project straight back.
+ */
+describe("syncDelete", () => {
+  it("remembers a delete the server refused", async () => {
+    globalThis.fetch = (async () => new Response("{}", { status: 500 })) as unknown as typeof fetch;
+    await syncDelete("http://s", "gone");
+    expect(JSON.parse(files.get(PENDING) ?? "[]")).toEqual(["gone"]);
+  });
+
+  /* The old version only caught a THROWN error, so a 500 or an expired session
+     answered it successfully and the delete was dropped on the floor. */
+  it("remembers one the network never delivered", async () => {
+    globalThis.fetch = (async () => {
+      throw new Error("offline");
+    }) as unknown as typeof fetch;
+    await syncDelete("http://s", "gone");
+    expect(JSON.parse(files.get(PENDING) ?? "[]")).toEqual(["gone"]);
+  });
+
+  it("remembers nothing when it worked", async () => {
+    server().install();
+    await syncDelete("http://s", "gone");
+    expect(files.has(PENDING)).toBe(false);
+  });
+
+  it("does not queue the same id twice", async () => {
+    globalThis.fetch = (async () => new Response("{}", { status: 500 })) as unknown as typeof fetch;
+    await syncDelete("http://s", "gone");
+    await syncDelete("http://s", "gone");
+    expect(JSON.parse(files.get(PENDING) ?? "[]")).toEqual(["gone"]);
+  });
+
+  /* The whole point: the retry happens BEFORE the listing, so the tombstone
+     exists by the time we ask what changed. Otherwise the pull resurrects it. */
+  it("retries on the next sync, and the project stays deleted", async () => {
+    globalThis.fetch = (async () => new Response("{}", { status: 500 })) as unknown as typeof fetch;
+    await syncDelete("http://s", "zombie");
+
+    const s2 = server([doc("zombie", "Should stay gone", 5)]);
+    s2.install();
+    const res = await syncNow("http://s");
+
+    expect(res).toMatchObject({ state: "ok" });
+    expect(files.get(PENDING)).toBe("[]");
+    expect(disk.has("zombie")).toBe(false);
+    expect(s2.rows.get("zombie")?.deleted).toBe(true);
+  });
+
+  /* Without the retry this is exactly what happened: the pull sees a project it
+     has no local copy of, and helpfully downloads it again. */
+  it("resurrects it if the tombstone never gets there", async () => {
+    const s2 = server([doc("zombie", "Comes back", 5)]);
+    s2.install();
+    await syncNow("http://s");
+    expect(disk.has("zombie")).toBe(true);
   });
 });

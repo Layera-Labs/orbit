@@ -64,6 +64,35 @@ function writeMark(at: number): void {
   }
 }
 
+/**
+ * Deletes that have not reached the server yet.
+ *
+ * A delete made on a train used to be lost outright: the local copy went, the
+ * server never heard, and the project came back on the next full pull. An
+ * absent tombstone is indistinguishable from a project this phone has simply
+ * never seen, so it is dutifully downloaded again.
+ */
+const pendingFile = () => new File(new Directory(Paths.document), 'sync-pending-deletes.json');
+
+function pendingDeletes(): string[] {
+  try {
+    const f = pendingFile();
+    if (!f.exists) return [];
+    const raw = JSON.parse(f.textSync()) as unknown;
+    return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function setPendingDeletes(ids: string[]): void {
+  try {
+    pendingFile().write(JSON.stringify(ids));
+  } catch {
+    /* the delete still happened locally; it may just come back */
+  }
+}
+
 export function resetSyncMark(): void {
   try {
     const f = markFile();
@@ -102,6 +131,13 @@ export async function syncNow(base: string): Promise<SyncStatus> {
   const justPulled = new Set<string>();
 
   try {
+    /*
+     * Before the listing, not after. A delete that never landed has to become a
+     * tombstone BEFORE we ask what changed, or the pull hands back the very
+     * project we are trying to delete and we save it again.
+     */
+    await flushPendingDeletes(base);
+
     const since = readMark();
     const listed = await req(base, `v1/projects?since=${since}`);
     if (listed.status === 403) return { state: 'guest' };
@@ -208,12 +244,34 @@ export async function syncNow(base: string): Promise<SyncStatus> {
   }
 }
 
-/** Tell the server a project is gone; best-effort, the local delete already ran. */
-export async function syncDelete(base: string, id: string): Promise<void> {
+/** True once the server knows. A 404 counts — it does not have it either. */
+async function tellServerDeleted(base: string, id: string): Promise<boolean> {
   try {
-    await req(base, `v1/projects/${id}`, { method: 'DELETE' });
+    const res = await req(base, `v1/projects/${id}`, { method: 'DELETE' });
+    return res.ok || res.status === 404;
   } catch {
-    /* the project stays in the cloud until deleted from a device that can reach
-       the service — better than blocking the local delete on the network */
+    return false;
   }
+}
+
+/** Try every remembered delete again, keeping the ones that still fail. */
+async function flushPendingDeletes(base: string): Promise<void> {
+  const queued = pendingDeletes();
+  if (!queued.length) return;
+  const stillPending: string[] = [];
+  for (const id of queued) if (!(await tellServerDeleted(base, id))) stillPending.push(id);
+  setPendingDeletes(stillPending);
+}
+
+/**
+ * Tell the server a project is gone. The local delete has already happened, so
+ * this never blocks it — but a failure is REMEMBERED rather than shrugged off.
+ *
+ * The old version only caught a thrown error, so a 500 or an expired session
+ * answered it successfully and the delete was dropped on the floor.
+ */
+export async function syncDelete(base: string, id: string): Promise<void> {
+  if (await tellServerDeleted(base, id)) return;
+  const queued = pendingDeletes();
+  if (!queued.includes(id)) setPendingDeletes([...queued, id]);
 }

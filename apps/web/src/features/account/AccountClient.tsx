@@ -3,7 +3,9 @@
 import { useEffect, useState } from 'react';
 import { GraduatedRule } from '@/features/shell/GraduatedRule';
 import { listMedia } from '@/db/media';
-import { listProjects } from '@/db/projects';
+import { deleteProject, listProjects } from '@/db/projects';
+import { baseName, redundantCopies } from '@/db/duplicates';
+import { syncDelete } from '@/db/sync';
 import { SignIn } from '@/features/auth/SignIn';
 import { useAuth } from '@/store/authStore';
 import { useSync } from '@/store/syncStore';
@@ -111,6 +113,83 @@ function SyncRow() {
         style={{ justifySelf: 'start', color: 'var(--w-muted)', fontSize: 12 }}
       >
         Sync now
+      </button>
+      <DuplicateRow />
+    </div>
+  );
+}
+
+/**
+ * The copies an earlier sync fault left behind.
+ *
+ * Shown only when there are any, and it names them. Removing projects on
+ * someone's behalf is not something to do from a count alone — the point of
+ * listing them is that the user can see what is about to go, and the point of
+ * the rule behind it (`db/duplicates.ts`) is that each one is byte-identical to
+ * a project being kept, so nothing unique can be lost.
+ */
+function DuplicateRow() {
+  const [names, setNames] = useState<{ id: string; name: string }[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState<number | null>(null);
+  const status = useSync((s) => s.status);
+
+  // Re-scan after a sync: a pull can bring copies down, and a cleanup removes
+  // them. `status` in the deps is what makes this current rather than a
+  // snapshot from whenever the page happened to mount.
+  useEffect(() => {
+    let live = true;
+    void listProjects().then((rows) => {
+      if (!live) return;
+      const doomed = new Set(redundantCopies(rows));
+      setNames(rows.filter((r) => doomed.has(r.id)).map((r) => ({ id: r.id, name: r.name })));
+    });
+    return () => {
+      live = false;
+    };
+  }, [status]);
+
+  if (!names.length)
+    return done ? (
+      <p style={{ margin: 0, fontSize: 12, color: 'var(--w-muted)' }}>
+        Removed {done === 1 ? 'one copy' : `${done} copies`}.
+      </p>
+    ) : null;
+
+  const shown = names.slice(0, 3);
+  const rest = names.length - shown.length;
+
+  const remove = async () => {
+    setBusy(true);
+    try {
+      for (const { id } of names) {
+        await deleteProject(id);
+        // Tell the account too, or the next sync pulls them straight back down.
+        await syncDelete(id);
+      }
+      setDone(names.length);
+      setNames([]);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'grid', gap: 'var(--w-2)' }}>
+      <p style={{ margin: 0, fontSize: 12, color: 'var(--w-muted)' }}>
+        {names.length === 1 ? 'One project is' : `${names.length} projects are`} an exact
+        copy of something else here, left by a sync fault that has since been fixed:{' '}
+        {shown.map((n) => baseName(n.name)).join(', ')}
+        {rest > 0 && `, and ${rest} more`}. Removing {names.length === 1 ? 'it' : 'them'}{' '}
+        changes nothing you can see.
+      </p>
+      <button
+        type="button"
+        onClick={() => void remove()}
+        disabled={busy}
+        style={{ justifySelf: 'start', color: 'var(--w-muted)', fontSize: 12 }}
+      >
+        {busy ? 'Removing…' : `Remove ${names.length === 1 ? 'the copy' : `${names.length} copies`}`}
       </button>
     </div>
   );
