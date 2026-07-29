@@ -113,6 +113,8 @@ export function signV4(args: {
   secretAccessKey: string;
   payloadHash: string;
   headers: Record<string, string>;
+  /** Already-canonical query string, for presigned URLs. */
+  query?: string;
   /** ISO basic format, `20130524T000000Z`. Injected so tests are not clocks. */
   amzDate: string;
 }): { canonicalRequest: string; stringToSign: string; authorization: string } {
@@ -130,7 +132,7 @@ export function signV4(args: {
   const canonicalRequest = [
     args.method,
     args.path,
-    "", // no query string on a plain PUT
+    args.query ?? "", // empty on a plain PUT; the parameters on a presigned GET
     canonicalHeaders,
     signedHeaders,
     args.payloadHash,
@@ -158,9 +160,20 @@ export function signV4(args: {
   };
 }
 
+/** RFC 3986, which S3 requires — `encodeURIComponent` leaves !'()* alone. */
+const uriEncode = (v: string) =>
+  encodeURIComponent(v).replace(
+    /[!'()*]/g,
+    (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+
 /** sha256 of an empty body — every GET's payload hash. */
 const EMPTY_SHA =
   "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+/** How long a returned output url stays fetchable. Long enough to download a
+ *  render on a slow connection, short enough that a leaked url goes stale. */
+const GET_EXPIRY_SECONDS = 6 * 60 * 60;
 
 export function s3Storage(cfg: S3Config, now: () => Date = () => new Date()): Storage {
   const endpoint = cfg.endpoint ?? `https://s3.${cfg.region}.amazonaws.com`;
@@ -197,6 +210,44 @@ export function s3Storage(cfg: S3Config, now: () => Date = () => new Date()): St
     return { url: `${endpoint}${objectPath}`, headers: { ...headers, authorization } };
   };
 
+  /**
+   * A time-limited GET url anyone can follow, signature in the query string.
+   *
+   * The client is a browser or a phone fetching an `<video src>`; it cannot
+   * attach an Authorization header to that. So the credential travels in the
+   * url instead, scoped to one object and one window.
+   */
+  const presign = (key: string, expiresIn: number) => {
+    const objectPath = `/${cfg.bucket}/${key}`;
+    const amzDate = now().toISOString().replace(/[-:]|\.\d{3}/g, "");
+    const scope = `${amzDate.slice(0, 8)}/${cfg.region}/s3/aws4_request`;
+    // Sorted by key, as the canonical form requires — and the server rebuilds
+    // this exact string, so the order is not cosmetic.
+    const query = [
+      `X-Amz-Algorithm=AWS4-HMAC-SHA256`,
+      `X-Amz-Credential=${uriEncode(`${cfg.accessKeyId}/${scope}`)}`,
+      `X-Amz-Date=${amzDate}`,
+      `X-Amz-Expires=${expiresIn}`,
+      `X-Amz-SignedHeaders=host`,
+    ].join("&");
+    const { authorization } = signV4({
+      method: "GET",
+      host,
+      path: objectPath,
+      region: cfg.region,
+      service: "s3",
+      accessKeyId: cfg.accessKeyId,
+      secretAccessKey: cfg.secretAccessKey,
+      // A presigned request has no body to hash, and S3 wants this literal.
+      payloadHash: "UNSIGNED-PAYLOAD",
+      headers: { host },
+      query,
+      amzDate,
+    });
+    const signature = /Signature=([0-9a-f]+)/.exec(authorization)?.[1] ?? "";
+    return `${endpoint}${objectPath}?${query}&X-Amz-Signature=${signature}`;
+  };
+
   return {
     kind: "s3",
     async put(path, contentType) {
@@ -217,8 +268,19 @@ export function s3Storage(cfg: S3Config, now: () => Date = () => new Date()): St
           `s3 put failed ${res.status}: ${(await res.text()).slice(0, 300)}`,
         );
 
-      const base = (cfg.publicBase ?? endpoint).replace(/\/$/, "");
-      return cfg.publicBase ? `${base}/${key}` : `${base}/${cfg.bucket}/${key}`;
+      /*
+       * A PRESIGNED url when the bucket is private, which is the default a
+       * sensible operator wants: user media should not need a world-readable
+       * bucket to be playable. Verified the hard way — returning the plain
+       * endpoint url handed the client 343 bytes of AccessDenied XML with a
+       * .mp4 name on it.
+       *
+       * `publicBase` still wins when it is set: that is a CDN or a public
+       * origin, where a signature would be pointless and would expire.
+       */
+      if (cfg.publicBase)
+        return `${cfg.publicBase.replace(/\/$/, "")}/${key}`;
+      return presign(key, GET_EXPIRY_SECONDS);
     },
 
     async fetchTo(key, destPath) {
