@@ -1272,6 +1272,24 @@ export function createServer(): Express {
         });
         return;
       }
+      /*
+       * A key that exists but is not allowed to do THIS.
+       *
+       * ElevenLabs scopes keys per capability, so a key that generates speech
+       * perfectly well can be missing `speech_to_text` — and the raw upstream
+       * body was going straight to the user, who is not the person who can fix
+       * it. Say what is wrong and who has to act.
+       */
+      if (
+        err instanceof ProviderError &&
+        (err.upstreamStatus === 401 || err.upstreamStatus === 403)
+      ) {
+        res.status(502).json({
+          error:
+            "This server's ELEVENLABS_API_KEY is not permitted to transcribe. Its key needs the speech_to_text permission.",
+        });
+        return;
+      }
       res
         .status(500)
         .json({ error: err instanceof Error ? err.message : String(err) });
