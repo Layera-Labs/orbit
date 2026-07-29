@@ -125,6 +125,21 @@ function MoveProjectsSheet({ folders, onPick, onClose }: { folders: string[]; on
   );
 }
 
+/**
+ * The greeting, which was neither.
+ *
+ * It read "Good evening, Creator 👋" — hardcoded, so it said evening at nine in
+ * the morning, and the emoji rendered as a TOFU BOX in the simulator, which is
+ * why this project bans emoji in UI outright (see VIcon). Losing it costs
+ * nothing: a waving hand is the most generic thing a greeting can wear.
+ */
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export function HomeScreen() {
   const projects = useEditor((s) => s.projects);
   const go = useEditor((s) => s.go);
@@ -214,7 +229,7 @@ export function HomeScreen() {
       />
       <ScrollView contentInsetAdjustmentBehavior='automatic' showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         <View>
-          <Text style={styles.greeting}>Good evening, Creator 👋</Text>
+          <Text style={styles.greeting}>{greeting()}, Creator</Text>
           <Text style={styles.hero}>What will you{`\n`}create today?</Text>
         </View>
 
