@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   Alert,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,7 +15,7 @@ import { AuthSheet } from "../components/AuthSheet";
 import { BottomNav } from "../components/BottomNav";
 import { BottomSheet } from "../components/BottomSheet";
 import { VIcon, type VIconName } from "../components/VIcon";
-import { font, vela } from "../constants";
+import { font, SUPPORT_URL, vela } from "../constants";
 import { useAuth } from "../store/authStore";
 import { useEditor } from "../store/editorStore";
 import { CreateSheet } from "./CreateSheet";
@@ -45,11 +46,14 @@ export function ProfileScreen() {
     {
       icon: "help",
       label: "Help & Support",
-      onPress: () =>
-        Alert.alert(
-          "Help & Support",
-          "Support contact and guides are coming soon.",
-        ),
+      // A real destination. If the device cannot open it there is nothing
+      // useful to say beyond that, so it says exactly that rather than
+      // failing silently.
+      onPress: () => {
+        void Linking.openURL(SUPPORT_URL).catch(() =>
+          Alert.alert("Could not open the browser", SUPPORT_URL),
+        );
+      },
     },
     { icon: "help", label: "About Orbit", onPress: () => setAboutOpen(true) },
   ];

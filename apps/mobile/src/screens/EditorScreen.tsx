@@ -1,13 +1,13 @@
 /**
  * Editor screen — Vela skin. Top bar (back · help · ratio chip · ⋯ · Save ·
  * Export), a white-framed composite preview, a transport row, the Vela timeline,
- * and the bottom tool rail. Tools we have wire to real actions; everything else
- * is tagged "soon". Sheets (settings, project menu, insert, audio, prefs,
- * filter, export) live in <EditorSheets/> and open via the store `panel` state.
+ * and the bottom tool rail. Every tool on the rail does what it says — the
+ * "soon" badge and its alert are gone, and nothing was using them. Sheets
+ * (settings, project menu, insert, audio, prefs, filter, export) live in
+ * <EditorSheets/> and open via the store `panel` state.
  */
 import { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   Animated,
   Easing,
   Modal,
@@ -32,20 +32,17 @@ interface Tool {
   icon: VIconName;
   label: string;
   onPress?: () => void;
-  soon?: boolean;
   danger?: boolean;
   disabled?: boolean;
 }
 
 const TOOL_WIDTH = 66;
 
-const soonAlert = (label: string) =>
-  Alert.alert("Coming soon", `${label} is coming soon.`);
 
 function ToolButton({ tool }: { tool: Tool }) {
-  const color = tool.soon ? vela.muted2 : vela.textLight;
-  const onPress = tool.soon ? () => soonAlert(tool.label) : tool.onPress;
-  const dimmed = tool.disabled && !tool.soon;
+  const color = vela.textLight;
+  const onPress = tool.onPress;
+  const dimmed = tool.disabled;
   return (
     <Pressable style={styles.tool} onPress={onPress} disabled={dimmed}>
       <VIcon
@@ -55,11 +52,6 @@ function ToolButton({ tool }: { tool: Tool }) {
         strokeWidth={1.7}
       />
       <Text style={styles.toolLabel}>{tool.label}</Text>
-      {tool.soon ? (
-        <View style={styles.soonTag}>
-          <Text style={styles.soonTagText}>soon</Text>
-        </View>
-      ) : null}
     </Pressable>
   );
 }
@@ -788,14 +780,4 @@ const styles = StyleSheet.create({
   },
   tool: { width: TOOL_WIDTH, alignItems: "center", gap: 7 },
   toolLabel: { color: vela.textLight2, fontSize: 12, fontFamily: font.medium },
-  soonTag: {
-    position: "absolute",
-    top: -4,
-    right: 8,
-    backgroundColor: vela.card2,
-    borderRadius: 5,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-  },
-  soonTagText: { color: vela.muted2, fontSize: 8, fontFamily: font.bold },
 });

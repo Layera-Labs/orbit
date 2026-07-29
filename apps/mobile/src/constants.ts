@@ -211,3 +211,16 @@ export const AUTH_ENABLED = true;
  * `react-native-purchases` config plugin, and rebuild the dev client to enable.
  */
 export const REVENUECAT_API_KEY = { ios: '', android: '' } as const;
+
+/**
+ * Where "Help & Support" actually goes.
+ *
+ * Orbit is open source, so its own issue tracker IS the support channel —
+ * which is why this can be a real destination rather than the "coming soon"
+ * alert that used to sit there. It is a constant and not a literal because the
+ * product is white-label: anyone shipping their own build points these at their
+ * own docs and their own inbox.
+ */
+export const SUPPORT_URL =
+  (Constants.expoConfig?.extra as { supportUrl?: string } | undefined)?.supportUrl ||
+  'https://github.com/jsonpreet/orbit/issues';

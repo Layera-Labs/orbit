@@ -1,9 +1,9 @@
 /**
  * Editor sheets — Vela's panel set, driven by the store's `panel` state.
  * Bottom sheets: Insert · Audio · Video Settings · Project menu · Editor
- * Preferences. Full-screen: Filter · Export. Real actions wire to the store /
- * pickers; visual-only controls (filters, export sliders, prefs effects) are
- * tagged "soon". Export runs the real upload→render→Photos pipeline.
+ * Preferences. Full-screen: Filter · Export. Every control here does what it
+ * says — the "soon" placeholders are gone, because a picker that answers a tap
+ * with an apology is worse than one that offers less.
  */
 import { useEffect, useRef, useState } from "react";
 import {
@@ -106,8 +106,6 @@ import {
   useEditor,
 } from "../store/editorStore";
 
-const soon = (label: string) =>
-  Alert.alert("Coming soon", `${label} is coming soon.`);
 
 /**
  * Shown by the per-clip tools (FX / Filter) when `effectsTarget()` is null —
@@ -1063,18 +1061,26 @@ function ExportSheet() {
 
 // ---- Transition ----------------------------------------------------------
 
+/*
+ * Two, and they are the two that are real.
+ *
+ * Dissolve, Slide, Wipe and Zoom used to sit here marked "soon" and answered a
+ * tap with an alert. They were never coming: `buildMultiTrackArgs` applies
+ * transitions to the FIRST VISUAL TRACK ONLY and collapses every non-fade type
+ * to a fade through black, and `frameStateAt` reproduces that collapse on
+ * purpose so the preview is never better than the export. Shipping them would
+ * mean lying in two places at once — the picker would promise a wipe, the
+ * preview would show a fade, and the file would contain a fade.
+ *
+ * Web already offers only these two. This is mobile agreeing.
+ */
 const TRANSITIONS: {
   key: TransitionType;
   label: string;
   icon: VIconName;
-  soon?: boolean;
 }[] = [
   { key: "cut", label: "None", icon: "close" },
   { key: "fade", label: "Fade", icon: "trFade" },
-  { key: "dissolve", label: "Dissolve", icon: "trDissolve", soon: true },
-  { key: "slide", label: "Slide", icon: "trSlide", soon: true },
-  { key: "wipe", label: "Wipe", icon: "trWipe", soon: true },
-  { key: "zoom", label: "Zoom", icon: "trZoom", soon: true },
 ];
 
 function TransitionSheet() {
@@ -1120,7 +1126,7 @@ function TransitionSheet() {
             <Pressable
               key={t.key}
               style={s.trItem}
-              onPress={() => (t.soon ? soon(t.label) : apply(t.key))}
+              onPress={() => apply(t.key)}
             >
               <View style={[s.trIcon, on && s.trIconOn]}>
                 <VIcon
@@ -1132,11 +1138,6 @@ function TransitionSheet() {
               <Text style={[s.trLabel, on && { color: vela.accent }]}>
                 {t.label}
               </Text>
-              {t.soon ? (
-                <View style={s.trSoon}>
-                  <Text style={s.trSoonText}>soon</Text>
-                </View>
-              ) : null}
             </Pressable>
           );
         })}
@@ -3156,16 +3157,6 @@ const s = StyleSheet.create({
   },
   trIconOn: { backgroundColor: vela.accentSoft, borderColor: vela.accent },
   trLabel: { color: vela.ink3, fontSize: 12, fontFamily: font.medium },
-  trSoon: {
-    position: "absolute",
-    top: -3,
-    right: 4,
-    backgroundColor: vela.lightSurface,
-    borderRadius: 5,
-    paddingHorizontal: 4,
-    paddingVertical: 1,
-  },
-  trSoonText: { color: vela.lightMuted, fontSize: 8, fontFamily: font.bold },
 
   chipRow: { flexDirection: "row", gap: 10 },
   /** Dim the per-clip controls when there's nothing to apply them to. */
