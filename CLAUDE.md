@@ -375,7 +375,16 @@ pnpm --filter @orbit/studio dev # v2 demo
 - Genuinely not built, with reasons: **speed ramping** (ffmpeg can't smoothly ramp audio
   tempo, no faithful preview — constant per-clip speed IS shipped), **keyframe
   scale/rotation** (scale can't animate per-frame in ffmpeg).
-- Story, auto-caption/SRT, and some editor preferences are incomplete.
+- **Captions export as `.srt`** (2026-07-29) — `packages/video/src/srt.ts`, mirrored into
+  `apps/mobile/src/model/editor-ops.ts` with `__tests__/srt.test.ts` comparing the two
+  OUTPUTS. EVERY text overlay travels, not just the `caption-` prefixed ones: the prefix is
+  bookkeeping so a re-transcription knows what it may replace, not a category anyone chose.
+  Cues are sorted by TIME (overlays are stored in layer order, which runs backwards), blank
+  lines inside text are collapsed (a blank line is what ENDS a cue in SRT — one would shift
+  every caption after it), and the timestamp rounds once in integer milliseconds because
+  rounding the parts separately prints `00:00:60,000`. Overlaps are left alone: SRT permits
+  them and silently retiming someone's captions is worse than a player stacking two lines.
+- Story and some editor preferences are incomplete.
 
 ## Working style
 

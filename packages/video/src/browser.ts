@@ -104,6 +104,11 @@ export {
 } from './captions';
 export type { CaptionLine } from './captions';
 
+// The same captions as a subtitle file, for a platform that wants one beside
+// the video rather than burned into it.
+export { toSRT, hasCaptionText, captionCues, captionFileName, srtTime } from './srt';
+export type { Cue } from './srt';
+
 // The declarative frame description a canvas renderer executes.
 export { frameStateAt } from './frame';
 export type { DrawOp, Fit } from './frame';
