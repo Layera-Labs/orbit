@@ -272,9 +272,36 @@ Next 14 App Router. **One editor** over the v2 SDK plus a browser video engine.
   `JSON.stringify` inlined `{}` into the pre-paint script, so the stored theme never
   came back — with no error anywhere. Shared constants live in plain modules
   (`store/themeKey.ts`).
+- **Security headers ship from `next.config.mjs`** (2026-07-29) — CSP, nosniff,
+  frame-ancestors, Referrer-Policy, Permissions-Policy. `script-src` keeps
+  `'unsafe-inline'` deliberately: Next's per-route inline scripts can't be hashed and
+  the strict form needs a middleware nonce that makes every page dynamic — not worth it
+  while no attacker-controlled HTML can reach the DOM (all three
+  `dangerouslySetInnerHTML` sites render static module constants). **`'unsafe-eval'` is
+  added in DEV only, and you must not remove it**: without it `next dev`'s eval-based
+  chunks are blocked, the server-rendered HTML still arrives so the page LOOKS fine, but
+  React never hydrates — no effect runs, no data loads, and the editor sits on an empty
+  frame forever. Debugged the hard way once already.
+- **`db()` handles `blocked`/`blocking`/`terminated`, and must keep doing so.** Every
+  screen awaits that one promise, so a blocked upgrade (two tabs, a deploy that bumps
+  `DB_VERSION`) meant they ALL sat in their loading state with no error and no timeout.
+  `blocking` makes the old connection step aside; `blocked` rejects with something
+  actionable. It also must not cache a rejected promise — that turned one transient
+  failure into a permanently dead database for the life of the page.
 
 `packages/video` now has subpath exports: `@orbit/video/browser` (pure, browser-safe) and
 `@orbit/video` (adds ffmpeg/resvg/fs). Never import the default entry from a web bundle.
+
+**Hand-built SVG is an injection surface** (2026-07-29). A `VideoProject` arrives as JSON
+and is cast, never validated, so every field TypeScript calls a `number` is whatever the
+caller sent. `font-size="${o.fontSize}"` carrying `48" /><image href="…">` made resvg read
+a file off local disk into the frame — another account's upload came back as render
+output. So in `packages/video`: strings go through `esc`, numbers through `num`, **colours
+and font families through `col`/`fontFamily`** — and that last part is the subtle one,
+because `esc` is an XML transform the parser UNDOES, so `url('/etc/passwd')` looks escaped
+and decodes back to a live reference. `rasterizeSVG` then refuses any SVG containing
+`<image>`/`<use>`/`<script>`/`<foreignObject>`, since nothing we build emits those.
+Never interpolate a raw value into markup here.
 
 ## Web SDK commands
 

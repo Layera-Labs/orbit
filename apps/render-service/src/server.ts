@@ -160,7 +160,28 @@ const GUEST_RATE_LIMIT = Number(process.env.ORBIT_GUEST_RATE_LIMIT ?? 30);
 
 export function createServer(): Express {
   const app = express();
-  app.use(cors());
+  /*
+   * CORS is open by default, and that is a decision rather than a default left
+   * standing.
+   *
+   * Orbit is an embeddable SDK: the whole point is that a customer's own origin
+   * calls this service, and there is no list of those origins to allow. Open
+   * CORS is safe HERE specifically because authentication is a bearer token the
+   * client attaches itself, held in localStorage or the keychain — both
+   * origin-scoped, neither readable by another site. A hostile page can call
+   * these routes all it likes; it has no token, so it is just another
+   * anonymous caller getting a 401. This would NOT be safe with cookie auth,
+   * where the browser attaches the credential for you — which is one more
+   * reason the account cookie is gone.
+   *
+   * A deployment that knows its origins can still say so with
+   * `ORBIT_ALLOWED_ORIGINS` (comma-separated).
+   */
+  const ALLOWED_ORIGINS = (process.env.ORBIT_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean);
+  app.use(cors(ALLOWED_ORIGINS.length ? { origin: ALLOWED_ORIGINS } : undefined));
   app.use(express.json({ limit: "8mb" }));
 
   const outDir = join(tmpdir(), "orbit-render-outputs");
