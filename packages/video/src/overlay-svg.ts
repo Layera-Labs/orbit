@@ -7,19 +7,7 @@
  * element overlays (stickers, shapes) can plug in here later.
  */
 import type { TextOverlay } from './types';
-
-function esc(s: string): string {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-
-function n(v: number): string {
-  return String(Math.round(v * 100) / 100);
-}
+import { col, esc, fontFamily as family, num as n } from './svg';
 
 /**
  * The caption's box in project pixels.
@@ -63,7 +51,7 @@ export function overlayToSVG(o: TextOverlay, width: number, height: number): str
   const align = o.align ?? 'center';
   const textAnchor = align === 'left' ? 'start' : align === 'right' ? 'end' : 'middle';
   const fontWeight = o.bold ? 700 : 400;
-  const fontFamily = o.fontFamily ?? 'Arial';
+  const fontFamily = family(o.fontFamily);
   const letterSpacing = o.letterSpacing ?? 0;
 
   // Approximate caption box sized to the text (no metrics pre-render), from the
@@ -74,7 +62,7 @@ export function overlayToSVG(o: TextOverlay, width: number, height: number): str
     const pad = o.box.padding ?? 16;
     boxEl =
       `<rect x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" ` +
-      `rx="${n(Math.min(18, pad))}" fill="${esc(o.box.color)}" fill-opacity="${o.box.opacity ?? 1}"/>`;
+      `rx="${n(Math.min(18, pad))}" fill="${col(o.box.color)}" fill-opacity="${n(o.box.opacity ?? 1, 1)}"/>`;
   }
 
   // Vertically center the block of lines around the anchor.
@@ -91,19 +79,19 @@ export function overlayToSVG(o: TextOverlay, width: number, height: number): str
     filterEl =
       `<filter id="sh" x="-40%" y="-40%" width="180%" height="180%">` +
       `<feDropShadow dx="${n(s.dx ?? 0)}" dy="${n(s.dy ?? 2)}" stdDeviation="${n((s.blur ?? 4) / 2)}" ` +
-      `flood-color="${esc(s.color)}" flood-opacity="${s.opacity ?? 0.6}"/></filter>`;
+      `flood-color="${col(s.color)}" flood-opacity="${n(s.opacity ?? 0.6, 0.6)}"/></filter>`;
     filterAttr = ` filter="url(#sh)"`;
   }
   // Optional outline stroke; paint-order=stroke draws it behind the fill so glyph
   // interiors stay crisp.
   const strokeAttr = o.stroke
-    ? ` stroke="${esc(o.stroke.color)}" stroke-width="${n(o.stroke.width)}" stroke-linejoin="round" paint-order="stroke"`
+    ? ` stroke="${col(o.stroke.color)}" stroke-width="${n(o.stroke.width)}" stroke-linejoin="round" paint-order="stroke"`
     : '';
 
   const textEl =
-    `<text font-family="${esc(fontFamily)}" font-size="${o.fontSize}" font-weight="${fontWeight}" ` +
-    `letter-spacing="${letterSpacing}" ` +
-    `fill="${esc(o.color)}" text-anchor="${textAnchor}" dominant-baseline="middle"${strokeAttr}${filterAttr}>${tspans}</text>`;
+    `<text font-family="${esc(fontFamily)}" font-size="${n(o.fontSize, 32)}" font-weight="${n(fontWeight, 400)}" ` +
+    `letter-spacing="${n(letterSpacing)}" ` +
+    `fill="${col(o.color, '#ffffff')}" text-anchor="${textAnchor}" dominant-baseline="middle"${strokeAttr}${filterAttr}>${tspans}</text>`;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">${filterEl}${boxEl}${textEl}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${n(width, 1)}" height="${n(height, 1)}">${filterEl}${boxEl}${textEl}</svg>`;
 }
