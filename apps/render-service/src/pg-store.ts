@@ -115,16 +115,50 @@ export class PgUserStore implements UserStore {
         created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
       )
     `);
+    // Added after the table shipped, so ALTER rather than a column in the
+    // CREATE — an existing deployment already has the table and would never
+    // run the new definition. NULL on old rows means "never changed", which is
+    // correct: it must not sign everybody out on deploy.
+    await this.pool.query(
+      'ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ',
+    );
   }
+
+  private toRecord(r: {
+    id: string;
+    email: string;
+    password_hash: string;
+    created_at: Date;
+    password_changed_at: Date | null;
+  }): UserRecord {
+    return {
+      id: r.id,
+      email: r.email,
+      passwordHash: r.password_hash,
+      createdAt: r.created_at.toISOString(),
+      passwordChangedAt: r.password_changed_at?.toISOString(),
+    };
+  }
+
+  private static readonly COLS =
+    'id, email, password_hash, created_at, password_changed_at';
 
   async findByEmail(email: string): Promise<UserRecord | null> {
     await this.ready;
-    const res = await this.pool.query<{ id: string; email: string; password_hash: string; created_at: Date }>(
-      'SELECT id, email, password_hash, created_at FROM users WHERE email = $1',
+    const res = await this.pool.query(
+      `SELECT ${PgUserStore.COLS} FROM users WHERE email = $1`,
       [email],
     );
-    const r = res.rows[0];
-    return r ? { id: r.id, email: r.email, passwordHash: r.password_hash, createdAt: r.created_at.toISOString() } : null;
+    return res.rows[0] ? this.toRecord(res.rows[0]) : null;
+  }
+
+  async findById(id: string): Promise<UserRecord | null> {
+    await this.ready;
+    const res = await this.pool.query(
+      `SELECT ${PgUserStore.COLS} FROM users WHERE id = $1`,
+      [id],
+    );
+    return res.rows[0] ? this.toRecord(res.rows[0]) : null;
   }
 
   async create(user: UserRecord): Promise<void> {
@@ -139,6 +173,10 @@ export class PgUserStore implements UserStore {
 
   async updatePassword(id: string, passwordHash: string): Promise<void> {
     await this.ready;
-    await this.pool.query('UPDATE users SET password_hash = $2 WHERE id = $1', [id, passwordHash]);
+    // `password_changed_at` is what revokes the sessions and the reset link.
+    await this.pool.query(
+      'UPDATE users SET password_hash = $2, password_changed_at = now() WHERE id = $1',
+      [id, passwordHash],
+    );
   }
 }

@@ -11,12 +11,21 @@ class MemUserStore implements UserStore {
   async findByEmail(email: string) {
     return this.byEmail.get(email) ?? null;
   }
+  async findById(id: string) {
+    for (const rec of this.byEmail.values()) if (rec.id === id) return rec;
+    return null;
+  }
   async create(user: UserRecord) {
     this.byEmail.set(user.email, user);
   }
   async updatePassword(id: string, passwordHash: string) {
     for (const [email, rec] of this.byEmail) {
-      if (rec.id === id) this.byEmail.set(email, { ...rec, passwordHash });
+      if (rec.id === id)
+        this.byEmail.set(email, {
+          ...rec,
+          passwordHash,
+          passwordChangedAt: new Date().toISOString(),
+        });
     }
   }
 }
@@ -109,5 +118,72 @@ describe('SelfHostedAuth', () => {
     const req = await auth.requestReset('weak@x.com');
     await expect(auth.resetPassword(req!.token, 'short')).rejects.toMatchObject({ kind: 'weak-password' });
     await expect(auth.resetPassword('garbage.token', 'password456')).rejects.toMatchObject({ kind: 'invalid-token' });
+  });
+});
+
+/*
+ * Revocation.
+ *
+ * Changing a password used to revoke NOTHING — a stolen 30-day session stayed
+ * valid, so the one thing a user does when they think they have been
+ * compromised did not lock the attacker out. And a reset link stayed usable for
+ * its full hour, so an old email could be replayed to take the account again.
+ */
+describe('a password change revokes what came before it', () => {
+  const wait = () => new Promise((r) => setTimeout(r, 1100)); // iat is whole seconds
+
+  it('kills a session token issued before the change', async () => {
+    const auth = make();
+    const { token } = await auth.register('revoke@x.com', 'oldpassword1');
+    expect(await auth.verify(token)).not.toBeNull();
+
+    await wait();
+    const reset = await auth.requestReset('revoke@x.com');
+    await auth.resetPassword(reset!.token, 'newpassword1');
+
+    expect(await auth.verify(token)).toBeNull();
+  });
+
+  it('still honours the session the reset itself just issued', async () => {
+    // The reset updates the password and issues a session in the same breath;
+    // a naive comparison signs the user out of the session they just created.
+    const auth = make();
+    await auth.register('fresh@x.com', 'oldpassword1');
+    const reset = await auth.requestReset('fresh@x.com');
+    const after = await auth.resetPassword(reset!.token, 'newpassword1');
+    expect((await auth.verify(after.token))?.email).toBe('fresh@x.com');
+  });
+
+  it('refuses to spend the same reset link twice', async () => {
+    const auth = make();
+    await auth.register('replay@x.com', 'oldpassword1');
+    const reset = await auth.requestReset('replay@x.com');
+    await auth.resetPassword(reset!.token, 'newpassword1');
+    await expect(auth.resetPassword(reset!.token, 'thirdpassword1')).rejects.toThrow(
+      /already been used/,
+    );
+  });
+
+  it('refuses a token whose account is gone', async () => {
+    const store = new MemUserStore();
+    const auth = new SelfHostedAuth({ secret: 'test-secret-please-change', store });
+    const { token } = await auth.register('ghost@x.com', 'oldpassword1');
+    // Simulate a deleted account: the signature is still perfectly valid.
+    (store as unknown as { byEmail: Map<string, unknown> }).byEmail.clear();
+    expect(await auth.verify(token)).toBeNull();
+  });
+
+  /*
+   * A database blip must not read as "your session expired". Signing every
+   * user out during an outage they had nothing to do with is its own incident.
+   */
+  it('propagates a store failure rather than reporting a bad token', async () => {
+    const store = new MemUserStore();
+    const auth = new SelfHostedAuth({ secret: 'test-secret-please-change', store });
+    const { token } = await auth.register('outage@x.com', 'oldpassword1');
+    store.findById = async () => {
+      throw new Error('connection terminated');
+    };
+    await expect(auth.verify(token)).rejects.toThrow(/connection terminated/);
   });
 });

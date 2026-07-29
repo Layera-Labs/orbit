@@ -36,6 +36,31 @@ export function hashPassword(password: string): string {
   return `scrypt$${salt.toString('hex')}$${hash.toString('hex')}`;
 }
 
+/** A short, non-reversible fingerprint of a stored password hash. */
+const passwordVersion = (passwordHash: string): string =>
+  createHash('sha256').update(passwordHash).digest('hex').slice(0, 16);
+
+/**
+ * Was this token issued at or after the account's current password?
+ *
+ * `iat` is whole seconds, so the comparison is made in seconds too. The reset
+ * flow updates the password and issues a session in the same breath, and with
+ * millisecond precision that fresh token would be rejected as older than the
+ * change it just caused. Rounding down means a token minted in the same second
+ * as a password change survives — a one-second window, against the alternative
+ * of signing people out of the session they are in the middle of creating.
+ */
+export function withinPasswordEpoch(
+  iat: number | undefined,
+  passwordChangedAt: string | undefined,
+): boolean {
+  if (!passwordChangedAt) return true; // never changed
+  const changed = Date.parse(passwordChangedAt);
+  if (Number.isNaN(changed)) return true; // unreadable stamp is not a reason to lock someone out
+  if (iat === undefined) return false; // no issue time: cannot prove it is current
+  return iat >= Math.floor(changed / 1000);
+}
+
 /** Constant-time verify of a password against a stored `scrypt$salt$hash`. */
 export function verifyPassword(password: string, stored: string): boolean {
   const [scheme, saltHex, hashHex] = stored.split('$');
@@ -89,7 +114,17 @@ export class SelfHostedAuth implements AuthAdapter {
     const addr = normalizeEmail(email);
     const rec = await this.store.findByEmail(addr);
     if (!rec) return null;
-    const token = await new SignJWT({ email: rec.email, type: 'reset' })
+    /*
+     * `pv` binds the link to the password it was issued against.
+     *
+     * Time cannot do this job. A session token issued BY a reset must survive
+     * that reset, which forces a whole-second tolerance — and inside that same
+     * second the reset link would still verify, so it would not be single-use.
+     * A fingerprint of the password hash has no such tension: the moment the
+     * password changes the fingerprint changes, and every link issued for the
+     * old one is dead. It is a hash of a hash, so it reveals nothing.
+     */
+    const token = await new SignJWT({ email: rec.email, type: 'reset', pv: passwordVersion(rec.passwordHash) })
       .setProtectedHeader({ alg: 'HS256' })
       .setSubject(rec.id)
       .setIssuedAt()
@@ -113,19 +148,47 @@ export class SelfHostedAuth implements AuthAdapter {
       ? await this.store.findByEmail(normalizeEmail(email))
       : null;
     if (!rec || rec.id !== payload.sub) throw new AuthError('invalid-token', 'This reset link is invalid or has expired.');
+    // Single use: the link names the password it was issued for, and that
+    // password no longer exists once it has been spent.
+    if ((payload as { pv?: string }).pv !== passwordVersion(rec.passwordHash))
+      throw new AuthError('invalid-token', 'This reset link has already been used.');
     await this.store.updatePassword(rec.id, hashPassword(newPassword));
     return { token: await this.issue(rec.id, rec.email), user: { endUserId: rec.id, email: rec.email }, isNew: false };
   }
 
   async verify(token: string): Promise<AuthUser | null> {
+    let payload: Awaited<ReturnType<typeof jwtVerify>>['payload'];
     try {
-      const { payload } = await jwtVerify(token, this.key, { issuer: this.issuer });
-      // Reset tokens are single-purpose — never accept one as a session bearer.
-      if (!payload.sub || (payload as { type?: string }).type === 'reset') return null;
-      return { endUserId: payload.sub, email: (payload as { email?: string }).email };
+      ({ payload } = await jwtVerify(token, this.key, { issuer: this.issuer }));
     } catch {
       return null;
     }
+    {
+      // Reset tokens are single-purpose — never accept one as a session bearer.
+      if (!payload.sub || (payload as { type?: string }).type === 'reset') return null;
+      /*
+       * A signature is not enough. The token also has to be one this account
+       * still honours: a password change must kill every session issued before
+       * it, or "change your password" does nothing to an attacker already
+       * holding a token, and a reset link stays replayable for its full hour.
+       *
+       * The cost is one indexed read per authenticated request. That is not a
+       * new round trip in practice — every route that calls this goes on to
+       * touch the ledger in the same database.
+       */
+      const rec = await this.store.findById(payload.sub);
+      if (!rec) return null; // deleted account, live token
+      if (!withinPasswordEpoch(payload.iat, rec.passwordChangedAt)) return null;
+      return { endUserId: payload.sub, email: (payload as { email?: string }).email };
+    }
+    /*
+     * Note what is NOT caught here. A signature failure means the token is bad,
+     * so it returns null; a store failure means the DATABASE is unreachable,
+     * and swallowing that would tell every signed-in user their session had
+     * expired during an outage they had nothing to do with. It propagates, and
+     * the route answers 500 — an honest "we are broken" instead of a false
+     * "you are logged out".
+     */
   }
 
   private issue(sub: string, email: string): Promise<string> {

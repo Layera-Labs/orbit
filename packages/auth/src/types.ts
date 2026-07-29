@@ -28,13 +28,28 @@ export interface UserRecord {
   /** Opaque hash string, e.g. `scrypt$<saltHex>$<hashHex>`. */
   passwordHash: string;
   createdAt: string;
+  /**
+   * When the password last changed. Every token issued before it is dead.
+   *
+   * Without this, changing a password revoked NOTHING: a stolen session token
+   * stayed valid for its full 30 days, so the one action a user takes when they
+   * think they have been compromised did not lock the attacker out. It also
+   * made reset links reusable — the token stayed valid for its whole hour, so
+   * an old email could be replayed to take the account again.
+   *
+   * Absent on records written before this existed, which correctly means "has
+   * never changed" rather than "revoke everything".
+   */
+  passwordChangedAt?: string;
 }
 
 /** Persistence seam for self-hosted users (the render service backs this with Postgres). */
 export interface UserStore {
   findByEmail(email: string): Promise<UserRecord | null>;
+  /** Look one up by subject, which is what a bearer token carries. */
+  findById(id: string): Promise<UserRecord | null>;
   create(user: UserRecord): Promise<void>;
-  /** Replace a user's password hash (password reset). */
+  /** Replace a user's password hash, and stamp `passwordChangedAt`. */
   updatePassword(id: string, passwordHash: string): Promise<void>;
 }
 
