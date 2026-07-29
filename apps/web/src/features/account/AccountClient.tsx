@@ -6,6 +6,8 @@ import { listMedia } from '@/db/media';
 import { listProjects } from '@/db/projects';
 import { SignIn } from '@/features/auth/SignIn';
 import { useAuth } from '@/store/authStore';
+import { useSync } from '@/store/syncStore';
+import { isGuest } from '@/net/session';
 import { useJobs } from '@/store/jobsStore';
 import styles from '@/features/shell/Index.module.css';
 
@@ -45,9 +47,9 @@ export function AccountClient() {
         <div>
           <h1 className={styles.title}>Account</h1>
           <p className={styles.blurb}>
-            Orbit web keeps your work in this browser, and nothing leaves the machine
-            until you export to a render service. An account is only needed when that
-            service meters generation.
+            Orbit web keeps your work in this browser. Sign in and your projects
+            also sync to your account, so they follow you to another machine —
+            the documents travel, the footage stays where it was uploaded.
           </p>
         </div>
       </header>
@@ -68,18 +70,74 @@ export function AccountClient() {
 }
 
 /**
+ * Sync, said plainly.
+ *
+ * It reports the LAST PASS rather than a live spinner, because that is the
+ * question people actually have ("did my work get up there?"), and it names a
+ * conflict explicitly — a copy silently appearing in the project list with
+ * "(this browser)" after its name would be baffling otherwise.
+ */
+function SyncRow() {
+  const status = useSync((s) => s.status);
+  const run = useSync((s) => s.run);
+
+  const text =
+    status.state === 'syncing'
+      ? 'Syncing…'
+      : status.state === 'ok'
+        ? status.pulled || status.pushed
+          ? `${status.pulled} in, ${status.pushed} out`
+          : 'Up to date'
+        : status.state === 'guest'
+          ? 'Sign in to sync'
+          : status.state === 'failed'
+            ? `Could not sync — ${status.error}`
+            : 'Not available on this server';
+
+  return (
+    <div style={{ display: 'grid', gap: 'var(--w-2)', maxWidth: '56ch' }}>
+      <Row label="Sync" value={text} />
+      {status.state === 'ok' && status.conflicts > 0 && (
+        <p style={{ margin: 0, fontSize: 12, color: 'var(--w-muted)' }}>
+          {status.conflicts === 1 ? 'One project was' : `${status.conflicts} projects were`}{' '}
+          edited in two places. Nothing was discarded — this browser&rsquo;s version was
+          kept alongside, named &ldquo;(this browser)&rdquo;.
+        </p>
+      )}
+      <button
+        type="button"
+        onClick={() => void run()}
+        disabled={status.state === 'syncing'}
+        style={{ justifySelf: 'start', color: 'var(--w-muted)', fontSize: 12 }}
+      >
+        Sync now
+      </button>
+    </div>
+  );
+}
+
+/**
  * Sign in, sign out, or nothing at all.
  *
- * Nothing at all is the common case and the right one: a service with
- * ORBIT_AUTH_PROVIDER unset has no accounts, and offering a form that could only
- * ever 404 is worse than offering none. `signedOut` is what distinguishes the
- * two — it is set only when the service answered 401, which means it does meter.
+ * The test used to be `signedOut` — set only when the service answered 401 —
+ * and guest tokens quietly broke it. Nothing 401s any more, because a
+ * signed-out browser now holds a real guest token, so the form never appeared
+ * and there was NO WAY TO REACH SIGN-IN AT ALL. That also meant sync could
+ * never be turned on, since sync requires an account.
+ *
+ * The right question was never "did something fail?" but "does this service
+ * have accounts?", and holding a guest token is proof that it does: the guest
+ * route only exists on the self-hosted provider. A service with no auth
+ * configured issues no guest token, `isGuest()` is false, and the form
+ * correctly stays away rather than offering something that could only 404.
  */
 function AccountSection() {
   const status = useAuth((s) => s.status);
   const user = useAuth((s) => s.user);
   const logout = useAuth((s) => s.logout);
-  const signedOut = useJobs((s) => s.signedOut);
+  /* Re-read on each render of this screen rather than subscribing: the token is
+     module state, and this component only mounts when someone opens Account. */
+  const hasAccounts = isGuest() || useJobs.getState().signedOut;
 
   if (status === 'loading') return null;
 
@@ -87,6 +145,7 @@ function AccountSection() {
     return (
       <div style={{ display: 'grid', gap: 'var(--w-3)', maxWidth: '56ch' }}>
         <Row label="Signed in as" value={user?.email ?? user?.endUserId ?? '—'} />
+        <SyncRow />
         <button
           type="button"
           onClick={logout}
@@ -101,7 +160,7 @@ function AccountSection() {
       </div>
     );
 
-  if (!signedOut) return null;
+  if (!hasAccounts) return null;
   return (
     <div style={{ display: 'grid', gap: 'var(--w-3)', maxWidth: '56ch' }}>
       <h2 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--w-ink)' }}>

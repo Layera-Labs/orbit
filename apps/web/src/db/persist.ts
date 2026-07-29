@@ -18,6 +18,7 @@
  */
 import { create } from 'zustand';
 import { saveProject } from './projects';
+import { useSync } from '@/store/syncStore';
 import type { ProjectKind } from './schema';
 
 export type SaveStatus = 'idle' | 'saving' | 'saved' | 'failed';
@@ -52,6 +53,12 @@ export async function persistProject(row: Row): Promise<void> {
   try {
     await saveProject(row as Parameters<typeof saveProject>[0]);
     if (mine === ticket) useSaveState.setState({ status: 'saved', at: Date.now(), error: undefined });
+    /*
+     * Local first, cloud after. The document is safe on disk before anything
+     * touches the network, so a sync that fails costs nothing — and a burst of
+     * edits collapses into one pass rather than one request per keystroke.
+     */
+    useSync.getState().schedule();
   } catch (err) {
     if (mine !== ticket) return;
     const quota =

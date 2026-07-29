@@ -39,6 +39,10 @@ const ALLOWED = [
   /^v1\/transcribe$/,
   /^v1\/credits$/,
   /^v1\/auth\/[a-z]+$/,
+  // Project sync: the collection and one project by id. Small JSON bodies, so
+  // unlike upload and render these are perfectly happy in a function.
+  /^v1\/projects$/,
+  /^v1\/projects\/[\w.-]+$/,
 ];
 
 async function forward(req: NextRequest, path: string[]) {
@@ -82,5 +86,15 @@ export async function GET(req: NextRequest, ctx: { params: { path: string[] } })
 }
 
 export async function POST(req: NextRequest, ctx: { params: { path: string[] } }) {
+  return forward(req, ctx.params.path);
+}
+
+/* Sync needs both. Without these Next answers 405 for a route that exists,
+   which reads as "sync is broken" rather than "the proxy forgot a verb". */
+export async function PUT(req: NextRequest, ctx: { params: { path: string[] } }) {
+  return forward(req, ctx.params.path);
+}
+
+export async function DELETE(req: NextRequest, ctx: { params: { path: string[] } }) {
   return forward(req, ctx.params.path);
 }

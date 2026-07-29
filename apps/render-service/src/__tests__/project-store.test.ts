@@ -14,14 +14,23 @@ import { PgProjectStore } from '../project-store';
 const URL = process.env.TEST_DATABASE_URL;
 
 describe.skipIf(!URL)('project sync (integration)', () => {
-  const pool = makePgPool(URL!);
-  const store = new PgProjectStore(pool);
+  /*
+   * Built in `beforeAll`, NOT here. `describe.skipIf` still EVALUATES the
+   * describe body to collect the tests it is about to skip — so constructing
+   * the pool at this level connected to localhost:5432 on every run without a
+   * database and failed the whole suite with an unhandled ECONNREFUSED, from a
+   * file whose tests had all been skipped.
+   */
+  let pool: ReturnType<typeof makePgPool>;
+  let store: PgProjectStore;
   const acct = `test:${process.pid}`;
   const other = `test:${process.pid}:other`;
 
   const doc = (name: string) => ({ id: 'p1', kind: 'video', name, data: { clips: [name] } });
 
   beforeAll(async () => {
+    pool = makePgPool(URL!);
+    store = new PgProjectStore(pool);
     await store.list(acct); // force schema creation
     await pool.query('DELETE FROM projects WHERE account LIKE $1', ['test:%']);
   });

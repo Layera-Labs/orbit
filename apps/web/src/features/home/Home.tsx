@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Icon } from '@/brand/Icon';
 import { addMedia, listMedia } from '@/db/media';
 import { createNewProject, deleteProject, listProjects, saveProject } from '@/db/projects';
+import { syncDelete } from '@/db/sync';
 import { mediaSrc, type MediaRow, type ProjectKind, type ProjectRow } from '@/db/schema';
 import { appendAudio, appendVisual } from '@/store/videoStore';
 import { probe } from '@/features/design/panels/MediaPanel';
@@ -286,6 +287,8 @@ export function Home() {
                 onOpen={() => router.push(`/design/${project.id}`)}
                 onDelete={async () => {
                   await deleteProject(project.id);
+                  // Tell the cloud too, or the next pull helpfully restores it.
+                  void syncDelete(project.id);
                   refresh();
                 }}
               />
