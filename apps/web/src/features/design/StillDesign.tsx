@@ -28,7 +28,7 @@ import { mediaSrc, type MediaRow, type ProjectRow } from '@/db/schema';
 import { useDesign } from '@/store/designStore';
 import { DesignBar } from './DesignBar';
 import { DesignFrame, ToolPanel } from './Frame';
-import { ToolRail } from './ToolRail';
+import { ToolRail, toolLabel } from './ToolRail';
 import { ElementBar } from './toolbar/ElementBar';
 import { CanvasGuides } from './CanvasGuides';
 import { PageBar } from './PageBar';
@@ -189,8 +189,7 @@ function StillShell({
     }
   };
 
-  const label =
-    tool === 'ai' ? 'Generate' : tool ? tool[0].toUpperCase() + tool.slice(1) : '';
+  const label = toolLabel(tool);
 
   return (
     <DesignFrame

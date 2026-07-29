@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import { useAuth } from '@/store/authStore';
 import { Icon, type IconName } from '@/brand/Icon';
 import { ThemeSwitch } from '@/brand/ThemeSwitch';
 import { Plate } from '@/brand/Plate';
@@ -17,12 +18,23 @@ interface RailItem {
 
 const ITEMS: RailItem[] = [
   { href: '/', icon: 'bench', label: 'Home', match: ['/'] },
-  { href: '/studio', icon: 'reading', label: 'Generate', match: ['/studio'] },
+  { href: '/studio', icon: 'reading', label: 'AI Studio', match: ['/studio'] },
   { href: '/library', icon: 'library', label: 'Library', match: ['/library'] },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? '/';
+
+  /*
+   * Restore the session on every route, INCLUDING the editor.
+   *
+   * This runs above the `/design/` early return on purpose: that branch still
+   * renders this component, so the hook still fires, and AI Studio lives inside
+   * the editor. Hydrating only in the outer shell would leave a signed-in user
+   * looking at a sign-in form the moment they opened a project.
+   */
+  const hydrate = useAuth((s) => s.hydrate);
+  useEffect(hydrate, [hydrate]);
 
   /**
    * The editor owns the whole viewport.

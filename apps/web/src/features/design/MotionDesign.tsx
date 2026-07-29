@@ -29,7 +29,7 @@ import { boxOf } from './motion/pick';
 import { useCanvasDrag } from './motion/useCanvasDrag';
 import { DesignBar } from './DesignBar';
 import { DesignFrame, ToolPanel } from './Frame';
-import { ToolRail } from './ToolRail';
+import { ToolRail, toolLabel } from './ToolRail';
 import { AiPanel } from './panels/AiPanel';
 import { MediaPanel, mediaKind } from './panels/MediaPanel';
 import {
@@ -304,8 +304,7 @@ export function MotionDesign({
     }
   };
 
-  const label =
-    tool === 'ai' ? 'Generate' : tool ? tool[0].toUpperCase() + tool.slice(1) : '';
+  const label = toolLabel(tool);
 
   return (
     <DesignFrame

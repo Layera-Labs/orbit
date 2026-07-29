@@ -59,6 +59,8 @@ export const MODES: {
 interface JobsState {
   jobs: Job[];
   balance: number | null;
+  /** This service meters and this browser has no account — say so up front. */
+  signedOut: boolean;
   notice: string | null;
   /** Bumped whenever a generation lands, so media lists can re-read. */
   completedAt: number;
@@ -73,6 +75,7 @@ interface JobsState {
 export const useJobs = create<JobsState>((set, get) => ({
   jobs: [],
   balance: null,
+  signedOut: false,
   notice: null,
   completedAt: 0,
 
@@ -126,6 +129,9 @@ export const useJobs = create<JobsState>((set, get) => ({
         jobs: get().jobs.map((j) =>
           j.id === job.id ? { ...j, status: 'error' as const, error: message } : j,
         ),
+        // A token that expired mid-session lands here rather than in
+        // `refreshBalance`, and the panel should offer the way back in.
+        signedOut: err instanceof GenError && err.kind === 'unauthenticated',
         notice:
           err instanceof GenError && err.kind === 'not-configured'
             ? 'This render service has no generation provider configured. Set RUNWAY_API_TOKEN (stills and motion) or ELEVENLABS_API_KEY (speech) and restart it.'
@@ -139,9 +145,14 @@ export const useJobs = create<JobsState>((set, get) => ({
   },
   dismiss: (id) => set({ jobs: get().jobs.filter((j) => j.id !== id) }),
   refreshBalance: () => {
-    // 404 when auth is off — `credits()` already maps that to null, which means
-    // "no accounting here", not an error to surface.
-    void credits().then((balance) => set({ balance }));
+    void credits().then((c) =>
+      set({
+        balance: c.state === 'ok' ? c.balance : null,
+        // Say it BEFORE a prompt is spent. This server meters and this browser
+        // is signed out, which is not something to discover from a failure.
+        signedOut: c.state === 'signed-out',
+      }),
+    );
   },
   clearNotice: () => set({ notice: null }),
 }));

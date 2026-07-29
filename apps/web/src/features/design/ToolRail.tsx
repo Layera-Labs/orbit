@@ -35,12 +35,26 @@ export const SECTIONS: ToolSection[] = [
   { id: 'uploads', label: 'Uploads', icon: 'folder', kinds: ['image', 'video'] },
   { id: 'effects', label: 'Effects', icon: 'effects', kinds: ['video'], gapBefore: true },
   { id: 'transitions', label: 'Transitions', icon: 'transition', kinds: ['video'] },
-  { id: 'ai', label: 'Generate', icon: 'reading', kinds: ['image', 'video'], gapBefore: true },
+  // Named for the thing it IS, not the verb. "Generate" read as a button, and
+  // the studio is where people already expect to find this.
+  { id: 'ai', label: 'AI Studio', icon: 'reading', kinds: ['image', 'video'], gapBefore: true },
   { id: 'layers', label: 'Layers', icon: 'layers', kinds: ['image'] },
 ];
 
 export function sectionsFor(kind: ProjectKind): ToolSection[] {
   return SECTIONS.filter((s) => s.kinds.includes(kind));
+}
+
+/**
+ * What the open panel is called.
+ *
+ * From `SECTIONS`, not from the id: both surfaces used to title-case the id and
+ * special-case `ai`, so the rail said one thing and the panel above it said
+ * another the moment either was renamed.
+ */
+export function toolLabel(tool: ToolId | null): string {
+  if (!tool) return '';
+  return SECTIONS.find((s) => s.id === tool)?.label ?? tool[0].toUpperCase() + tool.slice(1);
 }
 
 export function ToolRail({ kind }: { kind: ProjectKind }) {
