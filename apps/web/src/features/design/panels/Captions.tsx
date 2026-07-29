@@ -2,9 +2,12 @@
 
 import { useState } from 'react';
 import {
+  captionFileName,
   clearAutoCaptions,
   hasAutoCaptions,
+  hasCaptionText,
   setAutoCaptions,
+  toSRT,
   type VideoProject,
 } from '@orbit/video/browser';
 import { Icon } from '@/brand/Icon';
@@ -16,6 +19,22 @@ import { useVideo } from '@/store/videoStore';
 import styles from './Panels.module.css';
 
 const COST = 5;
+
+/**
+ * Hand the browser a file it never fetched.
+ *
+ * The object URL is revoked on the next frame rather than immediately: the
+ * click is synchronous but the download the browser starts from it is not, and
+ * revoking in the same tick cancels it in Safari.
+ */
+function downloadText(name: string, text: string, type: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = name;
+  a.click();
+  requestAnimationFrame(() => URL.revokeObjectURL(url));
+}
 
 /**
  * Which clip gets transcribed.
@@ -60,11 +79,13 @@ export function CaptionsSection({
   selection: string | null;
 }) {
   const apply = useVideo((s) => s.apply);
+  const projectName = useVideo((s) => s.name);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
   const source = captionSource(project, selection);
   const existing = hasAutoCaptions(project);
+  const exportable = hasCaptionText(project);
 
   const run = async () => {
     if (!source) return;
@@ -131,6 +152,31 @@ export function CaptionsSection({
             </button>
           )}
         </>
+      )}
+
+      {/*
+        A subtitle file, not a second copy of the captions.
+        Offered whenever there is any timed text at all — including text typed
+        by hand — because the `caption-` prefix is bookkeeping for re-running
+        the transcription, not a category anyone chose, and a file that silently
+        omitted the lines someone wrote themselves would be the worse surprise.
+       */}
+      {exportable && (
+        <button
+          className={styles.action}
+          onClick={() =>
+            downloadText(captionFileName(projectName), toSRT(project), 'application/x-subrip')
+          }
+        >
+          <Icon name="download" size={14} />
+          Save .srt
+        </button>
+      )}
+      {exportable && (
+        <p className={styles.note}>
+          Every timed text on the timeline, as a subtitle file. Unlike burned-in
+          captions, it can be turned off and translated.
+        </p>
       )}
 
       {/* Plain text, and only after something happened. No progress bar: the

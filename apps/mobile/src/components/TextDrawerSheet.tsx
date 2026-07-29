@@ -5,6 +5,7 @@ import {
   type NativeSyntheticEvent,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -14,9 +15,16 @@ import Animated, {
   FadeOutLeft,
   LinearTransition,
 } from "react-native-reanimated";
+import { Directory, File, Paths } from "expo-file-system";
 import { LinearGradient } from "expo-linear-gradient";
 import { font, vela } from "../constants";
-import { clearAutoCaptions, hasAutoCaptions } from "../model/editor-ops";
+import {
+  captionFileName,
+  clearAutoCaptions,
+  hasAutoCaptions,
+  hasCaptionText,
+  toSRT,
+} from "../model/editor-ops";
 import type { TextOverlay } from "../model/types";
 import { useEditor } from "../store/editorStore";
 import { BottomSheet } from "./BottomSheet";
@@ -935,6 +943,27 @@ function CaptionsPanel() {
   const [note, setNote] = useState<string | null>(null);
 
   const existing = project ? hasAutoCaptions(project) : false;
+  const exportable = project ? hasCaptionText(project) : false;
+
+  /*
+   * A subtitle file the phone can hand to anything — mail, Files, a desktop.
+   * Written into the cache directory rather than documents: it is a derived
+   * artifact regenerated in a millisecond, and leaving copies in the projects
+   * folder would grow it for no reason.
+   */
+  const saveSRT = async () => {
+    if (!project) return;
+    try {
+      const name = captionFileName(useEditor.getState().name);
+      // `write` creates or overwrites, same as `storage/projects.ts` — a second
+      // save of the same project simply replaces the file it wrote last time.
+      const file = new File(new Directory(Paths.cache), name);
+      file.write(toSRT(project));
+      await Share.share({ url: file.uri });
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : "Could not save the subtitle file.");
+    }
+  };
 
   const run = async () => {
     setBusy(true);
@@ -987,6 +1016,29 @@ function CaptionsPanel() {
           >
             <VIcon name="trash" size={18} color={vela.lightMuted} />
             <Text style={styles.captionClearText}>Remove captions</Text>
+          </Pressable>
+        ) : null}
+
+        {/*
+          Offered whenever there is any timed text at all, including text typed
+          by hand: the `caption-` prefix is bookkeeping so a second run knows
+          what it may replace, not a category anyone chose, and a file that
+          silently dropped the lines someone wrote would be the worse surprise.
+         */}
+        {exportable ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void saveSRT()}
+            style={styles.captionAction}
+          >
+            <VIcon name="export" size={22} color={vela.accent} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.captionActionName}>Save .srt</Text>
+              <Text style={styles.captionActionSub}>
+                Every timed text, as a subtitle file. Unlike burned-in captions,
+                it can be turned off and translated.
+              </Text>
+            </View>
           </Pressable>
         ) : null}
 

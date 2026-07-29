@@ -911,6 +911,107 @@ export function clearAutoCaptions(p: VideoProject): VideoProject {
   };
 }
 
+// ---------------------------------------------------------------------------
+// captions as a subtitle file
+// ---------------------------------------------------------------------------
+
+/*
+ * MIRRORS `packages/video/src/srt.ts`. Mobile installs outside the pnpm
+ * workspace and cannot import the package, so this is a second copy — and
+ * `__tests__/srt.test.ts` compares the two OUTPUTS, because a mirrored
+ * implementation that nothing compares is a copy waiting to drift.
+ */
+
+/** `HH:MM:SS,mmm` — comma before the milliseconds. A period is WebVTT. */
+export function srtTime(seconds: number): string {
+  // Round to milliseconds ONCE, in integer space. Rounding the parts
+  // separately lets 59.9996s print as 00:00:60,000, which no parser accepts.
+  const total = Math.max(0, Math.round(seconds * 1000));
+  const ms = total % 1000;
+  const s = Math.floor(total / 1000) % 60;
+  const m = Math.floor(total / 60_000) % 60;
+  const h = Math.floor(total / 3_600_000);
+  const p2 = (n: number) => String(n).padStart(2, "0");
+  return `${p2(h)}:${p2(m)}:${p2(s)},${String(ms).padStart(3, "0")}`;
+}
+
+/*
+ * SRT has no escaping: a BLANK LINE is what ends a cue. Text carrying one would
+ * split into a cue plus a fragment the parser reads as the next cue's index,
+ * and every caption after it shifts. Interior breaks are meaningful — they are
+ * how a two-line caption is written — so only the empty lines go.
+ */
+function cueText(text: string): string {
+  return text
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "")
+    .join("\n");
+}
+
+export interface Cue {
+  start: number;
+  end: number;
+  text: string;
+}
+
+/**
+ * The overlays that can become cues, in the order they play — sorted by time,
+ * not by array order, which is layer order and would jump around.
+ *
+ * Overlapping cues are left overlapping: SRT permits them, and quietly
+ * retiming captions someone placed deliberately is worse than a player
+ * stacking two lines.
+ */
+export function captionCues(overlays: readonly TextOverlay[]): Cue[] {
+  return overlays
+    .map((o) => ({
+      start: Math.max(0, o.start),
+      end: Math.max(0, o.end),
+      text: cueText(o.text ?? ""),
+    }))
+    .filter((c) => c.text !== "" && c.end > c.start)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+}
+
+/**
+ * The whole file, empty when there is nothing to write.
+ *
+ * EVERY text overlay travels, not only the machine-written ones: the
+ * `caption-` prefix is bookkeeping so a second transcription knows what it may
+ * replace, not a category the user chose.
+ */
+export function toSRT(p: VideoProject): string {
+  const cues = captionCues(p.overlays ?? []);
+  if (!cues.length) return "";
+  return (
+    cues
+      .map((c, i) => `${i + 1}\n${srtTime(c.start)} --> ${srtTime(c.end)}\n${c.text}`)
+      .join("\n\n") + "\n"
+  );
+}
+
+/** Is there anything a subtitle file could contain? */
+export function hasCaptionText(p: VideoProject): boolean {
+  return captionCues(p.overlays ?? []).length > 0;
+}
+
+/** A filename the OS will accept from a project title someone typed. */
+export function captionFileName(projectName: string): string {
+  const base = (projectName || "")
+    // eslint-disable-next-line no-control-regex
+    .replace(/[/\\:*?"<>|\u0000-\u001f]/g, " ")
+    .replace(/\s+/g, " ")
+    // A leading dot makes a hidden file, and a name that is nothing but dots
+    // is a directory reference rather than a file.
+    .replace(/^[. ]+/, "")
+    .replace(/[. ]+$/, "")
+    .slice(0, 60)
+    .trim();
+  return `${base || "captions"}.srt`;
+}
+
 /** Remove the title card and pull the timeline back by exactly its length. */
 export function removeTitleCard(p: VideoProject): VideoProject {
   const card = titleCardOf(p);
