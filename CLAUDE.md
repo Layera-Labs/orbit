@@ -275,26 +275,43 @@ pnpm --filter @orbit/studio dev # v2 demo
 
 ## Known gaps / deliberate non-features
 
-- **Not production-ready**, but three of the blockers closed 2026-07-28:
-  - **Output storage has a seam** — `apps/render-service/src/storage.ts`. Local disk (serve
-    from `/files`) is still the default; set `ORBIT_S3_BUCKET` + keys and output goes to any
-    S3-compatible bucket instead. SigV4 is hand-rolled (no 2MB AWS SDK for one PUT) and
-    pinned to AWS's own published example in `storage.test.ts`. A HALF-set config throws
-    rather than falling back to disk. Outputs are now evicted like uploads
-    (`ORBIT_MAX_OUTPUT_BYTES`) — the directory previously grew until the volume filled.
-    **Uploads are still local-only**; only rendered output goes through the seam.
+- **Not production-ready**, but most of the blockers closed 2026-07-28/29:
+  - **Storage has a seam** — `apps/render-service/src/storage.ts`. Local disk (serve
+    from `/files`) is still the default; set `ORBIT_S3_BUCKET` + keys and BOTH uploads and
+    rendered output go to any S3-compatible bucket instead. SigV4 is hand-rolled (no 2MB
+    AWS SDK for one PUT) and pinned to AWS's own published example in `storage.test.ts`.
+    A HALF-set config throws rather than falling back to disk. The media dir stays a
+    byte-budgeted cache; `ensureLocal` fetches an evicted upload back before a render, so
+    eviction stopped being data loss. Output urls are **presigned GETs** (6h) unless
+    `ORBIT_S3_PUBLIC_BASE` is set — a private bucket otherwise handed the client 343 bytes
+    of AccessDenied XML with a `.mp4` name on it. Outputs are evicted too
+    (`ORBIT_MAX_OUTPUT_BYTES`); the directory previously grew until the volume filled.
   - **Renders can be jobs** — `POST /v1/render {async:true}` → 202 `{id}`, poll
     `GET /v1/render/:id`. Both clients use it and fall back if the server answers with a
-    url outright. The synchronous path is unchanged for older clients. The registry
-    (`jobs.ts`) is in-process on purpose: the encode is in this process too.
-    `status` goes `queued`→`running` only when a render SLOT is actually held, so waiting
-    behind the semaphore is distinguishable from encoding.
+    url outright. The synchronous path is unchanged for older clients. In-process
+    (`jobs.ts`) by default, where `status` goes `queued`→`running` only when a render SLOT
+    is actually held, so waiting behind the semaphore is distinguishable from encoding.
+  - **The queue can be shared** (`job-queue.ts`) — with `DATABASE_URL` **and** non-local
+    storage, jobs go in a Postgres table and every instance is also a worker
+    (`ORBIT_WORKER=0` opts out), so adding a machine adds capacity. `FOR UPDATE SKIP
+    LOCKED` is what stops two workers rendering (and charging for) the same job; a claim
+    heartbeats, so a worker killed mid-encode has its job re-offered rather than stranding
+    it in `running`. It **refuses to enable on local disk** and names the missing half:
+    a worker would be handed an upload token naming a file only the receiving box has.
+    Polling, not LISTEN/NOTIFY — a notification is lost if nobody is listening at that
+    instant. Tested against a real Postgres; the suite skips without
+    `ORBIT_TEST_DATABASE_URL` rather than passing on a stub.
+  - **Deployable** — `Dockerfile` + `compose.yaml` (Postgres + MinIO). Built from the repo
+    root because it is a pnpm workspace. Note `Dockerfile.dockerignore`: Docker reads
+    `<context>/.dockerignore` and the context is the repo root, so a `.dockerignore` inside
+    `apps/render-service/` is silently ignored and `.env` lands in the image.
+    `pnpm prune --prod` does NOT work here — it strips the per-package `node_modules` a
+    workspace resolves through; install with `--prod --filter` a second time instead.
   - **Observability** — one JSON line per request (no bodies/query: they carry upload
-    tokens), and `/health` reports storage kind, `renders.{running,queued,capacity}` and
-    job count. `ok` stays true while merely busy, so a load balancer will not pull the box
-    that is doing the work.
-  - Still open: durable UPLOAD storage, a real worker pool, deployment, purchase config,
-    social login, cloud project sync.
+    tokens), and `/health` reports storage kind, queue mode, `renders.{running,queued,
+    capacity}`, cluster depth when shared, and job count. `ok` stays true while merely
+    busy, so a load balancer will not pull the box that is doing the work.
+  - Still open: purchase config, social login, cloud project sync.
 - Per-clip audio: the **legacy concat path drops it** (`buildFFmpegArgs` concats with `a=0`,
   `ffmpeg.ts:254`) — only a lone clip's original audio plus `project.audio` mix there. The
   **multi-track path does NOT**: `buildMultiTrackArgs` gives every visual clip's stream its
