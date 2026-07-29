@@ -13,6 +13,7 @@ import { gradeIsExact } from '@/video/engine/grade';
 import { cutoutIsSupported } from '@/video/engine/cutout';
 import { newId } from '@/db/idb';
 import { addOverlay, nextOverlayLayer, patchClip, useVideo } from '@/store/videoStore';
+import { CaptionsSection } from './Captions';
 import styles from './Panels.module.css';
 
 /* ---------------------------------------------------------------- effects --- */
@@ -617,6 +618,8 @@ export function MotionTextPanel({
           </button>
         ))}
       </div>
+
+      <CaptionsSection project={project} selection={selection} />
 
       {overlays.length > 0 && (
         <div className={styles.group}>

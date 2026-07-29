@@ -88,3 +88,43 @@ describe("setAutoCaptions", () => {
     expect(setAutoCaptions(once, []).overlays).toEqual([]);
   });
 });
+
+/*
+ * The mirror, checked.
+ *
+ * `setAutoCaptions` exists TWICE — here in `editor-ops.ts`, and in
+ * `packages/video/src/captions.ts` which the web app imports — because mobile
+ * installs outside the pnpm workspace and cannot import the package. A mirrored
+ * implementation nothing compares is a copy waiting to drift: the two would
+ * quietly start placing captions at different heights, or with different
+ * outlines, and the same project would look different in the two apps.
+ *
+ * So compare the OUTPUT, not the source. Anything that changes in one and not
+ * the other fails here.
+ */
+describe('mobile mirrors packages/video', () => {
+  it('produces identical overlays for the same transcript', async () => {
+    // By path, not by package name: mobile installs outside the workspace, so
+    // `@orbit/video` is not resolvable from here. That is the very reason this
+    // file is duplicated, and the reason this test exists.
+    const shared = await import('../../../../../packages/video/src/captions');
+    const lines = [caption('one', 0, 1), caption('two', 1.5, 2.25)];
+
+    for (const [w, h] of [
+      [1080, 1920],
+      [1920, 1080],
+      [3840, 2160],
+    ]) {
+      const p = { ...project([hand]), width: w, height: h };
+      expect(setAutoCaptions(p, lines, 3.5).overlays).toEqual(
+        shared.setAutoCaptions(p as never, lines, 3.5).overlays,
+      );
+    }
+  });
+
+  it('agrees on the id prefix, so each can find the other run', () => {
+    // Not cosmetic: a project captioned on the phone must be re-captionable on
+    // the web, and that only works if both recognise the same ids.
+    expect(CAPTION_ID_PREFIX).toBe('caption-');
+  });
+});

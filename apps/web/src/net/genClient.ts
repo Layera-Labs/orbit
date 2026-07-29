@@ -29,7 +29,15 @@ const authHeaders = (): Record<string, string> =>
  * up to 180s for the still and 180s again for the animation, so a shorter client
  * timeout would replace the server's specific error with a generic one.
  */
-const TIMEOUT = { image: 90_000, video: 210_000, tts: 60_000, credits: 15_000 };
+const TIMEOUT = {
+  image: 90_000,
+  video: 210_000,
+  tts: 60_000,
+  credits: 15_000,
+  // Scribe runs on the whole file at once. A long voiceover is the slow case,
+  // and a short ceiling here would turn "still working" into a generic failure.
+  transcribe: 180_000,
+};
 
 export type GenErrorKind =
   | 'out-of-credits'
@@ -85,8 +93,15 @@ async function post<T>(
       'Generation is not configured on this server.',
       'not-configured',
     );
+  /*
+   * 502 is the service telling us its PROVIDER refused — out of credits, or a
+   * key without the right permission. The service is reachable and it said
+   * something specific, so saying "could not reach the render service" was
+   * both wrong and unactionable. Only fall back to that when there is no
+   * message to pass on.
+   */
   if (res.status === 502)
-    throw new GenError('Could not reach the render service.', 'no-server');
+    throw new GenError(data.error ?? 'Could not reach the render service.', 'failed');
   throw new GenError(data.error ?? `Generation failed (HTTP ${res.status})`, 'failed');
 }
 
@@ -96,18 +111,66 @@ export interface GenResult {
   balance?: number;
 }
 
+/**
+ * Where a generated file actually lives.
+ *
+ * The service answers with the provider's own absolute url when it proxies one
+ * (Runway's CDN), and with a RELATIVE `/files/...` path when it wrote the file
+ * itself — which is what TTS always does. A relative path resolves against the
+ * PAGE's origin, so speech generation fetched `localhost:3100/files/...`,
+ * got a 404 from Next, and failed every single time with the file sitting
+ * ready on the service. `exportProject` has always done this; generation did
+ * not.
+ *
+ * Not the proxy base: `/files` is served by the service and is not proxied.
+ */
+const FILES = process.env.NEXT_PUBLIC_ORBIT_RENDER_URL ?? 'http://localhost:8787';
+const absolute = (url: string) => (/^(https?:|blob:|data:)/.test(url) ? url : `${FILES}${url}`);
+
+const located = <T extends GenResult>(r: T): T => ({
+  ...r,
+  url: absolute(r.url),
+  audioUrl: r.audioUrl ? absolute(r.audioUrl) : undefined,
+});
+
 export const generateImage = (
   body: { prompt: string; width?: number; height?: number },
   signal?: AbortSignal,
-) => post<GenResult>('v1/generate-image', body, TIMEOUT.image, signal);
+) => post<GenResult>('v1/generate-image', body, TIMEOUT.image, signal).then(located);
 
 export const generateVideo = (
   body: { prompt: string; width?: number; height?: number; durationSec?: number; audio?: boolean },
   signal?: AbortSignal,
-) => post<GenResult>('v1/generate-video', body, TIMEOUT.video, signal);
+) => post<GenResult>('v1/generate-video', body, TIMEOUT.video, signal).then(located);
 
 export const speak = (body: { text: string; voice?: string }, signal?: AbortSignal) =>
-  post<GenResult>('v1/tts', body, TIMEOUT.tts, signal);
+  post<GenResult>('v1/tts', body, TIMEOUT.tts, signal).then(located);
+
+export interface CaptionLine {
+  text: string;
+  start: number;
+  end: number;
+}
+
+/**
+ * Speech to timed caption lines.
+ *
+ * `src` is an `upload:<token>` — the audio is already on the service, so the
+ * request body stays a few dozen bytes and this can go through the proxy like
+ * every other metered call. The service does the line grouping (`groupWords`),
+ * because splitting a transcript into readable lines is a decision the export
+ * and both clients must agree on.
+ */
+export const transcribe = (
+  body: { src: string; language?: string },
+  signal?: AbortSignal,
+) =>
+  post<{ lines: CaptionLine[]; balance?: number }>(
+    'v1/transcribe',
+    body,
+    TIMEOUT.transcribe,
+    signal,
+  );
 
 /**
  * What the account line should say.

@@ -30,7 +30,14 @@ export class ExportError extends Error {
   }
 }
 
-/** Upload one media row if it has no live token, and return that token. */
+/**
+ * Upload one media row if it has no live token, and return the `upload:<id>`
+ * SRC — the service returns the prefix, so this is a src, not a bare id.
+ *
+ * Exported as `uploadMedia` as well: transcription needs the same "get this
+ * blob onto the service and give me something it will accept" step, and a
+ * second copy of it would be a second place for the caching to go wrong.
+ */
 async function tokenFor(mediaId: string, signal?: AbortSignal): Promise<string> {
   const row = await getMedia(mediaId);
   if (!row) throw new ExportError(`missing local media ${mediaId}`, 'failed');
@@ -172,3 +179,5 @@ export async function exportProject(
   onProgress({ stage: 'done' });
   return { url: URL.createObjectURL(blob), blob };
 }
+
+export { tokenFor as uploadMedia };

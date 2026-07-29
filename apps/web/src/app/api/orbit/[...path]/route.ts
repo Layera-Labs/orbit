@@ -32,6 +32,9 @@ const ALLOWED = [
   /^v1\/generate-image$/,
   /^v1\/generate-video$/,
   /^v1\/tts$/,
+  // Metered like the rest, and the audio is already on the service as an
+  // upload token — the body is a token, not a file, so it stays small.
+  /^v1\/transcribe$/,
   /^v1\/credits$/,
   /^v1\/auth\/[a-z]+$/,
 ];

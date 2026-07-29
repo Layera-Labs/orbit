@@ -95,6 +95,15 @@ export {
 export { buildFadeMap, projectFadeMap, fadeFactorAt } from './transitions';
 export type { ClipFade } from './transitions';
 
+// Auto-captions. Pure layout over a transcript the service produced.
+export {
+  CAPTION_ID_PREFIX,
+  setAutoCaptions,
+  hasAutoCaptions,
+  clearAutoCaptions,
+} from './captions';
+export type { CaptionLine } from './captions';
+
 // The declarative frame description a canvas renderer executes.
 export { frameStateAt } from './frame';
 export type { DrawOp, Fit } from './frame';
