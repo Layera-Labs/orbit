@@ -47,6 +47,7 @@ export function StillDesignPanel() {
               key={s.label}
               className={styles.preset}
               data-on={page?.width === s.w && page?.height === s.h}
+              aria-pressed={page?.width === s.w && page?.height === s.h}
               onClick={() => store.resizePage(s.w, s.h)}
             >
               <span

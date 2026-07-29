@@ -60,6 +60,7 @@ export function EffectsPanel({ clip }: { clip: VisualTrackClip | null }) {
               key={key}
               className={styles.preset}
               data-on={preset === key}
+              aria-pressed={preset === key}
               onClick={() =>
                 apply((p) =>
                   patchClip(p, clip.id, {
@@ -195,6 +196,7 @@ export function EffectsPanel({ clip }: { clip: VisualTrackClip | null }) {
                   key={pattern}
                   className={styles.preset}
                   data-on={clip.mosaic!.pattern === pattern}
+                  aria-pressed={clip.mosaic!.pattern === pattern}
                   onClick={() =>
                     apply((p) => patchClip(p, clip.id, { mosaic: { ...clip.mosaic!, pattern } }))
                   }
@@ -209,6 +211,7 @@ export function EffectsPanel({ clip }: { clip: VisualTrackClip | null }) {
                   key={shape}
                   className={styles.preset}
                   data-on={clip.mosaic!.shape === shape}
+                  aria-pressed={clip.mosaic!.shape === shape}
                   onClick={() =>
                     apply((p) => patchClip(p, clip.id, { mosaic: { ...clip.mosaic!, shape } }))
                   }
@@ -277,6 +280,7 @@ export function EffectsPanel({ clip }: { clip: VisualTrackClip | null }) {
                   key={shape}
                   className={styles.preset}
                   data-on={clip.magnifier!.shape === shape}
+                  aria-pressed={clip.magnifier!.shape === shape}
                   onClick={() =>
                     apply((p) =>
                       patchClip(p, clip.id, { magnifier: { ...clip.magnifier!, shape } }),
@@ -482,6 +486,7 @@ export function TransitionsPanel({ clip }: { clip: VisualTrackClip | null }) {
           <button
             className={styles.preset}
             data-on={!isFade}
+            aria-pressed={!isFade}
             onClick={() => apply((p) => patchClip(p, clip.id, { transitionIn: undefined }))}
           >
             <span className={styles.presetSwatch} />
@@ -490,6 +495,7 @@ export function TransitionsPanel({ clip }: { clip: VisualTrackClip | null }) {
           <button
             className={styles.preset}
             data-on={isFade}
+            aria-pressed={isFade}
             onClick={() =>
               apply((p) =>
                 patchClip(p, clip.id, {
@@ -516,6 +522,7 @@ export function TransitionsPanel({ clip }: { clip: VisualTrackClip | null }) {
                 key={d}
                 className={styles.preset}
                 data-on={Math.abs((current?.duration ?? 0) - d) < 0.01}
+                aria-pressed={Math.abs((current?.duration ?? 0) - d) < 0.01}
                 onClick={() =>
                   apply((p) =>
                     patchClip(p, clip.id, { transitionIn: { type: 'fade', duration: d } }),
@@ -631,6 +638,9 @@ export function MotionTextPanel({
               key={o.id}
               className={styles.action}
               data-on={selection === o.id}
+              // `current`, not `pressed`: this is which caption is selected,
+              // not a control that has been switched on.
+              aria-current={selection === o.id}
               onClick={() => onSelect(o.id)}
               style={{ justifyContent: 'space-between' }}
             >
@@ -681,6 +691,7 @@ export function MotionDesignPanel({ project }: { project: VideoProject }) {
               key={s.label}
               className={styles.preset}
               data-on={project.width === s.w && project.height === s.h}
+              aria-pressed={project.width === s.w && project.height === s.h}
               onClick={() => apply((p) => ({ ...p, width: s.w, height: s.h }))}
             >
               <span

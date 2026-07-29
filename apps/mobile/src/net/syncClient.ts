@@ -89,12 +89,31 @@ export async function syncNow(base: string): Promise<SyncStatus> {
   let pulled = 0;
   let pushed = 0;
   let conflicts = 0;
+  /*
+   * What the pull just wrote, so the push does not send it straight back.
+   *
+   * `since` is still the OLD watermark while the push runs, so a
+   * freshly-pulled project looks like a local edit and gets pushed — at the
+   * exact timestamp it came down with. The server refuses an equal timestamp
+   * (correctly: for two real writers that is a coin flip), the client reads
+   * 409 as "both sides changed", and every project on a first sync is
+   * duplicated as "(this phone)".
+   */
+  const justPulled = new Set<string>();
 
   try {
     const since = readMark();
     const listed = await req(base, `v1/projects?since=${since}`);
     if (listed.status === 403) return { state: 'guest' };
     if (listed.status === 503) return { state: 'off' };
+    /*
+     * A member's 401 is a real expiry, not something to retry — `discardIfGuest`
+     * deliberately will not swap them onto a guest account, because that would
+     * detach them from their own credits. So say what to do about it: "HTTP 401"
+     * tells someone nothing they can act on.
+     */
+    if (listed.status === 401)
+      return { state: 'failed', error: 'Your session expired. Sign in again to keep syncing.' };
     if (!listed.ok) return { state: 'failed', error: `HTTP ${listed.status}` };
 
     const { projects: remote, now } = (await listed.json()) as {
@@ -116,12 +135,33 @@ export async function syncNow(base: string): Promise<SyncStatus> {
       const res = await req(base, `v1/projects/${meta.id}`);
       if (!res.ok) continue;
       const full = (await res.json()) as { name: string; data: StoredProject; updatedAt: number };
+
+      /*
+       * Both sides changed, and THEIRS is newer. Overwriting here is the quiet
+       * data loss the push-side 409 handler was written to prevent — and it
+       * gets there first, so that handler almost never runs. `updatedAt > since`
+       * is what "edited on this phone since the last successful sync" means, and
+       * it is the only signal that the copy about to be replaced is not just an
+       * older download.
+       */
+      if (local && local.updatedAt > since) {
+        saveProject({
+          ...local,
+          id: `${local.id}-local-${Date.now().toString(36)}`,
+          name: `${local.name} (this phone)`,
+        });
+        conflicts += 1;
+      } else {
+        pulled += 1;
+      }
+
       saveProject({ ...full.data, id: meta.id, name: full.name, updatedAt: full.updatedAt });
-      pulled += 1;
+      justPulled.add(meta.id);
     }
 
     // ---- push ----
     for (const p of listProjects()) {
+      if (justPulled.has(p.id)) continue;
       if (p.updatedAt <= since) continue;
       const res = await req(base, `v1/projects/${p.id}`, {
         method: 'PUT',

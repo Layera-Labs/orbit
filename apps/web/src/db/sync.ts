@@ -84,12 +84,31 @@ export async function syncNow(): Promise<SyncStatus> {
   let pulled = 0;
   let pushed = 0;
   let conflicts = 0;
+  /*
+   * What the pull just wrote, so the push does not send it straight back.
+   *
+   * `since` is still the OLD watermark while the push runs, so a
+   * freshly-pulled project looks like a local edit and gets pushed — at the
+   * exact timestamp it came down with. The server refuses an equal timestamp
+   * (correctly: for two real writers that is a coin flip), the client reads
+   * 409 as "both sides changed", and every project on a first sync is
+   * duplicated as "(this browser)".
+   */
+  const justPulled = new Set<string>();
 
   try {
     const since = mark.get();
     const listed = await req(`v1/projects?since=${since}`);
     if (listed.status === 403) return { state: 'guest' };
     if (listed.status === 503) return { state: 'off' };
+    /*
+     * A member's 401 is a real expiry, not something to retry — `discardIfGuest`
+     * deliberately will not swap them onto a guest account, because that would
+     * detach them from their own credits. So say what to do about it: "HTTP 401"
+     * tells someone nothing they can act on.
+     */
+    if (listed.status === 401)
+      return { state: 'failed', error: 'Your session expired. Sign in again to keep syncing.' };
     if (!listed.ok) return { state: 'failed', error: `HTTP ${listed.status}` };
 
     const { projects: remote, now } = (await listed.json()) as {
@@ -113,14 +132,39 @@ export async function syncNow(): Promise<SyncStatus> {
       const res = await req(`v1/projects/${meta.id}`);
       if (!res.ok) continue;
       const full = (await res.json()) as { kind: string; name: string; data: unknown; updatedAt: number };
+
+      /*
+       * Both sides changed, and THEIRS is newer. Overwriting here is the quiet
+       * data loss the push-side 409 handler exists to prevent — and it gets
+       * there first, so that handler almost never runs. `updatedAt > since` is
+       * what "edited in this browser since the last successful sync" means, and
+       * it is the only signal that the copy about to be replaced is not simply
+       * an older download.
+       */
+      if (local && local.updatedAt > since) {
+        await saveProject({
+          id: newId(local.kind === 'video' ? 'vid' : 'img'),
+          kind: local.kind,
+          name: `${local.name} (this browser)`,
+          data: local.data,
+        });
+        conflicts += 1;
+      } else {
+        pulled += 1;
+      }
+
       await saveProject({
         id: meta.id,
         kind: full.kind as ProjectRow['kind'],
         name: full.name,
         data: full.data as ProjectRow['data'],
         createdAt: local?.createdAt,
+        // The SERVER'S timestamp, not now. Stamping local time makes the copy
+        // we just pulled look newer than the one we pulled it from, so the next
+        // push sends it back and the two devices trade it forever.
+        updatedAt: full.updatedAt,
       });
-      pulled += 1;
+      justPulled.add(meta.id);
     }
 
     // ---- push ----
@@ -128,6 +172,7 @@ export async function syncNow(): Promise<SyncStatus> {
     // is 0, so this is the whole local library — which is exactly right: that
     // is the upload that makes an existing browser's work available elsewhere.
     for (const row of await listProjects()) {
+      if (justPulled.has(row.id)) continue;
       if (row.updatedAt <= since) continue;
       const res = await req(`v1/projects/${row.id}`, {
         method: 'PUT',
@@ -164,6 +209,7 @@ export async function syncNow(): Promise<SyncStatus> {
         name: current.name,
         data: current.data as ProjectRow['data'],
         createdAt: row.createdAt,
+        updatedAt: current.updatedAt,
       });
       conflicts += 1;
     }

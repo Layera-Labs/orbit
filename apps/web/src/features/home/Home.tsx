@@ -264,6 +264,7 @@ export function Home() {
                 key={f}
                 className={styles.filter}
                 data-on={filter === f}
+                aria-pressed={filter === f}
                 onClick={() => setFilter(f)}
               >
                 {f === 'all' ? 'All' : f === 'image' ? 'Stills' : 'Motion'}
@@ -328,6 +329,7 @@ function CustomSize({ onOpen }: { onOpen(start: Start): void }) {
             key={k}
             className={styles.customKindOption}
             data-on={kind === k}
+            aria-pressed={kind === k}
             onClick={() => setKind(k)}
           >
             {k === 'image' ? 'Still' : 'Motion'}
