@@ -62,6 +62,7 @@ import {
 } from "@orbit/billing";
 import { authFromEnv, AuthError, type UserStore } from "@orbit/auth";
 import { collectClientSrcs, isClientSrc, makeResolveSrc } from "./resolve.js";
+import { RemoteSrcError, fetchRemoteTo } from "./remote.js";
 import { PgLedgerStore, PgUserStore, makePgPool } from "./pg-store.js";
 import { InMemoryUserStore } from "./user-store.js";
 import { emailSenderFromEnv } from "./email.js";
@@ -87,10 +88,51 @@ const MAX_MEDIA_BYTES = Number(
 const MAX_OUTPUT_BYTES = Number(
   process.env.ORBIT_MAX_OUTPUT_BYTES ?? 5 * 1024 * 1024 * 1024,
 );
+/**
+ * What a failure is allowed to tell the caller.
+ *
+ * ffmpeg's stderr was being returned whole, and it opens with the full build
+ * banner: the exact prefix it was compiled into, every `--enable-*` flag, and
+ * the absolute paths of the machine that built it. That is free reconnaissance
+ * handed to anyone who can make a render fail, which is anyone.
+ *
+ * The FIRST line that looks like a real diagnosis is kept, because a developer
+ * using the SDK still needs to know their file was unreadable rather than
+ * reading "render failed". Everything else stays in the server log.
+ */
+export function clientMessage(err: unknown, limit = 200): string {
+  const raw = err instanceof Error ? err.message : String(err);
+  const line = raw
+    .split("\n")
+    .map((l) => l.trim())
+    .find(
+      (l) =>
+        l &&
+        !/^ffmpeg version|^built with|^configuration:|^lib[a-z]+ +\d|^\s*$/i.test(l) &&
+        !l.startsWith("--"),
+    );
+  return (line ?? "render failed").slice(0, limit);
+}
+
 /** Requests per IP per window for the two unauthenticated, expensive endpoints. */
 const RATE_WINDOW_MS = Number(process.env.ORBIT_RATE_WINDOW_MS ?? 60_000);
 const UPLOAD_RATE_LIMIT = Number(process.env.ORBIT_UPLOAD_RATE_LIMIT ?? 60);
 const RENDER_RATE_LIMIT = Number(process.env.ORBIT_RENDER_RATE_LIMIT ?? 10);
+/**
+ * The auth routes, which had no limit at all.
+ *
+ * `login` and `reset` were an unmetered password oracle: scrypt makes each
+ * guess slow, but nothing stopped a machine making them forever. Worse,
+ * `register` grants ORBIT_FREE_CREDITS to every new account, so an unlimited
+ * signup rate is an unlimited supply of free generation — billed to whoever
+ * owns the provider key. `forgot` sends mail, so an unlimited rate is a mail
+ * cannon pointed at an address the attacker chooses.
+ *
+ * Creation is held tighter than verification because its cost is real money
+ * and real email, not CPU.
+ */
+const AUTH_RATE_LIMIT = Number(process.env.ORBIT_AUTH_RATE_LIMIT ?? 20);
+const AUTH_CREATE_RATE_LIMIT = Number(process.env.ORBIT_AUTH_CREATE_RATE_LIMIT ?? 5);
 
 export function createServer(): Express {
   const app = express();
@@ -304,23 +346,46 @@ export function createServer(): Express {
     return outName;
   }
 
-  /** Rewrite every HEIF-family still src in a project to its PNG twin (see
-   *  `normalizeStill`). Clients cache upload tokens across exports, so doing
-   *  this only at upload time would miss already-uploaded media. */
-  async function normalizeProjectStills(
-    project: VideoProject,
-  ): Promise<VideoProject> {
+  /**
+   * Make every src in a project safe and local before ffmpeg sees it.
+   *
+   * Two rewrites, one walk, because the walk is the part that has to be
+   * exhaustive and two of them would drift:
+   *
+   *  - HEIF-family stills become their PNG twin (see `normalizeStill`).
+   *    Clients cache upload tokens across exports, so doing this only at upload
+   *    time would miss already-uploaded media.
+   *  - http(s) srcs are DOWNLOADED here and replaced with an upload token, so
+   *    ffmpeg is never handed a URL. That is what closes the SSRF: `-i
+   *    http://169.254.169.254/…` was an unauthenticated read of the render
+   *    box's private network, returned to the caller as video.
+   */
+  async function localizeProject(project: VideoProject): Promise<VideoProject> {
     const cache = new Map<string, string>();
     const fix = async (
       src: string | undefined,
     ): Promise<string | undefined> => {
-      if (!src?.startsWith("upload:") || !/\.(heic|heif|avif)$/i.test(src))
+      if (!src) return src;
+      if (cache.has(src)) return cache.get(src);
+
+      if (/^https?:\/\//i.test(src)) {
+        // Named like an upload because that is what it becomes: it lands in the
+        // media dir, under the media counter, and is evicted on the same budget.
+        const name = `r_${++mediaCounter}_${Date.now()}${extname(new URL(src).pathname) || ".bin"}`;
+        await fetchRemoteTo(src, join(mediaDir, name), {
+          maxBytes: MAX_UPLOAD_BYTES,
+          maxRedirects: 3,
+        });
+        cache.set(src, `upload:${name}`);
+        return cache.get(src);
+      }
+
+      if (!src.startsWith("upload:") || !/\.(heic|heif|avif)$/i.test(src))
         return src;
-      if (!cache.has(src))
-        cache.set(
-          src,
-          `upload:${await normalizeStill(src.slice("upload:".length))}`,
-        );
+      cache.set(
+        src,
+        `upload:${await normalizeStill(src.slice("upload:".length))}`,
+      );
       return cache.get(src);
     };
     const out = { ...project } as VideoProject;
@@ -359,6 +424,20 @@ export function createServer(): Express {
                 ),
               },
         ),
+      );
+
+    /*
+     * `audio` too, which this walk used to skip.
+     *
+     * Harmless while the only rewrite was HEIF (a sound file is not a still),
+     * and a hole the moment remote fetching joined it: an http(s) src on an
+     * audio clip would have gone to ffmpeg untouched and reopened the whole
+     * SSRF through a different field. `collectClientSrcs` is the checklist of
+     * every src-bearing field, and this walk must cover all of it.
+     */
+    if (project.audio)
+      out.audio = await Promise.all(
+        project.audio.map(async (a) => ({ ...a, src: (await fix(a.src)) ?? a.src })),
       );
 
     // The background can be a still too, and it is not in either list.
@@ -463,7 +542,7 @@ export function createServer(): Express {
     await ensureLocal(project);
     const name = `v_${++counter}_${Date.now()}.mp4`;
     const path = join(outDir, name);
-    const safe = await normalizeProjectStills(project);
+    const safe = await localizeProject(project);
     await withRenderSlot(() => {
       onStart?.();
       return renderProject(safe, { outputPath: path, resolveSrc, output });
@@ -769,15 +848,18 @@ export function createServer(): Express {
             .json({ error: "the renderer is busy — try again in a moment" });
           return;
         }
-        // Log the full failure server-side — the client only shows a truncated
-        // message, so without this an ffmpeg error is effectively undebuggable.
+        // The client's URL was the problem, not the server's state.
+        if (err instanceof RemoteSrcError) {
+          res.status(400).json({ error: err.message });
+          return;
+        }
+        // Log the full failure server-side — the client only sees a summary, so
+        // without this an ffmpeg error is effectively undebuggable.
         console.error(
           "[orbit] render failed:",
           err instanceof Error ? (err.stack ?? err.message) : err,
         );
-        res
-          .status(500)
-          .json({ error: err instanceof Error ? err.message : String(err) });
+        res.status(500).json({ error: clientMessage(err) });
       }
     },
   );
@@ -897,7 +979,10 @@ export function createServer(): Express {
     // the token is emailed for the user to paste into the app's reset screen.
     const resetUrlBase = process.env.EMAIL_RESET_URL_BASE; // e.g. "orbit://reset" or "https://…/reset"
 
-    app.post("/v1/auth/register", async (req: Request, res: Response) => {
+    app.post(
+      "/v1/auth/register",
+      rateLimit(AUTH_CREATE_RATE_LIMIT, RATE_WINDOW_MS),
+      async (req: Request, res: Response) => {
       const { email, password } = creds(req);
       if (!email || !password) {
         res.status(400).json({ error: "email and password are required" });
@@ -928,7 +1013,10 @@ export function createServer(): Express {
       }
     });
 
-    app.post("/v1/auth/login", async (req: Request, res: Response) => {
+    app.post(
+      "/v1/auth/login",
+      rateLimit(AUTH_RATE_LIMIT, RATE_WINDOW_MS),
+      async (req: Request, res: Response) => {
       const { email, password } = creds(req);
       if (!email || !password) {
         res.status(400).json({ error: "email and password are required" });
@@ -955,7 +1043,10 @@ export function createServer(): Express {
 
     // Request a password reset. Requires an email provider; without one we can't
     // deliver the token, so answer 503 rather than silently succeeding.
-    app.post("/v1/auth/forgot", async (req: Request, res: Response) => {
+    app.post(
+      "/v1/auth/forgot",
+      rateLimit(AUTH_CREATE_RATE_LIMIT, RATE_WINDOW_MS),
+      async (req: Request, res: Response) => {
       const { email } = creds(req);
       if (!email) {
         res.status(400).json({ error: "email is required" });
@@ -996,7 +1087,10 @@ export function createServer(): Express {
     });
 
     // Complete a reset with the emailed token + a new password; logs the user in.
-    app.post("/v1/auth/reset", async (req: Request, res: Response) => {
+    app.post(
+      "/v1/auth/reset",
+      rateLimit(AUTH_RATE_LIMIT, RATE_WINDOW_MS),
+      async (req: Request, res: Response) => {
       const { token, password } = (req.body ?? {}) as {
         token?: string;
         password?: string;
