@@ -43,6 +43,7 @@ reports its `version` and the `commit` it was built from.
 - Export to MP4 through the service.
 - Light and dark, light being the default.
 - Accounts, or no account at all.
+- **Cloud sync** for signed-in accounts: projects follow you to another machine.
 
 ### The mobile app (`apps/mobile`)
 
@@ -52,6 +53,7 @@ reports its `version` and the `commit` it was built from.
 - Stickers, emoji, backgrounds; stock photos via bring-your-own-key held in the
   OS keychain.
 - Export to the Photos library through the service.
+- The same cloud sync, against the same account.
 
 ---
 
@@ -59,9 +61,18 @@ reports its `version` and the `commit` it was built from.
 
 These are decisions, not omissions.
 
-- **No cloud project sync.** Projects live in the browser's IndexedDB or on the
-  device. Clearing site data loses web projects. This is the single biggest
-  thing to know about beta 1.
+- **Sync carries documents, not footage.** A project's timings, text, effects
+  and structure follow your account; its media stays where it was uploaded. So
+  a project opened on a second machine is fully editable but shows its clips as
+  missing until that machine has the media — and where the service runs on
+  local disk rather than a bucket, evicted media is gone for good. `/health`
+  and the sync response both report `mediaDurable` so this is visible rather
+  than discovered. Syncing blobs would turn a two-kilobyte sync into a
+  several-hundred-megabyte one, and is its own feature.
+- **Guests do not sync.** A guest has no password, so the identity cannot
+  outlive a reinstall; offering "your work follows you" would be false. Signing
+  in is what turns sync on, and it pushes whatever that device already had.
+
 - **Speed ramping.** ffmpeg cannot smoothly ramp audio tempo, so there is no
   faithful preview to promise. Constant per-clip speed *is* shipped.
 - **Keyframed scale and rotation.** ffmpeg cannot animate scale per-frame.

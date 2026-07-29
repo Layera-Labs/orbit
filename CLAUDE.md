@@ -355,7 +355,17 @@ pnpm --filter @orbit/studio dev # v2 demo
     tokens), and `/health` reports storage kind, queue mode, `renders.{running,queued,
     capacity}`, cluster depth when shared, and job count. `ok` stays true while merely
     busy, so a load balancer will not pull the box that is doing the work.
-  - Still open: purchase config, social login, cloud project sync.
+  - **Cloud project sync** (2026-07-29) — `projects` table + `/v1/projects` CRUD under the
+    same JWT. DOCUMENTS ONLY: media travels as the `upload:` tokens a project already
+    carries, so a sync is kilobytes not megabytes, and `mediaDurable` is reported because
+    on local disk an evicted upload is really gone. Guests are refused (403 `kind:guest`)
+    — no password means the identity dies with the app's storage. Conflicts are LWW by the
+    client's `updatedAt`, resolved inside one `INSERT … ON CONFLICT … WHERE` so there is no
+    read-then-write window, and a stale write gets 409 WITH THE WINNER so the client keeps
+    both rather than dropping the edit. Deletes are tombstones; an absent row is
+    indistinguishable from one a device has never synced. Both clients reconcile with the
+    SAME rules — divergent clients against one server is a data-loss bug waiting to happen.
+  - Still open: purchase config, social login.
 - Per-clip audio: the **legacy concat path drops it** (`buildFFmpegArgs` concats with `a=0`,
   `ffmpeg.ts:254`) — only a lone clip's original audio plus `project.audio` mix there. The
   **multi-track path does NOT**: `buildMultiTrackArgs` gives every visual clip's stream its
