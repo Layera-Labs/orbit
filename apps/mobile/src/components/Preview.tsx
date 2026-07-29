@@ -1235,6 +1235,16 @@ function CaptionText({
     letterSpacing: (o.letterSpacing ?? 0) * scale,
     lineHeight: o.lineHeight ? fontSize * o.lineHeight : undefined,
   };
+  /*
+   * A shadow ONLY when one was asked for.
+   *
+   * There used to be a default "legibility floor" here, and it was a preview-only
+   * lie: `overlay-svg.ts` emits its shadow filter under `if (o.shadow)`, so the
+   * export drew nothing and the preview was quietly prettier than the file. The
+   * web preview never added one either, so mobile was the odd surface out. The
+   * honest way to make a caption read over bright footage is the stroke below,
+   * which BOTH surfaces draw.
+   */
   const shadow: TextStyle = o.shadow
     ? {
         textShadowColor: shadowRgba(o.shadow.color, o.shadow.opacity),
@@ -1244,12 +1254,7 @@ function CaptionText({
         },
         textShadowRadius: (o.shadow.blur ?? 4) * scale,
       }
-    : // Default legibility floor so captions read over any footage.
-      {
-        textShadowColor: "rgba(0,0,0,0.45)",
-        textShadowOffset: { width: 0, height: 1 },
-        textShadowRadius: 3,
-      };
+    : {};
   const key = `${o.fontFamily ?? "def"}-${fontsVersion}`;
 
   if (!o.stroke || o.stroke.width <= 0) {

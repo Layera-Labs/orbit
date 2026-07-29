@@ -291,7 +291,13 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  opacity: 0.66;
+  /*
+   * Held back so the clip's own surface, not a shadow on the type, is what the
+   * label reads against. The filmstrip and waveform are orientation — enough to
+   * recognise a shot by — and a frame bright enough to swallow 11px ink is a
+   * frame drawn too strongly for what it is here.
+   */
+  opacity: 0.45;
   pointer-events: none;
 }
 
@@ -315,9 +321,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  /* The art underneath can be any brightness, so the label carries its own
-     legibility rather than relying on the surface. */
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
 }
 
 .clipTime {
@@ -326,7 +329,6 @@
   font-size: 10px;
   color: var(--w-ink);
   opacity: 0.75;
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
 }
 
 .clipFlag {
