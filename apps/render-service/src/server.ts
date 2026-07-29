@@ -78,6 +78,7 @@ import { InMemoryUserStore } from "./user-store.js";
 import { emailSenderFromEnv } from "./email.js";
 import { JobRegistry, JOB_TTL_MS } from "./jobs.js";
 import { PgJobQueue } from "./job-queue.js";
+import { PgProjectStore, type SyncedProject } from "./project-store.js";
 import { storageFromEnv } from "./storage.js";
 
 /** Per-file upload cap, and the total media-store budget before eviction. */
@@ -655,10 +656,13 @@ export function createServer(): Express {
   let userStore: UserStore;
   /** Shared across replicas when configured; `null` keeps everything local. */
   let queue: PgJobQueue | null = null;
+  /** Project sync. Null without a database — there is nowhere to sync TO. */
+  let projects: PgProjectStore | null = null;
   if (process.env.DATABASE_URL) {
     const pool = makePgPool(process.env.DATABASE_URL);
     ledgerStore = new PgLedgerStore(pool);
     userStore = new PgUserStore(pool);
+    projects = new PgProjectStore(pool);
     /*
      * The SHARED queue, and only when the other half is true as well.
      *
@@ -1128,6 +1132,117 @@ export function createServer(): Express {
     const account = await accountOf(req, res);
     if (!account) return;
     res.json({ balance: await ledger.balance(account) });
+  });
+
+
+  /*
+   * ---- project sync ----
+   *
+   * Documents only; media travels as the `upload:` tokens the project already
+   * carries (see project-store.ts for why, and for what that costs on local
+   * disk).
+   *
+   * GUESTS ARE REFUSED, and that is the interesting decision. A guest token is
+   * a real identity and these routes would work for one — but a guest has no
+   * password, so the identity dies with the app's storage. Offering "your work
+   * follows you" to someone whose account cannot outlive a reinstall would be a
+   * promise we know is false. The 403 names the reason so the UI can say
+   * exactly what to do about it.
+   */
+  const syncAccount = async (
+    req: Request,
+    res: Response,
+  ): Promise<AccountId | null> => {
+    if (!projects) {
+      res.status(503).json({
+        error: "project sync is not configured on this server",
+        kind: "sync-unconfigured",
+      });
+      return null;
+    }
+    const header = req.header("Authorization") ?? "";
+    const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+    const user = token && auth ? await auth.adapter.verify(token) : null;
+    if (!user) {
+      res
+        .status(401)
+        .json({ error: "authentication required", kind: "unauthenticated" });
+      return null;
+    }
+    if (user.guest) {
+      res.status(403).json({
+        error: "Sign in to sync your projects across devices.",
+        kind: "guest",
+      });
+      return null;
+    }
+    return makeAccountId(LICENSE_KEY, user.endUserId);
+  };
+
+  /** What changed since the client last looked. `since` is ms, 0 for everything. */
+  app.get("/v1/projects", async (req: Request, res: Response) => {
+    const account = await syncAccount(req, res);
+    if (!account) return;
+    const since = Number(req.query.since ?? 0);
+    res.json({
+      projects: await projects!.list(account, Number.isFinite(since) ? since : 0),
+      // So a client can store one watermark rather than tracking per row.
+      now: Date.now(),
+      /*
+       * Media durability, reported rather than assumed. On local disk the
+       * media dir is an evictable cache, so a project synced to another device
+       * may arrive with its footage missing — the client should say so up
+       * front instead of showing empty clips.
+       */
+      mediaDurable: storage.kind !== "local",
+    });
+  });
+
+  app.get("/v1/projects/:id", async (req: Request, res: Response) => {
+    const account = await syncAccount(req, res);
+    if (!account) return;
+    const row = await projects!.get(account, req.params.id);
+    if (!row) {
+      res.status(404).json({ error: "no such project" });
+      return;
+    }
+    res.json(row);
+  });
+
+  app.put("/v1/projects/:id", async (req: Request, res: Response) => {
+    const account = await syncAccount(req, res);
+    if (!account) return;
+    const body = req.body as Partial<SyncedProject> | undefined;
+    if (!body || typeof body.updatedAt !== "number" || body.data === undefined) {
+      res
+        .status(400)
+        .json({ error: "body must be { kind, name, updatedAt, data }" });
+      return;
+    }
+    const result = await projects!.put(account, {
+      id: req.params.id,
+      kind: String(body.kind ?? "video"),
+      name: String(body.name ?? "Untitled"),
+      updatedAt: body.updatedAt,
+      data: body.data,
+    });
+    if (result.stored) {
+      res.json({ ok: true });
+      return;
+    }
+    /*
+     * 409 with the winner attached. The client asked to store something older
+     * than what is here, and the useful answer is not "no" — it is "no, and
+     * here is what you were about to overwrite", so it can keep both.
+     */
+    res.status(409).json({ error: "a newer version is stored", current: result.current });
+  });
+
+  app.delete("/v1/projects/:id", async (req: Request, res: Response) => {
+    const account = await syncAccount(req, res);
+    if (!account) return;
+    await projects!.remove(account, req.params.id, Date.now());
+    res.json({ ok: true });
   });
 
   // ---- self-hosted auth (register / login) ----
