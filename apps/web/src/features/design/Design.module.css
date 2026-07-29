@@ -510,3 +510,12 @@
   color: var(--w-muted);
   text-align: center;
 }
+
+/* The underlying reason, when there is one. Quieter than the sentence above it,
+   but still a real value step off the surface — it has to be readable, since it
+   is the only thing that says WHY. */
+.detail {
+  max-width: 46ch;
+  font-size: 13px;
+  color: var(--w-muted2);
+}

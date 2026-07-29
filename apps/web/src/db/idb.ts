@@ -31,10 +31,60 @@ interface OrbitDB extends DBSchema {
 
 let handle: Promise<IDBPDatabase<OrbitDB>> | null = null;
 
+/**
+ * A blocked upgrade used to hang the whole app, silently and forever.
+ *
+ * `openDB` returns a promise that simply never settles while another
+ * connection holds the old version open — and since every screen awaits this
+ * one promise, they all sit in their loading state with no error, no timeout
+ * and nothing in the console. For the editor that loading state is an empty
+ * frame, so the symptom is a blank page that never resolves. Reproduced
+ * exactly that way: a second connection to this database was enough.
+ *
+ * The real trigger is ordinary. Someone has Orbit open in two tabs, a deploy
+ * bumps `DB_VERSION`, and the tab they reload blocks on the tab they forgot.
+ *
+ * `blocking` is what actually fixes it: the OLD connection steps aside so the
+ * new one can upgrade. `blocked` covers the case where something else is
+ * holding the lock and rejects with a sentence a person can act on, instead of
+ * waiting out the heat death of the universe.
+ */
+export class DatabaseBlockedError extends Error {
+  constructor() {
+    super(
+      'Orbit is open in another tab running an older version. Close it (or reload it) and try again.',
+    );
+    this.name = 'DatabaseBlockedError';
+  }
+}
+
 export function db(): Promise<IDBPDatabase<OrbitDB>> {
   if (typeof indexedDB === 'undefined')
     throw new Error('IndexedDB is unavailable here — this code must run in the browser.');
   handle ??= openDB<OrbitDB>(DB_NAME, DB_VERSION, {
+    /*
+     * Another tab is upgrading and we are what is in its way. Close, so it can
+     * proceed; the next call here reopens at the new version. Without this the
+     * OTHER tab is the one that hangs, which is worse — the user is looking at
+     * it.
+     */
+    blocking(_current, _blocked, event) {
+      (event.target as IDBPDatabase<OrbitDB> | null)?.close();
+      handle = null;
+    },
+    /*
+     * We are the one being blocked. Fail loudly rather than never settling: a
+     * stated problem the user can fix beats a spinner that means nothing.
+     */
+    blocked() {
+      handle = null;
+      throw new DatabaseBlockedError();
+    },
+    /* The browser dropped the connection (storage pressure, or the user cleared
+       site data). Forget it so the next call opens a fresh one. */
+    terminated() {
+      handle = null;
+    },
     upgrade(database) {
       if (!database.objectStoreNames.contains('projects')) {
         const projects = database.createObjectStore('projects', { keyPath: 'id' });
@@ -52,6 +102,17 @@ export function db(): Promise<IDBPDatabase<OrbitDB>> {
         waveforms.createIndex('mediaId', 'mediaId');
       }
     },
+  }).catch((err) => {
+    /*
+     * Do NOT keep a rejected promise. `handle ??=` caches whatever the first
+     * call produced, so one transient failure — a blocked upgrade, a quota
+     * refusal during a private-mode session — used to make the database
+     * permanently unavailable for the life of the page, with every retry
+     * getting the same stale rejection back. Clearing it means the next call
+     * genuinely tries again.
+     */
+    handle = null;
+    throw err;
   });
   return handle;
 }
