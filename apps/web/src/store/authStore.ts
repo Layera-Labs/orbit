@@ -25,6 +25,8 @@ import {
   type AuthUser,
 } from '@/net/authClient';
 import { currentUser, setSession } from '@/net/session';
+import { resetSyncMark } from '@/db/sync';
+import { useSync } from './syncStore';
 import { useJobs } from './jobsStore';
 
 interface AuthState {
@@ -45,6 +47,12 @@ export const useAuth = create<AuthState>((set) => {
   const apply = (token: string, user: AuthUser, balance?: number) => {
     setSession(token, user);
     set({ status: 'authed', user });
+    /*
+     * Signing in is the moment sync becomes possible, and the first pass is the
+     * important one: it pulls this account's existing work down and pushes
+     * whatever this browser already had up.
+     */
+    void useSync.getState().run();
     if (typeof balance === 'number') useJobs.setState({ balance, signedOut: false });
     useJobs.getState().refreshBalance();
   };
@@ -57,6 +65,7 @@ export const useAuth = create<AuthState>((set) => {
        resolves to `anon` and the sign-in panel still offers an account. */
     hydrate: () => {
       const stored = currentUser();
+      if (stored && !stored.guest) void useSync.getState().run();
       set(
         stored && !stored.guest
           ? { status: 'authed', user: stored }
@@ -85,6 +94,12 @@ export const useAuth = create<AuthState>((set) => {
        fresh guest — so signing out lands on a clean anonymous account rather
        than on a broken client that cannot reach anything. */
     logout: () => {
+      /*
+       * Drop the watermark with the session. The next account to sign in here
+       * must not inherit "already synced up to T" from the last one, or its
+       * older projects would look current and never be pulled.
+       */
+      resetSyncMark();
       setSession(null, null);
       set({ status: 'anon', user: null });
       useJobs.setState({ balance: null });
