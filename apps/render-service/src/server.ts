@@ -243,7 +243,27 @@ export function createServer(): Express {
   }
 
   // Serve rendered MP4s so clients can play them by URL.
-  app.use("/files", express.static(outDir));
+  /*
+   * Served output, with the headers that keep it output.
+   *
+   * These are files a client's own content produced, handed back from this
+   * origin. `nosniff` is the one that matters: without it a browser is free to
+   * re-interpret a response as HTML on a content-type it disagrees with, and
+   * anything that renders as HTML here runs on the service's origin. The CSP
+   * and the download disposition make that a dead end even if it did — a
+   * sandboxed, script-free document that the browser saves rather than renders.
+   */
+  app.use(
+    "/files",
+    express.static(outDir, {
+      setHeaders: (res) => {
+        res.setHeader("X-Content-Type-Options", "nosniff");
+        res.setHeader("Content-Security-Policy", "default-src 'none'; sandbox");
+        res.setHeader("X-Frame-Options", "DENY");
+        res.setHeader("Content-Disposition", "attachment");
+      },
+    }),
+  );
 
   const upload = multer({
     storage: multer.diskStorage({

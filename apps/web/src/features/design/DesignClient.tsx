@@ -19,26 +19,39 @@ import styles from './Design.module.css';
  */
 export function DesignClient({ projectId }: { projectId: string }) {
   const [row, setRow] = useState<ProjectRow | null>(null);
-  const [missing, setMissing] = useState(false);
+  /*
+   * Absent and unreadable are different, and saying the wrong one is its own
+   * bug: telling someone their project is "not in this browser" when the
+   * database merely failed to open invites them to give up on work that is
+   * still there.
+   */
+  const [failure, setFailure] = useState<{ title: string; detail?: string } | null>(null);
 
   useEffect(() => {
     let live = true;
     getProject(projectId)
       .then((found) => {
         if (!live) return;
-        if (!found) setMissing(true);
-        else setRow(found);
+        if (found) setRow(found);
+        else setFailure({ title: 'That project is not in this browser’s storage.' });
       })
-      .catch(() => live && setMissing(true));
+      .catch((err: unknown) => {
+        if (!live) return;
+        setFailure({
+          title: 'Orbit could not open its local storage.',
+          detail: err instanceof Error ? err.message : undefined,
+        });
+      });
     return () => {
       live = false;
     };
   }, [projectId]);
 
-  if (missing)
+  if (failure)
     return (
       <div className={styles.missing}>
-        <p>That project is not in this browser&rsquo;s storage.</p>
+        <p>{failure.title}</p>
+        {failure.detail && <p className={styles.detail}>{failure.detail}</p>}
         <Link href="/" className={styles.ghost}>
           Back to your work
         </Link>
