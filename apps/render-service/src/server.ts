@@ -65,7 +65,8 @@ import { collectClientSrcs, isClientSrc, makeResolveSrc } from "./resolve.js";
 import { PgLedgerStore, PgUserStore, makePgPool } from "./pg-store.js";
 import { InMemoryUserStore } from "./user-store.js";
 import { emailSenderFromEnv } from "./email.js";
-import { JobRegistry } from "./jobs.js";
+import { JobRegistry, JOB_TTL_MS } from "./jobs.js";
+import { PgJobQueue } from "./job-queue.js";
 import { storageFromEnv } from "./storage.js";
 
 /** Per-file upload cap, and the total media-store budget before eviction. */
@@ -486,10 +487,27 @@ export function createServer(): Express {
   // automated tests and throwaway local runs only.
   let ledgerStore: LedgerStore;
   let userStore: UserStore;
+  /** Shared across replicas when configured; `null` keeps everything local. */
+  let queue: PgJobQueue | null = null;
   if (process.env.DATABASE_URL) {
     const pool = makePgPool(process.env.DATABASE_URL);
     ledgerStore = new PgLedgerStore(pool);
     userStore = new PgUserStore(pool);
+    /*
+     * The SHARED queue, and only when the other half is true as well.
+     *
+     * A worker on another machine has to be able to read the uploads and write
+     * the output. On local disk it cannot: the token names a file that exists
+     * only on the box that received the upload. Enabling the queue there would
+     * fail one render in N for a reason nobody could diagnose, so it stays off
+     * unless durable storage is configured too — and says which half is
+     * missing.
+     */
+    if (storage.kind === "local")
+      console.warn(
+        "[orbit] DATABASE_URL is set but storage is local disk — renders stay in-process. A shared queue needs shared storage (ORBIT_S3_BUCKET) or a worker would be handed media it cannot read.",
+      );
+    else queue = new PgJobQueue(pool);
   } else {
     console.warn(
       "[orbit] no DATABASE_URL — using in-memory storage (ephemeral; credits and accounts reset on restart)",
@@ -599,17 +617,25 @@ export function createServer(): Express {
    * the one box that is doing work is precisely wrong. What it reports instead
    * is depth, so saturation is visible before it turns into 503s.
    */
-  app.get("/health", (_req: Request, res: Response) => {
+  app.get("/health", async (_req: Request, res: Response) => {
+    // With a shared queue the interesting depth is the CLUSTER's, not this
+    // process's — one instance's idle semaphore says nothing about a backlog
+    // every replica is working through.
+    const shared = queue
+      ? await queue.depth().catch(() => null)
+      : null;
     res.json({
       ok: true,
       service: "orbit-render",
       storage: storage.kind,
+      queue: queue ? "shared" : "in-process",
       renders: {
         running,
         queued: waiting.length,
         capacity: MAX_CONCURRENT_RENDERS,
         queueLimit: MAX_QUEUED_RENDERS,
       },
+      ...(shared ? { cluster: shared } : {}),
       jobs: jobs.size,
       uptimeSec: Math.round(process.uptime()),
     });
@@ -718,6 +744,14 @@ export function createServer(): Express {
        * what every proxy in front of this eventually kills.
        */
       if (body?.async === true) {
+        // Shared queue when there is one, so any replica can do the work; the
+        // in-process registry otherwise, which is the single-box behaviour.
+        if (queue) {
+          const id = `job_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+          const job = await queue.enqueue(id, project, body?.output);
+          res.status(202).json({ id: job.id, status: job.status });
+          return;
+        }
         const job = jobs.start((markRunning) =>
           render(project, body?.output, markRunning).then(settle),
         );
@@ -749,14 +783,87 @@ export function createServer(): Express {
   );
 
   /*
+   * The worker loop.
+   *
+   * Every instance is BOTH an API server and a worker, which is what makes
+   * "add a machine to add capacity" true without a second deployment to
+   * operate. `ORBIT_WORKER=0` turns it off for an instance that should only
+   * serve requests.
+   *
+   * It takes one job at a time and leans on `withRenderSlot` for the rest: the
+   * concurrency cap already decides how much ffmpeg this box runs at once, and
+   * a second, separate notion of worker count here could only disagree with it.
+   *
+   * Polling, not LISTEN/NOTIFY. A notification is lost if nobody is listening
+   * at that instant, so a worker starting after an enqueue would sit idle next
+   * to a full queue; the poll is what makes recovery automatic. The cost is one
+   * indexed query per interval.
+   */
+  const WORKER_ID = `${process.pid}@${process.env.HOSTNAME ?? "local"}`;
+  const WORKER_POLL_MS = Math.max(
+    250,
+    Number(process.env.ORBIT_WORKER_POLL_MS ?? 2000),
+  );
+
+  if (queue && process.env.ORBIT_WORKER !== "0") {
+    const q = queue;
+    let stopping = false;
+    const loop = async () => {
+      while (!stopping) {
+        let claimed: Awaited<ReturnType<typeof q.claim>> = null;
+        try {
+          claimed = await q.claim(WORKER_ID);
+        } catch (err) {
+          console.error("[orbit] queue poll failed:", err);
+        }
+        if (!claimed) {
+          await new Promise((r) => setTimeout(r, WORKER_POLL_MS));
+          continue;
+        }
+        const job = claimed;
+        // A long encode has to keep saying it is alive, or the stale sweep
+        // hands its job to someone else and it gets rendered twice.
+        const beat = setInterval(() => {
+          void q.heartbeat(job.id).catch(() => undefined);
+        }, 30_000);
+        try {
+          const url = await render(
+            job.project as VideoProject,
+            job.output as ExportOutput | undefined,
+          );
+          await q.finish(job.id, url);
+        } catch (err) {
+          await q
+            .fail(job.id, err instanceof Error ? err.message : String(err))
+            .catch(() => undefined);
+        } finally {
+          clearInterval(beat);
+        }
+      }
+    };
+    void loop();
+    // Finished rows would otherwise accumulate forever.
+    const sweeper = setInterval(
+      () => void q.sweep(JOB_TTL_MS).catch(() => undefined),
+      10 * 60_000,
+    );
+    sweeper.unref?.();
+    process.once("SIGTERM", () => {
+      stopping = true;
+    });
+  }
+
+  /*
    * Poll a job started with `{ async: true }`.
    *
    * 404 covers both "never existed" and "finished long enough ago to be swept"
    * — the client cannot act differently on the two, and pretending to know
    * which would mean keeping every id forever.
    */
-  app.get("/v1/render/:id", (req: Request, res: Response) => {
-    const job = jobs.get(req.params.id);
+  app.get("/v1/render/:id", async (req: Request, res: Response) => {
+    const job = queue
+      ? await queue.get(req.params.id)
+      : jobs.get(req.params.id);
     if (!job) {
       res.status(404).json({ error: "no such render job" });
       return;
