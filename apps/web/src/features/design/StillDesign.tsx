@@ -22,7 +22,7 @@ import {
   PresetBackgroundProvider,
 } from '@orbit/providers';
 import { createStore, type Document as OrbitDocument } from '@orbit/model';
-import { saveProject } from '@/db/projects';
+import { persistProject } from '@/db/persist';
 import { useTheme } from '@/store/themeStore';
 import { mediaSrc, type MediaRow, type ProjectRow } from '@/db/schema';
 import { useDesign } from '@/store/designStore';
@@ -86,7 +86,7 @@ export function StillDesign({
     const off = store.on('change', () => {
       clearTimeout(timer);
       timer = setTimeout(() => {
-        void saveProject({ id: row.id, kind: 'image', name: row.name, data: store.toJSON() });
+        void persistProject({ id: row.id, kind: 'image', name: row.name, data: store.toJSON() });
       }, SAVE_DEBOUNCE_MS);
     });
     return () => {

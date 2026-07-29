@@ -519,3 +519,31 @@
   font-size: 13px;
   color: var(--w-muted2);
 }
+
+/*
+ * Autosave, shown only when it is worth showing.
+ *
+ * `Saving`/`Saved` sit at muted weight because a confirmation people read once
+ * and then ignore is the correct kind of quiet. The failure does not: it is the
+ * one case where the user has to act, so it takes the danger tone and states
+ * the outcome ("Not saved") rather than the event ("Save failed") — what
+ * matters is the document's status, not that a write returned.
+ */
+.saveState {
+  font-size: 11px;
+  color: var(--w-muted2);
+  white-space: nowrap;
+}
+
+.saveFailed {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--w-danger);
+  border-radius: var(--w-r);
+  background: var(--w-danger-bg);
+  color: var(--w-danger-ink);
+  font-size: 12px;
+  white-space: nowrap;
+}

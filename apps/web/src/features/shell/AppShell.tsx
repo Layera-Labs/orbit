@@ -36,6 +36,25 @@ export function AppShell({ children }: { children: ReactNode }) {
   const hydrate = useAuth((s) => s.hydrate);
   useEffect(hydrate, [hydrate]);
 
+  /*
+   * A promise that nobody handled used to go nowhere at all.
+   *
+   * An error boundary cannot see these — they are not thrown during render —
+   * so an async failure in a store action, a decode, or a fetch that lost its
+   * `.catch()` simply disappeared: no console entry in production, no signal
+   * of any kind. This does not try to show the user anything, because most of
+   * these are recoverable and a modal per rejection would be worse than the
+   * silence. It makes them visible to whoever is debugging, which is the
+   * difference between a reproducible bug and "it sometimes doesn't work".
+   */
+  useEffect(() => {
+    const onRejection = (e: PromiseRejectionEvent) => {
+      console.error('[orbit] unhandled promise rejection:', e.reason);
+    };
+    window.addEventListener('unhandledrejection', onRejection);
+    return () => window.removeEventListener('unhandledrejection', onRejection);
+  }, []);
+
   /**
    * The editor owns the whole viewport.
    *

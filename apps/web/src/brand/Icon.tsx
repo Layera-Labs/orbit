@@ -11,6 +11,7 @@
 import type { ReactNode } from 'react';
 
 export type IconName =
+  | 'alert'
   | 'image'
   | 'video'
   | 'studio'
@@ -135,6 +136,19 @@ const MARKS: Record<IconName, ReactNode> = {
       <path d="M4 7 H20" />
       <path d="M9.5 7 V4.5 H14.5 V7" />
       <path d="M6.5 7 L7.5 20 H16.5 L17.5 7" />
+    </>
+  ),
+  /*
+   * Not the yellow triangle. A stroked circle with a bar and a dot keeps the
+   * same construction as the rest of the set — one weight, round caps, drawn on
+   * the same 24 grid — so a warning reads as part of this hand rather than as
+   * a glyph borrowed from a pack.
+   */
+  alert: (
+    <>
+      <circle cx={12} cy={12} r={8.5} />
+      <path d="M12 7.2 V12.6" />
+      {disc(12, 16.2, 1.4)}
     </>
   ),
   download: (

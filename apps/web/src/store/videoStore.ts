@@ -19,7 +19,7 @@ import {
   type VisualTrackClip,
 } from '@orbit/video/browser';
 import { newId } from '@/db/idb';
-import { saveProject } from '@/db/projects';
+import { persistProject } from '@/db/persist';
 
 const MIN_CLIP = 0.1;
 const HISTORY_LIMIT = 60;
@@ -76,7 +76,7 @@ export const useVideo = create<VideoState>((set, get) => ({
       past: [...past, project].slice(-HISTORY_LIMIT),
       future: [],
     });
-    if (projectId) void saveProject({ id: projectId, kind: 'video', name, data: next });
+    if (projectId) void persistProject({ id: projectId, kind: 'video', name, data: next });
   },
 
   stage: (op) => {
@@ -92,7 +92,7 @@ export const useVideo = create<VideoState>((set, get) => ({
     // put a step in the history someone then has to undo.
     if (!project || project === before) return;
     set({ past: [...past, before].slice(-HISTORY_LIMIT), future: [] });
-    if (projectId) void saveProject({ id: projectId, kind: 'video', name, data: project });
+    if (projectId) void persistProject({ id: projectId, kind: 'video', name, data: project });
   },
 
   select: (id) => set({ selection: id }),
@@ -102,7 +102,7 @@ export const useVideo = create<VideoState>((set, get) => ({
     if (!past.length || !project) return;
     const prev = past[past.length - 1];
     set({ project: prev, past: past.slice(0, -1), future: [project, ...future] });
-    if (projectId) void saveProject({ id: projectId, kind: 'video', name, data: prev });
+    if (projectId) void persistProject({ id: projectId, kind: 'video', name, data: prev });
   },
 
   redo: () => {
@@ -110,7 +110,7 @@ export const useVideo = create<VideoState>((set, get) => ({
     if (!future.length || !project) return;
     const next = future[0];
     set({ project: next, past: [...past, project!], future: future.slice(1) });
-    if (projectId) void saveProject({ id: projectId, kind: 'video', name, data: next });
+    if (projectId) void persistProject({ id: projectId, kind: 'video', name, data: next });
   },
 }));
 
