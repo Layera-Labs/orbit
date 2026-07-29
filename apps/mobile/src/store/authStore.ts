@@ -15,6 +15,8 @@
 import { create } from 'zustand';
 import { loginUser, registerUser, requestPasswordReset, resetPassword as resetPasswordReq, type AuthUser } from '../net/authClient';
 import { restoreSession, setSession } from '../net/session';
+import { resetSyncMark } from '../net/syncClient';
+import { useSync } from './syncStore';
 import { identifyPurchaser, resetPurchaser } from '../net/purchases';
 import { useEditor } from './editorStore';
 
@@ -38,6 +40,9 @@ function applyAuth(set: (p: Partial<AuthState>) => void, token: string, user: Au
   // Purchases are tied to the end user, so the RevenueCat webhook credits the
   // same account the app meters against.
   void identifyPurchaser(user.endUserId);
+  /* Signing in is the moment sync becomes possible, and the first pass matters
+     most: it pulls this account's work down and pushes this phone's up. */
+  void useSync.getState().run();
   if (typeof balance === 'number') useEditor.setState({ credits: balance });
   void useEditor.getState().refreshCredits();
 }
@@ -53,6 +58,7 @@ export const useAuth = create<AuthState>((set) => ({
     if (stored && !stored.guest) {
       set({ status: 'authed', user: stored });
       void identifyPurchaser(stored.endUserId);
+      void useSync.getState().run();
       void useEditor.getState().refreshCredits();
       return;
     }
@@ -86,6 +92,9 @@ export const useAuth = create<AuthState>((set) => ({
      guest — so signing out lands on a clean anonymous account rather than on a
      client that cannot reach anything. */
   logout: async () => {
+    /* Drop the watermark with the session, or the next account to sign in here
+       inherits "already synced up to T" and never pulls its older projects. */
+    resetSyncMark();
     await setSession(null, null);
     void resetPurchaser();
     set({ status: 'anon', user: null });

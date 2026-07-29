@@ -5,6 +5,8 @@
  * `project.tracks` and persist the result.
  */
 import { create } from "zustand";
+import { syncDelete } from "../net/syncClient";
+import { scheduleSync } from "./syncStore";
 import { DEFAULT_SERVER } from "../constants";
 import { createProject, projectDuration } from "../model/project";
 import * as ops from "../model/editor-ops";
@@ -563,12 +565,17 @@ export const useEditor = create<EditorState>((set, get) => ({
   removeProject: (id) => {
     flushProjectSave();
     deleteStored(id);
+    // Tell the cloud too, or the next pull helpfully restores it.
+    void syncDelete(get().serverUrl, id);
     set({ projects: listProjects() });
   },
 
   removeProjects: (ids) => {
     flushProjectSave();
-    ids.forEach((id) => deleteStored(id));
+    ids.forEach((id) => {
+      deleteStored(id);
+      void syncDelete(get().serverUrl, id);
+    });
     set({ projects: listProjects() });
   },
 
@@ -897,6 +904,13 @@ export const useEditor = create<EditorState>((set, get) => ({
       posterUri,
       mediaDurations,
     });
+    /*
+     * Disk first, cloud after. The write above is what protects the work; this
+     * only makes it available elsewhere, so it is scheduled and allowed to fail
+     * — and a burst of edits collapses into one pass rather than one request
+     * per pointer event.
+     */
+    scheduleSync();
   },
 
   undo: () => {
