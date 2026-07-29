@@ -1,11 +1,18 @@
 /**
  * Export: local media → upload tokens → `POST /v1/render` → an MP4.
  *
- * These two endpoints are NOT proxied through Next. `/v1/render` holds one
+ * These endpoints are NOT proxied through Next. `/v1/render` holds one
  * connection for as long as ffmpeg runs (up to ten minutes) and `/v1/upload`
- * streams files up to 500 MB — neither survives a serverless function, and
- * neither is authenticated anyway, so a proxy would buy nothing.
+ * streams files up to 500 MB — neither survives a serverless function, so the
+ * browser talks to the service directly.
+ *
+ * They ARE authenticated, which they did not used to be: uploading was a free
+ * public file host and rendering was free CPU for anyone who found the URL.
+ * Every call below carries the same bearer token the AI panel uses — a guest
+ * one for a browser that has never signed in, so exporting still needs no
+ * account.
  */
+import { authHeaders, discardIfGuest } from './session';
 import { collectClientSrcs } from './srcs';
 import { getMedia, invalidateUploadTokens, setUploadToken } from '@/db/media';
 import { mediaIdOf } from '@/db/schema';
@@ -45,7 +52,23 @@ async function tokenFor(mediaId: string, signal?: AbortSignal): Promise<string> 
 
   const form = new FormData();
   form.append('file', row.blob, row.name || mediaId);
-  const res = await fetch(`${BASE}/v1/upload`, { method: 'POST', body: form, signal });
+  let res = await fetch(`${BASE}/v1/upload`, {
+    method: 'POST',
+    headers: await authHeaders(),
+    body: form,
+    signal,
+  });
+  // A stale guest token is not something the user can act on, and there is no
+  // account to send them to. Take a fresh one and try once.
+  if (res.status === 401 && discardIfGuest())
+    res = await fetch(`${BASE}/v1/upload`, {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: form,
+      signal,
+    });
+  if (res.status === 401)
+    throw new ExportError('Sign in to export.', 'rejected');
   if (!res.ok) throw new ExportError(`upload failed (HTTP ${res.status})`, 'failed');
   const data = (await res.json()) as { id?: string };
   if (!data.id) throw new ExportError('upload returned no id', 'failed');
@@ -112,7 +135,10 @@ async function awaitJob(id: string, signal?: AbortSignal): Promise<string> {
     await new Promise((r) => setTimeout(r, wait));
     wait = Math.min(wait * 1.5, 4000);
 
-    const res = await fetch(`${BASE}/v1/render/${id}`, { signal });
+    const res = await fetch(`${BASE}/v1/render/${id}`, {
+      headers: await authHeaders(),
+      signal,
+    });
     if (res.status === 404)
       throw new ExportError('the render job expired before it was collected', 'failed');
     const job = (await res.json()) as { status: string; url?: string; error?: string };
@@ -134,7 +160,7 @@ export async function exportProject(
   try {
     res = await fetch(`${BASE}/v1/render`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
       /*
        * `async`, so the connection is not held for the length of the encode.
        * A minute of 1080p outlives the idle timeout of essentially every proxy
@@ -159,6 +185,8 @@ export async function exportProject(
     // the mobile client caches forever and has exactly this bug.
     await invalidateUploadTokens(mediaIds);
     const body = (await res.json().catch(() => ({}))) as { error?: string };
+    if (res.status === 401)
+      throw new ExportError('Sign in to export.', 'rejected');
     throw new ExportError(
       body.error ?? `render failed (HTTP ${res.status})`,
       res.status === 400 ? 'rejected' : 'failed',

@@ -1,26 +1,24 @@
 /**
- * Auth state (zustand). Holds the signed-in end user + token, persisted in the
- * device keychain (SecureStore). AI generation and credits require an account
- * (see `AUTH_ENABLED`); the editor itself stays open to everyone.
+ * Auth state (zustand). Who this device is signed in AS — which is a different
+ * question from whether it is authenticated.
  *
- * On any successful auth the token is pushed into `genClient` (so generation
- * calls carry it) and the credit balance is seeded into the editor store.
+ * Signing in is optional and stays optional: the editor, export and generation
+ * all work without an account, because a device that has not signed in still
+ * holds a guest token (see `net/session`). What this store adds is becoming a
+ * named account — one that survives reinstalling, and that can be topped up.
+ *
+ * Token custody lives in `net/session`, not here. There is one token at a time
+ * and several callers that need it (generation, credits, upload, export); a
+ * second copy in this store was a second thing to keep in sync. Signing in
+ * SWAPS the subject the token names rather than turning authentication on.
  */
 import { create } from 'zustand';
-import * as SecureStore from 'expo-secure-store';
 import { loginUser, registerUser, requestPasswordReset, resetPassword as resetPasswordReq, type AuthUser } from '../net/authClient';
-import { setAuthToken } from '../net/genClient';
+import { restoreSession, setSession } from '../net/session';
 import { identifyPurchaser, resetPurchaser } from '../net/purchases';
 import { useEditor } from './editorStore';
 
-const AUTH_KEY = 'orbit.auth';
-
 type AuthStatus = 'loading' | 'authed' | 'anon';
-
-interface Persisted {
-  token: string;
-  user: AuthUser;
-}
 
 interface AuthState {
   status: AuthStatus;
@@ -35,7 +33,7 @@ interface AuthState {
 
 /** Apply a successful auth result to the app: token, user, credits, purchaser id. */
 function applyAuth(set: (p: Partial<AuthState>) => void, token: string, user: AuthUser, balance?: number) {
-  setAuthToken(token);
+  void setSession(token, user);
   set({ status: 'authed', user });
   // Purchases are tied to the end user, so the RevenueCat webhook credits the
   // same account the app meters against.
@@ -48,18 +46,15 @@ export const useAuth = create<AuthState>((set) => ({
   status: 'loading',
   user: null,
 
+  /* A stored GUEST is not signed in — it is how signed-out works now — so it
+     resolves to `anon` and the account screens still offer a real sign-in. */
   hydrate: async () => {
-    try {
-      const raw = await SecureStore.getItemAsync(AUTH_KEY);
-      if (raw) {
-        const { token, user } = JSON.parse(raw) as Persisted;
-        if (token && user) {
-          applyAuth(set, token, user);
-          return;
-        }
-      }
-    } catch {
-      // fall through to anon
+    const stored = await restoreSession();
+    if (stored && !stored.guest) {
+      set({ status: 'authed', user: stored });
+      void identifyPurchaser(stored.endUserId);
+      void useEditor.getState().refreshCredits();
+      return;
     }
     set({ status: 'anon', user: null });
   },
@@ -67,14 +62,12 @@ export const useAuth = create<AuthState>((set) => ({
   register: async (email, password) => {
     const base = useEditor.getState().serverUrl;
     const res = await registerUser(base, email, password);
-    await SecureStore.setItemAsync(AUTH_KEY, JSON.stringify({ token: res.token, user: res.user }));
     applyAuth(set, res.token, res.user, res.balance);
   },
 
   login: async (email, password) => {
     const base = useEditor.getState().serverUrl;
     const res = await loginUser(base, email, password);
-    await SecureStore.setItemAsync(AUTH_KEY, JSON.stringify({ token: res.token, user: res.user }));
     applyAuth(set, res.token, res.user, res.balance);
   },
 
@@ -86,13 +79,14 @@ export const useAuth = create<AuthState>((set) => ({
   resetPassword: async (token, password) => {
     const base = useEditor.getState().serverUrl;
     const res = await resetPasswordReq(base, token, password);
-    await SecureStore.setItemAsync(AUTH_KEY, JSON.stringify({ token: res.token, user: res.user }));
     applyAuth(set, res.token, res.user, res.balance);
   },
 
+  /* Dropping the member token leaves NO token, and the next call mints a fresh
+     guest — so signing out lands on a clean anonymous account rather than on a
+     client that cannot reach anything. */
   logout: async () => {
-    await SecureStore.deleteItemAsync(AUTH_KEY).catch(() => {});
-    setAuthToken(null);
+    await setSession(null, null);
     void resetPurchaser();
     set({ status: 'anon', user: null });
     useEditor.setState({ credits: null });

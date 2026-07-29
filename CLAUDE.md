@@ -69,6 +69,18 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   `POST /v1/render` → download MP4 → save to Photos. The server's `resolveSrc` only maps tokens
   to files in its media dir and rejects non-token/non-URL srcs (clients can't point ffmpeg
   at arbitrary paths).
+- **Every call to the service is under a JWT** (2026-07-29) — generation, credits, upload
+  and render alike. Guest-first survives because signed-out is a **guest token**
+  (`POST /v1/auth/guest`), not the absence of one: signed by the server, naming a subject
+  the client cannot choose. It replaced `X-Orbit-Account`, a client-supplied header the
+  server took at its word — set it to someone else's and you spent their credits. Token
+  custody is `src/net/session.ts` on both clients (keychain on mobile, localStorage on
+  web), under ONE key for guest and member, with a single shared in-flight bootstrap so
+  four callers at launch don't mint four accounts. A 401 retries once **only for a guest**
+  (`discardIfGuest`) — a member's expiry is a real sign-in, and silently swapping them onto
+  a guest account would detach them from their own credits. `ORBIT_JWT_SECRET` is required
+  in production and ephemeral in dev. Render jobs carry their `account`, so
+  `GET /v1/render/:id` 404s someone else's job rather than handing over the MP4.
 - **BYOK stock media**: Orbit is a developer/SDK product, so Unsplash/Pexels use
   **bring-your-own-key**, stored in the OS keychain via `expo-secure-store`, never in the
   bundle and never sent to Orbit's server. `src/content/{keys,stock}.ts`, `KeysSheet`.

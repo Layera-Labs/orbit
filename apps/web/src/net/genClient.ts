@@ -7,22 +7,16 @@
  * account id), and every call carries an explicit timeout.
  */
 
+import { authHeaders, discardIfGuest } from './session';
+
 const BASE = '/api/orbit';
 
-/**
- * The bearer token, when this service meters against accounts.
- *
- * Module-level rather than threaded through every call, mirroring mobile's
- * `genClient`: generation is fired from a store, a panel and (soon) a keyboard
- * shortcut, and passing a token to each of them only creates places to forget
- * it. The proxy forwards `Authorization` untouched.
+/*
+ * The token lives in `net/session`, which also mints a guest one when this
+ * browser has none. Every route below requires it — a signed-out visitor is a
+ * guest with a real token, not a caller with no identity — so `authHeaders` is
+ * async: the first call of a session may have to fetch the token first.
  */
-let authToken: string | null = null;
-export const setAuthToken = (token: string | null) => {
-  authToken = token;
-};
-const authHeaders = (): Record<string, string> =>
-  authToken ? { authorization: `Bearer ${authToken}` } : {};
 
 /**
  * Ceilings. Video's exceeds the service's OWN limits on purpose — Runway polls
@@ -62,6 +56,7 @@ async function post<T>(
   body: unknown,
   ms: number,
   signal?: AbortSignal,
+  retried = false,
 ): Promise<T> {
   const timeout = AbortSignal.timeout(ms);
   const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
@@ -70,7 +65,7 @@ async function post<T>(
   try {
     res = await fetch(`${BASE}/${path}`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json', ...authHeaders() },
+      headers: { 'content-type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify(body),
       signal: combined,
     });
@@ -84,7 +79,17 @@ async function post<T>(
   if (res.ok) return (await res.json()) as T;
 
   const data = (await res.json().catch(() => ({}))) as { error?: string; balance?: number };
-  if (res.status === 401) throw new GenError('Sign in to generate.', 'unauthenticated');
+  if (res.status === 401) {
+    /*
+     * A guest token can go stale for reasons the user cannot act on — a dev
+     * server restarted with an ephemeral secret, a token a year old — and
+     * "Sign in to generate" is the wrong answer to that, since there is no
+     * account to sign into. Take a fresh guest token and try once. A MEMBER's
+     * expired token is a genuine sign-in, and `discardIfGuest` leaves it alone.
+     */
+    if (!retried && discardIfGuest()) return post<T>(path, body, ms, signal, true);
+    throw new GenError('Sign in to generate.', 'unauthenticated');
+  }
   if (res.status === 402)
     throw new GenError('Not enough credits.', 'out-of-credits', data.balance);
   // 503 = the service has no provider key; 404 = auth routes are not mounted.
@@ -187,13 +192,19 @@ export type CreditState =
   | { state: 'signed-out' }
   | { state: 'ok'; balance: number };
 
-export async function credits(): Promise<CreditState> {
+export async function credits(retried = false): Promise<CreditState> {
   try {
     const res = await fetch(`${BASE}/v1/credits`, {
-      headers: authHeaders(),
+      headers: await authHeaders(),
       signal: AbortSignal.timeout(TIMEOUT.credits),
     });
-    if (res.status === 401) return { state: 'signed-out' };
+    if (res.status === 401) {
+      // `retried` bounds this: if the FRESH guest token is rejected too, the
+      // server is not going to accept the next one either, and recursing would
+      // mint an account per round trip forever.
+      if (!retried && discardIfGuest()) return credits(true);
+      return { state: 'signed-out' };
+    }
     if (!res.ok) return { state: 'off' };
     const data = (await res.json()) as { balance?: number };
     return data.balance == null ? { state: 'off' } : { state: 'ok', balance: data.balance };

@@ -3,8 +3,13 @@
  * can't read, so we (1) upload each unique local file → get an `upload:<id>`
  * token, (2) build a resolved project that references those tokens, (3) POST it
  * to /v1/render, then (4) download the resulting MP4 and save it to Photos.
+ *
+ * Every hop carries a bearer token now — a guest one when the device has not
+ * signed in, so exporting still needs no account. Upload and render used to be
+ * open, which made them free storage and free CPU for anyone with the URL.
  */
 import { Directory, File, Paths } from 'expo-file-system';
+import { authHeaders, discardIfGuest } from './session';
 import * as MediaLibrary from 'expo-media-library';
 import type { ExportOutput, VideoProject } from '../model/types';
 
@@ -51,7 +56,18 @@ export async function uploadMedia(base: string, localUri: string): Promise<strin
   const form = new FormData();
   const name = localUri.split('/').pop() || 'file';
   form.append('file', { uri: localUri, name, type: guessType(localUri) } as unknown as Blob);
-  const res = await fetch(`${base}/v1/upload`, { method: 'POST', body: form });
+  const send = async () =>
+    fetch(`${base}/v1/upload`, {
+      method: 'POST',
+      headers: await authHeaders(base),
+      body: form,
+    });
+  // Uploading used to need no token at all, which made this a free public file
+  // host for anyone who found the URL.
+  let res = await send();
+  // A stale guest token is not something the user can act on, and there is no
+  // account to send them to — take a fresh one and try once.
+  if (res.status === 401 && (await discardIfGuest())) res = await send();
   const data = (await res.json()) as { id?: string; error?: string };
   if (!res.ok || !data.id) throw new Error(data.error ?? `upload failed (HTTP ${res.status})`);
   uploadCache.set(localUri, data.id);
@@ -96,7 +112,7 @@ export async function exportProject(
   onProgress?.({ stage: 'rendering' });
   const res = await fetch(`${cleanBase}/v1/render`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...(await authHeaders(cleanBase)) },
     // Ask for a job rather than holding one connection open for the whole
     // encode — on a phone that connection also has to survive the radio
     // dozing, a handover, and every proxy between here and the box.
@@ -117,7 +133,7 @@ async function awaitJob(base: string, id: string): Promise<string> {
   for (;;) {
     await new Promise((r) => setTimeout(r, wait));
     wait = Math.min(wait * 1.5, 4000);
-    const res = await fetch(`${base}/v1/render/${id}`);
+    const res = await fetch(`${base}/v1/render/${id}`, { headers: await authHeaders(base) });
     if (res.status === 404) throw new Error('the render job expired before it was collected');
     const job = (await res.json()) as { status: string; url?: string; error?: string };
     if (job.status === 'error') throw new Error(job.error ?? 'render failed');

@@ -122,6 +122,67 @@ describe('SelfHostedAuth', () => {
 });
 
 /*
+ * Guest tokens.
+ *
+ * "Signed out" used to mean "unauthenticated", and the account was whatever
+ * string the client put in a header — so anyone could name anyone else's
+ * account and spend their credits. A guest now holds a token this server
+ * signed, with a subject only this server could have issued.
+ */
+describe('guest tokens', () => {
+  it('verifies, and says it is a guest', async () => {
+    const auth = make();
+    const { token, user } = await auth.issueGuest();
+    expect(user.guest).toBe(true);
+    expect(user.endUserId).toMatch(/^guest_/);
+    const verified = await auth.verify(token);
+    expect(verified?.endUserId).toBe(user.endUserId);
+    expect(verified?.guest).toBe(true);
+    expect(verified?.email).toBeUndefined();
+  });
+
+  it('gives every guest a distinct subject', async () => {
+    const auth = make();
+    const a = await auth.issueGuest();
+    const b = await auth.issueGuest();
+    expect(a.user.endUserId).not.toBe(b.user.endUserId);
+  });
+
+  /* The store is never consulted for a guest — there is no record to find, and
+     falling through to the lookup would reject every guest as "deleted". */
+  it('verifies without touching the user store', async () => {
+    const store = new MemUserStore();
+    const auth = new SelfHostedAuth({ secret: 'test-secret-please-change', store });
+    store.findById = async () => {
+      throw new Error('the store must not be consulted for a guest');
+    };
+    const { token } = await auth.issueGuest();
+    expect((await auth.verify(token))?.guest).toBe(true);
+  });
+
+  it('is not signed by anyone else', async () => {
+    const mine = make();
+    const theirs = new SelfHostedAuth({
+      secret: 'a-different-secret-entirely',
+      store: new MemUserStore(),
+    });
+    const { token } = await theirs.issueGuest();
+    expect(await mine.verify(token)).toBeNull();
+  });
+
+  /* A guest has no email and no password, so it must not be usable to take
+     over an account through the reset flow. */
+  it('cannot be spent as a reset token', async () => {
+    const auth = make();
+    await auth.register('victim@x.com', 'oldpassword1');
+    const { token } = await auth.issueGuest();
+    await expect(auth.resetPassword(token, 'newpassword1')).rejects.toMatchObject({
+      kind: 'invalid-token',
+    });
+  });
+});
+
+/*
  * Revocation.
  *
  * Changing a password used to revoke NOTHING — a stolen 30-day session stayed

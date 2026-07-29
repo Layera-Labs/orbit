@@ -12,6 +12,16 @@ export interface AuthUser {
   /** Stable per-user id — the `endUserId` half of the billing account. */
   endUserId: string;
   email?: string;
+  /**
+   * A device that has never signed in.
+   *
+   * Orbit is guest-first, but "guest" must not mean "unauthenticated": an
+   * anonymous account used to be whatever string the client put in a header,
+   * which anyone could set to anyone else's and spend their credits. A guest
+   * gets a real signed token with a real subject instead, so every request is
+   * verified and the identity is one the server issued.
+   */
+  guest?: boolean;
 }
 
 /** Verifies a bearer token to a user, or null when the token is invalid/expired. */

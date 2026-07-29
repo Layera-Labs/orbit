@@ -1,25 +1,15 @@
 /**
  * Generation client — talks to the render service's credit-metered generation
  * endpoints. The provider key lives on the server (the developer's deployment);
- * the app only identifies its account (a stable per-device id) so the server can
- * meter credits. Mirrors `renderClient.ts`'s plain-fetch + `{ error }` contract.
+ * the app identifies itself with a bearer token so the server can meter
+ * credits. Mirrors `renderClient.ts`'s plain-fetch + `{ error }` contract.
+ *
+ * The token comes from `net/session`, which mints a GUEST one when the device
+ * has not signed in. It replaces a stable per-device id the app generated and
+ * sent in `X-Orbit-Account` — the server took that at its word, so the header
+ * was an account name anyone could type.
  */
-import * as SecureStore from "expo-secure-store";
-
-const ACCOUNT_ID_KEY = "orbit.account.id";
-let cachedAccount: string | null = null;
-
-/** A stable, anonymous per-device account id (created once, kept in the keychain). */
-export async function getAccount(): Promise<string> {
-  if (cachedAccount) return cachedAccount;
-  let id = await SecureStore.getItemAsync(ACCOUNT_ID_KEY);
-  if (!id) {
-    id = `u_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
-    await SecureStore.setItemAsync(ACCOUNT_ID_KEY, id);
-  }
-  cachedAccount = id;
-  return id;
-}
+import { authHeaders, discardIfGuest } from "./session";
 
 export type GenErrorKind =
   | "out-of-credits"
@@ -28,20 +18,6 @@ export type GenErrorKind =
   | "failed"
   | "cancelled"
   | "unauthenticated";
-
-/**
- * Bearer token for the authenticated user (set by the auth store on login).
- * When present it is sent on every generation/credits call; the server verifies
- * it and resolves the billing account. When auth is disabled server-side, the
- * anonymous `X-Orbit-Account` header is used instead.
- */
-let authToken: string | null = null;
-export function setAuthToken(token: string | null): void {
-  authToken = token;
-}
-function authHeader(): Record<string, string> {
-  return authToken ? { Authorization: `Bearer ${authToken}` } : {};
-}
 
 export class GenError extends Error {
   constructor(
@@ -62,21 +38,19 @@ function isAbort(e: unknown): boolean {
 }
 
 /** Generate an image from a prompt. Returns the asset URL + the new credit balance. */
-export async function generateImage(
+async function generateImageOnce(
   base: string,
   prompt: string,
   size?: { width: number; height: number },
   signal?: AbortSignal,
 ): Promise<{ url: string; balance: number }> {
-  const account = await getAccount();
   let res: Response;
   try {
     res = await fetch(`${clean(base)}/v1/generate-image`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "X-Orbit-Account": account,
-        ...authHeader(),
+        ...(await authHeaders(base)),
       },
       body: JSON.stringify({
         prompt,
@@ -119,22 +93,20 @@ export async function generateImage(
 }
 
 /** Generate a video from a prompt. Returns the MP4 URL (+ optional sound-effect URL) + balance. */
-export async function generateVideo(
+async function generateVideoOnce(
   base: string,
   prompt: string,
   size?: { width: number; height: number },
   opts?: { durationSec?: number; audio?: boolean; image?: string },
   signal?: AbortSignal,
 ): Promise<{ url: string; audioUrl?: string; balance: number }> {
-  const account = await getAccount();
   let res: Response;
   try {
     res = await fetch(`${clean(base)}/v1/generate-video`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "X-Orbit-Account": account,
-        ...authHeader(),
+        ...(await authHeaders(base)),
       },
       body: JSON.stringify({
         prompt,
@@ -181,22 +153,20 @@ export async function generateVideo(
 }
 
 /** Generate a spoken voiceover from text (TTS). Returns the MP3 URL + balance. */
-export async function generateTts(
+async function generateTtsOnce(
   base: string,
   text: string,
   voice?: string,
   speed?: number,
   signal?: AbortSignal,
 ): Promise<{ url: string; balance: number }> {
-  const account = await getAccount();
   let res: Response;
   try {
     res = await fetch(`${clean(base)}/v1/tts`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "X-Orbit-Account": account,
-        ...authHeader(),
+        ...(await authHeaders(base)),
       },
       body: JSON.stringify({ text, voice, speed }),
       signal,
@@ -249,21 +219,19 @@ export interface CaptionLine {
  * into lines happens server-side, so every client gets the same captions from
  * the same audio.
  */
-export async function transcribe(
+async function transcribeOnce(
   base: string,
   src: string,
   language?: string,
   signal?: AbortSignal,
 ): Promise<{ lines: CaptionLine[]; balance: number }> {
-  const account = await getAccount();
   let res: Response;
   try {
     res = await fetch(`${clean(base)}/v1/transcribe`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "X-Orbit-Account": account,
-        ...authHeader(),
+        ...(await authHeaders(base)),
       },
       body: JSON.stringify({ src, language }),
       signal,
@@ -306,10 +274,9 @@ export async function getCredits(
   base: string,
   signal?: AbortSignal,
 ): Promise<number | null> {
-  const account = await getAccount();
   try {
     const res = await fetch(`${clean(base)}/v1/credits`, {
-      headers: { "X-Orbit-Account": account, ...authHeader() },
+      headers: await authHeaders(base),
       signal,
     });
     if (!res.ok) return null;
@@ -319,3 +286,35 @@ export async function getCredits(
     return null;
   }
 }
+
+/**
+ * Retry once on 401, but only for a guest.
+ *
+ * A guest token can go stale for reasons the user cannot act on — the server
+ * restarted with an ephemeral dev secret, or the token aged past a year — and
+ * "please sign in" is the wrong answer to that, because there is no account to
+ * sign into. Take a fresh guest token and try again. A MEMBER's expired token
+ * IS a real sign-in, so `discardIfGuest` leaves it alone rather than quietly
+ * moving them onto an anonymous account with none of their credits.
+ *
+ * Once, never in a loop: if the fresh token is refused too, the next one will
+ * be as well, and each attempt mints an account.
+ */
+function withGuestRetry<A extends unknown[], R>(
+  fn: (...args: A) => Promise<R>,
+): (...args: A) => Promise<R> {
+  return async (...args: A) => {
+    try {
+      return await fn(...args);
+    } catch (err) {
+      if (err instanceof GenError && err.kind === "unauthenticated" && (await discardIfGuest()))
+        return fn(...args);
+      throw err;
+    }
+  };
+}
+
+export const generateImage = withGuestRetry(generateImageOnce);
+export const generateVideo = withGuestRetry(generateVideoOnce);
+export const generateTts = withGuestRetry(generateTtsOnce);
+export const transcribe = withGuestRetry(transcribeOnce);

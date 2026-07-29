@@ -3,16 +3,17 @@
 /**
  * Who this browser is signed in as, when the render service meters.
  *
- * The editor never reads this — stills, motion, export and every panel but AI
- * Studio work signed out, and that stays true. This exists because generation
- * is the one surface a metered deployment refuses, and until now the web app
- * had no way to satisfy it: the panel could only report "Sign in to generate"
- * with nowhere to go.
+ * Signing in is optional and stays optional: stills, motion, export and every
+ * panel work without an account, because a browser that has not signed in
+ * still holds a GUEST token (see `net/session`). What this store adds is the
+ * ability to become a named account — one that survives clearing this browser,
+ * and that can be topped up.
  *
- * The token lives in localStorage. That is readable by any script on the origin,
- * which is the standard trade for a bearer token a client must attach itself;
- * the httpOnly cookie the proxy sets is a different thing (the ANONYMOUS account
- * id, which exists so a signed-out browser cannot mint itself free credits).
+ * Token custody lives in `net/session`, not here. There is exactly one token
+ * at a time and four callers that need it (generation, credits, upload,
+ * render); a second copy in this store was a second thing to keep in sync.
+ * Signing in therefore SWAPS the subject the token names — guest to member —
+ * rather than turning authentication on.
  */
 import { create } from 'zustand';
 import {
@@ -23,15 +24,8 @@ import {
   resetPassword as resetPasswordReq,
   type AuthUser,
 } from '@/net/authClient';
-import { setAuthToken } from '@/net/genClient';
+import { currentUser, setSession } from '@/net/session';
 import { useJobs } from './jobsStore';
-
-const KEY = 'orbit.auth';
-
-interface Persisted {
-  token: string;
-  user: AuthUser;
-}
 
 interface AuthState {
   /** `loading` until `hydrate` has run, so nothing flashes a signed-out state. */
@@ -49,51 +43,34 @@ export const useAuth = create<AuthState>((set) => {
   /** Token into the gen client, balance into the panel — in that order, since
    *  `refreshBalance` sends the token it was just given. */
   const apply = (token: string, user: AuthUser, balance?: number) => {
-    setAuthToken(token);
+    setSession(token, user);
     set({ status: 'authed', user });
     if (typeof balance === 'number') useJobs.setState({ balance, signedOut: false });
     useJobs.getState().refreshBalance();
-  };
-
-  const persist = (token: string, user: AuthUser) => {
-    try {
-      localStorage.setItem(KEY, JSON.stringify({ token, user } satisfies Persisted));
-    } catch {
-      // Private mode, or a full quota. Staying signed in for this tab is still
-      // better than refusing the sign-in outright.
-    }
   };
 
   return {
     status: 'loading',
     user: null,
 
+    /* A stored GUEST is not signed in — it is how signed-out works now — so it
+       resolves to `anon` and the sign-in panel still offers an account. */
     hydrate: () => {
-      try {
-        const raw = localStorage.getItem(KEY);
-        if (raw) {
-          const { token, user } = JSON.parse(raw) as Persisted;
-          if (token && user) {
-            apply(token, user);
-            return;
-          }
-        }
-      } catch {
-        // Corrupt or unreadable — fall through to signed out rather than
-        // leaving the app stuck on `loading` forever.
-      }
-      set({ status: 'anon', user: null });
+      const stored = currentUser();
+      set(
+        stored && !stored.guest
+          ? { status: 'authed', user: stored }
+          : { status: 'anon', user: null },
+      );
     },
 
     register: async (email, password) => {
       const res = await registerUser(email, password);
-      persist(res.token, res.user);
       apply(res.token, res.user, res.balance);
     },
 
     login: async (email, password) => {
       const res = await loginUser(email, password);
-      persist(res.token, res.user);
       apply(res.token, res.user, res.balance);
     },
 
@@ -101,17 +78,14 @@ export const useAuth = create<AuthState>((set) => {
 
     resetPassword: async (token, password) => {
       const res = await resetPasswordReq(token, password);
-      persist(res.token, res.user);
       apply(res.token, res.user, res.balance);
     },
 
+    /* Dropping the member token leaves NO token, and the next call mints a
+       fresh guest — so signing out lands on a clean anonymous account rather
+       than on a broken client that cannot reach anything. */
     logout: () => {
-      try {
-        localStorage.removeItem(KEY);
-      } catch {
-        /* nothing to do */
-      }
-      setAuthToken(null);
+      setSession(null, null);
       set({ status: 'anon', user: null });
       useJobs.setState({ balance: null });
       useJobs.getState().refreshBalance();

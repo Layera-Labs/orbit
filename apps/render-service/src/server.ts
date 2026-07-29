@@ -10,6 +10,7 @@
  *   POST /v1/generate-video { prompt }                 → { url, balance }    generate a video (60/100 credits; needs RUNWAY_API_TOKEN)
  *   POST /v1/tts            { text, voice? }            → { url, balance }    text→speech voiceover (5 credits; needs ELEVENLABS_API_KEY)
  *   GET  /v1/credits                                   → { balance }         current account credit balance
+ *   POST /v1/auth/guest                                → { token, user }     a token for a device that has not signed in
  *   POST /v1/billing/webhook { event }                 → { ok }              RevenueCat purchase → grant credits (shared-secret auth)
  *
  * Clients can't reach phone-local files, so they upload media first and reference
@@ -17,9 +18,16 @@
  * maps those tokens back to files INSIDE the media dir — a client can never put an
  * arbitrary filesystem path into ffmpeg. Rendered files are served from /files.
  *
- * Generation is credit-metered via `@orbit/billing`: each account (the
- * `X-Orbit-Account` header) is granted `ORBIT_FREE_CREDITS` on first touch, and a
- * `generate_image` debits 10 credits — only on a successful generation. This ships
+ * EVERY route above requires a bearer token — upload and render included. Being
+ * signed out is not the absence of one: a client asks `/v1/auth/guest` for a
+ * token this server signed and uses it exactly like a session, so "no login
+ * required" survives without anything being anonymous. What it replaces is an
+ * `X-Orbit-Account` header the caller chose, which anyone could set to anyone
+ * else's account.
+ *
+ * Generation is credit-metered via `@orbit/billing`: each account is granted
+ * `ORBIT_FREE_CREDITS` on first touch, and a `generate_image` debits 10 credits
+ * — only on a successful generation. This ships
  * an IN-MEMORY ledger for local/dev use. A production deployment swaps
  * `InMemoryLedgerStore` for a DB-backed `LedgerStore`, adds license/account auth,
  * replaces the dev `/v1/credits/grant` with its own payment webhook, and prices
@@ -61,6 +69,7 @@ import {
   type LedgerStore,
 } from "@orbit/billing";
 import { authFromEnv, AuthError, type UserStore } from "@orbit/auth";
+import { randomBytes } from "node:crypto";
 import { collectClientSrcs, isClientSrc, makeResolveSrc } from "./resolve.js";
 import { RemoteSrcError, fetchRemoteTo } from "./remote.js";
 import { PgLedgerStore, PgUserStore, makePgPool } from "./pg-store.js";
@@ -114,7 +123,13 @@ export function clientMessage(err: unknown, limit = 200): string {
   return (line ?? "render failed").slice(0, limit);
 }
 
-/** Requests per IP per window for the two unauthenticated, expensive endpoints. */
+/**
+ * Requests per IP per window for the two expensive endpoints.
+ *
+ * Still per IP and not per account, even though both are authenticated now: a
+ * guest token is cheap to mint, so a per-account limit would be one token away
+ * from no limit at all.
+ */
 const RATE_WINDOW_MS = Number(process.env.ORBIT_RATE_WINDOW_MS ?? 60_000);
 const UPLOAD_RATE_LIMIT = Number(process.env.ORBIT_UPLOAD_RATE_LIMIT ?? 60);
 const RENDER_RATE_LIMIT = Number(process.env.ORBIT_RENDER_RATE_LIMIT ?? 10);
@@ -133,6 +148,15 @@ const RENDER_RATE_LIMIT = Number(process.env.ORBIT_RENDER_RATE_LIMIT ?? 10);
  */
 const AUTH_RATE_LIMIT = Number(process.env.ORBIT_AUTH_RATE_LIMIT ?? 20);
 const AUTH_CREATE_RATE_LIMIT = Number(process.env.ORBIT_AUTH_CREATE_RATE_LIMIT ?? 5);
+/**
+ * Guest tokens get their own, looser budget.
+ *
+ * They cost no email and touch no password, but they DO carry the free tier,
+ * so this cannot be unbounded. Five was too tight for the honest case: a
+ * shared IP — an office, a campus, a carrier NAT — is many first-time visitors
+ * in one minute, and refusing them is refusing to let the app start at all.
+ */
+const GUEST_RATE_LIMIT = Number(process.env.ORBIT_GUEST_RATE_LIMIT ?? 30);
 
 export function createServer(): Express {
   const app = express();
@@ -618,11 +642,39 @@ export function createServer(): Express {
   );
   const seeded = new Set<AccountId>();
 
-  // ---- auth (pluggable) ----
-  // When ORBIT_AUTH_PROVIDER is set, AI/credit routes require a verified bearer
-  // token and the account is `licenseKey:endUserId`. When unset, auth is disabled
-  // and we fall back to the anonymous per-device account (local/dev).
-  const auth = authFromEnv(process.env, { userStore });
+  /*
+   * ---- auth (pluggable, and ON) ----
+   *
+   * Every route below that costs money, touches storage or reads an account
+   * requires a verified bearer token. Auth used to be opt-in, which meant the
+   * DEFAULT deployment authenticated nothing and identity was whatever string
+   * the caller put in `X-Orbit-Account` — set it to someone else's and you
+   * spent their credits. So the provider now defaults to `selfhosted`, and
+   * being signed out is expressed as a guest token the server issued rather
+   * than as the absence of one.
+   *
+   * The secret is the one thing that cannot be defaulted. In production an
+   * unset `ORBIT_JWT_SECRET` is a refusal to boot: guessing one would silently
+   * make every token forgeable. In dev we mint an ephemeral one — tokens then
+   * die with the process, which is the right nuisance for a machine that has
+   * not been configured.
+   */
+  const AUTH_PROVIDER = process.env.ORBIT_AUTH_PROVIDER?.trim() || "selfhosted";
+  const authEnv: Record<string, string | undefined> = {
+    ...process.env,
+    ORBIT_AUTH_PROVIDER: AUTH_PROVIDER,
+  };
+  if (AUTH_PROVIDER === "selfhosted" && !process.env.ORBIT_JWT_SECRET?.trim()) {
+    if (process.env.NODE_ENV === "production")
+      throw new Error(
+        "ORBIT_JWT_SECRET is required in production (it signs every session token)",
+      );
+    authEnv.ORBIT_JWT_SECRET = randomBytes(32).toString("hex");
+    console.warn(
+      "[orbit] ORBIT_JWT_SECRET is unset — using an ephemeral dev secret; every token is invalidated on restart",
+    );
+  }
+  const auth = authFromEnv(authEnv, { userStore });
   const LICENSE_KEY = process.env.ORBIT_LICENSE_KEY ?? "orbit";
   const SIGNUP_BONUS = Number(process.env.ORBIT_SIGNUP_BONUS ?? 0);
 
@@ -650,44 +702,65 @@ export function createServer(): Express {
     }
   })();
 
-  /** Anonymous account (auth disabled): grant the free tier once per account. */
-  async function anonAccount(req: Request): Promise<AccountId> {
-    const raw = req.header("X-Orbit-Account");
-    const account = (typeof raw === "string" && raw.trim()) || "demo";
-    if (!seeded.has(account)) {
-      seeded.add(account);
-      // Idempotent across restarts: only grant if this account never got the
-      // free tier before (the in-memory Set alone would re-grant every boot on a
-      // persistent DB).
-      if (FREE_CREDITS > 0) {
-        const granted = (await ledger.history(account)).some(
-          (e) => e.reason === "free-tier",
-        );
-        if (!granted) await ledger.credit(account, FREE_CREDITS, "free-tier");
-      }
-    }
-    return account;
+  /** Grant the free tier once, the first time we see an account. */
+  async function seedFreeTier(account: AccountId): Promise<void> {
+    if (seeded.has(account) || FREE_CREDITS <= 0) return;
+    seeded.add(account);
+    // Idempotent across restarts: only grant if this account never got the free
+    // tier before (the in-memory Set alone would re-grant every boot on a
+    // persistent DB).
+    const granted = (await ledger.history(account)).some(
+      (e) => e.reason === "free-tier",
+    );
+    if (!granted) await ledger.credit(account, FREE_CREDITS, "free-tier");
   }
 
   /**
-   * Resolve the billing account for a request. With auth enabled, verifies the
-   * bearer token (401 + returns null if missing/invalid). With auth disabled,
-   * uses the anonymous account. Callers must `return` when this returns null.
+   * Resolve the billing account for a request, or answer 401.
+   *
+   * There is no unauthenticated path left. A signed-out device is not an
+   * absence of identity, it is a guest token (`POST /v1/auth/guest`) — signed
+   * by this server, naming a subject only this server could have issued. What
+   * that replaces is a client-supplied `X-Orbit-Account` header: identity
+   * asserted by the caller, trivially set to somebody else's account.
+   *
+   * Callers must `return` when this returns null; the response is already sent.
    */
   async function accountOf(
     req: Request,
     res: Response,
   ): Promise<AccountId | null> {
-    if (!auth) return anonAccount(req);
+    if (!auth) {
+      // Only reachable if a deployment explicitly unsets the provider.
+      res.status(503).json({ error: "authentication is not configured" });
+      return null;
+    }
     const header = req.header("Authorization") ?? "";
     const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
     const user = token ? await auth.adapter.verify(token) : null;
     if (!user) {
-      res.status(401).json({ error: "authentication required" });
+      res
+        .status(401)
+        .json({ error: "authentication required", kind: "unauthenticated" });
       return null;
     }
-    return makeAccountId(LICENSE_KEY, user.endUserId);
+    const account = makeAccountId(LICENSE_KEY, user.endUserId);
+    await seedFreeTier(account);
+    return account;
   }
+
+  /**
+   * The same check as middleware, so it can run BEFORE a body parser.
+   *
+   * `/v1/upload` needs this: multer streams the file to disk as it parses, so
+   * an auth check in the handler has already let an anonymous caller write
+   * half a gigabyte before refusing them. Reject at the door instead.
+   */
+  const requireAuth = (req: Request, res: Response, next: () => void): void => {
+    void accountOf(req, res).then((account) => {
+      if (account) next();
+    });
+  };
 
   /*
    * Health, with the numbers you actually need during an incident.
@@ -723,6 +796,9 @@ export function createServer(): Express {
   app.post(
     "/v1/upload",
     rateLimit(UPLOAD_RATE_LIMIT, RATE_WINDOW_MS),
+    // Before multer: storage and bandwidth are not free, and an unauthenticated
+    // write turned this into a public file host for anyone who found the URL.
+    requireAuth,
     upload.single("file"),
     async (req: Request, res: Response) => {
       const file = (req as Request & { file?: { filename: string; mimetype?: string } })
@@ -783,21 +859,21 @@ export function createServer(): Express {
       }
 
       /*
-       * Metering, OFF by default and deliberately so.
+       * Identity first, price second.
        *
-       * The app is guest-first ("No Login Required" on onboarding), so this
-       * route cannot start demanding a token — that was settled, and this does
-       * not reopen it. What it adds is the ability to PRICE a render for
-       * deployments that need one: set ORBIT_RENDER_COST and exports draw on
-       * the same ledger the AI routes use, resolved through the same
-       * `accountOf` (a verified user where auth is configured, the anonymous
-       * per-device account otherwise). Left at 0, every byte of this is inert
-       * and the route behaves exactly as before.
+       * A render is the most expensive thing this service does — minutes of
+       * CPU and an output file it then has to store — so it is authenticated
+       * whatever it costs. Guest-first still holds: a signed-out device has a
+       * guest token and reaches this exactly as before. What no longer works
+       * is reaching it with nothing.
+       *
+       * Metering stays OFF by default (`ORBIT_RENDER_COST`), and the account
+       * is now resolved either way, which is also what binds the job below to
+       * the caller who asked for it.
        */
-      let account: AccountId | null = null;
+      const account = await accountOf(req, res);
+      if (!account) return;
       if (RENDER_COST > 0) {
-        account = await accountOf(req, res);
-        if (!account) return;
         if (!(await ledger.canAfford(account, RENDER_COST))) {
           res.status(402).json({
             error: "not enough credits to export",
@@ -811,7 +887,7 @@ export function createServer(): Express {
       // Charged only once the file exists. A failed encode the user never
       // received is not a render, and billing for it is indefensible.
       const settle = async (url: string) => {
-        if (account)
+        if (RENDER_COST > 0)
           await ledger.debit(account, RENDER_COST, "render").catch(() => undefined);
         return url;
       };
@@ -826,13 +902,14 @@ export function createServer(): Express {
         // Shared queue when there is one, so any replica can do the work; the
         // in-process registry otherwise, which is the single-box behaviour.
         if (queue) {
-          const id = `job_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-          const job = await queue.enqueue(id, project, body?.output);
+          const id = `job_${Date.now().toString(36)}_${randomBytes(9).toString("hex")}`;
+          const job = await queue.enqueue(id, project, body?.output, account);
           res.status(202).json({ id: job.id, status: job.status });
           return;
         }
-        const job = jobs.start((markRunning) =>
-          render(project, body?.output, markRunning).then(settle),
+        const job = jobs.start(
+          (markRunning) => render(project, body?.output, markRunning).then(settle),
+          account,
         );
         res.status(202).json({ id: job.id, status: job.status });
         return;
@@ -914,6 +991,16 @@ export function createServer(): Express {
             job.output as ExportOutput | undefined,
           );
           await q.finish(job.id, url);
+          /*
+           * Charge here, not at enqueue. A queued render used to be free while
+           * the synchronous one was billed — the debit lived in `settle`, which
+           * only the in-process path ran. Same rule as everywhere else: only
+           * once the file exists.
+           */
+          if (RENDER_COST > 0 && job.account)
+            await ledger
+              .debit(job.account, RENDER_COST, "render")
+              .catch(() => undefined);
         } catch (err) {
           await q
             .fail(job.id, err instanceof Error ? err.message : String(err))
@@ -943,10 +1030,18 @@ export function createServer(): Express {
    * which would mean keeping every id forever.
    */
   app.get("/v1/render/:id", async (req: Request, res: Response) => {
+    const account = await accountOf(req, res);
+    if (!account) return;
     const job = queue
       ? await queue.get(req.params.id)
       : jobs.get(req.params.id);
-    if (!job) {
+    /*
+     * Somebody else's job is a job you do not have. Answering 403 would confirm
+     * the id exists, which is the one bit an enumerator wants — and the client
+     * cannot act differently on "never existed", "swept" and "not yours"
+     * anyway. All three are 404.
+     */
+    if (!job || (job.account !== undefined && job.account !== account)) {
       res.status(404).json({ error: "no such render job" });
       return;
     }
@@ -978,6 +1073,31 @@ export function createServer(): Express {
     // Where the reset token is delivered: a deep link / web page base if set, else
     // the token is emailed for the user to paste into the app's reset screen.
     const resetUrlBase = process.env.EMAIL_RESET_URL_BASE; // e.g. "orbit://reset" or "https://…/reset"
+
+    /*
+     * A token for a device that has not signed in.
+     *
+     * This is what keeps "No Login Required" true now that nothing is
+     * anonymous: the client asks once, stores the token, and every later
+     * request is authenticated like any other. Rate-limited with the other
+     * account-creating routes — a guest gets the free tier, so unlimited
+     * issuance is unlimited free generation billed to whoever owns the
+     * provider key.
+     */
+    app.post(
+      "/v1/auth/guest",
+      rateLimit(GUEST_RATE_LIMIT, RATE_WINDOW_MS),
+      async (_req: Request, res: Response) => {
+        const result = await selfHosted.issueGuest();
+        const account = makeAccountId(LICENSE_KEY, result.user.endUserId);
+        await seedFreeTier(account);
+        res.json({
+          token: result.token,
+          user: result.user,
+          balance: await ledger.balance(account),
+        });
+      },
+    );
 
     app.post(
       "/v1/auth/register",
