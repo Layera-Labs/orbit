@@ -12,6 +12,20 @@ services:
     ports:
       - "8787:8787"
     environment:
+      # REQUIRED. Signs every session and guest token. The image runs with
+      # NODE_ENV=production, where the service REFUSES TO START without this
+      # rather than inventing one — a guessed secret would make every token
+      # forgeable, silently. Generate one with:
+      #   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+      # Changing it signs everybody out, including guests, who have no password
+      # to sign back in with and therefore lose their credits. Treat it as
+      # permanent.
+      ORBIT_JWT_SECRET: ${ORBIT_JWT_SECRET:?set ORBIT_JWT_SECRET — the service will not start without it}
+
+      # Origins allowed to call the service. Unset = any, which is the default
+      # because Orbit is an embeddable SDK called from customers' own pages.
+      ORBIT_ALLOWED_ORIGINS: ${ORBIT_ALLOWED_ORIGINS:-}
+
       # Credits and self-hosted accounts. WITHOUT this the ledger is in-memory
       # and resets on every restart — fine for a demo, silent data loss in
       # production, which is why the service warns about it on boot.
@@ -41,6 +55,10 @@ services:
       # What an export costs against the ledger. 0 leaves rendering unmetered,
       # which is the guest-first default the app is built around.
       ORBIT_RENDER_COST: ${ORBIT_RENDER_COST:-0}
+
+      # Stamped into /health so a running box can be identified. Set it in CI:
+      #   ORBIT_BUILD_SHA=$(git rev-parse --short HEAD) docker compose up
+      ORBIT_BUILD_SHA: ${ORBIT_BUILD_SHA:-}
     restart: unless-stopped
     # ffmpeg is happy to consume the whole machine. Without a limit one export
     # starves the process's own event loop and health checks start failing.

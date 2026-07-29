@@ -140,6 +140,11 @@ Editor panels are in `EditorSheets.tsx` plus dedicated sheets (`MosaicSheet`,
   automatically. Note `hostUri` reflects HOW the dev client connected: launch the
   simulator against `localhost` and it resolves to `127.0.0.1`, which is correct but does
   NOT exercise the device path — relaunch against the LAN IP to test that.
+- **`expo run:ios` needs a UTF-8 locale.** Without `LANG`/`LC_ALL` set, CocoaPods
+  crashes in its own error reporter with `Unicode Normalization not appropriate for
+  ASCII-8BIT`, which reads like a broken CocoaPods install and is not — it prints the
+  real cause ("CocoaPods requires your terminal to be using UTF-8") one line above the
+  stack. Run `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 npx expo run:ios`.
 - **Builds**: `eas.json` has `development` (simulator), `development-device`, `preview`
   (internal, Android APK) and `production` profiles.
   `ios/` is gitignored (CNG; `app.json` is canonical), so **new native modules need a rebuild**.
