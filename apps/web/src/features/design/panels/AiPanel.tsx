@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Icon } from '@/brand/Icon';
 import { Plate } from '@/brand/Plate';
 import type { MediaRow } from '@/db/schema';
+import { SignIn } from '@/features/auth/SignIn';
 import { MODES, useJobs, type GenMode, type Job } from '@/store/jobsStore';
 import { MediaPanel, type MediaFilter } from './MediaPanel';
 import styles from './Panels.module.css';
@@ -37,6 +38,7 @@ export function AiPanel({
 
   const jobs = useJobs((s) => s.jobs);
   const balance = useJobs((s) => s.balance);
+  const signedOut = useJobs((s) => s.signedOut);
   const notice = useJobs((s) => s.notice);
   const run = useJobs((s) => s.run);
   const cancel = useJobs((s) => s.cancel);
@@ -64,6 +66,35 @@ export function AiPanel({
     void run(active.key, prompt);
     setPrompt('');
   };
+
+  /*
+   * The refusal, WHERE it happens.
+   *
+   * This server meters and this browser has no account. Showing the prompt box
+   * anyway meant the only way to find that out was to write something, press
+   * Generate and read a failure — so the form takes the prompt's place until
+   * there is an account to charge. Everything already generated stays listed.
+   */
+  if (signedOut)
+    return (
+      <div className={styles.stack}>
+        <p className={styles.notice}>
+          This render service meters generation against an account. Everything else in
+          the editor works without one.
+        </p>
+        <SignIn compact />
+        <div className={styles.group}>
+          <h3 className={styles.groupTitle}>Generated</h3>
+          <MediaPanel
+            filter={filter}
+            origin="ai"
+            allowUpload={false}
+            empty="Nothing generated yet."
+            onInsert={onInsert}
+          />
+        </div>
+      </div>
+    );
 
   return (
     <div className={styles.stack}>

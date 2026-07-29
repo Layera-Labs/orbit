@@ -10,6 +10,21 @@
 const BASE = '/api/orbit';
 
 /**
+ * The bearer token, when this service meters against accounts.
+ *
+ * Module-level rather than threaded through every call, mirroring mobile's
+ * `genClient`: generation is fired from a store, a panel and (soon) a keyboard
+ * shortcut, and passing a token to each of them only creates places to forget
+ * it. The proxy forwards `Authorization` untouched.
+ */
+let authToken: string | null = null;
+export const setAuthToken = (token: string | null) => {
+  authToken = token;
+};
+const authHeaders = (): Record<string, string> =>
+  authToken ? { authorization: `Bearer ${authToken}` } : {};
+
+/**
  * Ceilings. Video's exceeds the service's OWN limits on purpose — Runway polls
  * up to 180s for the still and 180s again for the animation, so a shorter client
  * timeout would replace the server's specific error with a generic one.
@@ -47,7 +62,7 @@ async function post<T>(
   try {
     res = await fetch(`${BASE}/${path}`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...authHeaders() },
       body: JSON.stringify(body),
       signal: combined,
     });
@@ -95,22 +110,34 @@ export const speak = (body: { text: string; voice?: string }, signal?: AbortSign
   post<GenResult>('v1/tts', body, TIMEOUT.tts, signal);
 
 /**
- * Current balance, or null when the server has auth disabled.
+ * What the account line should say.
  *
- * A 404 here means the auth routes are simply not mounted — that is a
- * configuration, not an error, and the UI hides the credit display rather than
- * showing a failure. Mobile treats it the same way.
+ * Three OUTCOMES, not two, and conflating them is what made generation a dead
+ * end: a 404 means the auth routes are not mounted (no accounting here — hide
+ * the credit display), while a 401 means this server does meter and you are
+ * signed out. Both used to collapse to `null`, so the panel showed nothing at
+ * all and the only way to discover you needed an account was to write a prompt,
+ * press Generate and read the failure.
  */
-export async function credits(): Promise<number | null> {
+export type CreditState =
+  | { state: 'off' }
+  | { state: 'signed-out' }
+  | { state: 'ok'; balance: number };
+
+export async function credits(): Promise<CreditState> {
   try {
     const res = await fetch(`${BASE}/v1/credits`, {
+      headers: authHeaders(),
       signal: AbortSignal.timeout(TIMEOUT.credits),
     });
-    if (!res.ok) return null;
+    if (res.status === 401) return { state: 'signed-out' };
+    if (!res.ok) return { state: 'off' };
     const data = (await res.json()) as { balance?: number };
-    return data.balance ?? null;
+    return data.balance == null ? { state: 'off' } : { state: 'ok', balance: data.balance };
   } catch {
-    return null;
+    // Unreachable is not the same as unmetered, but there is nothing useful to
+    // say about credits when the service is down — the first request will.
+    return { state: 'off' };
   }
 }
 

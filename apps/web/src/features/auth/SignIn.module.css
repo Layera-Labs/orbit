@@ -1,0 +1,107 @@
+/*
+ * The account form. Same material as the panels it sits inside — surfaces,
+ * hairlines and one ink button — so it reads as part of the editor rather than
+ * a sign-in page bolted onto it.
+ */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--w-3);
+  width: 100%;
+  max-width: 360px;
+}
+
+/* Inside the AI Studio panel there is already a heading above it, and the
+   column is 312px wide. */
+.form[data-compact='true'] {
+  max-width: none;
+  gap: var(--w-2);
+}
+
+.title {
+  margin: 0;
+  color: var(--w-ink);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.label {
+  color: var(--w-muted);
+  font-size: 11px;
+}
+
+.input {
+  width: 100%;
+  padding: 7px var(--w-2);
+  border-radius: var(--w-r);
+  background: var(--w-base);
+  border: 1px solid var(--w-edge);
+  color: var(--w-ink);
+  font: inherit;
+  font-size: 12.5px;
+  transition: border-color 140ms ease;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--w-edge-strong);
+}
+
+.submit {
+  width: 100%;
+  padding: 8px var(--w-3);
+  border-radius: var(--w-r);
+  background: var(--w-ink);
+  color: var(--w-base);
+  font-size: 13px;
+  transition: background-color 140ms ease;
+}
+
+.submit:hover:not(:disabled) {
+  background: var(--w-ink-hover);
+}
+
+.submit:disabled {
+  background: var(--w-s3);
+  color: var(--w-muted2);
+  cursor: default;
+}
+
+.alts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+/* A quiet text action. No underline that grows in on hover — the value shift
+   is the whole state change. */
+.link {
+  color: var(--w-muted);
+  font-size: 11.5px;
+  transition: color 140ms ease;
+}
+
+.link:hover {
+  color: var(--w-ink);
+}
+
+.error {
+  margin: 0;
+  color: var(--w-danger-ink);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.note {
+  margin: 0;
+  color: var(--w-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
