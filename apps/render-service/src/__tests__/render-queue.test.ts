@@ -9,6 +9,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
+import { bearer, guestToken } from './guest.js';
 
 /** Highest number of stubbed renders observed in flight at the same moment. */
 let inFlight = 0;
@@ -32,12 +33,14 @@ process.env.ORBIT_MAX_QUEUED_RENDERS = '1';
 
 let server: Server;
 let base: string;
+let auth: Record<string, string>;
 
 beforeAll(async () => {
   const { createServer } = await import('../server.js');
   server = createServer().listen(0);
   await new Promise((r) => server.once('listening', r));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  auth = bearer(await guestToken(base));
 });
 
 afterAll(() => {
@@ -47,7 +50,7 @@ afterAll(() => {
 const post = () =>
   fetch(`${base}/v1/render`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...auth },
     body: JSON.stringify({
       project: {
         id: 'p',

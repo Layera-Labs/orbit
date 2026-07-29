@@ -27,6 +27,11 @@ export interface Job {
   finishedAt?: number;
   url?: string;
   error?: string;
+  /**
+   * Who asked for it. `GET /v1/render/:id` matches on this, so one caller
+   * cannot collect another's finished MP4 by guessing an id.
+   */
+  account?: string;
 }
 
 /** How long a finished job stays readable before it is swept. */
@@ -48,9 +53,9 @@ export class JobRegistry {
    * 202 by the time this resolves, and an unhandled rejection here would take
    * the process down. Every failure lands on the job instead.
    */
-  start(work: (markRunning: () => void) => Promise<string>): Job {
+  start(work: (markRunning: () => void) => Promise<string>, account?: string): Job {
     const id = `job_${++this.seq}_${this.now().toString(36)}`;
-    const job: Job = { id, status: "queued", createdAt: this.now() };
+    const job: Job = { id, status: "queued", createdAt: this.now(), account };
     this.jobs.set(id, job);
     this.sweep();
 

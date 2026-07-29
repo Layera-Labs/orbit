@@ -18,6 +18,14 @@ export interface SelfHostedAuthOptions {
   issuer?: string;
   /** Token lifetime (default `30d`). */
   tokenTtl?: string;
+  /**
+   * Guest token lifetime (default `365d`).
+   *
+   * Longer than a session on purpose. A guest token IS the device's only handle
+   * on its own credits and renders — there is no password to sign back in with
+   * — so expiring it at thirty days would silently orphan someone's account.
+   */
+  guestTtl?: string;
   /** Id generator for new users (default `randomUUID`). */
   idgen?: () => string;
 }
@@ -76,6 +84,7 @@ export class SelfHostedAuth implements AuthAdapter {
   private store: UserStore;
   private issuer: string;
   private tokenTtl: string;
+  private guestTtl: string;
   private idgen: () => string;
 
   constructor(opts: SelfHostedAuthOptions) {
@@ -86,6 +95,7 @@ export class SelfHostedAuth implements AuthAdapter {
     this.store = opts.store;
     this.issuer = opts.issuer ?? 'orbit';
     this.tokenTtl = opts.tokenTtl ?? '30d';
+    this.guestTtl = opts.guestTtl ?? '365d';
     this.idgen = opts.idgen ?? (() => randomUUID());
   }
 
@@ -97,6 +107,31 @@ export class SelfHostedAuth implements AuthAdapter {
     const id = this.idgen();
     await this.store.create({ id, email: addr, passwordHash: hashPassword(password), createdAt: new Date().toISOString() });
     return { token: await this.issue(id, addr), user: { endUserId: id, email: addr }, isNew: true };
+  }
+
+  /**
+   * Mint a token for a device that has not signed in.
+   *
+   * There is no record behind it and deliberately so — a guest supplies no
+   * email and no password, so there is nothing to store and nothing to leak.
+   * The subject is the identity: it names a billing account, it is signed, and
+   * the client cannot invent one. That is the whole difference from the header
+   * this replaces, where "who are you" was answered by the caller.
+   *
+   * `guest: true` travels in the token so a route can tell a guest from a
+   * member without a lookup — anything that must not be done anonymously
+   * (changing a password, reading an email) can refuse on the claim alone.
+   */
+  async issueGuest(): Promise<AuthResult> {
+    const id = `guest_${this.idgen()}`;
+    const token = await new SignJWT({ guest: true })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setSubject(id)
+      .setIssuedAt()
+      .setIssuer(this.issuer)
+      .setExpirationTime(this.guestTtl)
+      .sign(this.key);
+    return { token, user: { endUserId: id, guest: true }, isNew: true };
   }
 
   async login(email: string, password: string): Promise<AuthResult> {
@@ -166,6 +201,14 @@ export class SelfHostedAuth implements AuthAdapter {
     {
       // Reset tokens are single-purpose — never accept one as a session bearer.
       if (!payload.sub || (payload as { type?: string }).type === 'reset') return null;
+      /*
+       * A guest has no record, so there is nothing to look up and nothing that
+       * could have been revoked. The signature IS the whole check: we minted
+       * this subject, and only we could have. Falling through to the store
+       * would reject every guest as a "deleted account".
+       */
+      if ((payload as { guest?: boolean }).guest === true)
+        return { endUserId: payload.sub, guest: true };
       /*
        * A signature is not enough. The token also has to be one this account
        * still honours: a password change must kill every session issued before

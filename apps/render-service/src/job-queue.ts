@@ -58,21 +58,39 @@ export class PgJobQueue {
     await this.pool.query(
       `CREATE INDEX IF NOT EXISTS render_jobs_queued ON render_jobs (status, created_at)`,
     );
+    // Added after the table shipped, so ALTER rather than a column in the
+    // CREATE — a deployed instance already has the table and would never run
+    // the new definition. NULL on old rows means "from before ownership", and
+    // the read side treats that as visible rather than as nobody's.
+    await this.pool.query(
+      `ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS account TEXT`,
+    );
   }
 
-  async enqueue(id: string, project: unknown, output?: unknown): Promise<Job> {
+  async enqueue(
+    id: string,
+    project: unknown,
+    output?: unknown,
+    account?: string,
+  ): Promise<Job> {
     await this.ready;
     const res = await this.pool.query(
-      `INSERT INTO render_jobs (id, status, project, output)
-       VALUES ($1, 'queued', $2, $3)
-       RETURNING id, status, created_at`,
-      [id, JSON.stringify(project), output == null ? null : JSON.stringify(output)],
+      `INSERT INTO render_jobs (id, status, project, output, account)
+       VALUES ($1, 'queued', $2, $3, $4)
+       RETURNING id, status, created_at, account`,
+      [
+        id,
+        JSON.stringify(project),
+        output == null ? null : JSON.stringify(output),
+        account ?? null,
+      ],
     );
     const row = res.rows[0];
     return {
       id: row.id,
       status: row.status as JobStatus,
       createdAt: new Date(row.created_at).getTime(),
+      account: row.account ?? undefined,
     };
   }
 
@@ -99,7 +117,7 @@ export class PgJobQueue {
          FOR UPDATE SKIP LOCKED
          LIMIT 1
        )
-       RETURNING id, status, project, output, created_at, claimed_by`,
+       RETURNING id, status, project, output, created_at, claimed_by, account`,
       [workerId, String(this.staleMs)],
     );
     if (!res.rows.length) return null;
@@ -111,6 +129,7 @@ export class PgJobQueue {
       project: row.project,
       output: row.output ?? undefined,
       claimedBy: row.claimed_by ?? undefined,
+      account: row.account ?? undefined,
     };
   }
 
@@ -139,7 +158,7 @@ export class PgJobQueue {
   async get(id: string): Promise<Job | null> {
     await this.ready;
     const res = await this.pool.query(
-      `SELECT id, status, url, error, created_at, finished_at FROM render_jobs WHERE id = $1`,
+      `SELECT id, status, url, error, created_at, finished_at, account FROM render_jobs WHERE id = $1`,
       [id],
     );
     if (!res.rows.length) return null;
@@ -151,6 +170,7 @@ export class PgJobQueue {
       finishedAt: row.finished_at ? new Date(row.finished_at).getTime() : undefined,
       url: row.url ?? undefined,
       error: row.error ?? undefined,
+      account: row.account ?? undefined,
     };
   }
 

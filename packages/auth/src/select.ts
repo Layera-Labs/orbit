@@ -29,6 +29,7 @@ export function authFromEnv(env: Env, deps: { userStore?: UserStore } = {}): Aut
         store: deps.userStore,
         issuer: env.ORBIT_JWT_ISSUER,
         tokenTtl: env.ORBIT_JWT_TTL,
+        guestTtl: env.ORBIT_GUEST_JWT_TTL,
       });
       return { provider, adapter, selfHosted: adapter };
     }
