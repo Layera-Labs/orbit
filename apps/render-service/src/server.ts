@@ -37,7 +37,7 @@ import cors from "cors";
 import express, { type Express, type Request, type Response } from "express";
 import multer from "multer";
 import { spawn } from "node:child_process";
-import { mkdir, mkdirSync } from "node:fs";
+import { mkdir, mkdirSync, readFileSync } from "node:fs";
 import {
   mkdir as mkdirAsync,
   readFile,
@@ -47,7 +47,8 @@ import {
   writeFile,
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { extname, join } from "node:path";
+import { dirname, extname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   renderProject,
   type ExportOutput,
@@ -157,6 +158,27 @@ const AUTH_CREATE_RATE_LIMIT = Number(process.env.ORBIT_AUTH_CREATE_RATE_LIMIT ?
  * in one minute, and refusing them is refusing to let the app start at all.
  */
 const GUEST_RATE_LIMIT = Number(process.env.ORBIT_GUEST_RATE_LIMIT ?? 30);
+
+/**
+ * Build identity, reported by `/health`.
+ *
+ * The version is baked at build time from the package manifest; the commit is
+ * whatever the image was built from and is absent when nobody set it, rather
+ * than reporting a confident "unknown" that looks like a real value.
+ */
+const BUILD_VERSION = (() => {
+  if (process.env.ORBIT_VERSION?.trim()) return process.env.ORBIT_VERSION.trim();
+  try {
+    // From `dist/`, the manifest is one level up. Read rather than hard-code:
+    // a literal here drifts from the package the moment one of them is bumped,
+    // and a version that lies is worse than no version.
+    const here = dirname(fileURLToPath(import.meta.url));
+    return JSON.parse(readFileSync(join(here, "..", "package.json"), "utf8")).version as string;
+  } catch {
+    return "unknown";
+  }
+})();
+const BUILD_SHA = process.env.ORBIT_BUILD_SHA?.trim() || undefined;
 
 export function createServer(): Express {
   const app = express();
@@ -820,6 +842,13 @@ export function createServer(): Express {
     res.json({
       ok: true,
       service: "orbit-render",
+      /*
+       * Which build is actually answering. Without this, "is the fix
+       * deployed?" is unanswerable from outside the box — and during an
+       * incident that is the first question, not the fifth.
+       */
+      version: BUILD_VERSION,
+      ...(BUILD_SHA ? { commit: BUILD_SHA } : {}),
       storage: storage.kind,
       queue: queue ? "shared" : "in-process",
       renders: {

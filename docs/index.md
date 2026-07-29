@@ -58,3 +58,10 @@ Orbit is built as a monorepo with 8 packages:
 - [Getting Started Guide](/guide/getting-started)
 - [API Reference](/api/core)
 - [Architecture Overview](/guide/architecture)
+
+## Running it for real
+
+- [Beta 1 — what is in it, and what is not](/guide/beta-1) — scope, known
+  limits, and the features blocked on third-party credentials.
+- [Deploying Orbit](/guide/deploying) — the render service, the web app and the
+  mobile build, in the order the problems actually arrive.
