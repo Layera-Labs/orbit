@@ -636,6 +636,8 @@ export function createServer(): Express {
     output?: ExportOutput,
     /** Called once a render slot is actually held — see `JobRegistry.start`. */
     onStart?: () => void,
+    /** How far through the encode ffmpeg has got, 0..1. */
+    onFraction?: (fraction: number) => void,
   ): Promise<string> {
     await mkdirAsync(outDir, { recursive: true });
     await ensureLocal(project);
@@ -644,7 +646,12 @@ export function createServer(): Express {
     const safe = await localizeProject(project);
     await withRenderSlot(() => {
       onStart?.();
-      return renderProject(safe, { outputPath: path, resolveSrc, output });
+      return renderProject(safe, {
+        outputPath: path,
+        resolveSrc,
+        output,
+        onFraction,
+      });
     });
     /*
      * ffmpeg can only write a local file, so a render always lands on disk
@@ -993,7 +1000,8 @@ export function createServer(): Express {
           return;
         }
         const job = jobs.start(
-          (markRunning) => render(project, body?.output, markRunning).then(settle),
+          (markRunning, setProgress) =>
+            render(project, body?.output, markRunning, setProgress).then(settle),
           account,
         );
         res.status(202).json({ id: job.id, status: job.status });
@@ -1074,9 +1082,23 @@ export function createServer(): Express {
           void q.heartbeat(job.id, WORKER_ID).catch(() => undefined);
         }, 30_000);
         try {
+          /*
+           * Progress goes to the database, so it is rate-limited by time as
+           * well as by the 1% steps the engine already applies — a long encode
+           * would otherwise be a steady trickle of UPDATEs on a table every
+           * worker in the cluster is polling.
+           */
+          let lastWrite = 0;
           const url = await render(
             job.project as VideoProject,
             job.output as ExportOutput | undefined,
+            undefined,
+            (fraction) => {
+              const now = Date.now();
+              if (fraction < 1 && now - lastWrite < 2_000) return;
+              lastWrite = now;
+              void q.setProgress(job.id, fraction, WORKER_ID).catch(() => undefined);
+            },
           );
           await q.finish(job.id, url, WORKER_ID);
           /*
@@ -1151,6 +1173,10 @@ export function createServer(): Express {
       status: job.status,
       url: job.url,
       error: job.error,
+      // Absent until ffmpeg has said something, which is a different thing from
+      // zero: the client shows an indeterminate bar for one and an empty bar
+      // for the other.
+      progress: job.progress,
       elapsedMs: (job.finishedAt ?? Date.now()) - job.createdAt,
     });
   });
