@@ -132,9 +132,16 @@ Editor panels are in `EditorSheets.tsx` plus dedicated sheets (`MosaicSheet`,
   (`npx expo start --port 8081`) then
   `curl -s -o /tmp/b.js -w '%{http_code}' 'http://localhost:8081/index.bundle?platform=ios&dev=true'`
   — 200 = the whole app bundles.
-- **Simulator**: bundle id `com.galaxy.orbit` (was `com.anonymous.orbit-video` until
-  2026-07-27 — an app installed before that is a *different* app and needs reinstalling);
-  `npx expo run:ios --device <UDID>`.
+- **Simulator**: bundle id `com.orbitvideo.app`; `npx expo run:ios --device <UDID>`.
+  It has been renamed twice (`com.anonymous.orbit-video` → `com.galaxy.orbit` 2026-07-27 →
+  here 2026-07-30), and each rename makes a **different app** as far as iOS is concerned:
+  the old one keeps its own keychain and documents, so delete it rather than wondering why
+  a signed-in session vanished. `com.galaxy.orbit` had to go because Apple's identifier
+  namespace is global and another team already holds `com.galaxy.*` — it was unregistrable,
+  and therefore unshippable, not merely inconvenient.
+  **`expo prebuild` will NOT overwrite an existing `ios/`**, so a bundle-id change in
+  `app.json` silently does nothing until you `rm -rf ios`. That is how a device build came
+  out under the pre-2026-07-27 identity long after the rename.
 - **Server URL** resolves in `constants.ts` as `extra.serverUrl` → Expo's dev `hostUri` →
   `localhost:8787`. A dev build on a physical device therefore reaches your Mac
   automatically. Note `hostUri` reflects HOW the dev client connected: launch the

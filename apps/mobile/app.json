@@ -20,7 +20,7 @@
         "NSPhotoLibraryAddUsageDescription": "Orbit saves your exported videos to your photo library.",
         "NSMicrophoneUsageDescription": "Orbit needs microphone access for audio in your videos."
       },
-      "bundleIdentifier": "com.galaxy.orbit"
+      "bundleIdentifier": "com.orbitvideo.app"
     },
     "userInterfaceStyle": "dark",
     "assetBundlePatterns": [
@@ -48,7 +48,7 @@
       "expo-secure-store"
     ],
     "android": {
-      "package": "com.galaxy.orbit"
+      "package": "com.orbitvideo.app"
     },
     "extra": {
       "serverUrl": ""
