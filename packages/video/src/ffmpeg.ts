@@ -38,6 +38,7 @@ import {
   regionBoxPx,
 } from "./layout";
 import { buildFadeMap } from "./transitions";
+import { HDR_CONVERT_FILTER, HDR_X265_PARAMS } from "./hdr";
 
 export interface BuildFFmpegOptions {
   outputPath: string;
@@ -174,6 +175,22 @@ export function buildFFmpegArgs(
 ): string[] {
   // Multi-track projects composite layers; legacy projects keep the concat/xfade path below.
   if (project.tracks !== undefined) return buildMultiTrackArgs(project, opts);
+
+  /*
+   * The legacy path reads none of `opts.output` — not the resolution, not the
+   * fps, not the bitrate, not `audioOnly`, and not `hdr`. It never has. So a
+   * caller asking for 4K HDR got 1080p SDR back with nothing to indicate it,
+   * which is the same failure mode as the mistagged HDR this module was fixed
+   * for: an answer that looks like an answer. Both current clients always send
+   * `tracks`, so nothing reaches this in practice — say so rather than quietly
+   * returning the wrong file.
+   */
+  if (opts.output && Object.values(opts.output).some((v) => v !== undefined)) {
+    throw new Error(
+      "Export settings (resolution, fps, bitrate, HDR, audio-only) need a " +
+        "multi-track project; this one still uses the legacy single-track model.",
+    );
+  }
 
   const { width: W, height: H, fps } = project;
   const resolve = opts.resolveSrc ?? ((s) => s);
@@ -682,11 +699,25 @@ function buildMultiTrackArgs(
   const out = opts.output;
   const audioOnly = !!out?.audioOnly && !!audioMap;
   let vMap = vLabel;
-  if (!audioOnly && out?.width && out?.height) {
-    segments.push(
-      `${vLabel}scale=${even(out.width)}:${even(out.height)}:flags=lanczos,setsar=1[vout]`,
-    );
-    vMap = "[vout]";
+  if (!audioOnly) {
+    /*
+     * The output tail: resize, then colour-convert. Order matters — scaling in
+     * BT.709 gamma is what every SDR export does, and doing it after the PQ
+     * curve would resample non-linear HDR codes and shift the result.
+     */
+    const tail: string[] = [];
+    if (out?.width && out?.height) {
+      tail.push(
+        `scale=${even(out.width)}:${even(out.height)}:flags=lanczos`,
+        "setsar=1",
+      );
+    }
+    // HDR10 is a CONVERSION, not a tag. See `hdr.ts` for what happened without it.
+    if (out?.hdr) tail.push(HDR_CONVERT_FILTER);
+    if (tail.length) {
+      segments.push(`${vLabel}${tail.join(",")}[vout]`);
+      vMap = "[vout]";
+    }
   }
   const args: string[] = [
     "-y",
@@ -700,7 +731,12 @@ function buildMultiTrackArgs(
   if (audioOnly) {
     args.push("-vn");
   } else if (out?.hdr) {
-    // HDR10: 10-bit HEVC tagged BT.2020 primaries + PQ (SMPTE-2084) transfer.
+    /*
+     * HDR10: 10-bit HEVC, BT.2020 primaries, PQ transfer. These tags only tell
+     * the truth because `HDR_CONVERT_FILTER` ran above and actually put the
+     * pixels in that space — they used to be the whole implementation, which is
+     * the bug documented in `hdr.ts`.
+     */
     args.push(
       "-r",
       String(out.fps && out.fps > 0 ? out.fps : fps),
@@ -715,7 +751,7 @@ function buildMultiTrackArgs(
       "-colorspace",
       "bt2020nc",
       "-x265-params",
-      "colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc:hdr10=1:repeat-headers=1",
+      HDR_X265_PARAMS,
       "-tag:v",
       "hvc1",
       "-preset",

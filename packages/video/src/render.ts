@@ -7,6 +7,7 @@ import { backgroundToSVG } from './background-svg';
 import { overlayToSVG } from './overlay-svg';
 import { rasterizeSVG } from './raster';
 import { fontFilesFor } from './google-fonts';
+import { HDR_UNSUPPORTED_MESSAGE, supportsHdr } from './hdr';
 import type { VideoProject } from './types';
 
 export interface RenderOptions extends Omit<BuildFFmpegOptions, 'overlayImages' | 'hasAudio'> {
@@ -78,10 +79,66 @@ function killAfter(proc: { kill: (sig?: NodeJS.Signals) => boolean }, ms: number
 }
 
 /**
+ * Whether this ffmpeg was built with the filter HDR needs, cached per binary.
+ *
+ * `zscale` is a build-time option, so the answer is a property of the install
+ * and cannot change while the process runs — but a probe that failed because
+ * the machine was momentarily wedged CAN change, so only a completed probe is
+ * remembered. Caching a transient failure would disable HDR for the lifetime of
+ * the service.
+ */
+const hdrCapable = new Map<string, Promise<boolean>>();
+
+function ffmpegSupportsHdr(bin: string): Promise<boolean> {
+  const cached = hdrCapable.get(bin);
+  if (cached) return cached;
+  const probe = new Promise<boolean>((resolve) => {
+    let settled = false;
+    const done = (value: boolean, remember: boolean) => {
+      if (settled) return;
+      settled = true;
+      if (!remember) hdrCapable.delete(bin);
+      resolve(value);
+    };
+    let proc: ReturnType<typeof spawn>;
+    try {
+      proc = spawn(bin, ['-hide_banner', '-filters'], { stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch {
+      done(false, true); // no such binary — not transient
+      return;
+    }
+    let out = '';
+    const cancel = killAfter(proc, 10_000, () => done(false, false));
+    proc.stdout?.on('data', (d: Buffer) => {
+      out += String(d);
+    });
+    proc.on('error', () => {
+      cancel();
+      done(false, true);
+    });
+    proc.on('close', () => {
+      cancel();
+      done(supportsHdr(out), true);
+    });
+  });
+  hdrCapable.set(bin, probe);
+  return probe;
+}
+
+/**
  * Render a project to `opts.outputPath`: rasterize each text overlay to a PNG,
  * then spawn ffmpeg to composite + encode. Resolves with the output path.
  */
 export async function renderProject(project: VideoProject, opts: RenderOptions): Promise<string> {
+  /*
+   * Refuse HDR this ffmpeg cannot actually produce, before doing any work.
+   * Without the check the encode succeeds and hands back a file whose tags lie
+   * about its contents — which is exactly the failure this replaced, just
+   * arriving from a build difference instead of a missing filter.
+   */
+  if (opts.output?.hdr && !(await ffmpegSupportsHdr(opts.ffmpegPath ?? 'ffmpeg'))) {
+    throw new Error(HDR_UNSUPPORTED_MESSAGE);
+  }
   const dir = await mkdtemp(join(tmpdir(), 'orbit-video-'));
   try {
     // Clip-less legacy projects AND every multi-track project render their
