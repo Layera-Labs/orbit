@@ -63,14 +63,71 @@ import { getCredits, transcribe } from "../net/genClient";
 import { downloadToMedia, videoThumbnail } from "../storage/media";
 import { Alert, Share } from "react-native";
 
-function progressLabel(p: ExportProgress): string {
-  return p.stage === "uploading"
-    ? `Uploading media ${p.current ?? 1}/${p.total ?? 1}…`
-    : p.stage === "rendering"
-      ? "Rendering on server…"
-      : p.stage === "downloading"
-        ? "Downloading…"
-        : "Saving…";
+export type ExportStage =
+  | "preparing"
+  | "uploading"
+  | "rendering"
+  | "downloading"
+  | "saving";
+
+export interface ExportState {
+  stage: ExportStage;
+  /** Overall 0..1 across every stage, or null when nothing is measurable yet. */
+  progress: number | null;
+  /** Files sent, during the upload stage. */
+  current?: number;
+  total?: number;
+}
+
+/**
+ * What share of the whole export each stage is worth.
+ *
+ * Rough by nature — an encode's share of the wall clock depends on the project
+ * — but the ORDER and the dominance are right, and that is what a bar needs to
+ * avoid the two lies: racing to 90% and then sitting there, or crawling and
+ * then jumping to done. The render gets most of the bar because it takes most
+ * of the time.
+ */
+const STAGE_SPAN: Record<ExportStage, [number, number]> = {
+  preparing: [0, 0.04],
+  uploading: [0.04, 0.18],
+  rendering: [0.18, 0.9],
+  downloading: [0.9, 0.97],
+  saving: [0.97, 1],
+};
+
+export function exportProgressOf(p: ExportProgress): number {
+  const [lo, hi] = STAGE_SPAN[p.stage];
+  const within =
+    p.stage === "uploading" && p.total
+      ? (p.current ?? 0) / p.total
+      : (p.fraction ?? 0);
+  return lo + (hi - lo) * Math.max(0, Math.min(1, within));
+}
+
+/**
+ * What to call each stage.
+ *
+ * These used to read "Uploading media 1/1…", "Rendering on server…" — the
+ * implementation describing itself. Where the video is going and what is being
+ * done to it is the user's business; that it happens to involve a server is
+ * not.
+ */
+export function exportStageLabel(state: ExportState): string {
+  switch (state.stage) {
+    case "preparing":
+      return "Getting your video ready";
+    case "uploading":
+      return state.total && state.total > 1
+        ? `Sending your media · ${state.current ?? 0} of ${state.total}`
+        : "Sending your media";
+    case "rendering":
+      return "Putting your video together";
+    case "downloading":
+      return "Bringing it back";
+    case "saving":
+      return "Saving to Photos";
+  }
 }
 
 export type Screen =
@@ -172,7 +229,8 @@ interface EditorState {
   libraryTab: "stickers" | "emoji" | "backgrounds" | "stock" | "generate";
   prefs: EditorPrefs;
   exporting: boolean;
-  exportMsg: string;
+  /** Where the export has got to, or null when none is running. */
+  exportState: ExportState | null;
 
   // navigation / settings
   go: (screen: Screen) => void;
@@ -358,7 +416,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   libraryTab: "emoji",
   prefs: DEFAULT_PREFS,
   exporting: false,
-  exportMsg: "",
+  exportState: null,
 
   go: (screen) => set({ screen }),
   refreshProjects: () => set({ projects: listProjects() }),
@@ -704,16 +762,16 @@ export const useEditor = create<EditorState>((set, get) => ({
       Alert.alert("Nothing to export", "Import a clip first.");
       return;
     }
-    set({ panel: null, exporting: true, exportMsg: "Preparing…" });
+    set({ panel: null, exporting: true, exportState: { stage: "preparing", progress: 0 } });
     try {
       const url = await exportProject(
         serverUrl,
         project,
-        (p) => set({ exportMsg: progressLabel(p) }),
+        (p) => set({ exportState: { ...p, progress: exportProgressOf(p) } }),
         output,
       );
       await downloadToPhotos(url, Date.now(), (p) =>
-        set({ exportMsg: progressLabel(p) }),
+        set({ exportState: { ...p, progress: exportProgressOf(p) } }),
       );
       set({ exporting: false });
       Alert.alert("Exported", "Your video was saved to Photos.");
@@ -734,16 +792,16 @@ export const useEditor = create<EditorState>((set, get) => ({
       Alert.alert("Nothing to share", "Import a clip first.");
       return;
     }
-    set({ panel: null, exporting: true, exportMsg: "Preparing…" });
+    set({ panel: null, exporting: true, exportState: { stage: "preparing", progress: 0 } });
     try {
       const url = await exportProject(
         serverUrl,
         project,
-        (p) => set({ exportMsg: progressLabel(p) }),
+        (p) => set({ exportState: { ...p, progress: exportProgressOf(p) } }),
         output,
       );
       const fileUri = await downloadToPhotos(url, Date.now(), (p) =>
-        set({ exportMsg: progressLabel(p) }),
+        set({ exportState: { ...p, progress: exportProgressOf(p) } }),
       );
       set({ exporting: false });
       await Share.share({ url: fileUri });
@@ -767,16 +825,16 @@ export const useEditor = create<EditorState>((set, get) => ({
       Alert.alert("Nothing to share", "This project has no clips yet.");
       return;
     }
-    set({ exporting: true, exportMsg: "Preparing…" });
+    set({ exporting: true, exportState: { stage: "preparing", progress: 0 } });
     try {
       const url = await exportProject(
         serverUrl,
         project,
-        (p) => set({ exportMsg: progressLabel(p) }),
+        (p) => set({ exportState: { ...p, progress: exportProgressOf(p) } }),
         output,
       );
       const fileUri = await downloadToPhotos(url, Date.now(), (p) =>
-        set({ exportMsg: progressLabel(p) }),
+        set({ exportState: { ...p, progress: exportProgressOf(p) } }),
       );
       set({ exporting: false });
       await Share.share({ url: fileUri });

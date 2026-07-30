@@ -59,6 +59,7 @@ import { AiGenerateModal } from "./AiGenerateModal";
 import { AuthSheet } from "./AuthSheet";
 import { GenHistorySheet } from "./GenHistorySheet";
 import { TtsSheet } from "./TtsSheet";
+import { ExportOverlay } from "./ExportOverlay";
 import { BuyCreditsSheet } from "./BuyCreditsSheet";
 import { AiHubSheet } from "./AiHubSheet";
 import { MediaDrawerSheet } from "./MediaDrawerSheet";
@@ -2794,23 +2795,6 @@ function KeysSheet() {
   );
 }
 
-// ---- Export progress -----------------------------------------------------
-
-function ExportProgressModal() {
-  const exporting = useEditor((s) => s.exporting);
-  const exportMsg = useEditor((s) => s.exportMsg);
-  return (
-    <Modal visible={exporting} transparent animationType="fade">
-      <View style={s.progressBackdrop}>
-        <View style={s.progressCard}>
-          <ActivityIndicator color={vela.accent} size="large" />
-          <Text style={s.progressMsg}>{exportMsg}</Text>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
 // ---- host ----------------------------------------------------------------
 
 export function EditorSheets() {
@@ -2866,7 +2850,7 @@ export function EditorSheets() {
       {panel === "curve" && <CurveSheet />}
       {panel === "library" && <ContentLibrarySheet />}
       {panel === "keys" && <KeysSheet />}
-      <ExportProgressModal />
+      <ExportOverlay />
     </>
   );
 }

@@ -28,6 +28,14 @@ export interface Job {
   url?: string;
   error?: string;
   /**
+   * How far through the encode, 0..1, straight from ffmpeg's own reporting.
+   *
+   * Absent until the encoder says something. A client showing a bar has to be
+   * able to tell "no measurement yet" from "measured, and it is zero" — the
+   * first is an indeterminate bar and the second is an empty one.
+   */
+  progress?: number;
+  /**
    * Who asked for it. `GET /v1/render/:id` matches on this, so one caller
    * cannot collect another's finished MP4 by guessing an id.
    */
@@ -53,7 +61,13 @@ export class JobRegistry {
    * 202 by the time this resolves, and an unhandled rejection here would take
    * the process down. Every failure lands on the job instead.
    */
-  start(work: (markRunning: () => void) => Promise<string>, account?: string): Job {
+  start(
+    work: (
+      markRunning: () => void,
+      setProgress: (fraction: number) => void,
+    ) => Promise<string>,
+    account?: string,
+  ): Job {
     const id = `job_${++this.seq}_${this.now().toString(36)}`;
     const job: Job = { id, status: "queued", createdAt: this.now(), account };
     this.jobs.set(id, job);
@@ -71,10 +85,20 @@ export class JobRegistry {
       job.startedAt = this.now();
     };
 
+    /*
+     * Progress only means anything while the encode is live. A late chunk
+     * arriving after a failure must not push a dead job back to a hopeful 60%.
+     */
+    const setProgress = (fraction: number) => {
+      if (job.status !== "running") return;
+      job.progress = Math.max(0, Math.min(1, fraction));
+    };
+
     void (async () => {
       try {
-        job.url = await work(markRunning);
+        job.url = await work(markRunning, setProgress);
         job.status = "done";
+        job.progress = 1;
       } catch (err) {
         job.status = "error";
         job.error = err instanceof Error ? err.message : String(err);

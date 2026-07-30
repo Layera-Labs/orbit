@@ -65,6 +65,16 @@ export class PgJobQueue {
     await this.pool.query(
       `ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS account TEXT`,
     );
+    /*
+     * Same reasoning, added later still. Nullable on purpose: a job created by
+     * an instance that predates this column reads back as "no measurement yet",
+     * which is exactly right and is a state the client already handles. A
+     * rolling deploy therefore works in both directions — an old instance never
+     * writes the column, a new one tolerates it being absent.
+     */
+    await this.pool.query(
+      `ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS progress REAL`,
+    );
   }
 
   async enqueue(
@@ -148,9 +158,25 @@ export class PgJobQueue {
     );
   }
 
+  /**
+   * Record how far through the encode this worker has got.
+   *
+   * Guarded on the claim like every other write here: a worker that has been
+   * declared stale and superseded must not reach back and overwrite the
+   * progress of the one now doing the work. It doubles as a heartbeat, since a
+   * worker reporting progress is self-evidently alive.
+   */
+  async setProgress(id: string, fraction: number, workerId: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE render_jobs SET progress = $2, claimed_at = now()
+       WHERE id = $1 AND status = 'running' AND claimed_by = $3`,
+      [id, Math.max(0, Math.min(1, fraction)), workerId],
+    );
+  }
+
   async finish(id: string, url: string, workerId: string): Promise<void> {
     await this.pool.query(
-      `UPDATE render_jobs SET status = 'done', url = $2, finished_at = now()
+      `UPDATE render_jobs SET status = 'done', url = $2, progress = 1, finished_at = now()
        WHERE id = $1 AND claimed_by = $3`,
       [id, url, workerId],
     );
@@ -187,7 +213,8 @@ export class PgJobQueue {
   async get(id: string): Promise<Job | null> {
     await this.ready;
     const res = await this.pool.query(
-      `SELECT id, status, url, error, created_at, finished_at, account FROM render_jobs WHERE id = $1`,
+      `SELECT id, status, url, error, created_at, finished_at, account, progress
+       FROM render_jobs WHERE id = $1`,
       [id],
     );
     if (!res.rows.length) return null;
@@ -200,6 +227,7 @@ export class PgJobQueue {
       url: row.url ?? undefined,
       error: row.error ?? undefined,
       account: row.account ?? undefined,
+      progress: row.progress == null ? undefined : Number(row.progress),
     };
   }
 

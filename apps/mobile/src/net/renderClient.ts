@@ -20,6 +20,14 @@ export interface ExportProgress {
   stage: 'uploading' | 'rendering' | 'downloading' | 'saving';
   current?: number;
   total?: number;
+  /**
+   * How far through this stage, 0..1, when the stage can actually say.
+   *
+   * Undefined means unmeasured, not zero — the render stage reports nothing
+   * until ffmpeg has encoded its first frames, and a bar has to show those two
+   * states differently or it sits at 0% looking stuck.
+   */
+  fraction?: number;
 }
 
 function isLocal(src: string): boolean {
@@ -121,23 +129,44 @@ export async function exportProject(
   const data = (await res.json()) as { id?: string; url?: string; error?: string };
   if (!res.ok) throw new Error(data.error ?? `render failed (HTTP ${res.status})`);
   // A server from before the job API answers with the url outright.
-  const url = data.id ? await awaitJob(cleanBase, data.id) : data.url;
+  const url = data.id ? await awaitJob(cleanBase, data.id, onProgress) : data.url;
   if (!url) throw new Error('render returned no url');
   // Absolute once output storage is a bucket; still relative on local disk.
   return /^https?:\/\//.test(url) ? url : `${cleanBase}${url}`;
 }
 
-/** Poll a render job until it settles, backing off 500ms → 4s. */
-async function awaitJob(base: string, id: string): Promise<string> {
+/**
+ * Poll a render job until it settles, backing off 500ms → 4s.
+ *
+ * The poll used to report nothing at all, so the whole encode — by far the
+ * longest part of an export — showed one unchanging line. Each reply now
+ * forwards whatever the server measured.
+ */
+async function awaitJob(
+  base: string,
+  id: string,
+  onProgress?: (p: ExportProgress) => void,
+): Promise<string> {
   let wait = 500;
   for (;;) {
     await new Promise((r) => setTimeout(r, wait));
     wait = Math.min(wait * 1.5, 4000);
     const res = await fetch(`${base}/v1/render/${id}`, { headers: await authHeaders(base) });
     if (res.status === 404) throw new Error('the render job expired before it was collected');
-    const job = (await res.json()) as { status: string; url?: string; error?: string };
+    const job = (await res.json()) as {
+      status: string;
+      url?: string;
+      error?: string;
+      progress?: number;
+    };
     if (job.status === 'error') throw new Error(job.error ?? 'render failed');
     if (job.status === 'done' && job.url) return job.url;
+    onProgress?.({
+      stage: 'rendering',
+      // A server that predates this simply omits it, and the bar stays
+      // indeterminate — which is what it did for every server until now.
+      fraction: typeof job.progress === 'number' ? job.progress : undefined,
+    });
   }
 }
 

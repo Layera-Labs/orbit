@@ -18,6 +18,15 @@ export interface RenderOptions extends Omit<BuildFFmpegOptions, 'overlayImages' 
   ffprobePath?: string;
   /** Receives raw ffmpeg stderr chunks (progress lives here). */
   onProgress?: (chunk: string) => void;
+  /**
+   * Receives how far through the encode ffmpeg has got, 0..1.
+   *
+   * `onProgress` above has been plumbed since the beginning and nothing ever
+   * parsed it, so the clients had only four discrete stages to show and sat on
+   * "rendering" for the entire encode. This turns the same stderr into the one
+   * number a progress bar can honestly display.
+   */
+  onFraction?: (fraction: number) => void;
   /** Hard cap on the encode, ms (default 10 min). A src pointing at a stalling
    *  HTTP stream would otherwise hang the process forever, holding its temp
    *  dir open — `isClientSrc` deliberately allows http(s) srcs. */
@@ -187,11 +196,58 @@ export async function renderProject(project: VideoProject, opts: RenderOptions):
     const hasAudio = (resolvedSrc: string) => withAudio.has(resolvedSrc);
 
     const args = buildFFmpegArgs(project, { ...opts, overlayImages, baseImage, hasAudio });
-    await runFFmpeg(opts.ffmpegPath ?? 'ffmpeg', args, opts.onProgress, opts.timeoutMs);
+
+    /*
+     * Turn ffmpeg's own reporting into a fraction. The total comes from the
+     * `-t` argument the builder just wrote rather than from `projectDuration`,
+     * so an audio-only export or any future output override is measured against
+     * what is actually being encoded.
+     */
+    const tIndex = args.indexOf('-t');
+    const total = tIndex >= 0 ? Number(args[tIndex + 1]) : NaN;
+    let lastSent = -1;
+    const onChunk = opts.onFraction && Number.isFinite(total) && total > 0
+      ? (chunk: string) => {
+          opts.onProgress?.(chunk);
+          // Null covers every "nothing yet" case, including the negative time
+          // ffmpeg reports before the first frame — the pattern needs a digit
+          // where the sign is, so it never matches.
+          const encoded = parseEncodedSeconds(chunk);
+          if (encoded === null) return;
+          const fraction = Math.max(0, Math.min(1, encoded / total));
+          // Only on a visible change. ffmpeg reports several times a second and
+          // each call may cross a process or a database.
+          if (fraction - lastSent < 0.01 && fraction < 1) return;
+          lastSent = fraction;
+          opts.onFraction!(fraction);
+        }
+      : opts.onProgress;
+
+    await runFFmpeg(opts.ffmpegPath ?? 'ffmpeg', args, onChunk, opts.timeoutMs);
     return opts.outputPath;
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+}
+
+/**
+ * How many seconds of output ffmpeg has written, from its own status line.
+ *
+ * ffmpeg reports on stderr as `frame= 123 fps=30 ... time=00:00:04.12 ...`,
+ * rewriting the line with a carriage return rather than a newline, so a single
+ * chunk can hold several updates. Take the LAST, which is the most recent.
+ *
+ * `time=` can legitimately read `-00:00:00.01` or `N/A` early on; both mean
+ * "nothing yet" rather than a value worth showing.
+ */
+const TIME_RE = /time=\s*(\d+):(\d{2}):(\d{2}(?:\.\d+)?)/g;
+
+export function parseEncodedSeconds(chunk: string): number | null {
+  let seconds: number | null = null;
+  for (const m of chunk.matchAll(TIME_RE)) {
+    seconds = Number(m[1]) * 3600 + Number(m[2]) * 60 + Number(m[3]);
+  }
+  return seconds;
 }
 
 /** Resolve true if `file` has at least one audio stream (best-effort via ffprobe). */

@@ -14,7 +14,7 @@ import { BottomNav } from '../components/BottomNav';
 import { BottomSheet } from '../components/BottomSheet';
 import { InputSheet } from '../components/InputSheet';
 import { Glass } from '../components/Glass';
-import { useEditor } from '../store/editorStore';
+import { exportStageLabel, useEditor } from '../store/editorStore';
 import type { ViewMode } from '../storage/settings';
 import type { StoredProject } from '../storage/projects';
 import { CreateSheet } from './CreateSheet';
@@ -329,7 +329,7 @@ export function ProjectsScreen() {
   const removeProjects = useEditor((s) => s.removeProjects);
   const setProjectsFolder = useEditor((s) => s.setProjectsFolder);
   const exporting = useEditor((s) => s.exporting);
-  const exportMsg = useEditor((s) => s.exportMsg);
+  const exportState = useEditor((s) => s.exportState);
   const [createOpen, setCreateOpen] = useState(false);
   const [menuProject, setMenuProject] = useState<StoredProject | null>(null);
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
@@ -558,7 +558,9 @@ export function ProjectsScreen() {
         <View style={styles.busy}>
           <View style={styles.busyCard}>
             <ActivityIndicator color={vela.accent} />
-            <Text style={styles.busyText}>{exportMsg || 'Preparing…'}</Text>
+            <Text style={styles.busyText}>
+              {exportState ? exportStageLabel(exportState) : 'Getting your video ready'}
+            </Text>
           </View>
         </View>
       ) : null}
