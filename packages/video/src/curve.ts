@@ -1,8 +1,10 @@
 /**
- * Volume envelope (a "curve" of gain over time). Shared by the curve editor and
- * the export: `volumeCurveExpr` bakes a piecewise-linear `volume` expression the
- * ffmpeg `volume` filter evaluates per frame (`eval=frame`). The preview has no
- * audio playback, so the live side is the curve editor UI (see `sampleVolume`).
+ * Volume envelope (a "curve" of gain over time). Shared by the curve editor,
+ * both previews and the export: `volumeCurveExpr` bakes a piecewise-linear
+ * `volume` expression the ffmpeg `volume` filter evaluates per frame
+ * (`eval=frame`), while `sampleVolume` is what the players are set to live.
+ * Mobile mirrors the sampling half in `apps/mobile/src/preview/curve.ts`, which
+ * it cannot import from here — the two are compared by test, not by eye.
  */
 import type { VolumePoint } from './types';
 
