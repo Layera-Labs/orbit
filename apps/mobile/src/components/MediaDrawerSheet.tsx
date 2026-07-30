@@ -62,6 +62,15 @@ type DrawerSelection =
   | { type: "record"; id: string; record: GenRecord }
   | { type: "stock"; id: string; item: StockItem };
 
+/** What every media grid needs in order to take part in selection. */
+interface PickProps {
+  selectedIds: ReadonlySet<string>;
+  /** 1-based tap position, or undefined when only one item is picked. */
+  orderOf: (id: string) => number | undefined;
+  onSelect: (selection: DrawerSelection) => void;
+  onLongSelect: (selection: DrawerSelection) => void;
+}
+
 const TABS: Array<{
   key: DrawerTab;
   label: string;
@@ -87,11 +96,22 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
   const [tab, setTab] = useState<DrawerTab>("ai");
   const [records, setRecords] = useState<GenRecord[]>(() => loadHistory());
   const [uploads, setUploads] = useState<UploadItem[]>([]);
-  const [selection, setSelection] = useState<DrawerSelection | null>(null);
+  /*
+   * A list, in tap order, because that is the order the clips land in.
+   *
+   * The OS picker has always returned several assets at once, but the drawer
+   * could only ever add one at a time, so importing eight photos meant eight
+   * round trips through this sheet.
+   */
+  const [selection, setSelection] = useState<DrawerSelection[]>([]);
+  /*
+   * Multi-select is a mode you enter with a long press, not the default. A
+   * plain tap replacing the selection is what makes picking ONE item feel like
+   * picking one item rather than accumulating a list you then have to clear.
+   */
+  const [multi, setMulti] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
   const [videoThumbs, setVideoThumbs] = useState<Record<string, string>>({});
-  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const ratio = project ? project.width / project.height : 9 / 16;
   const previewRatio = Math.max(0.56, Math.min(1.78, ratio));
@@ -117,13 +137,6 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
       alive = false;
     };
   }, [records, videoThumbs]);
-
-  useEffect(
-    () => () => {
-      if (noticeTimer.current) clearTimeout(noticeTimer.current);
-    },
-    [],
-  );
 
   const updateUpload = (id: string, patch: Partial<UploadItem>) => {
     setUploads((current) =>
@@ -231,32 +244,48 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
     else importVisual([clip]);
   };
 
+  /** Bring one picked item onto the timeline, fetching it first if it is remote. */
+  const addOne = async (item: DrawerSelection) => {
+    if (item.type === "stock") {
+      void triggerUnsplashDownload(item.item);
+      const src = await downloadToMedia(
+        item.item.full,
+        item.item.kind === "video" ? "mp4" : "jpg",
+      );
+      addClip(src, item.item.kind, item.item.duration);
+      return;
+    }
+    const record = item.record;
+    const src =
+      record.source === "upload"
+        ? record.url
+        : await downloadToMedia(
+            record.url,
+            record.kind === "video" ? "mp4" : "jpg",
+          );
+    addClip(src, record.kind, record.durationSec);
+  };
+
   const addSelected = async () => {
-    if (!selection || adding) return;
+    if (!selection.length || adding) return;
     setAdding(true);
     try {
-      if (selection.type === "stock") {
-        void triggerUnsplashDownload(selection.item);
-        const src = await downloadToMedia(
-          selection.item.full,
-          selection.item.kind === "video" ? "mp4" : "jpg",
-        );
-        addClip(src, selection.item.kind, selection.item.duration);
-      } else {
-        const record = selection.record;
-        const src =
-          record.source === "upload"
-            ? record.url
-            : await downloadToMedia(
-                record.url,
-                record.kind === "video" ? "mp4" : "jpg",
-              );
-        addClip(src, record.kind, record.durationSec);
-      }
-      setNotice("Added to timeline");
-      setSelection(null);
-      if (noticeTimer.current) clearTimeout(noticeTimer.current);
-      noticeTimer.current = setTimeout(() => setNotice(null), 1500);
+      /*
+       * Sequentially, not in parallel: each `addClip` appends at the end of the
+       * track, so running them together would race and land the clips in
+       * whatever order their downloads happened to finish rather than the order
+       * they were tapped.
+       */
+      for (const item of selection) await addOne(item);
+      setSelection([]);
+      setMulti(false);
+      /*
+       * And close. Adding a clip is a one-shot insert, which everywhere else in
+       * this app dismisses its sheet — this drawer and the audio one were the
+       * two that stayed open behind a transient "Added to timeline" note, so
+       * you had to dismiss them by hand to see what you had just done.
+       */
+      setPanel(null);
     } catch (error) {
       Alert.alert(
         "Could not add media",
@@ -267,7 +296,44 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
     }
   };
 
-  const selectedId = selection?.id;
+  /** Tap: replace, or toggle while in multi-select. */
+  const pick = (item: DrawerSelection) => {
+    setSelection((current) => {
+      if (!multi) return [item];
+      const without = current.filter((s) => s.id !== item.id);
+      return without.length === current.length ? [...current, item] : without;
+    });
+  };
+
+  /** Long press: enter multi-select, keeping whatever was already picked. */
+  const pickLong = (item: DrawerSelection) => {
+    setMulti(true);
+    setSelection((current) =>
+      current.some((s) => s.id === item.id) ? current : [...current, item],
+    );
+  };
+
+  // Clearing the last item leaves the mode too, so there is no way to get stuck
+  // in a selection mode with nothing selected and no visible way out.
+  useEffect(() => {
+    if (multi && selection.length === 0) setMulti(false);
+  }, [multi, selection.length]);
+
+  const selectedIds = new Set(selection.map((s) => s.id));
+  /** 1-based tap position, shown on the tile only when more than one is picked. */
+  const orderOf = (id: string) => {
+    if (selection.length < 2) return undefined;
+    const i = selection.findIndex((s) => s.id === id);
+    return i < 0 ? undefined : i + 1;
+  };
+
+  const pickProps: PickProps = {
+    selectedIds,
+    orderOf,
+    onSelect: pick,
+    onLongSelect: pickLong,
+  };
+
   const openGenerate = () => {
     // React Native can leave the outgoing sheet's native Modal above the next
     // one when both swap in the same frame. Let it detach, then open AI.
@@ -319,7 +385,8 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
                 accessibilityState={{ selected: active }}
                 onPress={() => {
                   setTab(item.key);
-                  setSelection(null);
+                  setSelection([]);
+                  setMulti(false);
                 }}
                 style={[
                   styles.railItem,
@@ -370,36 +437,32 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
           {tab === "ai" ? (
             <AiPanel
               records={records.filter((record) => record.source === "ai")}
-              selectedId={selectedId}
+              {...pickProps}
               ratio={previewRatio}
               onGenerate={openGenerate}
-              onSelect={setSelection}
             />
           ) : tab === "upload" ? (
             <UploadPanel
               uploads={uploads}
               records={records.filter((record) => record.source === "upload")}
-              selectedId={selectedId}
+              {...pickProps}
               ratio={previewRatio}
               thumbs={videoThumbs}
               onUpload={pickUploads}
-              onSelect={setSelection}
             />
           ) : tab === "stock" ? (
             <StockPanel
               ratio={previewRatio}
               ratioText={ratioText}
-              selectedId={selectedId}
-              onSelect={setSelection}
+              {...pickProps}
               onOpenKeys={() => setPanel("keys")}
             />
           ) : (
             <LibraryPanel
               records={records.filter((record) => record.source === "upload")}
-              selectedId={selectedId}
+              {...pickProps}
               ratio={previewRatio}
               thumbs={videoThumbs}
-              onSelect={setSelection}
               onUpload={pickUploads}
             />
           )}
@@ -407,15 +470,27 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
       </View>
 
       <View style={styles.footer}>
-        <Text style={[styles.footerHint, notice && { color: "#159b72" }]}>
-          {notice ?? (selection ? "Ready to add" : "Select a preview")}
+        <Text style={styles.footerHint}>
+          {selection.length > 1
+            ? `${selection.length} selected`
+            : selection.length === 1
+              ? "Ready to add"
+              : multi
+                ? "Tap to add more"
+                : "Select a preview · hold to pick several"}
         </Text>
         <Pressable
-          disabled={!selection || adding}
+          accessibilityRole="button"
+          accessibilityLabel={
+            selection.length > 1
+              ? `Add ${selection.length} items to timeline`
+              : "Add to timeline"
+          }
+          disabled={!selection.length || adding}
           onPress={addSelected}
           style={[
             styles.addButton,
-            (!selection || adding) && styles.addButtonDisabled,
+            (!selection.length || adding) && styles.addButtonDisabled,
           ]}
         >
           {adding ? (
@@ -424,13 +499,33 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
             <VIcon name="plus" size={16} color="#fff" />
           )}
           <Text style={styles.addButtonText}>
-            {adding ? "Adding…" : "Add to timeline"}
+            {adding
+              ? "Adding…"
+              : selection.length > 1
+                ? `Add ${selection.length}`
+                : "Add to timeline"}
           </Text>
         </Pressable>
       </View>
     </BottomSheet>
   );
 }
+
+/** The selection half of a tile's props, for one candidate item. */
+function tileProps(pick: PickProps, item: DrawerSelection) {
+  return {
+    selected: pick.selectedIds.has(item.id),
+    order: pick.orderOf(item.id),
+    onPress: () => pick.onSelect(item),
+    onLongPress: () => pick.onLongSelect(item),
+  };
+}
+
+const asRecord = (record: GenRecord): DrawerSelection => ({
+  type: "record",
+  id: record.id,
+  record,
+});
 
 function PanelHeading({
   title,
@@ -460,16 +555,13 @@ function PanelHeading({
 
 function AiPanel({
   records,
-  selectedId,
   ratio,
   onGenerate,
-  onSelect,
-}: {
+  ...pick
+}: PickProps & {
   records: GenRecord[];
-  selectedId?: string;
   ratio: number;
   onGenerate: () => void;
-  onSelect: (selection: DrawerSelection) => void;
 }) {
   const recent = records.slice(0, 6);
   return (
@@ -505,12 +597,9 @@ function AiPanel({
                   record.kind === "image" ? { uri: record.url } : undefined
                 }
                 video={record.kind === "video"}
-                selected={selectedId === record.id}
                 ratio={ratio}
                 width={104}
-                onPress={() =>
-                  onSelect({ type: "record", id: record.id, record })
-                }
+                {...tileProps(pick, asRecord(record))}
               />
             ))}
           </ScrollView>
@@ -523,11 +612,8 @@ function AiPanel({
                   record.kind === "image" ? { uri: record.url } : undefined
                 }
                 video={record.kind === "video"}
-                selected={selectedId === record.id}
                 ratio={ratio}
-                onPress={() =>
-                  onSelect({ type: "record", id: record.id, record })
-                }
+                {...tileProps(pick, asRecord(record))}
               />
             ))}
           </View>
@@ -540,19 +626,16 @@ function AiPanel({
 function UploadPanel({
   uploads,
   records,
-  selectedId,
   ratio,
   thumbs,
   onUpload,
-  onSelect,
-}: {
+  ...pick
+}: PickProps & {
   uploads: UploadItem[];
   records: GenRecord[];
-  selectedId?: string;
   ratio: number;
   thumbs: Record<string, string>;
   onUpload: () => void;
-  onSelect: (selection: DrawerSelection) => void;
 }) {
   const queuedIds = new Set(
     uploads.map((item) => item.record?.id).filter(Boolean),
@@ -589,18 +672,9 @@ function UploadPanel({
               video={item.kind === "video"}
               progress={item.status === "preparing" ? item.progress : undefined}
               failed={item.status === "failed"}
-              selected={!!item.record && selectedId === item.record.id}
               ratio={ratio}
-              onPress={
-                item.record
-                  ? () =>
-                      onSelect({
-                        type: "record",
-                        id: item.record!.id,
-                        record: item.record!,
-                      })
-                  : undefined
-              }
+              // A still-uploading tile has no record yet, so it cannot be picked.
+              {...(item.record ? tileProps(pick, asRecord(item.record)) : {})}
             />
           ))}
           {older.map((record) => (
@@ -614,11 +688,8 @@ function UploadPanel({
                     : undefined
               }
               video={record.kind === "video"}
-              selected={selectedId === record.id}
               ratio={ratio}
-              onPress={() =>
-                onSelect({ type: "record", id: record.id, record })
-              }
+              {...tileProps(pick, asRecord(record))}
             />
           ))}
         </View>
@@ -629,17 +700,14 @@ function UploadPanel({
 
 function LibraryPanel({
   records,
-  selectedId,
   ratio,
   thumbs,
-  onSelect,
   onUpload,
-}: {
+  ...pick
+}: PickProps & {
   records: GenRecord[];
-  selectedId?: string;
   ratio: number;
   thumbs: Record<string, string>;
-  onSelect: (selection: DrawerSelection) => void;
   onUpload: () => void;
 }) {
   const [filter, setFilter] = useState<"all" | "image" | "video">("all");
@@ -693,11 +761,8 @@ function LibraryPanel({
                       : undefined
                 }
                 video={record.kind === "video"}
-                selected={selectedId === record.id}
                 ratio={ratio}
-                onPress={() =>
-                  onSelect({ type: "record", id: record.id, record })
-                }
+                {...tileProps(pick, asRecord(record))}
               />
             ))}
           </View>
@@ -710,14 +775,11 @@ function LibraryPanel({
 function StockPanel({
   ratio,
   ratioText,
-  selectedId,
-  onSelect,
   onOpenKeys,
-}: {
+  ...pick
+}: PickProps & {
   ratio: number;
   ratioText: string;
-  selectedId?: string;
-  onSelect: (selection: DrawerSelection) => void;
   onOpenKeys: () => void;
 }) {
   const [provider, setProvider] = useState<StockProvider>("pexels");
@@ -850,9 +912,8 @@ function StockPanel({
                 key={item.id}
                 source={{ uri: item.thumb }}
                 video={item.kind === "video"}
-                selected={selectedId === item.id}
                 ratio={ratio}
-                onPress={() => onSelect({ type: "stock", id: item.id, item })}
+                {...tileProps(pick, { type: "stock", id: item.id, item })}
               />
             ))}
           </View>
@@ -872,28 +933,38 @@ function MediaTile({
   source,
   video,
   selected,
+  order,
   ratio,
   width,
   progress,
   failed,
   onPress,
+  onLongPress,
 }: {
   source?: ImageSourcePropType;
   video?: boolean;
   selected?: boolean;
+  /** Position in a multi-selection, 1-based. Absent when only one is picked. */
+  order?: number;
   ratio: number;
   width?: number;
   progress?: number;
   failed?: boolean;
   onPress?: () => void;
+  onLongPress?: () => void;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={video ? "Video preview" : "Image preview"}
+      accessibilityLabel={
+        (video ? "Video preview" : "Image preview") +
+        (order != null ? `, number ${order} of the selection` : "")
+      }
       accessibilityState={{ disabled: !onPress, selected: !!selected }}
       disabled={!onPress}
       onPress={onPress}
+      onLongPress={onLongPress}
+      delayLongPress={280}
       style={[
         styles.mediaTile,
         width ? { width } : undefined,
@@ -923,7 +994,13 @@ function MediaTile({
       ) : null}
       {selected ? (
         <View style={styles.selectedBadge}>
-          <VIcon name="check" size={12} color="#fff" />
+          {/* The tap order, once more than one is picked — it decides the order
+              they land on the timeline, so it is worth showing. */}
+          {order != null ? (
+            <Text style={styles.selectedOrder}>{order}</Text>
+          ) : (
+            <VIcon name="check" size={12} color="#fff" />
+          )}
         </View>
       ) : null}
       {progress != null ? (
@@ -1124,6 +1201,20 @@ const styles = StyleSheet.create({
     backgroundColor: vela.accent,
     alignItems: "center",
     justifyContent: "center",
+  },
+  /*
+   * The tap-order number inside that badge. `lineHeight` is set explicitly and
+   * Android's extra font padding turned off, because digits centred by flexbox
+   * alone sit a pixel or two high inside a circle — small, and exactly the kind
+   * of miss that reads as sloppy at this size.
+   */
+  selectedOrder: {
+    color: "#fff",
+    fontSize: 12,
+    lineHeight: 14,
+    fontFamily: font.bold,
+    textAlign: "center",
+    includeFontPadding: false,
   },
   progressOverlay: {
     ...StyleSheet.absoluteFillObject,
