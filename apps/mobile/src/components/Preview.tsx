@@ -37,6 +37,7 @@ import { motionTransform, motionStateAt, hasMotion } from "../preview/motion";
 import { blendToSkia } from "../preview/blend";
 import { snapSpan, targetsFor, type Span } from "../preview/snap";
 import { hasKeyframes, sampleKeyframes } from "../preview/keyframes";
+import { previewAudioOf, PreviewAudio } from "../preview/audioGraph";
 import { ensureFontsLoaded, useFontsVersion } from "../text/fonts";
 import { colorMatrix } from "../filters/registry";
 import { mono, ratioLabel } from "../constants";
@@ -770,26 +771,67 @@ export function Preview({ width, height }: { width: number; height: number }) {
     ? transitionOpacity(baseActive, nextBaseClip, playheadSec)
     : 1;
 
-  // Transport clock: advance the playhead while playing.
+  /*
+   * Transport clock.
+   *
+   * Time is DERIVED from a fixed origin, never accumulated. The old version did
+   * `acc += (now - last) / 1000` inside the interval, so every late tick — a
+   * slow frame, a JS-thread stall, the app backgrounding for a moment — was
+   * added to the timeline permanently. Play a two-minute project under load and
+   * the playhead ended up somewhere the video never was, with no way to recover
+   * short of stopping. Deriving from the origin means a late tick simply lands
+   * at the right time.
+   *
+   * It also stops mattering how accurate `tickMs` is: the interval controls how
+   * OFTEN we look, not what the answer is.
+   */
   useEffect(() => {
     if (!isPlaying || !project) return;
-    let last = Date.now();
-    let acc = playheadSec >= total ? 0 : playheadSec;
-    startedAt.current = acc;
+    const startAt = playheadSec >= total ? 0 : playheadSec;
+    const origin = Date.now();
+    startedAt.current = startAt;
     const timer = setInterval(() => {
-      const now = Date.now();
-      acc += (now - last) / 1000;
-      last = now;
-      if (acc >= total) {
+      const t = startAt + (Date.now() - origin) / 1000;
+      if (t >= total) {
         setPlayhead(total);
         setPlaying(false);
         return;
       }
-      setPlayhead(acc);
+      setPlayhead(t);
     }, tickMs);
     return () => clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, total, project?.id, tickMs]);
+
+  /*
+   * Sound. The graph outlives individual plays so the players stay open; it is
+   * only rebuilt when the set of audio clips actually changes.
+   */
+  const audioRef = useRef<PreviewAudio | null>(null);
+  if (!audioRef.current) audioRef.current = new PreviewAudio();
+  useEffect(() => () => audioRef.current?.dispose(), []);
+
+  const audioClips = previewAudioOf(project ?? {});
+  // A cheap signature of what would change the graph: which clips exist, where
+  // they sit, and what they point at. Volume is deliberately absent — it is read
+  // per tick, so a fade must not rebuild anything.
+  const audioKey = audioClips
+    .map((c) => `${c.id}:${c.src}:${c.start}:${c.duration}:${c.trimIn ?? 0}`)
+    .join("|");
+  useEffect(() => {
+    audioRef.current?.sync(audioClips, (src) => toUri(src) ?? src);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audioKey]);
+
+  // Position the audio wherever the playhead is — while playing, and also after
+  // a scrub, so pressing play resumes from what you are looking at.
+  useEffect(() => {
+    audioRef.current?.update(playheadSec, isPlaying);
+  }, [playheadSec, isPlaying]);
+
+  useEffect(() => {
+    if (!isPlaying) audioRef.current?.pause();
+  }, [isPlaying]);
 
   const activeOverlays = overlayTracks
     .map((t) => {

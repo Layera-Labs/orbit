@@ -10,12 +10,22 @@ import {
   View,
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
-import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
+import {
+  setAudioModeAsync,
+  useAudioPlayer,
+  useAudioPlayerStatus,
+} from "expo-audio";
 import Animated, {
+  cancelAnimation,
+  Easing,
   FadeInRight,
   FadeInUp,
   FadeOutLeft,
   LinearTransition,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
 } from "react-native-reanimated";
 import { BUNDLED_SFX } from "../content/assets";
 import { SFX, type SfxItem } from "../content/catalog";
@@ -85,6 +95,14 @@ export function AudioDrawerSheet() {
   const importAudio = useEditor((state) => state.importAudio);
   const setPanel = useEditor((state) => state.setPanel);
   const player = useAudioPlayer();
+  const status = useAudioPlayerStatus(player);
+  /*
+   * Which row this player is currently auditioning. There is one player for the
+   * whole drawer, so without this the rows have no way to know that any of them
+   * is playing — which is why every one of them used to show a play glyph while
+   * audio came out of the speaker.
+   */
+  const [playingId, setPlayingId] = useState<string | null>(null);
   const [tab, setTab] = useState<AudioTab>("music");
   const [records, setRecords] = useState<AudioLibraryRecord[]>(() =>
     loadAudioHistory(),
@@ -92,8 +110,6 @@ export function AudioDrawerSheet() {
   const [uploads, setUploads] = useState<AudioUpload[]>([]);
   const [selection, setSelection] = useState<AudioSelection | null>(null);
   const [adding, setAdding] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const noticeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const projectAudio: ProjectAudio[] = (project?.tracks ?? [])
     .filter((track) => track.kind === "audio")
@@ -109,7 +125,6 @@ export function AudioDrawerSheet() {
   useEffect(() => {
     void setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
     return () => {
-      if (noticeTimer.current) clearTimeout(noticeTimer.current);
       try {
         player.remove();
       } catch {}
@@ -174,13 +189,45 @@ export function AudioDrawerSheet() {
     );
   };
 
-  const preview = (source: string | number) => {
+  /*
+   * Audition a row, or stop the one already auditioning.
+   *
+   * The old version was `replace / seekTo(0) / play` with no state written at
+   * all, so a tap started audio you then had no way to stop, and tapping the
+   * same row again just restarted it.
+   */
+  const preview = (id: string, source: string | number) => {
     try {
+      if (playingId === id) {
+        player.pause();
+        setPlayingId(null);
+        return;
+      }
       player.replace(source);
       player.seekTo(0);
       player.play();
-    } catch {}
+      setPlayingId(id);
+    } catch {
+      setPlayingId(null);
+    }
   };
+
+  /*
+   * Let the player have the last word. It stops on its own at the end of a
+   * track, and `replace` can fail to load a file that has gone missing — in
+   * both cases the row would otherwise keep showing a pause button for audio
+   * nobody can hear.
+   */
+  useEffect(() => {
+    if (!playingId) return;
+    if (status.didJustFinish || (status.isLoaded && !status.playing)) {
+      setPlayingId(null);
+    }
+  }, [playingId, status.didJustFinish, status.isLoaded, status.playing]);
+
+  /** How far through the auditioned track we are, 0–1. Real, not decorative. */
+  const previewProgress =
+    status.duration > 0 ? Math.min(1, status.currentTime / status.duration) : 0;
 
   const addSelected = async () => {
     if (!selection || adding) return;
@@ -200,9 +247,13 @@ export function AudioDrawerSheet() {
         });
       }
       setSelection(null);
-      setNotice("Added to timeline");
-      if (noticeTimer.current) clearTimeout(noticeTimer.current);
-      noticeTimer.current = setTimeout(() => setNotice(null), 1500);
+      /*
+       * And close, matching the media drawer. Adding audio is a one-shot
+       * insert, and every other one-shot inserter in this app dismisses itself;
+       * these two drawers stayed open behind a 1.5s "Added to timeline" note,
+       * so you had to close them by hand before you could see the clip land.
+       */
+      setPanel(null);
     } catch (error) {
       Alert.alert(
         "Could not add audio",
@@ -308,6 +359,8 @@ export function AudioDrawerSheet() {
               records={records}
               projectAudio={projectAudio}
               selectedId={selectedId}
+              playingId={playingId}
+              progress={previewProgress}
               onUpload={chooseAudio}
               onPreview={preview}
               onSelect={setSelection}
@@ -317,6 +370,8 @@ export function AudioDrawerSheet() {
               uploads={uploads}
               records={records}
               selectedId={selectedId}
+              playingId={playingId}
+              progress={previewProgress}
               onUpload={chooseAudio}
               onPreview={preview}
               onSelect={setSelection}
@@ -342,7 +397,9 @@ export function AudioDrawerSheet() {
               title="Sound effects"
               items={SFX}
               selectedId={selectedId}
-              onPreview={(item) => preview(BUNDLED_SFX[item.id])}
+              playingId={playingId}
+              progress={previewProgress}
+              onPreview={(item) => preview(item.id, BUNDLED_SFX[item.id])}
               onSelect={setSelection}
             />
           ) : tab === "stock" ? (
@@ -351,13 +408,17 @@ export function AudioDrawerSheet() {
               subtitle="Offline starter collection"
               items={SFX.slice(0, 8)}
               selectedId={selectedId}
-              onPreview={(item) => preview(BUNDLED_SFX[item.id])}
+              playingId={playingId}
+              progress={previewProgress}
+              onPreview={(item) => preview(item.id, BUNDLED_SFX[item.id])}
               onSelect={setSelection}
             />
           ) : (
             <LibraryPanel
               records={records}
               selectedId={selectedId}
+              playingId={playingId}
+              progress={previewProgress}
               onUpload={chooseAudio}
               onPreview={preview}
               onSelect={setSelection}
@@ -367,8 +428,8 @@ export function AudioDrawerSheet() {
       </View>
 
       <View style={styles.footer}>
-        <Text style={[styles.footerHint, notice && styles.successText]}>
-          {notice ?? (selection ? "Ready to add" : "Select an audio preview")}
+        <Text style={styles.footerHint}>
+          {selection ? "Ready to add" : "Select an audio preview"}
         </Text>
         <Pressable
           accessibilityRole="button"
@@ -425,19 +486,30 @@ function PanelHeading({
   );
 }
 
+/**
+ * What every row needs to know about the drawer's single shared player: which
+ * row it is auditioning, how far through, and how to start or stop one.
+ */
+interface PreviewProps {
+  playingId: string | null;
+  progress: number;
+  onPreview: (id: string, source: string) => void;
+}
+
 function MusicPanel({
   records,
   projectAudio,
   selectedId,
+  playingId,
+  progress,
   onUpload,
   onPreview,
   onSelect,
-}: {
+}: PreviewProps & {
   records: AudioLibraryRecord[];
   projectAudio: ProjectAudio[];
   selectedId?: string;
   onUpload: () => void;
-  onPreview: (source: string) => void;
   onSelect: (selection: AudioSelection) => void;
 }) {
   const recent = records.slice(0, 5);
@@ -467,7 +539,9 @@ function MusicPanel({
               name={record.name}
               meta="Uploaded"
               selected={selectedId === record.id}
-              onPreview={() => onPreview(record.url)}
+              playing={playingId === record.id}
+              progress={progress}
+              onPreview={() => onPreview(record.id, record.url)}
               onPress={() =>
                 onSelect({ type: "record", id: record.id, record })
               }
@@ -483,7 +557,9 @@ function MusicPanel({
               name={item.name}
               meta={formatDuration(item.durationSec)}
               selected={selectedId === item.id}
-              onPreview={() => onPreview(item.url)}
+              playing={playingId === item.id}
+              progress={progress}
+              onPreview={() => onPreview(item.id, item.url)}
               onPress={() => onSelect({ type: "project", id: item.id, item })}
             />
           ))}
@@ -497,15 +573,16 @@ function UploadPanel({
   uploads,
   records,
   selectedId,
+  playingId,
+  progress,
   onUpload,
   onPreview,
   onSelect,
-}: {
+}: PreviewProps & {
   uploads: AudioUpload[];
   records: AudioLibraryRecord[];
   selectedId?: string;
   onUpload: () => void;
-  onPreview: (source: string) => void;
   onSelect: (selection: AudioSelection) => void;
 }) {
   const queuedIds = new Set(
@@ -538,7 +615,9 @@ function UploadPanel({
                 name={item.name}
                 meta="Ready"
                 selected={selectedId === item.record.id}
-                onPreview={() => onPreview(item.record!.url)}
+                playing={playingId === item.record.id}
+                progress={progress}
+                onPreview={() => onPreview(item.record!.id, item.record!.url)}
                 onPress={() =>
                   onSelect({
                     type: "record",
@@ -558,7 +637,9 @@ function UploadPanel({
               name={record.name}
               meta="Uploaded"
               selected={selectedId === record.id}
-              onPreview={() => onPreview(record.url)}
+              playing={playingId === record.id}
+              progress={progress}
+              onPreview={() => onPreview(record.id, record.url)}
               onPress={() =>
                 onSelect({ type: "record", id: record.id, record })
               }
@@ -573,14 +654,15 @@ function UploadPanel({
 function LibraryPanel({
   records,
   selectedId,
+  playingId,
+  progress,
   onUpload,
   onPreview,
   onSelect,
-}: {
+}: PreviewProps & {
   records: AudioLibraryRecord[];
   selectedId?: string;
   onUpload: () => void;
-  onPreview: (source: string) => void;
   onSelect: (selection: AudioSelection) => void;
 }) {
   return (
@@ -605,7 +687,9 @@ function LibraryPanel({
             name={record.name}
             meta={record.source === "upload" ? "Upload" : record.source}
             selected={selectedId === record.id}
-            onPreview={() => onPreview(record.url)}
+            playing={playingId === record.id}
+            progress={progress}
+            onPreview={() => onPreview(record.id, record.url)}
             onPress={() => onSelect({ type: "record", id: record.id, record })}
           />
         ))
@@ -619,13 +703,17 @@ function SfxPanel({
   subtitle,
   items,
   selectedId,
+  playingId,
+  progress,
   onPreview,
   onSelect,
-}: {
+}: Omit<PreviewProps, "onPreview"> & {
   title: string;
   subtitle?: string;
   items: SfxItem[];
   selectedId?: string;
+  /** Bundled effects are `require`d modules, not urls, so the row hands back
+   *  the item and the drawer resolves it. */
   onPreview: (item: SfxItem) => void;
   onSelect: (selection: AudioSelection) => void;
 }) {
@@ -644,6 +732,10 @@ function SfxPanel({
             name={item.label}
             meta={formatDuration(item.dur)}
             selected={selectedId === id}
+            // The drawer keys playback by the bare `item.id`; `id` above carries
+            // an "sfx-" prefix because selection ids share one namespace.
+            playing={playingId === item.id}
+            progress={progress}
             onPreview={() => onPreview(item)}
             onPress={() => onSelect({ type: "sfx", id, item })}
           />
@@ -690,6 +782,8 @@ function AudioRow({
   name,
   meta,
   selected,
+  playing,
+  progress,
   onPreview,
   onPress,
 }: {
@@ -697,6 +791,8 @@ function AudioRow({
   name: string;
   meta: string;
   selected: boolean;
+  playing: boolean;
+  progress: number;
   onPreview: () => void;
   onPress: () => void;
 }) {
@@ -708,12 +804,13 @@ function AudioRow({
     >
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Preview ${name}`}
+        accessibilityLabel={playing ? `Stop ${name}` : `Preview ${name}`}
+        accessibilityState={{ selected: playing }}
         onPress={onPreview}
         hitSlop={5}
         style={styles.playButton}
       >
-        <VIcon name="play" size={13} color={vela.accent} />
+        <VIcon name={playing ? "pause" : "play"} size={13} color={vela.accent} />
       </Pressable>
       <Pressable
         accessibilityRole="button"
@@ -728,7 +825,7 @@ function AudioRow({
           </Text>
           <Text style={styles.audioMeta}>{meta}</Text>
         </View>
-        <Waveform />
+        <Waveform playing={playing} progress={progress} />
         {selected ? (
           <View style={styles.selectedBadge}>
             <VIcon name="check" size={11} color="#fff" />
@@ -771,13 +868,91 @@ function UploadProgressRow({ item }: { item: AudioUpload }) {
   );
 }
 
-function Waveform() {
+/**
+ * The bars beside a row.
+ *
+ * One fixed shape for every row, deliberately. We cannot read a file's real
+ * peaks here — expo-audio exposes no PCM — and giving each row a different
+ * made-up shape would look like information while being decoration.
+ *
+ * What IS real is the colour split: while a row is auditioning, bars behind the
+ * playhead take the accent and the rest stay muted, so the movement reports
+ * actual position rather than just wiggling. The heights animate on top of that
+ * to read as level.
+ */
+const WAVE_BARS = [8, 15, 11, 20, 14, 18, 9, 16, 12];
+
+function Waveform({
+  playing,
+  progress,
+}: {
+  playing: boolean;
+  progress: number;
+}) {
   return (
     <View style={styles.waveform}>
-      {[8, 15, 11, 20, 14, 18, 9, 16, 12].map((height, index) => (
-        <View key={index} style={[styles.waveBar, { height }]} />
+      {WAVE_BARS.map((height, index) => (
+        <WaveBar
+          key={index}
+          height={height}
+          index={index}
+          playing={playing}
+          // Bars are lit left-to-right as playback advances.
+          played={playing && progress > index / WAVE_BARS.length}
+        />
       ))}
     </View>
+  );
+}
+
+function WaveBar({
+  height,
+  index,
+  playing,
+  played,
+}: {
+  height: number;
+  index: number;
+  playing: boolean;
+  played: boolean;
+}) {
+  /*
+   * Rests at 1, i.e. full height. The bars are on screen and readable whether or
+   * not this animation ever runs — the design rule is that motion may only move
+   * something already visible, never decide whether it exists.
+   */
+  const scale = useSharedValue(1);
+
+  useEffect(() => {
+    if (playing) {
+      // Each bar gets its own period, so the row reads as a level meter rather
+      // than nine bars bouncing in lockstep.
+      scale.value = withRepeat(
+        withTiming(0.45, {
+          duration: 380 + index * 43,
+          easing: Easing.inOut(Easing.quad),
+        }),
+        -1,
+        true,
+      );
+    } else {
+      cancelAnimation(scale);
+      scale.value = withTiming(1, { duration: 160 });
+    }
+    return () => cancelAnimation(scale);
+  }, [playing, index, scale]);
+
+  const animated = useAnimatedStyle(() => ({ height: height * scale.value }));
+
+  return (
+    <Animated.View
+      style={[
+        styles.waveBar,
+        played ? styles.waveBarPlayed : null,
+        { height },
+        animated,
+      ]}
+    />
   );
 }
 
@@ -941,8 +1116,12 @@ const styles = StyleSheet.create({
   waveBar: {
     width: 3,
     borderRadius: 2,
-    backgroundColor: "#8c82ff",
+    // The lighter step of the accent hue, so a resting row is quiet. Was a
+    // hardcoded #8c82ff, a hair off the token it was clearly reaching for.
+    backgroundColor: vela.accent2,
   },
+  /** Behind the playhead: the full accent, so position is legible at a glance. */
+  waveBarPlayed: { backgroundColor: vela.accent },
   selectedBadge: {
     width: 20,
     height: 20,
