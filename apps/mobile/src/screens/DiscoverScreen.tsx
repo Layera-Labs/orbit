@@ -29,6 +29,7 @@ function ratioLabel(template: { width: number; height: number }): string {
 export function DiscoverScreen() {
   const go = useEditor((s) => s.go);
   const newProject = useEditor((s) => s.newProject);
+  const startNewProject = useEditor((s) => s.startNewProject);
   const newProjectFromTemplate = useEditor((s) => s.newProjectFromTemplate);
   const newProjectFromStoredTemplate = useEditor((s) => s.newProjectFromStoredTemplate);
   const [query, setQuery] = useState('');
@@ -110,7 +111,7 @@ export function DiscoverScreen() {
         onClose={() => setCreateOpen(false)}
         onCreate={(width, height) => {
           setCreateOpen(false);
-          newProject('Untitled', width, height);
+          startNewProject(width, height);
         }}
       />
     </View>

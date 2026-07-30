@@ -27,6 +27,7 @@ export function AiStudioScreen() {
   const go = useEditor((s) => s.go);
   const openProject = useEditor((s) => s.openProject);
   const newProject = useEditor((s) => s.newProject);
+  const startNewProject = useEditor((s) => s.startNewProject);
   const setPanel = useEditor((s) => s.setPanel);
   const credits = useEditor((s) => s.credits);
   const refreshCredits = useEditor((s) => s.refreshCredits);
@@ -113,7 +114,7 @@ export function AiStudioScreen() {
         onClose={() => setCreateOpen(false)}
         onCreate={(width, height) => {
           setCreateOpen(false);
-          newProject('Untitled', width, height);
+          startNewProject(width, height);
         }}
       />
     </View>

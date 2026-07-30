@@ -145,6 +145,7 @@ export function HomeScreen() {
   const go = useEditor((s) => s.go);
   const openProject = useEditor((s) => s.openProject);
   const newProject = useEditor((s) => s.newProject);
+  const startNewProject = useEditor((s) => s.startNewProject);
   const newProjectFromTemplate = useEditor((s) => s.newProjectFromTemplate);
   const viewMode = useEditor((s) => s.viewMode);
   const setViewMode = useEditor((s) => s.setViewMode);
@@ -164,7 +165,7 @@ export function HomeScreen() {
   const visibleProjects = sortedProjects.filter((project) => !activeFolder || folderOf(project) === activeFolder);
   const projectLayout = viewMode === 'list' ? 'list' : 'grid';
 
-  const create = (width: number, height: number) => newProject('Untitled', width, height);
+  const create = (width: number, height: number) => startNewProject(width, height);
 
   function toggleProject(id: string) {
     setSelected((current) => {

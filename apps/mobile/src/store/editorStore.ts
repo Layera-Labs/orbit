@@ -136,6 +136,14 @@ export type Screen =
   | "library"
   | "ai"
   | "profile"
+  /**
+   * Choosing what the new project is made of.
+   *
+   * Sits between picking a format and the editor. Before this, `newProject`
+   * went straight to the timeline with one empty track, so every project began
+   * on a screen with nothing on it and no obvious first move.
+   */
+  | "pick"
   | "editor";
 /** Editor sheets/panels — mirrors Vela's `panel` state machine. */
 export type EditorPanel =
@@ -239,6 +247,18 @@ interface EditorState {
   setServerUrl: (url: string) => void;
   setViewMode: (m: ViewMode) => void;
   setRippleDelete: (enabled: boolean) => void;
+  /**
+   * The format chosen for a project that does not exist yet.
+   *
+   * The project is deliberately NOT created until media is picked. Creating it
+   * first would leave an "Untitled" behind every time someone opened the picker
+   * and changed their mind.
+   */
+  pendingFormat: { width: number; height: number } | null;
+  /** Choose a format and go to the picker. */
+  startNewProject: (width: number, height: number) => void;
+  /** Back out of the picker without leaving anything behind. */
+  cancelNewProject: () => void;
   newProject: (name: string, width: number, height: number) => void;
   /** Create + open a new project seeded from a built-in template. */
   newProjectFromTemplate: (tpl: EditorTemplate) => void;
@@ -458,6 +478,13 @@ export const useEditor = create<EditorState>((set, get) => ({
     });
   },
 
+  pendingFormat: null,
+
+  startNewProject: (width, height) =>
+    set({ pendingFormat: { width, height }, screen: "pick" }),
+
+  cancelNewProject: () => set({ pendingFormat: null, screen: "projects" }),
+
   newProject: (name, width, height) => {
     const id = newId("proj");
     const base = createProject({ id, width, height });
@@ -489,6 +516,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       future: [],
       panel: null,
       screen: "editor",
+      pendingFormat: null,
     });
   },
 

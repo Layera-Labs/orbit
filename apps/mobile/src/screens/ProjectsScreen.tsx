@@ -321,6 +321,7 @@ export function ProjectsScreen() {
   const projects = useEditor((s) => s.projects);
   const openProject = useEditor((s) => s.openProject);
   const newProject = useEditor((s) => s.newProject);
+  const startNewProject = useEditor((s) => s.startNewProject);
   const go = useEditor((s) => s.go);
   const serverUrl = useEditor((s) => s.serverUrl);
   const setServerUrl = useEditor((s) => s.setServerUrl);
@@ -546,7 +547,7 @@ export function ProjectsScreen() {
         onClose={() => setCreateOpen(false)}
         onCreate={(w, h) => {
           setCreateOpen(false);
-          newProject('Untitled', w, h);
+          startNewProject(w, h);
         }}
       />
 

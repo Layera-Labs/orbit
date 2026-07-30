@@ -30,6 +30,7 @@ export function ProfileScreen() {
   const rippleDelete = useEditor((s) => s.rippleDelete);
   const setRippleDelete = useEditor((s) => s.setRippleDelete);
   const newProject = useEditor((s) => s.newProject);
+  const startNewProject = useEditor((s) => s.startNewProject);
   const [authOpen, setAuthOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [aboutOpen, setAboutOpen] = useState(false);
@@ -163,7 +164,7 @@ export function ProfileScreen() {
         onClose={() => setCreateOpen(false)}
         onCreate={(width, height) => {
           setCreateOpen(false);
-          newProject("Untitled", width, height);
+          startNewProject(width, height);
         }}
       />
     </View>

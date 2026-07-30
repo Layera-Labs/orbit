@@ -57,6 +57,7 @@ export function MediaLibraryScreen() {
   const go = useEditor((s) => s.go);
   const openProject = useEditor((s) => s.openProject);
   const newProject = useEditor((s) => s.newProject);
+  const startNewProject = useEditor((s) => s.startNewProject);
   const [query, setQuery] = useState('');
   const [kind, setKind] = useState<Kind>('All');
   const [selecting, setSelecting] = useState(false);
@@ -152,7 +153,7 @@ export function MediaLibraryScreen() {
         onClose={() => setCreateOpen(false)}
         onCreate={(width, height) => {
           setCreateOpen(false);
-          newProject('Untitled', width, height);
+          startNewProject(width, height);
         }}
       />
     </View>

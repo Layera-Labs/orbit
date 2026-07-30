@@ -131,7 +131,11 @@ Editor panels are in `EditorSheets.tsx` plus dedicated sheets (`MosaicSheet`,
 - **Cheap check that everything resolves/compiles** (stronger than tsc): start Metro
   (`npx expo start --port 8081`) then
   `curl -s -o /tmp/b.js -w '%{http_code}' 'http://localhost:8081/index.bundle?platform=ios&dev=true'`
-  — 200 = the whole app bundles.
+  — 200 = the whole app bundles. **Restart Metro with `--clear` after adding a NEW
+  file**: its watcher misses newly-created ones, so it happily rebuilds (the byte count
+  even changes, from the edits to existing files) while leaving the new module out of the
+  graph entirely. The check then passes against a bundle that does not contain the thing
+  you are checking. Grep the bundle for a distinctive string from the new file to be sure.
 - **Simulator**: bundle id `com.orbitvideo.app`; `npx expo run:ios --device <UDID>`.
   It has been renamed twice (`com.anonymous.orbit-video` → `com.galaxy.orbit` 2026-07-27 →
   here 2026-07-30), and each rename makes a **different app** as far as iOS is concerned:

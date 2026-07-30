@@ -14,6 +14,7 @@ import { vela } from './src/constants';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { DiscoverScreen } from './src/screens/DiscoverScreen';
 import { EditorScreen } from './src/screens/EditorScreen';
+import { MediaPickScreen } from './src/screens/MediaPickScreen';
 import { AiStudioScreen } from './src/screens/AiStudioScreen';
 import { MediaLibraryScreen } from './src/screens/MediaLibraryScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
@@ -88,7 +89,9 @@ export default function App() {
   }
 
   const isEditor = screen === 'editor';
-  const darkTop = isEditor || screen === 'ai';
+  // The picker is the first step of editing, so it wears the editor's dark
+  // chrome rather than Home's light.
+  const darkTop = isEditor || screen === 'ai' || screen === 'pick';
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -96,7 +99,7 @@ export default function App() {
       {/* Inside the root view, so a throw in any screen still leaves a usable
           app rather than a black rectangle with no way out. */}
       <ErrorBoundary>
-        {isEditor ? <EditorScreen /> : screen === 'discover' ? <DiscoverScreen /> : screen === 'library' ? <MediaLibraryScreen /> : screen === 'ai' ? <AiStudioScreen /> : screen === 'profile' ? <ProfileScreen /> : <HomeScreen />}
+        {isEditor ? <EditorScreen /> : screen === 'pick' ? <MediaPickScreen /> : screen === 'discover' ? <DiscoverScreen /> : screen === 'library' ? <MediaLibraryScreen /> : screen === 'ai' ? <AiStudioScreen /> : screen === 'profile' ? <ProfileScreen /> : <HomeScreen />}
       </ErrorBoundary>
     </GestureHandlerRootView>
   );
