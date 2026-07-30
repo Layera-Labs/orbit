@@ -493,18 +493,15 @@ export function EditorScreen() {
         style={styles.stage}
         onPress={() => (selected || selectedGap) && select(null)}
       >
-        <View
-          style={[
-            styles.whiteFrame,
-            { width: iw + 14, height: ih + 14 },
-            project.hdr && styles.hdrGlow,
-          ]}
-        >
+        {/*
+          No HDR treatment here. A white bloom and a 7% white wash used to
+          appear when the project's HDR flag was on, which was two mistakes at
+          once: this screen cannot display HDR, and the sheen made the preview
+          genuinely lighter than the file it is meant to predict.
+        */}
+        <View style={[styles.whiteFrame, { width: iw + 14, height: ih + 14 }]}>
           <View style={{ width: iw, height: ih }}>
             <Preview width={iw} height={ih} />
-            {project.hdr ? (
-              <View pointerEvents="none" style={styles.hdrSheen} />
-            ) : null}
           </View>
         </View>
         <Pressable style={styles.fullscreenBtn} onPress={openFullscreen}>
@@ -708,19 +705,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   whiteFrame: { backgroundColor: "#fff", borderRadius: 6, padding: 7 },
-  // HDR on: a soft white bloom around the preview + a faint sheen over it.
-  hdrGlow: {
-    shadowColor: "#fff",
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    shadowOffset: { width: 0, height: 0 },
-    elevation: 14,
-  },
-  hdrSheen: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(255,255,255,0.07)",
-    borderRadius: 4,
-  },
   fullscreenBtn: {
     position: "absolute",
     right: 24,
