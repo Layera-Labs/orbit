@@ -7,5 +7,5 @@
  */
 export { rasterizeSVG } from './raster';
 export { fontFilesFor } from './google-fonts';
-export { renderProject, killLiveRenders } from './render';
+export { renderProject, killLiveRenders, ffmpegSupportsHdr } from './render';
 export type { RenderOptions } from './render';

@@ -50,6 +50,7 @@ import { tmpdir } from "node:os";
 import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  ffmpegSupportsHdr,
   killLiveRenders,
   renderProject,
   type ExportOutput,
@@ -861,9 +862,20 @@ export function createServer(): Express {
     const shared = queue
       ? await queue.depth().catch(() => null)
       : null;
+    /*
+     * What this build's ffmpeg can actually do, so a client can offer HDR10
+     * only where it will work rather than discovering it on a failed export.
+     * `zscale` is a compile-time option and plenty of common builds (Homebrew's
+     * among them) ship without it; the probe is cached per binary, so this is
+     * one spawn for the life of the process.
+     */
+    const hdr = await ffmpegSupportsHdr(
+      process.env.FFMPEG_PATH ?? "ffmpeg",
+    ).catch(() => false);
     res.json({
       ok: true,
       service: "orbit-render",
+      capabilities: { hdr },
       /*
        * Which build is actually answering. Without this, "is the fix
        * deployed?" is unanswerable from outside the box — and during an
