@@ -15,6 +15,7 @@ import type {
   ClipMosaic,
   Keyframe,
   Motion,
+  ElementAnim,
   Rect,
   SourceRect,
   VolumePoint,
@@ -353,7 +354,10 @@ export function moveClipToTrack(
  * sequence never holds a gap, so a delete or a drag closes up behind itself.
  * "Pro" leaves placement alone.
  */
-export function packVisualTrack(p: VideoProject, trackId: string): VideoProject {
+export function packVisualTrack(
+  p: VideoProject,
+  trackId: string,
+): VideoProject {
   const track = findTrack(p, trackId);
   if (!track || track.kind !== "visual" || track.clips.length === 0) return p;
   const sorted = byStart(track.clips);
@@ -365,9 +369,19 @@ export function packVisualTrack(p: VideoProject, trackId: string): VideoProject 
   });
   // Bail by identity when nothing actually moved — `apply` pushes history and
   // writes to disk on every call.
-  if (packed.every((c, i) => c.start === track.clips[i]?.start && c.id === track.clips[i]?.id))
+  if (
+    packed.every(
+      (c, i) =>
+        c.start === track.clips[i]?.start && c.id === track.clips[i]?.id,
+    )
+  )
     return p;
-  return updateClips(p, trackId, () => packed, (cs) => cs);
+  return updateClips(
+    p,
+    trackId,
+    () => packed,
+    (cs) => cs,
+  );
 }
 
 /** Overlays and non-main clips wholly inside `[start, end)`. */
@@ -555,6 +569,39 @@ export function setClipRect(
  * mid-edge crop moves the rect as well as the crop window — and three separate
  * mutations would be three undo steps for one drag.
  */
+/**
+ * Entrance/exit animation on a visual clip.
+ *
+ * `undefined` REMOVES the field rather than storing a neutral one, so a project
+ * the user has switched animation off on is byte-identical to one that never
+ * had it — which is what keeps the exported filtergraph identical too.
+ */
+export function setClipAnim(
+  p: VideoProject,
+  trackId: string,
+  clipId: string,
+  animateIn: ElementAnim | undefined,
+  animateOut: ElementAnim | undefined,
+): VideoProject {
+  const apply = <C extends VisualTrackClip>(c: C): C => {
+    if (c.id !== clipId) return c;
+    const { animateIn: _i, animateOut: _o, ...rest } = c;
+    return {
+      ...(rest as C),
+      ...(animateIn && animateIn.type !== "none" ? { animateIn } : {}),
+      ...(animateOut && animateOut.type !== "none" ? { animateOut } : {}),
+    };
+  };
+  return {
+    ...p,
+    tracks: (p.tracks ?? []).map((t) =>
+      t.id === trackId && t.kind === "visual"
+        ? { ...t, clips: t.clips.map(apply) }
+        : t,
+    ),
+  };
+}
+
 export function setClipTransform(
   p: VideoProject,
   trackId: string,
@@ -826,6 +873,18 @@ export function setBackground(
   return { ...p, background };
 }
 
+/** The canvas frame (mat + rounded corners), or `undefined` to remove it. */
+export function setFrame(
+  p: VideoProject,
+  frame: VideoProject["frame"],
+): VideoProject {
+  if (!frame) {
+    const { frame: _drop, ...rest } = p;
+    return rest as VideoProject;
+  }
+  return { ...p, frame };
+}
+
 // ---------------------------------------------------------------------------
 // text overlays (rendered as a "caption" lane; not part of `tracks`)
 // ---------------------------------------------------------------------------
@@ -931,7 +990,10 @@ export function setAutoCaptions(
     bold: true,
     // Captions sit over footage of unknown brightness, so they carry their own
     // legibility rather than hoping the picture behind them is dark.
-    stroke: { color: "#000000", width: Math.max(2, Math.round(p.height * 0.004)) },
+    stroke: {
+      color: "#000000",
+      width: Math.max(2, Math.round(p.height * 0.004)),
+    },
     layer,
   }));
   return { ...p, overlays: [...kept, ...captions] };
@@ -1025,7 +1087,10 @@ export function toSRT(p: VideoProject): string {
   if (!cues.length) return "";
   return (
     cues
-      .map((c, i) => `${i + 1}\n${srtTime(c.start)} --> ${srtTime(c.end)}\n${c.text}`)
+      .map(
+        (c, i) =>
+          `${i + 1}\n${srtTime(c.start)} --> ${srtTime(c.end)}\n${c.text}`,
+      )
       .join("\n\n") + "\n"
   );
 }

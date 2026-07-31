@@ -523,6 +523,23 @@ export function EditorScreen() {
             style={[StyleSheet.absoluteFill, styles.stageEdge]}
           />
         </View>
+        {/*
+          Canvas styling — background, border, rounded corners. On the stage
+          because none of it belongs to a clip, and only while NOTHING is
+          selected, so it can never sit under the transform handles, which
+          appear exactly when something is. Mirrors the fullscreen button on
+          the opposite corner rather than inventing a new place to look.
+        */}
+        {!selected && !selectedGap ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Canvas background and frame"
+            style={styles.canvasBtn}
+            onPress={() => setPanel("canvas")}
+          >
+            <VIcon name="frame" size={18} color="#fff" />
+          </Pressable>
+        ) : null}
         <Pressable style={styles.fullscreenBtn} onPress={openFullscreen}>
           <VIcon name="fullscreen" size={18} color="#fff" />
         </Pressable>
@@ -736,6 +753,17 @@ const styles = StyleSheet.create({
   stageEdge: {
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: vela.divider,
+  },
+  canvasBtn: {
+    position: "absolute",
+    left: 24,
+    bottom: 6,
+    width: 34,
+    height: 34,
+    borderRadius: 9,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   fullscreenBtn: {
     position: "absolute",

@@ -116,6 +116,18 @@ export function SelectionActionBar({ liftBy = 0 }: { liftBy?: number }) {
     label: "Split",
     onPress: splitAtPlayhead,
   };
+  /**
+   * On every kind of element, because entrance and exit animation is the one
+   * thing in this bar that genuinely applies to all of them — a clip, a
+   * sticker, a PiP and a caption all carry `animateIn`/`animateOut`.
+   */
+  const animate: Action = {
+    key: "anim",
+    icon: "motion",
+    label: "Animate",
+    a11y: "Entrance and exit animation",
+    onPress: () => setPanel("anim"),
+  };
   const keyframe: Action = {
     key: "keyframe",
     icon: "keyframe",
@@ -144,6 +156,7 @@ export function SelectionActionBar({ liftBy = 0 }: { liftBy?: number }) {
         label: "Colour",
         onPress: () => setPanel("textedit-color"),
       },
+      animate,
       dup,
       del,
     ];
@@ -191,7 +204,7 @@ export function SelectionActionBar({ liftBy = 0 }: { liftBy?: number }) {
         label: "Blend",
         onPress: () => setPanel("blend"),
       },
-      keyframe,
+      animate,
       dup,
       del,
     ];
@@ -211,7 +224,7 @@ export function SelectionActionBar({ liftBy = 0 }: { liftBy?: number }) {
         label: "Motion",
         onPress: () => setPanel("motion"),
       },
-      keyframe,
+      animate,
       dup,
       del,
     ];

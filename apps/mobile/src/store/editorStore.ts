@@ -22,6 +22,7 @@ import {
   type ClipMagnifier,
   type ClipMask,
   type ClipMosaic,
+  type ElementAnim,
   type ExportOutput,
   type Keyframe,
   type Motion,
@@ -196,7 +197,11 @@ export type EditorPanel =
   | "tts"
   | "buycredits"
   | "ai"
-  | "addvisual";
+  | "addvisual"
+  /** The canvas itself: background colour, border, rounded corners. */
+  | "canvas"
+  /** Entrance/exit animation for the current selection. */
+  | "anim";
 
 /** Initial mode/source for the AI generate modal, set by the AI hub before opening it. */
 export type AiIntent = { mode: "image" | "video"; source?: "text" | "photo" };
@@ -366,11 +371,7 @@ interface EditorState {
    * travel together — a `volumeCurve` overrides `volume` rather than scaling
    * it, so writing one without the other silently drops the other.
    */
-  applyAudioFades: (
-    trackId: string,
-    clipId: string,
-    fades: AudioFades,
-  ) => void;
+  applyAudioFades: (trackId: string, clipId: string, fades: AudioFades) => void;
   setClipRect: (trackId: string, clipId: string, rect: Rect) => void;
   /**
    * Write a clip's placement, rotation and crop in ONE mutation.
@@ -423,6 +424,13 @@ interface EditorState {
   applyClipVolumeCurve: (curve: VolumePoint[] | undefined) => void;
   /** Set the project background (color / gradient / image). */
   applyBackground: (background: VideoProject["background"]) => void;
+  /** The canvas frame — a mat over the finished picture. Undefined removes it. */
+  applyFrame: (frame: VideoProject["frame"]) => void;
+  /** Entrance/exit animation for the current selection (clip or caption). */
+  applySelectedAnim: (
+    animateIn: ElementAnim | undefined,
+    animateOut: ElementAnim | undefined,
+  ) => void;
   setSelectedSpeed: (speed: number) => void;
   setSelectedVolume: (volume: number) => void;
   setSelectedTransition: (transition: Transition | undefined) => void;
@@ -847,7 +855,11 @@ export const useEditor = create<EditorState>((set, get) => ({
     // The export screen shows the poster, so this is the moment it has to be
     // real — a stale one leaves an empty frame where the video should be.
     get().ensurePoster();
-    set({ panel: null, exporting: true, exportState: { stage: "preparing", progress: 0 } });
+    set({
+      panel: null,
+      exporting: true,
+      exportState: { stage: "preparing", progress: 0 },
+    });
     try {
       const url = await exportProject(
         serverUrl,
@@ -880,7 +892,11 @@ export const useEditor = create<EditorState>((set, get) => ({
     // The export screen shows the poster, so this is the moment it has to be
     // real — a stale one leaves an empty frame where the video should be.
     get().ensurePoster();
-    set({ panel: null, exporting: true, exportState: { stage: "preparing", progress: 0 } });
+    set({
+      panel: null,
+      exporting: true,
+      exportState: { stage: "preparing", progress: 0 },
+    });
     try {
       const url = await exportProject(
         serverUrl,
@@ -1186,7 +1202,10 @@ export const useEditor = create<EditorState>((set, get) => ({
       });
     });
     if (landedOn)
-      set({ selected: { trackId: landedOn, clipId: clip.id }, selectedGap: null });
+      set({
+        selected: { trackId: landedOn, clipId: clip.id },
+        selectedGap: null,
+      });
   },
 
   addText: () => {
@@ -1476,7 +1495,9 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
   setTitleCard: (on, text) => {
     get().apply((p) =>
-      on ? ops.addTitleCard(p, text?.trim() || "Title") : ops.removeTitleCard(p),
+      on
+        ? ops.addTitleCard(p, text?.trim() || "Title")
+        : ops.removeTitleCard(p),
     );
   },
   applyClipBlend: (blend) => {
@@ -1575,6 +1596,28 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
   applyBackground: (background) => {
     get().apply((p) => ops.setBackground(p, background));
+  },
+  applyFrame: (frame) => {
+    get().apply((p) => ops.setFrame(p, frame));
+  },
+  applySelectedAnim: (animateIn, animateOut) => {
+    const sel = get().selected;
+    if (!sel) return;
+    if (sel.trackId === OVERLAY_TRACK) {
+      // A caption carries the same two fields; `undefined` clears them, which
+      // also retires the legacy `animation` flag for that overlay.
+      get().apply((p) =>
+        ops.updateOverlay(p, sel.clipId, {
+          animateIn,
+          animateOut,
+          animation: undefined,
+        } as never),
+      );
+      return;
+    }
+    get().apply((p) =>
+      ops.setClipAnim(p, sel.trackId, sel.clipId, animateIn, animateOut),
+    );
   },
   setSelectedSpeed: (speed) => {
     const s = get().selected;

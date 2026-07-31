@@ -68,6 +68,8 @@ import { TextDrawerSheet } from "./TextDrawerSheet";
 import { serverCapabilities } from "../net/capabilities";
 import { normalizeRotation } from "../preview/transform";
 import { AudioClipSheet } from "./AudioClipSheet";
+import { CanvasSheet } from "./CanvasSheet";
+import { AnimationSheet } from "./AnimationSheet";
 import { MosaicSheet } from "./MosaicSheet";
 import { MagnifierSheet } from "./MagnifierSheet";
 import { StorySheet } from "./StorySheet";
@@ -2952,6 +2954,8 @@ export function EditorSheets() {
       {panel === "story" && <StorySheet />}
       {panel === "voiceover" && <VoiceoverSheet />}
       {panel === "audioclip" && <AudioClipSheet />}
+      {panel === "canvas" && <CanvasSheet />}
+      {panel === "anim" && <AnimationSheet />}
       {panel === "soundfx" && <SoundFxSheet />}
       {panel === "auth" && (
         <AuthSheet
