@@ -13,8 +13,11 @@ import {
   rippleDeleteOverlay,
   setClipMagnifier,
   setClipMosaic,
+  setClipMuted,
   setClipNote,
   setClipStart,
+  setClipVolume,
+  setClipVolumeCurve,
   splitClipAt,
   titleCardOf,
 } from "../editor-ops";
@@ -524,5 +527,51 @@ describe("local visual effects", () => {
     expect(
       (clearedClips?.[1] as VisualTrackClip | undefined)?.magnifier,
     ).toBeUndefined();
+  });
+});
+
+/*
+ * Muting used to be `volume: 0`, and unmuting used to be `volume: 1`. That is
+ * lossy in the one way a user notices: it throws away the level they chose and
+ * hands back a different one, in an undo entry that looks like a mute.
+ */
+describe("setClipMuted", () => {
+  const p = setClipVolume(project, "main", "image-1", 0.4);
+
+  it("silences a clip without touching the level it was set to", () => {
+    const muted = setClipMuted(p, "main", "image-1", true);
+    const clip = muted.tracks![0].clips[0] as VisualTrackClip;
+    expect(clip.muted).toBe(true);
+    expect(clip.volume).toBe(0.4);
+    // And back again, at the level it had rather than at unity.
+    const back = setClipMuted(muted, "main", "image-1", false);
+    const after = back.tracks![0].clips[0] as VisualTrackClip;
+    expect(after.muted).toBe(false);
+    expect(after.volume).toBe(0.4);
+  });
+
+  it("leaves every other clip alone", () => {
+    const muted = setClipMuted(p, "main", "image-1", true);
+    expect((muted.tracks![0].clips[1] as VisualTrackClip).muted).toBeUndefined();
+    expect(muted.tracks![1].clips[0]).toEqual(project.tracks![1].clips[0]);
+  });
+});
+
+describe("volume ceilings agree", () => {
+  it("bounds a curve's points exactly as it bounds the plain number", () => {
+    // Unclamped, a curve point was the one way to store a gain the UI could
+    // neither show nor undo — and a curve overrides the number.
+    const p = setClipVolumeCurve(project, "main", "image-1", [
+      { t: 0, v: 9 },
+      { t: 1, v: -3 },
+    ]);
+    expect((p.tracks![0].clips[0] as VisualTrackClip).volumeCurve).toEqual([
+      { t: 0, v: 2 },
+      { t: 1, v: 0 },
+    ]);
+    expect(
+      (setClipVolume(project, "main", "image-1", 9).tracks![0]
+        .clips[0] as VisualTrackClip).volume,
+    ).toBe(2);
   });
 });

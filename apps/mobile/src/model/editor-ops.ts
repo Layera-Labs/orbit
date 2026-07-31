@@ -842,6 +842,29 @@ export function setClipVolume(
   );
 }
 
+/**
+ * Silence a clip WITHOUT losing the level it was at.
+ *
+ * `muted` is the field both previews and the export already honour
+ * (`audioGraph.ts` skips a muted clip, `ffmpeg.ts` never opens its audio) — and
+ * until now nothing wrote it: muting went through `volume: 0`, which discards
+ * the number you had, so unmuting could only guess at 1. Two ways to express one
+ * state is how a level goes missing; this is the one that keeps it.
+ */
+export function setClipMuted(
+  p: VideoProject,
+  trackId: string,
+  clipId: string,
+  muted: boolean,
+): VideoProject {
+  return updateClips(
+    p,
+    trackId,
+    (cs) => cs.map((c) => (c.id === clipId ? { ...c, muted } : c)),
+    (cs) => cs.map((c) => (c.id === clipId ? { ...c, muted } : c)),
+  );
+}
+
 /** Set a volume envelope on a visual (video) OR audio clip. Clears when < 2 points. */
 export function setClipVolumeCurve(
   p: VideoProject,

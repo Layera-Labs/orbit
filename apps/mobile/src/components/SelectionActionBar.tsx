@@ -21,8 +21,15 @@
  * No enter/exit animation, because the bar MOVES — a slide-in replayed on every
  * reposition reads as broken rather than lively.
  */
-import { Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
-import { vela } from "../constants";
+import {
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
+import { font } from "../constants";
+import { laneColors } from "./laneColors";
 import { GUTTER_W, PLAYHEAD_X } from "./Timeline";
 import { VIcon, type VIconName } from "./VIcon";
 import type { VisualTrackClip } from "../model/types";
@@ -38,32 +45,34 @@ interface Action {
 }
 
 /**
- * One slot per action, icon only.
+ * One slot per action: icon, then its label under it.
  *
- * The labels moved out. There is exactly 80pt between the bottom of the
- * preview and the top of the timeline, and the transport — the timecode, the
- * play button, undo and redo — sits in the middle of it, so a bar tall enough
- * to carry text under each icon cannot fit above the timeline without landing
- * on either the picture or the controls. Dropping the labels halves its height
- * and it clears both.
+ * The labels were dropped once, for a real reason — there is about 80pt between
+ * the bottom of the preview and the top of the timeline, the transport sits in
+ * the middle of it, and a taller bar has to go somewhere. They are back because
+ * an icon alone is a guess, and the room comes from the only direction that
+ * costs nothing: UP, into the letterboxed bottom edge of the picture, which is
+ * the one part of this screen nothing is ever read from. The bar still clears
+ * the transport, because `liftBy` is measured rather than assumed.
  *
- * Nothing is lost by it: the bottom tool rail already shows this same selection
- * its own labelled actions, and every button here keeps its accessibility
- * label. A floating bar's job is proximity to the clip, not teaching.
+ * The geometry is the one the timeline's gap HUD already proves at this size: a
+ * 19pt icon, a 3pt gap, a 10pt label.
  */
-const ITEM_W = 46;
+const ITEM_W = 56;
 const EDGE = 8;
+const ICON = 19;
+const LABEL_H = 12;
 /**
- * The bar's exact height: a 20pt icon, 9pt of padding either side, and its 1pt
- * border top and bottom. Stated as a constant because it is what lifts the bar
- * clear of the timeline, and a wrong number here does not merely misalign the
- * bar — it puts it back on top of the lanes.
+ * The bar's exact height: the icon, the gap under it, one line of label, 8pt of
+ * padding either side, and its 1pt border top and bottom. Stated as a constant
+ * because it is what lifts the bar clear of the timeline, and a wrong number
+ * here does not merely misalign the bar — it puts it back on top of the lanes.
  *
  * A percentage (`bottom: '100%'`) would express the same intent without the
  * magic number, but the bar is absolutely positioned and so contributes no
  * height to measure against.
  */
-const BAR_H = 20 + 18 + 2;
+const BAR_H = ICON + 3 + LABEL_H + 16 + 2;
 
 export function SelectionActionBar({ liftBy = 0 }: { liftBy?: number }) {
   const selected = useEditor((s) => s.selected);
@@ -94,6 +103,16 @@ export function SelectionActionBar({ liftBy = 0 }: { liftBy?: number }) {
   const isAudio = track?.kind === "audio";
   const visual = track?.kind === "visual" ? (clip as VisualTrackClip) : null;
   const isMainVisual = !!visual && selected.trackId === mainTrackId();
+  /*
+   * The bar wears the colour of the lane it came from, read from the same
+   * registry the strip below it reads. That is the whole point of the registry
+   * existing: a bar that says "music" while the clip under it says something
+   * else is worse than no colour at all.
+   */
+  const lane = laneColors(
+    isText ? "text" : isAudio ? "audio" : "visual",
+    isMainVisual,
+  );
 
   const del: Action = {
     key: "delete",
@@ -275,7 +294,13 @@ export function SelectionActionBar({ liftBy = 0 }: { liftBy?: number }) {
           // is the transport's MEASURED height rather than a guess, because
           // being a few points short here does not look slightly wrong — it
           // puts the bar back on top of the play button.
-          { left, width: barW, top: -(BAR_H + 8 + liftBy) },
+          {
+            left,
+            width: barW,
+            top: -(BAR_H + 8 + liftBy),
+            backgroundColor: lane.key,
+            borderColor: lane.body,
+          },
         ]}
       >
         {actions.map((a) => (
@@ -286,7 +311,15 @@ export function SelectionActionBar({ liftBy = 0 }: { liftBy?: number }) {
             style={styles.item}
             onPress={a.onPress}
           >
-            <VIcon name={a.icon} size={20} color="#fff" strokeWidth={1.7} />
+            <VIcon
+              name={a.icon}
+              size={ICON}
+              color={lane.onKey}
+              strokeWidth={1.7}
+            />
+            <Text numberOfLines={1} style={[styles.label, { color: lane.onKey }]}>
+              {a.label}
+            </Text>
           </Pressable>
         ))}
       </View>
@@ -311,18 +344,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     paddingHorizontal: 2,
     paddingVertical: 9,
-    backgroundColor: vela.accent,
     borderRadius: 14,
     borderCurve: "continuous",
     borderWidth: 1,
-    borderColor: vela.accentDim,
-    // One direction, tinted to the accent's own dark rather than a black bloom.
-    boxShadow: "0 5px 13px rgba(31,22,112,0.38)",
+    // Fill and edge are tinted per lane at the call site. The shadow is not:
+    // it is one direction and nearly black, so it reads as the same lift under
+    // all five hues instead of five differently-coloured smears.
+    boxShadow: "0 5px 13px rgba(6,5,20,0.42)",
   },
   item: {
     width: ITEM_W,
     height: BAR_H - 2,
     alignItems: "center",
     justifyContent: "center",
+    gap: 3,
   },
+  label: { fontSize: 10, fontFamily: font.semibold },
 });

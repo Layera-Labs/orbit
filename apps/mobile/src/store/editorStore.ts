@@ -173,6 +173,8 @@ export type EditorPanel =
   | "transition"
   | "speed"
   | "volume"
+  /** A main clip's own sound, reached by tapping its block on the Sound lane. */
+  | "soundvolume"
   | "fx"
   | "motion"
   | "cutout"
@@ -420,6 +422,10 @@ interface EditorState {
   applyClipVolume: (volume: number) => void;
   /** Mute/unmute the main video track's original audio (all its video clips). */
   toggleMainMuted: () => void;
+  /** Silence one clip's own sound, keeping the level it was set to. */
+  setSoundMuted: (trackId: string, clipId: string, muted: boolean) => void;
+  /** Put this level and mute on every clip with its own sound on one track. */
+  applySoundToAll: (trackId: string, volume: number, muted: boolean) => void;
   /** Apply / clear a volume envelope on the selected clip (audio or video). */
   applyClipVolumeCurve: (curve: VolumePoint[] | undefined) => void;
   /** Set the project background (color / gradient / image). */
@@ -1576,6 +1582,15 @@ export const useEditor = create<EditorState>((set, get) => ({
     });
     set({ selected: tt });
   },
+  /*
+   * Mute is a FLAG, not a volume of zero.
+   *
+   * This used to write `volume: 0` and unmute by writing 1 — so muting a clip
+   * you had set to 40% and unmuting it handed you 100%, with the number you
+   * chose gone and no undo entry that looked like the culprit. `muted` is the
+   * field both previews and the export already read; setting it leaves the
+   * level alone, so unmuting restores it instead of guessing.
+   */
   toggleMainMuted: () => {
     const mainId = get().mainTrackId();
     const project = get().project;
@@ -1583,13 +1598,39 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (!main || main.kind !== "visual") return;
     const videos = main.clips.filter((c) => c.type === "video");
     if (!videos.length) return;
-    const next = videos.every((c) => (c.volume ?? 1) === 0) ? 1 : 0; // unmute if all muted, else mute
+    const next = !videos.every((c) => c.muted); // unmute if all muted, else mute
     get().apply((p) => {
       let np = p;
-      for (const c of videos) np = ops.setClipVolume(np, mainId!, c.id, next);
+      for (const c of videos) np = ops.setClipMuted(np, mainId!, c.id, next);
       return np;
     });
   },
+  setSoundMuted: (trackId, clipId, muted) =>
+    get().apply((p) => ops.setClipMuted(p, trackId, clipId, muted)),
+  /*
+   * Push one clip's sound settings onto every clip on the same track that has
+   * sound of its own. Scoped to that track deliberately: it is the set the
+   * Sound lane mirrors, and music and voiceover clips have their own controls
+   * that this would otherwise overwrite without ever naming them.
+   */
+  applySoundToAll: (trackId, volume, muted) =>
+    get().apply((p) => {
+      const track = (p.tracks ?? []).find((t) => t.id === trackId);
+      if (!track) return p;
+      let np = p;
+      for (const c of track.clips) {
+        if (!("type" in c) || c.type !== "video") continue;
+        const next = withVolume(c, volume);
+        np = ops.setClipVolumeCurve(
+          ops.setClipVolume(np, trackId, c.id, next.volume),
+          trackId,
+          c.id,
+          next.volumeCurve,
+        );
+        np = ops.setClipMuted(np, trackId, c.id, muted);
+      }
+      return np;
+    }),
   applyClipVolumeCurve: (curve) => {
     const s = get().selected;
     let target =

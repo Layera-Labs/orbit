@@ -29,6 +29,7 @@ import { InputSheet } from "./InputSheet";
 import { VSlider } from "./VSlider";
 import { ColorSheet } from "./ColorSheet";
 import { TextSettingsSheet } from "./TextSettingsSheet";
+import { SoundVolumeSheet } from "./SoundVolumeSheet";
 import { FILTER_LIST } from "../filters/registry";
 import {
   BG_IMAGES,
@@ -3029,6 +3030,7 @@ export function EditorSheets() {
       {panel === "transition" && <TransitionSheet />}
       {panel === "speed" && <SpeedSheet />}
       {panel === "volume" && <VolumeSheet />}
+      {panel === "soundvolume" && <SoundVolumeSheet />}
       {/* FX is a tab of the per-clip look sheet — the Effect tool opens it there. */}
       {panel === "fx" && <FilterSheet initialTab="fx" />}
       {panel === "motion" && <MotionSheet />}

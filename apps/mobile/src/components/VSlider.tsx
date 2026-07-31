@@ -15,6 +15,7 @@ export function VSlider({
   step,
   onChange,
   fill = vela.accent,
+  disabled = false,
 }: {
   value: number;
   min: number;
@@ -22,11 +23,16 @@ export function VSlider({
   step?: number;
   onChange: (v: number) => void;
   fill?: string;
+  /**
+   * Greyed and inert. It still shows its value: a control that is temporarily
+   * not applicable should say what it will go back to, not go blank.
+   */
+  disabled?: boolean;
 }) {
   const [w, setW] = useState(0);
 
   const set = (x: number) => {
-    if (w <= 0) return;
+    if (w <= 0 || disabled) return;
     const frac = Math.max(0, Math.min(1, x / w));
     let v = min + frac * (max - min);
     if (step) v = Math.round(v / step) * step;
@@ -39,14 +45,18 @@ export function VSlider({
     .onUpdate((e) => set(e.x));
 
   const pct = max > min ? Math.max(0, Math.min(1, (value - min) / (max - min))) : 0;
+  const paint = disabled ? vela.lightMuted3 : fill;
 
   return (
     <GestureDetector gesture={pan}>
-      <View style={styles.hit} onLayout={(e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width)}>
+      <View
+        style={[styles.hit, disabled && styles.off]}
+        onLayout={(e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width)}
+      >
         <View style={styles.track}>
-          <View style={[styles.fill, { width: `${pct * 100}%`, backgroundColor: fill }]} />
+          <View style={[styles.fill, { width: `${pct * 100}%`, backgroundColor: paint }]} />
         </View>
-        <View style={[styles.knob, { left: `${pct * 100}%`, borderColor: fill }]} />
+        <View style={[styles.knob, { left: `${pct * 100}%`, borderColor: paint }]} />
       </View>
     </GestureDetector>
   );
@@ -54,6 +64,7 @@ export function VSlider({
 
 const styles = StyleSheet.create({
   hit: { height: 40, justifyContent: 'center' },
+  off: { opacity: 0.55 },
   track: { height: 6, borderRadius: 3, backgroundColor: vela.lightBorder, overflow: 'hidden' },
   fill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 3 },
   // White knob with a self-colored (fill) ring + a tight downward shadow.

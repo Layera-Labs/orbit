@@ -6,10 +6,17 @@
  * scrolling area (ruler + lanes) under a fixed white playhead (scroll = scrub).
  * Each row shows a dark "empty track" bar; clips ride on top, absolutely
  * positioned by their ABSOLUTE start. A selected clip drags by the body (move in
- * time) or yellow edge handles (trim); those gestures block the scroll on touch
+ * time) or its edge handles (trim); those gestures block the scroll on touch
  * (blocksExternalGesture), so you can still scroll the timeline (drag empty area
  * / ruler) to the end while a clip stays selected.
- * The Sound lane is a read-only waveform mirror of the main clips' audio.
+ * The Sound lane mirrors the main clips' audio; it offers no trim or drag of its
+ * own, but tapping a block opens that clip's volume settings.
+ *
+ * **Every lane has a colour and it comes from `laneColors.ts`.** The gutter icon,
+ * the clip body where there is no media to cover it, the waveform, the selection
+ * border and the trim handles all read the same registry the floating HUD reads,
+ * so a bar over a music clip is the colour of the music lane. Nothing here holds
+ * a lane colour of its own — a second copy is how the two drift apart.
  */
 import {
   Fragment,
@@ -52,6 +59,7 @@ import type {
   VolumePoint,
 } from "../model/types";
 import { barHeights } from "./waveformBars";
+import { LANES, type LaneColors } from "./laneColors";
 import { videoThumbnail } from "../storage/media";
 import {
   OVERLAY_TRACK,
@@ -101,6 +109,8 @@ interface RowDef {
   icon: VIconName;
   label: string;
   kind: RowKind;
+  /** This lane's identity colours. One registry, shared with the floating HUD. */
+  lane: LaneColors;
   /** Which collapsible group this lane belongs to (drives squeeze/expand). */
   group: string;
   height: number;
@@ -224,6 +234,7 @@ function ClipView({
   clip,
   trackId,
   kind,
+  lane,
   height,
   selected,
   pxPerSec,
@@ -232,6 +243,7 @@ function ClipView({
   clip: ClipLike;
   trackId: string;
   kind: RowKind;
+  lane: LaneColors;
   height: number;
   selected: boolean;
   pxPerSec: number;
@@ -356,7 +368,7 @@ function ClipView({
       {kind === "visual" ? (
         <Filmstrip clip={v} height={height} />
       ) : kind === "audio" ? (
-        <Waveform clip={clip} width={width} color={vela.wave} />
+        <Waveform clip={clip} width={width} color={lane.mark} />
       ) : (
         <View style={styles.textFill}>
           <Text numberOfLines={1} style={styles.textLabel}>
@@ -382,9 +394,13 @@ function ClipView({
       style={[
         styles.clip,
         { left, width, height },
-        kind === "audio" && styles.audioClip,
-        kind === "text" && styles.textClip,
-        selected && styles.clipOn,
+        // Music and text have no media to show, so the lane's colour IS the
+        // clip. A filmstrip covers the other two, which is why their lane
+        // arrives as the border and the handles instead.
+        (kind === "audio" || kind === "text") && {
+          backgroundColor: lane.body,
+        },
+        selected && { borderColor: lane.key },
       ]}
     >
       {selected ? (
@@ -396,14 +412,29 @@ function ClipView({
       )}
       {selected ? (
         <>
+          {/* The handles are where a clip is lengthened and shortened, so they
+              carry the lane's colour — and their grip carries the ink that
+              reads on it, which is not the same ink for all five lanes. */}
           <GestureDetector gesture={leftPan}>
-            <View style={[styles.handle, styles.handleLeft]}>
-              <View style={styles.handleBar} />
+            <View
+              style={[
+                styles.handle,
+                styles.handleLeft,
+                { backgroundColor: lane.key },
+              ]}
+            >
+              <View style={[styles.handleBar, { backgroundColor: lane.onKey }]} />
             </View>
           </GestureDetector>
           <GestureDetector gesture={rightPan}>
-            <View style={[styles.handle, styles.handleRight]}>
-              <View style={styles.handleBar} />
+            <View
+              style={[
+                styles.handle,
+                styles.handleRight,
+                { backgroundColor: lane.key },
+              ]}
+            >
+              <View style={[styles.handleBar, { backgroundColor: lane.onKey }]} />
             </View>
           </GestureDetector>
         </>
@@ -412,13 +443,39 @@ function ClipView({
   );
 }
 
-function SoundBlock({ clip, pxPerSec }: { clip: ClipLike; pxPerSec: number }) {
+/**
+ * One video clip's own audio, mirrored under the main lane.
+ *
+ * It shows a clip that lives on another lane, so it deliberately does not offer
+ * that clip's editing gestures — no trim handles, no drag. Tapping it selects
+ * the clip it mirrors, which is what says WHICH clip this sound belongs to, and
+ * opens the one sheet that is about a clip's sound rather than its picture.
+ */
+function SoundBlock({
+  clip,
+  trackId,
+  pxPerSec,
+}: {
+  clip: ClipLike;
+  trackId: string;
+  pxPerSec: number;
+}) {
+  const select = useEditor((s) => s.select);
+  const setPanel = useEditor((s) => s.setPanel);
   const left = clip.start * pxPerSec;
   const width = Math.max(20, clip.duration * pxPerSec);
   return (
-    <View style={[styles.soundBlock, { left, width }]} pointerEvents="none">
-      <Waveform clip={clip} width={width} color={vela.waveSound} />
-    </View>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Volume settings for this clip's sound"
+      style={[styles.soundBlock, { left, width }]}
+      onPress={() => {
+        select({ trackId, clipId: clip.id });
+        setPanel("soundvolume");
+      }}
+    >
+      <Waveform clip={clip} width={width} color={LANES.sound.mark} />
+    </Pressable>
   );
 }
 
@@ -590,8 +647,13 @@ function ClipLane({
       {row.clips.length === 0
         ? null
         : row.kind === "sound"
-          ? row.clips.map(({ clip }) => (
-              <SoundBlock key={clip.id} clip={clip} pxPerSec={pxPerSec} />
+          ? row.clips.map(({ clip, trackId }) => (
+              <SoundBlock
+                key={clip.id}
+                clip={clip}
+                trackId={trackId}
+                pxPerSec={pxPerSec}
+              />
             ))
           : row.clips.map(({ clip, trackId }) => (
               <ClipView
@@ -599,6 +661,7 @@ function ClipLane({
                 clip={clip}
                 trackId={trackId}
                 kind={row.kind}
+                lane={row.lane}
                 height={row.height}
                 selected={
                   selected?.trackId === trackId && selected?.clipId === clip.id
@@ -765,7 +828,7 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
   const emit = (
     group: string,
     groupIcon: VIconName,
-    color: string,
+    lane: LaneColors,
     laneList: RowDef[],
   ) => {
     if (laneList.length >= 2 && activeGroup !== group) {
@@ -774,15 +837,16 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
         icon: groupIcon,
         label: group,
         kind: laneList[0].kind,
+        lane,
         group,
         height: SQUEEZE_H,
         clips: [],
         iconPress: laneList[0].iconPress,
         add: () => setManualExpand(group),
         empty: "",
-        color,
+        color: lane.key,
         squeezed: laneList.map((l) => ({
-          color: l.color ?? color,
+          color: l.color ?? lane.key,
           clips: l.clips,
         })),
       });
@@ -795,20 +859,21 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
   emit(
     "music",
     "gutterAudio",
-    vela.trackMusic,
+    LANES.music,
     audio.length
       ? audio.map((t) => ({
           key: `aud-${t.id}`,
           icon: "gutterAudio" as VIconName,
           label: "Music",
           kind: "audio" as RowKind,
+          lane: LANES.music,
           group: "music",
           height: MUSIC_H,
           clips: t.clips.map((clip) => ({ clip, trackId: t.id })),
           iconPress: () => setPanel("audio"),
           add: () => setPanel("audio"),
           empty: "Tap to add music",
-          color: vela.trackMusic,
+          color: LANES.music.key,
         }))
       : [
           {
@@ -816,13 +881,14 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
             icon: "gutterAudio",
             label: "Music",
             kind: "audio",
+            lane: LANES.music,
             group: "music",
             height: MUSIC_H,
             clips: [],
             iconPress: () => setPanel("audio"),
             add: () => setPanel("audio"),
             empty: "Tap to add music",
-            color: vela.trackMusic,
+            color: LANES.music.key,
           },
         ],
   );
@@ -831,7 +897,7 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
   emit(
     "text",
     "text",
-    vela.trackText,
+    LANES.text,
     overlays.length
       ? Array.from({ length: maxLayer + 1 }, (_, i) => maxLayer - i).map(
           (L) => ({
@@ -839,6 +905,7 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
             icon: "text" as VIconName,
             label: "Text",
             kind: "text" as RowKind,
+            lane: LANES.text,
             group: "text",
             height: TEXT_H,
             clips: overlays
@@ -855,7 +922,7 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
             iconPress: () => setPanel("texttrack"),
             add: () => setPanel("texttrack"),
             empty: "Tap to add subtitle",
-            color: vela.trackText,
+            color: LANES.text.key,
           }),
         )
       : [
@@ -864,13 +931,14 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
             icon: "text",
             label: "Text",
             kind: "text",
+            lane: LANES.text,
             group: "text",
             height: TEXT_H,
             clips: [],
             iconPress: () => setPanel("texttrack"),
             add: () => setPanel("texttrack"),
             empty: "Tap to add subtitle",
-            color: vela.trackText,
+            color: LANES.text.key,
           },
         ],
   );
@@ -879,20 +947,21 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
   emit(
     "image",
     "image",
-    vela.waveSound,
+    LANES.sticker,
     visualOverlays.length
       ? visualOverlays.map((t) => ({
           key: `img-${t.id}`,
           icon: "image" as VIconName,
           label: "Image",
           kind: "visual" as RowKind,
+          lane: LANES.sticker,
           group: "image",
           height: IMAGE_H,
           clips: t.clips.map((clip) => ({ clip, trackId: t.id })),
           iconPress: () => setPanel("imagetrack"),
           add: () => setPanel("imagetrack"),
           empty: "Tap to add sticker / PiP",
-          color: vela.waveSound,
+          color: LANES.sticker.key,
         }))
       : [
           {
@@ -900,13 +969,14 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
             icon: "image",
             label: "Image",
             kind: "visual",
+            lane: LANES.sticker,
             group: "image",
             height: IMAGE_H,
             clips: [],
             iconPress: () => setPanel("imagetrack"),
             add: () => setPanel("imagetrack"),
             empty: "Tap to add sticker / PiP",
-            color: vela.waveSound,
+            color: LANES.sticker.key,
           },
         ],
   );
@@ -917,6 +987,7 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
     icon: "video",
     label: "Video",
     kind: "visual",
+    lane: LANES.main,
     group: "video",
     height: VIDEO_H,
     clips: main ? main.clips.map((clip) => ({ clip, trackId: main.id })) : [],
@@ -930,6 +1001,7 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
     icon: mainMuted ? "mute" : "volume",
     label: "Sound",
     kind: "sound",
+    lane: LANES.sound,
     group: "sound",
     height: SOUND_H,
     muted: mainMuted,
@@ -1047,6 +1119,10 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
                   style={[styles.gutterItem, { height: r.height }]}
                   onPress={r.iconPress ?? r.add}
                 >
+                  {/* The gutter is where the legend lives: each icon wears its
+                      own lane's colour, so the strip to its right is named. A
+                      muted or unavailable lane still overrides it — a state
+                      the user can act on outranks an identity they cannot. */}
                   <VIcon
                     name={r.icon}
                     size={18}
@@ -1055,7 +1131,7 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
                         ? vela.muted3
                         : r.kind === "sound" && r.muted
                           ? vela.danger
-                          : "#fff"
+                          : r.lane.key
                     }
                   />
                 </Pressable>
@@ -1275,9 +1351,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "transparent",
   },
-  audioClip: { backgroundColor: vela.trackMusic },
-  textClip: { backgroundColor: vela.trackText, justifyContent: "center" },
-  clipOn: { borderColor: vela.select },
+  // Bodies, borders and handles are TINTED INLINE from the row's lane — there
+  // is no per-lane style here, because a style block cannot be looked up by
+  // lane and a second copy of the palette is how the strip and the HUD drift.
+  textClip: { justifyContent: "center" },
   filmstrip: { flexDirection: "row", height: "100%", overflow: "hidden" },
   thumbFallback: {
     ...StyleSheet.absoluteFillObject,
@@ -1305,7 +1382,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderRadius: 7,
     overflow: "hidden",
-    backgroundColor: vela.soundBlock,
+    backgroundColor: LANES.sound.body,
   },
   mutedOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -1357,7 +1434,6 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: HANDLE_W,
-    backgroundColor: vela.select,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -1367,7 +1443,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 6,
     borderBottomRightRadius: 6,
   },
-  handleBar: { width: 3, height: 18, borderRadius: 2, backgroundColor: "#111" },
+  handleBar: { width: 3, height: 18, borderRadius: 2 },
 
   playhead: {
     position: "absolute",
