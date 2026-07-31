@@ -121,6 +121,15 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   **+6.00 dB** over the same clip at 100%. `setClipVolumeCurve` clamps points to 0..2 like
   `setClipVolume` — unclamped, a curve point was the one way to store a gain the UI could
   neither show nor undo. The ceiling is 2 everywhere; there has never been a 1000.
+- **Mute is a flag, and the Sound lane is now a control.** `clip.muted` is what both
+  previews and the export read; muting used to write `volume: 0` and unmute used to
+  write 1, so a clip you had at 40% came back at 100% with the number gone.
+  `ops.setClipMuted` sets the flag and leaves the level alone. Tapping a block on the
+  Sound lane selects the main clip it mirrors and opens `SoundVolumeSheet` — mute,
+  volume, and an Apply-to-all that names its scope (that track's clips with their own
+  sound; music and voiceover keep their own controls). NOTE: an RN `Switch` does not
+  respond to `simctl`-injected taps, so verify a toggle by driving the store from a
+  `TEMP-VERIFY` hook and screenshotting the result, not by tapping it.
 - **Above 100% is inaudible in the mobile preview and real in the export.** `expo-audio`'s
   `player.volume` is a 0–1 property and the native player saturates, so 150% and 200% both
   sound like 100%. A gain node needs a native module, and quietening every other voice to
@@ -246,7 +255,28 @@ Tokens in `apps/mobile/src/constants.ts` — `vela` / `theme.vela`, plus `sp` (s
 `r` (radii), `elev` (tight directional shadows).
 
 Current palette on `codex/ui-redesign` — **settled deliberately 2026-07-27, don't
-re-litigate**: one hue, neutral surfaces, no gradients in chrome.
+re-litigate**: one hue, neutral surfaces, no gradients in chrome. That is about the
+BRAND and still holds everywhere it was made — nav, buttons, sheets, Home, the mark.
+**The timeline is the one deliberate exception** (2026-07-31, and it is not a
+regression to "fix"):
+
+- **`apps/mobile/src/components/laneColors.ts` gives each lane a colour**, because on
+  the timeline colour is the only thing that says which lane you are looking at and
+  which lane a floating HUD belongs to. Music purple, text green, sticker/PiP blue,
+  the main image/video lane yellow, the clip-sound lane orange. Five hues on the
+  chrome would be a paint box; five hues used as a legend is a legend.
+- **One registry, two readers.** `Timeline` and `SelectionActionBar` both call
+  `laneFor` — the gutter icon, the clip body where no media covers it, the waveform,
+  the selection border, the trim handles and the floating bar all come from it. A
+  second copy is exactly how the strip and the bar over it drift apart.
+- **`onKey` is measured, not chosen.** There is no single ink for the five: white
+  reads on the purple, green and blue and is illegible on the yellow and orange,
+  which take near-black. `__tests__/laneColors.test.ts` holds every pair to 4.5:1, so
+  a later nudge to a hue cannot quietly take its label with it.
+- The playhead, ruler, add tile and transition chips stay `vela.accent`. They belong
+  to the editor, not to a lane.
+- The main and sticker lanes keep their filmstrips, so their hue arrives as the
+  border and the trim handles — where lengthening and shortening actually happen.
 
 - `accent`/`action` `#5b4bff` (indigo), `accent2` `#8b83ff` — a lighter step of the SAME
   hue, not a second colour. It was `#933ff2` (purple); the indigo→purple pair was the
