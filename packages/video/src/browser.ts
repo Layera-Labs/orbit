@@ -25,6 +25,7 @@ export type {
   Overlay,
   AudioClip,
   Background,
+  CanvasFrame,
   Transition,
   TransitionType,
   ClipFilter,
@@ -73,6 +74,11 @@ export { buildFFmpegArgs, MOSAIC_BLOCK } from './ffmpeg';
 export type { BuildFFmpegOptions } from './ffmpeg';
 export { overlayBox, overlayToSVG } from './overlay-svg';
 export { backgroundToSVG } from './background-svg';
+export {
+  canvasFramePx,
+  canvasFrameToSVG,
+  hasCanvasFrame,
+} from './canvas-frame';
 export { captionReel, lyricVideo, quoteCard, TEMPLATE_LIST } from './templates';
 export type { CaptionReelInput, LyricVideoInput, QuoteCardInput, TemplateId } from './templates';
 

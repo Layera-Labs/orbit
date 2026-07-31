@@ -113,6 +113,43 @@ export type Background =
   | { type: "image"; src: string }
   | { type: "blur"; amount?: number };
 
+/**
+ * A mat painted over the FINISHED frame: a border band and rounded inner
+ * corners, in one colour.
+ *
+ * "Rounded corners" here means the PICTURE's corners are rounded, not the
+ * file's — a video frame is opaque, so the corner wedges have to be filled with
+ * something, and they are filled with `color` exactly as the band is. That is
+ * why `color` is required rather than optional: a radius with nothing to fill
+ * its wedges with is a state no renderer could honour.
+ *
+ * Filling from the background instead was considered and does not survive: a
+ * gradient would have to be duplicated into this shape and kept in sync, and an
+ * image cannot be embedded at all because `assertNoExternalRefs` forbids
+ * `<image>` in anything `rasterizeSVG` touches. The UI seeds `color` from a
+ * solid background when the frame is first switched on, which gives the
+ * corners-reveal-the-background look in the common case without any renderer
+ * having to reason about the background.
+ *
+ * `width` and `radius` are fractions of `min(width, height)` so a frame
+ * authored at 1080p survives an export at 4K — the same reason `rect` and
+ * `crop` are normalized.
+ */
+export interface CanvasFrame {
+  /** Band and corner-wedge colour. */
+  color: string;
+  /** Band thickness as a fraction of min(W,H), 0..0.5. 0 = corners only. */
+  width: number;
+  /** Inner corner radius as a fraction of min(W,H), 0..0.5. */
+  radius?: number;
+  /**
+   * Band opacity, 0..1 (default 1). Below 1 the picture shows through the
+   * corner wedges as well as the band — they are one shape and cannot be
+   * separated, which is a thing to say in the UI rather than pretend otherwise.
+   */
+  opacity?: number;
+}
+
 export type TransitionType =
   | "cut"
   | "fade"
@@ -412,6 +449,8 @@ export interface VideoProject {
   /** Output frame rate. */
   fps: number;
   background: Background;
+  /** A mat painted over the finished frame — border and rounded corners. */
+  frame?: CanvasFrame;
   /** Visual clips, played in array order (legacy single-track). */
   clips: VisualClip[];
   /** Optional crossfade/cut applied between consecutive clips (legacy). */
