@@ -11,7 +11,7 @@ import { DEFAULT_SERVER } from "../constants";
 import { createProject, projectDuration } from "../model/project";
 import * as ops from "../model/editor-ops";
 import { MIN_CLIP, newId } from "../model/editor-ops";
-import { withFades, type AudioFades } from "../model/audio-fade";
+import { withFades, withVolume, type AudioFades } from "../model/audio-fade";
 import { resetCapabilities } from "../net/capabilities";
 import {
   FULL_FRAME,
@@ -1560,7 +1560,20 @@ export const useEditor = create<EditorState>((set, get) => ({
     }
     if (!target) return;
     const tt = target;
-    get().apply((p) => ops.setClipVolume(p, tt.trackId, tt.clipId, volume));
+    // Through `withVolume`, not `setClipVolume` — a clip carrying a fade keeps
+    // its plateau in the curve, and the curve is what the renderer reads.
+    get().apply((p) => {
+      const track = (p.tracks ?? []).find((t) => t.id === tt.trackId);
+      const clip = track?.clips.find((c) => c.id === tt.clipId);
+      if (!clip) return p;
+      const next = withVolume(clip, volume);
+      return ops.setClipVolumeCurve(
+        ops.setClipVolume(p, tt.trackId, tt.clipId, next.volume),
+        tt.trackId,
+        tt.clipId,
+        next.volumeCurve,
+      );
+    });
     set({ selected: tt });
   },
   toggleMainMuted: () => {

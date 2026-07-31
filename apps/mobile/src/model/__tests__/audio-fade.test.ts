@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fadesOf, maxFadeFor, withFades } from "../audio-fade";
+import { fadesOf, maxFadeFor, withFades, withVolume } from "../audio-fade";
 
 const clip = (duration: number, patch: Record<string, unknown> = {}) => ({
   duration,
@@ -57,6 +57,85 @@ describe("withFades", () => {
 
   it("caps a fade at MAX_FADE however long the clip is", () => {
     expect(maxFadeFor(600)).toBe(5);
+  });
+
+  it("clamps the plateau to the ceiling, not just to zero", () => {
+    // Unclamped, `volume` was pinned to 2 by `setClipVolume` while the curve
+    // kept the larger number — and the curve is what the renderer reads.
+    expect(withFades(10, { volume: 9, fadeIn: 2, fadeOut: 0 })).toEqual({
+      volume: 2,
+      volumeCurve: [
+        { t: 0, v: 0 },
+        { t: 0.2, v: 2 },
+        { t: 1, v: 2 },
+      ],
+    });
+  });
+});
+
+/*
+ * The regression this function exists for: the Volume panel wrote `volume`
+ * alone, so on a clip carrying a fade it moved a number the renderer never
+ * reads and the export came back unchanged.
+ */
+describe("withVolume", () => {
+  it("moves the plateau of a faded clip and keeps the fades", () => {
+    const faded = { duration: 10, ...withFades(10, { volume: 1, fadeIn: 2, fadeOut: 1 }) };
+    const next = withVolume(faded, 2);
+    const read = fadesOf({ duration: 10, ...next })!;
+    expect(read.volume).toBe(2);
+    expect(read.fadeIn).toBeCloseTo(2, 6);
+    expect(read.fadeOut).toBeCloseTo(1, 6);
+    // And the plateau really is in the curve, where the export looks.
+    expect(next.volumeCurve!.map((p) => p.v)).toEqual([0, 2, 2, 0]);
+  });
+
+  it("writes a plain number when the clip has no curve", () => {
+    expect(withVolume({ duration: 10, volume: 1 }, 0.5)).toEqual({
+      volume: 0.5,
+      volumeCurve: undefined,
+    });
+  });
+
+  it("scales a hand-drawn curve instead of flattening it", () => {
+    const duck = [
+      { t: 0, v: 1 },
+      { t: 0.3, v: 0.2 },
+      { t: 0.7, v: 0.2 },
+      { t: 1, v: 1 },
+    ];
+    expect(fadesOf({ duration: 10, volumeCurve: duck })).toBeNull(); // not a fade pair
+    const next = withVolume({ duration: 10, volumeCurve: duck }, 0.5);
+    expect(next.volume).toBe(0.5);
+    // The shape survives: the peak becomes the requested level, the duck keeps
+    // its proportion to it.
+    expect(next.volumeCurve).toEqual([
+      { t: 0, v: 0.5 },
+      { t: 0.3, v: 0.1 },
+      { t: 0.7, v: 0.1 },
+      { t: 1, v: 0.5 },
+    ]);
+  });
+
+  it("drops a curve that is silent throughout — there is no shape to scale", () => {
+    expect(
+      withVolume(
+        { duration: 10, volumeCurve: [{ t: 0, v: 0 }, { t: 1, v: 0 }] },
+        1.5,
+      ),
+    ).toEqual({ volume: 1.5, volumeCurve: undefined });
+  });
+
+  it("cannot store a level above the ceiling by either route", () => {
+    for (const clip of [
+      { duration: 10, volume: 1 },
+      { duration: 10, ...withFades(10, { volume: 1, fadeIn: 2, fadeOut: 2 }) },
+      { duration: 10, volumeCurve: [{ t: 0, v: 1 }, { t: 0.5, v: 0.2 }, { t: 1, v: 1 }] },
+    ]) {
+      const next = withVolume(clip, 9);
+      expect(next.volume).toBeLessThanOrEqual(2);
+      for (const p of next.volumeCurve ?? []) expect(p.v).toBeLessThanOrEqual(2);
+    }
   });
 });
 

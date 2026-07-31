@@ -15,6 +15,7 @@ import {
   Fragment,
   type RefObject,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -44,7 +45,13 @@ import {
 import { VIcon, type VIconName } from "./VIcon";
 import { MIN_CLIP } from "../model/editor-ops";
 import { projectDuration } from "../model/project";
-import type { Rect, Transition, VisualTrackClip } from "../model/types";
+import type {
+  Rect,
+  Transition,
+  VisualTrackClip,
+  VolumePoint,
+} from "../model/types";
+import { barHeights } from "./waveformBars";
 import { videoThumbnail } from "../storage/media";
 import {
   OVERLAY_TRACK,
@@ -82,6 +89,9 @@ type ClipLike = {
   rect?: Rect;
   text?: string;
   transitionIn?: Transition;
+  /** Read by the waveform strip: gain, and the envelope that overrides it. */
+  volume?: number;
+  volumeCurve?: VolumePoint[];
 };
 type ClipEntry = { clip: ClipLike; trackId: string };
 /** One collapsed sub-lane in a squeezed group — clips shown as colour bars. */
@@ -167,35 +177,45 @@ function Filmstrip({
   );
 }
 
+/**
+ * The audio strip. Heights come from `waveformBars`, which scales a synthetic
+ * amplitude by the clip's REAL volume envelope — so a fade in ramps up, a fade
+ * out ramps down, and 200% draws taller than 100%.
+ */
 function Waveform({
-  seed,
+  clip,
   width,
   color,
 }: {
-  seed: string;
+  clip: ClipLike;
   width: number;
   color: string;
 }) {
-  const bars = Math.max(4, Math.floor(width / 5));
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
+  const heights = useMemo(
+    () =>
+      barHeights({
+        src: clip.src,
+        width,
+        trimIn: clip.trimIn,
+        duration: clip.duration,
+        volume: clip.volume,
+        volumeCurve: clip.volumeCurve,
+      }),
+    [clip.src, width, clip.trimIn, clip.duration, clip.volume, clip.volumeCurve],
+  );
   return (
     <View style={styles.waveform} pointerEvents="none">
-      {Array.from({ length: bars }).map((_, i) => {
-        h = (h * 1103515245 + 12345) >>> 0;
-        const amp = 0.25 + (((h >>> 16) % 1000) / 1000) * 0.7;
-        return (
-          <View
-            key={i}
-            style={{
-              width: 2,
-              borderRadius: 1,
-              backgroundColor: color,
-              height: `${amp * 70}%`,
-            }}
-          />
-        );
-      })}
+      {heights.map((h, i) => (
+        <View
+          key={i}
+          style={{
+            width: 2,
+            borderRadius: 1,
+            backgroundColor: color,
+            height: `${h * 100}%`,
+          }}
+        />
+      ))}
     </View>
   );
 }
@@ -336,7 +356,7 @@ function ClipView({
       {kind === "visual" ? (
         <Filmstrip clip={v} height={height} />
       ) : kind === "audio" ? (
-        <Waveform seed={clip.id} width={width} color={vela.wave} />
+        <Waveform clip={clip} width={width} color={vela.wave} />
       ) : (
         <View style={styles.textFill}>
           <Text numberOfLines={1} style={styles.textLabel}>
@@ -397,7 +417,7 @@ function SoundBlock({ clip, pxPerSec }: { clip: ClipLike; pxPerSec: number }) {
   const width = Math.max(20, clip.duration * pxPerSec);
   return (
     <View style={[styles.soundBlock, { left, width }]} pointerEvents="none">
-      <Waveform seed={`${clip.id}snd`} width={width} color={vela.waveSound} />
+      <Waveform clip={clip} width={width} color={vela.waveSound} />
     </View>
   );
 }

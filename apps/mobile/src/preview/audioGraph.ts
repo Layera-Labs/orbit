@@ -137,6 +137,19 @@ export class PreviewAudio {
         if (playing && !player.playing) player.play();
 
         const gain = clipGainAt(clip, clip.duration > 0 ? local / clip.duration : 0);
+        /*
+         * ANYTHING ABOVE 1 IS INAUDIBLE HERE, AND IS NOT IN THE EXPORT.
+         *
+         * `expo-audio`'s `player.volume` is a 0–1 property and the native
+         * player saturates there, so 150% and 200% both sound like 100% in this
+         * preview while ffmpeg renders the real boost. There is no mixer to
+         * borrow headroom from — a gain node would need a native module — and
+         * quietening every OTHER voice to make room would make the preview
+         * quieter than the file, which is the same lie pointed the other way.
+         * The timeline's waveform is the mitigation: `waveformBars` scales the
+         * bars by this exact gain, so a boost you cannot hear is at least one
+         * you can see.
+         */
         // Only write on a real change: this runs at the preview frame rate, and
         // the setter crosses into native every time.
         if (Math.abs(gain - voice.gain) > 0.01) {

@@ -849,7 +849,13 @@ export function setClipVolumeCurve(
   clipId: string,
   curve: VolumePoint[] | undefined,
 ): VideoProject {
-  const vc = curve && curve.length >= 2 ? curve : undefined;
+  // Points are bounded to the SAME ceiling as `setClipVolume`. They were not,
+  // and because a curve overrides the plain number, an out-of-range point was
+  // the one way to store a gain the UI could neither show nor undo.
+  const vc =
+    curve && curve.length >= 2
+      ? curve.map((k) => ({ t: k.t, v: Math.max(0, Math.min(2, k.v)) }))
+      : undefined;
   return updateClips(
     p,
     trackId,

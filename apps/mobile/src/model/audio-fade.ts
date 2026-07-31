@@ -29,6 +29,9 @@ export interface AudioFades {
 /** Longest fade offered, and the longest that can fit in a clip. */
 export const MAX_FADE = 5;
 
+/** Loudest gain the app stores anywhere. Mirrored by `ops.setClipVolume`. */
+export const MAX_VOLUME = 2;
+
 export function maxFadeFor(duration: number): number {
   // Half the clip each, so a fade in and a fade out can never cross.
   return Math.max(0, Math.min(MAX_FADE, duration / 2));
@@ -86,7 +89,11 @@ export function withFades(
   fades: AudioFades,
 ): { volume: number; volumeCurve?: VolumePoint[] } {
   const cap = maxFadeFor(duration);
-  const volume = Math.max(0, fades.volume);
+  // Clamped at BOTH ends to match `setClipVolume`. It used to bound only the
+  // low one, so a plateau above the ceiling was pinned to 2 in `volume` and
+  // kept whole in `volumeCurve` — and since the curve overrides, the export
+  // would have rendered a level no part of the UI was showing.
+  const volume = Math.max(0, Math.min(MAX_VOLUME, fades.volume));
   const fin = Math.max(0, Math.min(cap, fades.fadeIn));
   const fout = Math.max(0, Math.min(cap, fades.fadeOut));
   if (fin <= 0 && fout <= 0) return { volume, volumeCurve: undefined };
@@ -97,4 +104,40 @@ export function withFades(
   pts.push({ t: duration > 0 ? 1 - fout / duration : 1, v: volume });
   if (fout > 0) pts.push({ t: 1, v: 0 });
   return { volume, volumeCurve: pts };
+}
+
+/**
+ * The patch that sets a clip's LEVEL while keeping the shape of its envelope.
+ *
+ * This exists because a curve overrides `volume`, and for a long time only one
+ * of the two volume controls knew it. The audio sheet wrote both fields through
+ * `withFades`; the Volume panel wrote `volume` alone. So on any clip carrying a
+ * fade, dragging Volume to 200% moved a number the renderer never reads — the
+ * export came back at the plateau, unchanged, with nothing to say why. Both
+ * controls go through here now.
+ *
+ * A hand-drawn curve is SCALED rather than replaced: "volume" should mean the
+ * same thing on a duck as on a fade, and flattening someone's envelope to honour
+ * a slider would destroy work to obey it. A curve that is silent throughout has
+ * no shape to scale, so it becomes a plain level.
+ */
+export function withVolume(
+  clip: { duration: number; volume?: number; volumeCurve?: VolumePoint[] },
+  volume: number,
+): { volume: number; volumeCurve?: VolumePoint[] } {
+  const fades = fadesOf(clip);
+  if (fades) return withFades(clip.duration, { ...fades, volume });
+
+  const v = Math.max(0, Math.min(MAX_VOLUME, volume));
+  const pts = clip.volumeCurve ?? [];
+  const peak = Math.max(0, ...pts.map((p) => p.v));
+  if (peak <= 0) return { volume: v, volumeCurve: undefined };
+  const k = v / peak;
+  return {
+    volume: v,
+    volumeCurve: pts.map((p) => ({
+      t: p.t,
+      v: Math.max(0, Math.min(MAX_VOLUME, p.v * k)),
+    })),
+  };
 }
