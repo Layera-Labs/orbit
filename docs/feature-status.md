@@ -522,7 +522,7 @@ Several existing documents describe an older state of the project:
 
 - `apps/mobile/README.md` still describes a thin render client and does not reflect
   the current native editor.
-- `ROADMAP.md` contains useful history but still lists the mobile app as future
+- `docs/roadmap.md` contains useful history but still lists the mobile app as future
   work in places.
 - `packages/video-gen/README.md` says real providers are pending even though Runway
   and ElevenLabs providers now exist.

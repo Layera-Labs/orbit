@@ -11,8 +11,9 @@ Next.js, and React Native.
 **Current focus: a native mobile video-editing app (`apps/mobile`), modelled on the VN
 Video Editor app.** That is where nearly all active work happens.
 
-Source-of-truth docs: [ROADMAP.md](ROADMAP.md), [ARCHITECTURE_V2.md](ARCHITECTURE_V2.md),
-[PROJECT_FEATURE_STATUS_REPORT.md](PROJECT_FEATURE_STATUS_REPORT.md) (audit, 2026-07-26),
+Source-of-truth docs: [docs/roadmap.md](docs/roadmap.md),
+[docs/architecture-v2.md](docs/architecture-v2.md),
+[docs/feature-status.md](docs/feature-status.md) (audit, 2026-07-26),
 [AGENTS.md](AGENTS.md) (repo conventions).
 
 ## Repo shape
@@ -272,10 +273,11 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
 
 ## Design system ("Vela")
 
-Originally specced from the user's `Vela.dc.html` mockup, which lived in a
-`CapCut-style editing app UI/` directory at the repo root until 2026-07-31. It is no
-longer in the working tree; recover it from history if a detail is ever in question
-(`git show 0b1cfb2:'CapCut-style editing app UI/Vela.dc.html'`).
+Originally specced from the user's own `Vela.dc.html` mockup. That file and its
+screenshots were removed from the repo — and from its history — on 2026-07-31, before
+the project was opened up; the user keeps the only copy locally. Do not go looking for
+it in the tree or in `git log`, and do not re-add it. Everything it decided is in
+`constants.ts`, `VIcon.tsx` and this file.
 Tokens in `apps/mobile/src/constants.ts` — `vela` / `theme.vela`, plus `sp` (spacing),
 `r` (radii), `elev` (tight directional shadows).
 
