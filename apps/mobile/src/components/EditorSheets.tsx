@@ -18,6 +18,7 @@ import {
   TextInput,
   View,
   useWindowDimensions,
+  type LayoutChangeEvent,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
@@ -38,6 +39,7 @@ import {
   SFX,
   SOLID_PRESETS,
   STICKERS,
+  STOCK_BACKGROUNDS,
   openmojiUrl,
 } from "../content/catalog";
 import {
@@ -2609,6 +2611,31 @@ function CurveSheet() {
   );
 }
 
+/**
+ * A grid whose cells fill the row, edge to edge.
+ *
+ * Every grid in the content library used a FIXED cell width, so how much of the
+ * row it filled was an accident of the phone: four 68pt swatches and their gaps
+ * came to 302 in a 366pt sheet, leaving 64pt of dead space stranded on the right
+ * of every row while the cells themselves looked cramped.
+ *
+ * The width is MEASURED rather than derived from the window minus the sheet's
+ * known padding — that arithmetic is what put the aspect grid a whole cell out,
+ * and this sheet has more chrome than that one. `useWindowDimensions` is the
+ * first-frame fallback only, so nothing renders at zero width while the layout
+ * pass lands.
+ */
+function useGridCell(cols: number, gap = 10) {
+  const { width: winW } = useWindowDimensions();
+  const [w, setW] = useState(0);
+  const size = Math.floor(((w || winW - 36) - gap * (cols - 1)) / cols);
+  return {
+    gap,
+    size: Math.max(24, size),
+    onLayout: (e: LayoutChangeEvent) => setW(e.nativeEvent.layout.width),
+  };
+}
+
 function StockTab({ onPick }: { onPick: () => void }) {
   const setPanel = useEditor((s) => s.setPanel);
   const [provider, setProvider] = useState<StockProvider>("unsplash");
@@ -2619,6 +2646,7 @@ function StockTab({ onPick }: { onPick: () => void }) {
   const [needKey, setNeedKey] = useState<StockProvider | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const effKind: StockKind = provider === "unsplash" ? "image" : kind; // Unsplash = images only
+  const grid = useGridCell(3);
 
   const run = async () => {
     if (!query.trim()) return;
@@ -2700,7 +2728,7 @@ function StockTab({ onPick }: { onPick: () => void }) {
       <ScrollView
         style={{ maxHeight: 320 }}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 8 }}
+        contentContainerStyle={{ paddingBottom: 8, gap: 10 }}
       >
         {loading ? (
           <View
@@ -2712,8 +2740,11 @@ function StockTab({ onPick }: { onPick: () => void }) {
           >
             <ActivityIndicator color={vela.accent} />
           </View>
-        ) : (
-          <View style={s.libGrid}>
+        ) : results.length ? (
+          <View
+            style={[s.libGrid, { gap: grid.gap }]}
+            onLayout={grid.onLayout}
+          >
             {results.map((it) => (
               <Pressable
                 key={it.id}
@@ -2721,7 +2752,10 @@ function StockTab({ onPick }: { onPick: () => void }) {
                   onPick();
                   void addStockItem(it);
                 }}
-                style={s.stockCell}
+                style={[
+                  s.stockCell,
+                  { width: grid.size, height: Math.round(grid.size * 1.2) },
+                ]}
               >
                 <Image
                   source={{ uri: it.thumb }}
@@ -2736,6 +2770,41 @@ function StockTab({ onPick }: { onPick: () => void }) {
               </Pressable>
             ))}
           </View>
+        ) : (
+          /*
+           * Nothing searched yet. Rather than an empty rectangle under a search
+           * field, the starter set — which needs no API key, and sets the
+           * BACKGROUND rather than adding a clip, because Canvas → Background is
+           * the door most people arrive through. The heading says so, since a
+           * grid of photographs is otherwise silent about what a tap will do.
+           */
+          <>
+            <Text style={s.libSection}>Backgrounds · tap to use</Text>
+            <View
+              style={[s.libGrid, { gap: grid.gap }]}
+              onLayout={grid.onLayout}
+            >
+              {STOCK_BACKGROUNDS.map((im) => (
+                <Pressable
+                  key={im.id}
+                  onPress={() => {
+                    onPick();
+                    void setBackgroundFromUrl(im.full);
+                  }}
+                  style={[
+                    s.stockCell,
+                    { width: grid.size, height: Math.round(grid.size * 1.2) },
+                  ]}
+                >
+                  <Image
+                    source={{ uri: im.thumb }}
+                    style={s.libSwatch}
+                    resizeMode="cover"
+                  />
+                </Pressable>
+              ))}
+            </View>
+          </>
         )}
       </ScrollView>
     </View>
@@ -2750,6 +2819,9 @@ function ContentLibrarySheet() {
   const bg = useEditor((s) => s.project?.background);
   const [tab, setTab] = useState<LibraryTab>(useEditor.getState().libraryTab);
   const close = () => setPanel(null);
+  // Four background swatches to a row, six emoji — both filling the sheet.
+  const bgGrid = useGridCell(4);
+  const emojiGrid = useGridCell(6);
   const TABS: { key: LibraryTab; label: string }[] = [
     { key: "stickers", label: "Stickers" },
     { key: "emoji", label: "Emoji" },
@@ -2787,12 +2859,16 @@ function ContentLibrarySheet() {
           contentContainerStyle={{ gap: 12, paddingBottom: 8 }}
         >
           <Text style={s.libSection}>Gradients</Text>
-          <View style={s.libGrid}>
+          <View style={[s.libGrid, { gap: bgGrid.gap }]} onLayout={bgGrid.onLayout}>
             {GRADIENT_PRESETS.map((p) => (
               <Pressable
                 key={p.id}
                 onPress={() => applyBackground(p.bg)}
-                style={[s.libCell, bgActive(p) && s.libCellOn]}
+                style={[
+                  s.libCell,
+                  { width: bgGrid.size, height: bgGrid.size },
+                  bgActive(p) && s.libCellOn,
+                ]}
               >
                 <LinearGradient
                   colors={[
@@ -2807,12 +2883,16 @@ function ContentLibrarySheet() {
             ))}
           </View>
           <Text style={s.libSection}>Solid</Text>
-          <View style={s.libGrid}>
+          <View style={[s.libGrid, { gap: bgGrid.gap }]}>
             {SOLID_PRESETS.map((p) => (
               <Pressable
                 key={p.id}
                 onPress={() => applyBackground(p.bg)}
-                style={[s.libCell, bgActive(p) && s.libCellOn]}
+                style={[
+                  s.libCell,
+                  { width: bgGrid.size, height: bgGrid.size },
+                  bgActive(p) && s.libCellOn,
+                ]}
               >
                 <View
                   style={[
@@ -2825,13 +2905,17 @@ function ContentLibrarySheet() {
             ))}
           </View>
           <Text style={s.libSection}>Images</Text>
-          <View style={s.libGrid}>
+          <View style={[s.libGrid, { gap: bgGrid.gap }]}>
             <Pressable
               onPress={() => {
                 close();
                 void setBackgroundFromPhoto();
               }}
-              style={[s.libCell, s.bgPhotoCell]}
+              style={[
+                s.libCell,
+                { width: bgGrid.size, height: bgGrid.size },
+                s.bgPhotoCell,
+              ]}
             >
               <VIcon name="photos" size={22} color="#fff" />
             </Pressable>
@@ -2840,7 +2924,7 @@ function ContentLibrarySheet() {
               <Pressable
                 key={b.id}
                 onPress={() => void setBundledBackground(b.module)}
-                style={s.libCell}
+                style={[s.libCell, { width: bgGrid.size, height: bgGrid.size }]}
               >
                 <Image
                   source={b.module}
@@ -2853,7 +2937,7 @@ function ContentLibrarySheet() {
               <Pressable
                 key={im.id}
                 onPress={() => void setBackgroundFromUrl(im.full)}
-                style={s.libCell}
+                style={[s.libCell, { width: bgGrid.size, height: bgGrid.size }]}
               >
                 <Image
                   source={{ uri: im.thumb }}
@@ -2872,7 +2956,10 @@ function ContentLibrarySheet() {
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ paddingBottom: 8 }}
         >
-          <View style={s.libGrid}>
+          <View
+            style={[s.libGrid, { gap: emojiGrid.gap }]}
+            onLayout={emojiGrid.onLayout}
+          >
             {(() => {
               const bundled = tab === "emoji" ? BUNDLED_EMOJI : BUNDLED_STICKER;
               const catalog = tab === "emoji" ? EMOJIS : STICKERS;
@@ -2891,11 +2978,17 @@ function ContentLibrarySheet() {
                       if (mod) void addBundledSticker(mod);
                       else void addStickerFromUrl(openmojiUrl(e.code, 618));
                     }}
-                    style={s.emojiCell}
+                    style={[
+                      s.emojiCell,
+                      { width: emojiGrid.size, height: emojiGrid.size },
+                    ]}
                   >
                     <Image
                       source={mod ?? { uri: openmojiUrl(e.code, 72) }}
-                      style={{ width: 44, height: 44 }}
+                      style={{
+                        width: Math.round(emojiGrid.size * 0.72),
+                        height: Math.round(emojiGrid.size * 0.72),
+                      }}
                       resizeMode="contain"
                     />
                   </Pressable>
@@ -3589,9 +3682,8 @@ const s = StyleSheet.create({
   },
   genBtnText: { color: vela.onAccent, fontFamily: font.bold, fontSize: 16 },
   libGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  // Size comes from `useGridCell` at every call site — the cells fill the row.
   libCell: {
-    width: 68,
-    height: 68,
     borderRadius: 12,
     overflow: "hidden",
     padding: 2,
@@ -3608,8 +3700,6 @@ const s = StyleSheet.create({
    */
   libSwatchEdge: { borderWidth: 1, borderColor: vela.lightBorder },
   emojiCell: {
-    width: 56,
-    height: 56,
     borderRadius: 12,
     backgroundColor: vela.lightSurface,
     alignItems: "center",
@@ -3650,8 +3740,6 @@ const s = StyleSheet.create({
     gap: 3,
   },
   stockCell: {
-    width: 104,
-    height: 104,
     borderRadius: 12,
     overflow: "hidden",
     backgroundColor: vela.lightSurface,

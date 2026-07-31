@@ -34,6 +34,29 @@ export const BG_IMAGES: { id: string; thumb: string; full: string }[] = BG_SEEDS
   full: `https://picsum.photos/seed/orbitbg-${seed}/1080/1920`,
 }));
 
+/**
+ * The Stock tab's starter set, shown before anything is searched.
+ *
+ * Stock search is bring-your-own-key, so without one that tab used to be an
+ * empty rectangle under a search field — a screen that says "there is nothing
+ * here" when the thing it is reached from (Canvas → Background) is exactly what
+ * these are for. These need no key: they are stable Picsum seeds, portrait, and
+ * they set the project background rather than adding a clip.
+ *
+ * Deliberately different seeds from `BG_SEEDS`, so the two grids are not the
+ * same eight photographs shown twice under different headings.
+ */
+const STOCK_BG_SEEDS = [
+  'ridge', 'harbour', 'canyon', 'pines', 'tide', 'meadow',
+  'marble', 'dune', 'lantern', 'orchard', 'glacier', 'terrace',
+];
+export const STOCK_BACKGROUNDS: { id: string; thumb: string; full: string }[] =
+  STOCK_BG_SEEDS.map((seed) => ({
+    id: seed,
+    thumb: `https://picsum.photos/seed/orbitstock-${seed}/240/427`,
+    full: `https://picsum.photos/seed/orbitstock-${seed}/1080/1920`,
+  }));
+
 // ---- Emojis (OpenMoji, CC BY-SA 4.0) — crisp 618px PNGs via jsDelivr --------
 
 const OPENMOJI = 'https://cdn.jsdelivr.net/gh/hfg-gmuend/openmoji@15.0.0/color';
