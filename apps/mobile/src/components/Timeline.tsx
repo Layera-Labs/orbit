@@ -58,6 +58,7 @@ import type {
   VisualTrackClip,
   VolumePoint,
 } from "../model/types";
+import { SelectionActionBar } from "./SelectionActionBar";
 import { barHeights } from "./waveformBars";
 import { LANES, type LaneColors } from "./laneColors";
 import { videoThumbnail } from "../storage/media";
@@ -1016,6 +1017,33 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
     empty: "Original audio",
   });
 
+  /*
+   * Where the selected clip's lane sits, so the floating HUD can be placed
+   * against it. Measured in the scroll area's own space — the ruler first,
+   * then each lane and the gap under it — which is exactly the stack the
+   * background bars and the empty-lane hints already lay out, so a lane added
+   * or squeezed moves all four together.
+   *
+   * A selected clip is always on an EXPANDED lane: `activeGroup` follows the
+   * selection, so the group holding it is never the collapsed summary strip.
+   */
+  const selLane = (() => {
+    if (!selected) return null;
+    let top = RULER_H;
+    for (const r of lanes) {
+      if (
+        !r.squeezed &&
+        r.clips.some(
+          (e) =>
+            e.trackId === selected.trackId && e.clip.id === selected.clipId,
+        )
+      )
+        return { top, height: r.height };
+      top += r.height + LANE_GAP;
+    }
+    return null;
+  })();
+
   const end = project ? projectDuration(project) : 0;
   // Scroll stays enabled while a clip is selected — clip drag/trim gestures
   // block the scroll on touch (see ClipView), so both coexist.
@@ -1254,6 +1282,18 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
               <View style={styles.playheadKnob} />
               <View style={styles.playheadLine} />
             </View>
+
+            {/* The selection HUD, over the lane it belongs to. It lives here
+                rather than over the whole editor so that it scrolls with the
+                lanes it is pinned to. */}
+            {selLane ? (
+              <SelectionActionBar
+                laneTop={selLane.top}
+                laneH={selLane.height}
+                width={scrollW}
+                originX={PLAYHEAD_X}
+              />
+            ) : null}
           </View>
         </View>
       </ScrollView>

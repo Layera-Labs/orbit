@@ -9,28 +9,27 @@
  *   apply to it. The previous version showed the same six buttons for all of
  *   them and used a disabled-with-an-alert state to explain the ones that did
  *   nothing; an action that cannot apply simply is not in the list now.
- * - It is not parked in the middle. It follows the selected clip along the
- *   timeline, so it reads as belonging to that clip rather than to the screen.
- * - It does not sit on anything. Vertically it clears the timeline AND the
- *   transport row above it, which took two goes: dropping it on the selected
- *   clip's own lane buries three other lanes; the first fix cleared the lanes
- *   but landed on the play button, the timecode and undo. Clearing both means
- *   it can only overlap the very bottom edge of the picture, which is the one
- *   thing on this screen nothing is ever read from.
+ * - It is not parked in the middle. It follows the selected clip in BOTH axes:
+ *   along the timeline to the clip's centre, and up or down to the lane the
+ *   clip lives on. It used to be lifted clear of the whole timeline, which put
+ *   the bar for a clip on the fourth lane at the very top of the screen with
+ *   nothing connecting the two. Sitting one row off its own lane says which
+ *   lane it belongs to without a line drawn between them.
+ * - It is not on its own clip. Above the lane if there is room above it, below
+ *   it otherwise — so the top lane pushes the bar down rather than covering
+ *   the clip you just selected, or climbing onto the transport.
+ *
+ * It is rendered INSIDE the timeline's vertical scroller, so it travels with
+ * the lanes for free. Positioning it from the outside would mean plumbing that
+ * scroll offset back out, and the bar would drift off its lane every time the
+ * lanes moved under it.
  *
  * No enter/exit animation, because the bar MOVES — a slide-in replayed on every
  * reposition reads as broken rather than lively.
  */
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  useWindowDimensions,
-} from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { font } from "../constants";
 import { laneColors } from "./laneColors";
-import { GUTTER_W, PLAYHEAD_X } from "./Timeline";
 import { VIcon, type VIconName } from "./VIcon";
 import type { VisualTrackClip } from "../model/types";
 import { OVERLAY_TRACK, useEditor } from "../store/editorStore";
@@ -47,34 +46,52 @@ interface Action {
 /**
  * One slot per action: icon, then its label under it.
  *
- * The labels were dropped once, for a real reason — there is about 80pt between
- * the bottom of the preview and the top of the timeline, the transport sits in
- * the middle of it, and a taller bar has to go somewhere. They are back because
- * an icon alone is a guess, and the room comes from the only direction that
- * costs nothing: UP, into the letterboxed bottom edge of the picture, which is
- * the one part of this screen nothing is ever read from. The bar still clears
- * the transport, because `liftBy` is measured rather than assumed.
- *
- * The geometry is the one the timeline's gap HUD already proves at this size: a
- * 19pt icon, a 3pt gap, a 10pt label.
+ * Deliberately tight. The bar now lands one row off its own lane rather than
+ * above the whole timeline, so every point of its height covers a neighbouring
+ * lane — the padding is 4pt a side, not the 9 it carried when it floated in
+ * open space above everything. Icon and label keep the sizes the timeline's gap
+ * HUD already proves; what came off is the air around them.
  */
-const ITEM_W = 56;
+const ITEM_W = 54;
 const EDGE = 8;
-const ICON = 19;
-const LABEL_H = 12;
+const ICON = 18;
+const LABEL_H = 11;
+const PAD_V = 4;
+/** One slot: the icon, the gap under it, and one line of label. */
+const ITEM_H = ICON + 2 + LABEL_H;
 /**
- * The bar's exact height: the icon, the gap under it, one line of label, 8pt of
- * padding either side, and its 1pt border top and bottom. Stated as a constant
- * because it is what lifts the bar clear of the timeline, and a wrong number
- * here does not merely misalign the bar — it puts it back on top of the lanes.
+ * The bar's exact height: a slot, the padding either side of it, and its 1pt
+ * border top and bottom. Stated as a constant because it is what places the bar
+ * against its lane, and a wrong number here does not merely misalign it — it
+ * drops the bar onto the clip it describes.
  *
- * A percentage (`bottom: '100%'`) would express the same intent without the
- * magic number, but the bar is absolutely positioned and so contributes no
- * height to measure against.
+ * A percentage would express the same intent without the magic number, but the
+ * bar is absolutely positioned and so contributes no height to measure against.
+ * `ITEM_H` is therefore the SLOT's height and not `BAR_H - 2`: the slot sits
+ * inside the padding, so deriving one from the other double-counted it and made
+ * the bar 8pt taller than the number placing it.
  */
-const BAR_H = ICON + 3 + LABEL_H + 16 + 2;
+const BAR_H = ITEM_H + PAD_V * 2 + 2;
+/** Clearance between the bar and the lane it belongs to. */
+const LANE_GAP = 5;
 
-export function SelectionActionBar({ liftBy = 0 }: { liftBy?: number }) {
+export interface SelectionActionBarProps {
+  /** Top of the selected clip's lane, in the timeline scroll area's own space. */
+  laneTop: number;
+  /** That lane's height, so the bar can drop below it when it cannot go above. */
+  laneH: number;
+  /** Width of the scroll area, for clamping the bar inside it. */
+  width: number;
+  /** x of time zero in that same space (the timeline's playhead offset). */
+  originX: number;
+}
+
+export function SelectionActionBar({
+  laneTop,
+  laneH,
+  width,
+  originX,
+}: SelectionActionBarProps) {
   const selected = useEditor((s) => s.selected);
   const project = useEditor((s) => s.project);
   const pxPerSec = useEditor((s) => s.pxPerSec);
@@ -86,7 +103,6 @@ export function SelectionActionBar({ liftBy = 0 }: { liftBy?: number }) {
   const splitAtPlayhead = useEditor((s) => s.splitAtPlayhead);
   const setPanel = useEditor((s) => s.setPanel);
   const mainTrackId = useEditor((s) => s.mainTrackId);
-  const { width: screenW } = useWindowDimensions();
 
   if (!selected || !project) return null;
 
@@ -278,26 +294,28 @@ export function SelectionActionBar({ liftBy = 0 }: { liftBy?: number }) {
     ? clip.duration
     : Math.max(0.1, overlay!.end - overlay!.start);
   const barW = actions.length * ITEM_W + 4;
-  const centre =
-    GUTTER_W + PLAYHEAD_X + (start + duration / 2 - playheadSec) * pxPerSec;
-  const left = Math.max(
-    EDGE,
-    Math.min(screenW - barW - EDGE, centre - barW / 2),
-  );
+  const centre = originX + (start + duration / 2 - playheadSec) * pxPerSec;
+  const left = Math.max(EDGE, Math.min(width - barW - EDGE, centre - barW / 2));
+
+  /*
+   * Above its lane, or below it when there is nothing above to sit on. The
+   * first lane is the case that decides this: `above` goes negative there,
+   * which would put the bar over the ruler and then onto the transport, so it
+   * drops to the far side of the lane instead. Either way it never covers the
+   * clip it describes.
+   */
+  const above = laneTop - BAR_H - LANE_GAP;
+  const top = above >= 0 ? above : laneTop + laneH + LANE_GAP;
 
   return (
     <View style={styles.wrap} pointerEvents="box-none">
       <View
         style={[
           styles.bar,
-          // Clear of the timeline AND of the transport row above it. `liftBy`
-          // is the transport's MEASURED height rather than a guess, because
-          // being a few points short here does not look slightly wrong — it
-          // puts the bar back on top of the play button.
           {
             left,
             width: barW,
-            top: -(BAR_H + 8 + liftBy),
+            top,
             backgroundColor: lane.key,
             borderColor: lane.body,
           },
@@ -328,23 +346,18 @@ export function SelectionActionBar({ liftBy = 0 }: { liftBy?: number }) {
 }
 
 const styles = StyleSheet.create({
-  // Anchored to the timeline's TOP EDGE, with the bar itself lifted entirely
-  // above it. It used to sit at -22, which cleared nothing: the bar is 56 tall,
-  // so two thirds of it hung over the ruler and the first lane and buried the
-  // music track it was supposed to be describing.
+  // Fills the timeline's scroll area, so `top` is measured from the top of the
+  // ruler — the same space the lane offsets are computed in.
   wrap: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
+    ...StyleSheet.absoluteFillObject,
     zIndex: 30,
   },
   bar: {
     position: "absolute",
     flexDirection: "row",
     paddingHorizontal: 2,
-    paddingVertical: 9,
-    borderRadius: 14,
+    paddingVertical: PAD_V,
+    borderRadius: 11,
     borderCurve: "continuous",
     borderWidth: 1,
     // Fill and edge are tinted per lane at the call site. The shadow is not:
@@ -354,10 +367,13 @@ const styles = StyleSheet.create({
   },
   item: {
     width: ITEM_W,
-    height: BAR_H - 2,
+    height: ITEM_H,
     alignItems: "center",
     justifyContent: "center",
-    gap: 3,
+    gap: 2,
   },
-  label: { fontSize: 10, fontFamily: font.semibold },
+  // `lineHeight` is stated because RN's default leading for a 10pt face is
+  // taller than LABEL_H, and the slack lands under the label — which reads as
+  // the bar being bottom-heavy however small the padding gets.
+  label: { fontSize: 10, lineHeight: LABEL_H, fontFamily: font.semibold },
 });

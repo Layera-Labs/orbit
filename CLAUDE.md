@@ -104,11 +104,17 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   explain the dead ones with an alert. It is positioned from state that already exists —
   scrolling the timeline IS setting the playhead, so the scroll offset is
   `playheadSec * pxPerSec` and the clip's on-screen centre needs no plumbing out of
-  `Timeline`. Vertically it clears the timeline ENTIRELY (`top: -(BAR_H + 8)` against the
-  timeline's top edge): dropping it on the selected clip's lane would bury three others, and
-  the first attempt at "just above" used a flat `-22` against a 56pt bar, so two thirds of it
-  still sat on the ruler and the music track. `BAR_H` is a stated constant because the bar is
-  absolutely positioned and contributes no height for a percentage to measure against.
+  `Timeline`. Vertically it sits **against its own lane** (2026-07-31) — above it, or below
+  it when the lane is the top one and there is nothing above to sit on. It is rendered
+  INSIDE the timeline's vertical scroller, from `selLane` (`RULER_H` plus each lane and its
+  `LANE_GAP`), so it travels with the lanes; positioning it from `EditorScreen` would mean
+  plumbing that scroll offset back out. It previously cleared the WHOLE timeline, which put
+  the bar for a clip on the fourth lane at the very top of the screen with nothing tying the
+  two together — the user asked for it on its lane three times. `BAR_H` is a stated constant
+  because the bar is absolutely positioned and contributes no height for a percentage to
+  measure against, and `ITEM_H` is stated separately: the slot sits INSIDE the padding, so
+  the old `height: BAR_H - 2` double-counted it and the bar ran 8pt taller than the number
+  placing it.
 - **A clip's level has ONE writer, because a curve overrides `volume`** (2026-07-31).
   `clipGainAt` and `ffmpeg.ts` both read `volumeCurve` INSTEAD of `volume` when one is
   set — deliberate, and the reason `withFades` writes the plateau into both. But the

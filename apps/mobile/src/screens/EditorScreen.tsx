@@ -24,7 +24,6 @@ import { VIcon, type VIconName } from "../components/VIcon";
 import { Preview } from "../components/Preview";
 import { Timeline } from "../components/Timeline";
 import { EditorSheets } from "../components/EditorSheets";
-import { SelectionActionBar } from "../components/SelectionActionBar";
 import { OVERLAY_TRACK, useEditor } from "../store/editorStore";
 
 interface Tool {
@@ -86,8 +85,6 @@ export function EditorScreen() {
   // Fullscreen player: `fsMounted` keeps the modal alive through its exit
   // animation; `fsAnim` (0→1) drives an expand-in / shrink-out of the player.
   const [fsMounted, setFsMounted] = useState(false);
-  /** Measured, so the selection bar can clear the transport rather than cover it. */
-  const [transportH, setTransportH] = useState(0);
   const fsAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -561,10 +558,7 @@ export function EditorScreen() {
       </View>
 
       {/* Transport */}
-      <View
-        style={styles.transport}
-        onLayout={(e) => setTransportH(e.nativeEvent.layout.height)}
-      >
+      <View style={styles.transport}>
         <Text style={styles.tc}>
           {playheadSec.toFixed(2)}
           <Text style={styles.tcDim}>s / {dur.toFixed(2)}s</Text>
@@ -601,17 +595,11 @@ export function EditorScreen() {
         </View>
       </View>
 
-      {/* Timeline (with the floating selection action bar over its top) */}
+      {/* Timeline. The floating selection HUD is rendered INSIDE it, against
+          the lane it belongs to, so it travels with the lanes when they
+          scroll. */}
       <View style={[styles.timelineWrap, { maxHeight: timelineMaxH }]}>
         <Timeline maxHeight={timelineMaxH} />
-        {/*
-          The bar is lifted clear of the transport as well as the timeline.
-          Its height is measured rather than assumed because the transport is
-          the row holding play, undo and redo — landing a few points short of
-          it does not look slightly off, it makes the play button unreachable
-          for as long as a clip is selected.
-        */}
-        <SelectionActionBar liftBy={transportH} />
       </View>
 
       {/* Bottom tool rail */}
