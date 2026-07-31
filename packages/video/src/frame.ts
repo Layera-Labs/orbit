@@ -18,6 +18,7 @@ import {
   type ClipMagnifier,
   type ClipMask,
   type ClipMosaic,
+  type SourceRect,
   type VideoProject,
   type VisualTrack,
   type VisualTrackClip,
@@ -31,6 +32,7 @@ import {
   sampleKeyframes,
 } from './keyframes';
 import { clipRectPx, progressAt, r3, srcTimeAt } from './layout';
+import { isFullSource, normalizeRotation } from './transform';
 import { fadeFactorAt, projectFadeMap } from './transitions';
 import { backgroundToSVG } from './background-svg';
 import { overlayToSVG } from './overlay-svg';
@@ -63,6 +65,19 @@ export interface DrawOp {
   cutout?: ChromaKey;
   mosaic?: ClipMosaic;
   magnifier?: ClipMagnifier;
+  /**
+   * CLOCKWISE rotation in degrees about the centre of `dst`. Absent = none.
+   *
+   * `dst` stays the UNROTATED box — the grown, axis-aligned box a rotated clip
+   * occupies is derivable from `rotatedBoxPx(dst, rotation)`, so it is not
+   * duplicated into the op where the two could drift.
+   */
+  rotation?: number;
+  /**
+   * Which part of the source to draw, normalized to the media's own size.
+   * Resolved against the decoded natural size by `sourceCropPx`.
+   */
+  srcRect?: SourceRect;
 }
 
 /**
@@ -161,6 +176,8 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
       cutout: c.cutout,
       mosaic: c.mosaic,
       magnifier: c.magnifier,
+      rotation: normalizeRotation(c.rotation) || undefined,
+      srcRect: isFullSource(c.crop) ? undefined : c.crop,
     });
   }
 

@@ -40,6 +40,7 @@ export type {
   MotionType,
   ExportOutput,
   Rect,
+  SourceRect,
   VisualTrackClip,
   AudioTrackClip,
   VisualTrack,
@@ -47,7 +48,7 @@ export type {
   Track,
   VideoProject,
 } from './types';
-export { FULL_FRAME } from './types';
+export { FULL_FRAME, FULL_SOURCE } from './types';
 export {
   FILTER_PRESETS,
   NEUTRAL,
@@ -92,6 +93,20 @@ export {
   magnifierCropPx,
   ROUNDED_R,
 } from './layout';
+// Rotation + source-crop geometry. Same contract as `layout`: the export, the
+// canvas compositor and the Skia preview all size a rotated box from here, so
+// they cannot round it three different ways.
+export {
+  evenUp,
+  normalizeRotation,
+  isRightAngle,
+  rotatedBoxPx,
+  isFullSource,
+  clampSourceRect,
+  sourceCropPx,
+  snapAngle,
+  SNAP_ANGLES,
+} from './transform';
 export { buildFadeMap, projectFadeMap, fadeFactorAt } from './transitions';
 export type { ClipFade } from './transitions';
 
