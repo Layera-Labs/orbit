@@ -1,6 +1,6 @@
 # Orbit — Roadmap
 
-> **Canonical roadmap.** Last updated 2026-06-24. Single source of truth for Orbit's status and direction. Supersedes `orbit-sdk-build-plan.md`, `phases.plan.md`, `PROJECT_STATUS.md` (archived under [`docs/archive/`](docs/archive/)) and `plan.md` (retired). [`ARCHITECTURE_V2.md`](ARCHITECTURE_V2.md) remains the v2 technical spec; [`AGENTS.md`](AGENTS.md) remains the contributor guide.
+> **Canonical roadmap.** Last updated 2026-06-24. Single source of truth for Orbit's status and direction. Supersedes `orbit-sdk-build-plan.md`, `phases.plan.md`, `PROJECT_STATUS.md` (archived under [`archive/`](archive/)) and `plan.md` (retired). [`architecture-v2.md`](architecture-v2.md) remains the v2 technical spec; [`AGENTS.md`](../AGENTS.md) remains the contributor guide.
 
 **Orbit** is an embeddable, white-label **design-canvas editor SDK** — Canva/Polotno-style — for image and (later) video. Images and video live on a canvas as **layers**, with a global **timeline** for animation and audio. The product wedge is an **agentic layer** ("describe → generate + edit"): canvas parity with the incumbents is table stakes; the agent is the reason a business chooses Orbit. Primary targets: **React Native (via WebView), Next.js, and React.**
 
@@ -51,7 +51,7 @@ Orbit currently contains **two editor stacks**. This is deliberate and temporary
 - `@orbit/next` — SSR-safe wrapper (dynamic import, `ssr: false`).
 - Feature-complete through image + video + audio + vector + collaboration.
 
-**v2 — the committed future** (see [`ARCHITECTURE_V2.md`](ARCHITECTURE_V2.md))
+**v2 — the committed future** (see [`architecture-v2.md`](architecture-v2.md))
 - `@orbit/model` — headless **Valtio** document model (`Document → Page → Element`), `toJSON`/`loadJSON`, `applyAction`, transactional history (a whole drag = one undo), `migrateSceneGraphToDocument`. Runs in Node, no DOM.
 - `@orbit/render` — **react-konva** renderer; the canvas is a pure function of the model (each element binds its own snapshot, so dragging one element re-renders only that node).
 - `@orbit/editor` — thin React UI, no bridge (`useStore`/`useSelectedElement`, pluggable SidePanel sections).
@@ -132,10 +132,10 @@ Forward phases are **lettered** to avoid colliding with the retired Phase-N numb
 
 | Doc | Role |
 |---|---|
-| `ROADMAP.md` (this file) | Canonical roadmap — status + direction |
-| `ARCHITECTURE_V2.md` | v2 technical spec (model / render / editor / providers) |
+| `docs/roadmap.md` (this file) | Canonical roadmap — status + direction |
+| `docs/architecture-v2.md` | v2 technical spec (model / render / editor / providers) |
 | `AGENTS.md` | Contributor guide (structure, commands, style) |
-| `PERFORMANCE_AUDIT.md` | Legacy-v1 bundle-size & memory audit (reference) |
+| `docs/performance-audit.md` | Legacy-v1 bundle-size & memory audit (reference) |
 | `docs/` | API reference + guides (17 markdown files) |
 | `docs/archive/` | Retired planning docs: `orbit-sdk-build-plan.md`, `phases.plan.md`, `PROJECT_STATUS.md`, `Orbit Editor UI Polish + Agentic Workflow Plan.PLAN.md` |
 
