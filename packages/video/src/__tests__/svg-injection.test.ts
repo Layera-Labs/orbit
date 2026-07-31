@@ -18,9 +18,10 @@
  */
 import { describe, expect, it } from 'vitest';
 import { backgroundToSVG } from '../background-svg';
+import { canvasFrameToSVG } from '../canvas-frame';
 import { overlayToSVG } from '../overlay-svg';
 import { assertNoExternalRefs, col, num } from '../svg';
-import type { Background, TextOverlay } from '../types';
+import type { Background, CanvasFrame, TextOverlay } from '../types';
 
 /** A caption with one field poisoned, cast the way the server casts a body. */
 const poisoned = (field: Partial<Record<keyof TextOverlay, unknown>>): TextOverlay =>
@@ -96,6 +97,33 @@ describe('a project number cannot become markup', () => {
     const svg = overlayToSVG(poisoned({ text: 'Rock & Roll <3 "quoted"' }), 400, 300);
     expect(() => assertNoExternalRefs(svg)).not.toThrow();
     expect(svg).toContain('Rock &amp; Roll &lt;3 &quot;quoted&quot;');
+  });
+
+  /* The canvas frame is the third builder, and it reaches resvg by exactly the
+     same route: a project field, concatenated into an attribute, rasterized. */
+  it.each([
+    ['color', { color: "url('/etc/passwd')", width: 0.05 }],
+    ['width', { color: '#fff', width: BREAKOUT }],
+    ['radius', { color: '#fff', width: 0.05, radius: BREAKOUT }],
+    ['opacity', { color: '#fff', width: 0.05, opacity: BREAKOUT }],
+  ])('holds for the canvas frame’s %s', (_name, frame) => {
+    const svg = canvasFrameToSVG(frame as unknown as CanvasFrame, 400, 300);
+    // `null` is a legitimate answer — a poisoned width is not a positive
+    // number, so the frame paints nothing. What must never happen is markup.
+    if (svg) {
+      expect(() => assertNoExternalRefs(svg)).not.toThrow();
+      expect(svg).not.toContain('url(');
+      expect(svg).not.toContain('<image');
+    }
+  });
+
+  it('holds for the canvas frame’s own frame size', () => {
+    const f = { color: '#fff', width: 0.05 } as CanvasFrame;
+    for (const svg of [
+      canvasFrameToSVG(f, BREAKOUT as unknown as number, 300),
+      canvasFrameToSVG(f, 400, BREAKOUT as unknown as number),
+    ])
+      if (svg) expect(() => assertNoExternalRefs(svg)).not.toThrow();
   });
 
   it('holds for the background builder too', () => {

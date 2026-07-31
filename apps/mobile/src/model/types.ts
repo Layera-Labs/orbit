@@ -115,6 +115,26 @@ export type Background =
   | { type: "image"; src: string }
   | { type: "blur"; amount?: number };
 
+/**
+ * A mat painted over the FINISHED frame — the vendored twin of `CanvasFrame` in
+ * `packages/video/src/types.ts`.
+ *
+ * "Rounded corners" means the PICTURE's corners are rounded, not the file's: a
+ * video frame is opaque, so the corner wedges have to be filled, and they are
+ * filled with `color` exactly as the band is. Hence `color` being required —
+ * a radius with nothing to fill its wedges with is a state no renderer could
+ * honour. `width` and `radius` are fractions of `min(W,H)`.
+ */
+export interface CanvasFrame {
+  color: string;
+  /** Band thickness as a fraction of min(W,H), 0..0.5. 0 = corners only. */
+  width: number;
+  /** Inner corner radius as a fraction of min(W,H), 0..0.5. */
+  radius?: number;
+  /** Band opacity, 0..1 (default 1). Applies to the corner wedges too. */
+  opacity?: number;
+}
+
 export type TransitionType =
   | "cut"
   | "fade"
@@ -372,6 +392,8 @@ export interface VideoProject {
   /** Output frame rate. */
   fps: number;
   background: Background;
+  /** A mat painted over the finished frame — border and rounded corners. */
+  frame?: CanvasFrame;
   /** Legacy single visual track. */
   clips: VisualClip[];
   /** Legacy crossfade/cut. */
