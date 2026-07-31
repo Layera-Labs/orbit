@@ -34,3 +34,23 @@ export function sampleKeyframes(kfs: Keyframe[], p: number): { opacity: number; 
   }
   return { opacity: last.opacity, x: last.x, y: last.y };
 }
+
+/**
+ * Whether any keyframe actually changes opacity / position.
+ *
+ * These gates are why a keyframe list is not enough on its own. The export
+ * applies keyframed opacity and keyframed position only when they ANIMATE
+ * (`ffmpeg.ts` checks the same two predicates), so a preview that samples on
+ * `hasKeyframes` alone moves a clip that the file leaves still — which is
+ * exactly what this preview used to do.
+ */
+export function animatesOpacity(kfs: Keyframe[]): boolean {
+  return kfs.some((k) => k.opacity < 0.999);
+}
+
+export function animatesPosition(kfs: Keyframe[]): boolean {
+  const ks = sorted(kfs);
+  return ks.some(
+    (k) => Math.abs(k.x - ks[0].x) > 1e-4 || Math.abs(k.y - ks[0].y) > 1e-4,
+  );
+}

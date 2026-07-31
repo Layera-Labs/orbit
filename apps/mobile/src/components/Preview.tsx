@@ -58,7 +58,17 @@ import {
 import { motionTransform, motionStateAt, hasMotion } from "../preview/motion";
 import { blendToSkia } from "../preview/blend";
 import { snapSpan, targetsFor, type Span } from "../preview/snap";
-import { hasKeyframes, sampleKeyframes } from "../preview/keyframes";
+import {
+  animatesOpacity,
+  animatesPosition,
+  hasKeyframes,
+  sampleKeyframes,
+} from "../preview/keyframes";
+import {
+  elementFadeAt,
+  resolveAnim,
+  slideOffsetAt,
+} from "../preview/elementAnim";
 import { cropDrawRect, normalizeRotation } from "../preview/transform";
 import {
   PreviewTransformHandles,
@@ -508,17 +518,36 @@ function overlayGeom(
   playheadSec: number,
 ): OverlayGeom {
   const r = clip.rect ?? { x: 0, y: 0, w: 1, h: 1 };
-  const kf = hasKeyframes(clip.keyframes)
-    ? sampleKeyframes(
-        clip.keyframes!,
-        (playheadSec - clip.start) / Math.max(0.001, clip.duration),
-      )
-    : null;
-  const x = (kf ? kf.x : r.x) * width;
-  const y = (kf ? kf.y : r.y) * height;
+  const S = clip.start;
+  const E = clip.start + clip.duration;
+  /*
+   * The same gates the engine applies, which this used to skip.
+   *
+   * `animatesPosition`/`animatesOpacity` matter because two keyframes that do
+   * not actually change anything are IGNORED by the export — without the gates
+   * they moved the clip here and not in the file. And a blended clip cannot
+   * move in the export at all (its blend crops the base region under a
+   * fixed-size box), so it must not move here either.
+   */
+  const kfs = clip.keyframes;
+  const blended = !!clip.blend && clip.blend !== "normal";
+  const kfPos = hasKeyframes(kfs) && animatesPosition(kfs!) && !blended;
+  const kfOp = hasKeyframes(kfs) && animatesOpacity(kfs!);
+  const kf =
+    kfPos || kfOp
+      ? sampleKeyframes(kfs!, (playheadSec - S) / Math.max(0.001, clip.duration))
+      : null;
+  const anim = resolveAnim(clip);
+  const slide = blended
+    ? { dx: 0, dy: 0 }
+    : slideOffsetAt(anim, S, E, playheadSec, width, height);
+  const x = (kfPos ? kf!.x : r.x) * width + slide.dx;
+  const y = (kfPos ? kf!.y : r.y) * height + slide.dy;
   const w = r.w * width;
   const h = r.h * height;
-  const op = kf ? kf.opacity : (clip.opacity ?? 1);
+  const op =
+    (kfOp ? kf!.opacity : (clip.opacity ?? 1)) *
+    elementFadeAt(anim, S, E, playheadSec);
   return {
     x,
     y,
@@ -1172,14 +1201,30 @@ export function Preview({ width, height }: { width: number; height: number }) {
             // centered Ken-Burns scale/pan — the same math the export uses.
             const dur = Math.max(0.001, o.end - o.start);
             const p = Math.max(0, Math.min(1, (playheadSec - o.start) / dur));
-            const kf = hasKeyframes(o.keyframes)
-              ? sampleKeyframes(o.keyframes!, p)
-              : null;
+            const kfPos =
+              hasKeyframes(o.keyframes) && animatesPosition(o.keyframes!);
+            const kfOp =
+              hasKeyframes(o.keyframes) && animatesOpacity(o.keyframes!);
+            const kf =
+              kfPos || kfOp ? sampleKeyframes(o.keyframes!, p) : null;
+            /*
+             * The caption's own animation, which this preview did not read at
+             * all — every caption is created with `animation: 'fade'` and the
+             * export has always honoured it, so captions faded in the file and
+             * hard-cut on screen. `resolveAnim` maps that legacy field and the
+             * new `animateIn`/`animateOut` to one thing.
+             */
+            const anim = resolveAnim(o);
+            const slide = slideOffsetAt(anim, o.start, o.end, playheadSec, width, height);
             const ms = hasMotion(o.motion) ? motionStateAt(o.motion, p) : null;
             const tx =
-              (ms ? ms.tx * width : 0) + (kf ? (kf.x - o.x) * width : 0);
+              (ms ? ms.tx * width : 0) +
+              (kfPos ? (kf!.x - o.x) * width : 0) +
+              slide.dx;
             const ty =
-              (ms ? ms.ty * height : 0) + (kf ? (kf.y - o.y) * height : 0);
+              (ms ? ms.ty * height : 0) +
+              (kfPos ? (kf!.y - o.y) * height : 0) +
+              slide.dy;
             const sc = ms ? ms.scale : 1;
             const caption = (
               <View
@@ -1188,7 +1233,9 @@ export function Preview({ width, height }: { width: number; height: number }) {
                   styles.textOverlay,
                   {
                     top: o.y * height,
-                    opacity: kf ? kf.opacity : (o.opacity ?? 1),
+                    opacity:
+                      (kfOp ? kf!.opacity : (o.opacity ?? 1)) *
+                      (kfOp ? 1 : elementFadeAt(anim, o.start, o.end, playheadSec)),
                     // Pivot the Ken-Burns scale about the CANVAS centre (not the
                     // caption's own centre) so it matches the export's zoompan.
                     transformOrigin: [
