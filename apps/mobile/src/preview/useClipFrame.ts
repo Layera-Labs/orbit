@@ -6,21 +6,23 @@
  *   - while PLAYING: advances and presents frames at the clip framerate;
  *   - while PAUSED: seeks + presents ONE frame whenever the target time changes
  *     (frame-accurate scrubbing).
- * Loading mirrors the library's worklet-runtime pattern. Returns a SharedValue
- * to feed straight into <Image image={...}>.
+ * The decoder is leased from `mediaCache`, not opened here. Returns a
+ * SharedValue to feed straight into <Image image={...}>.
+ *
+ * One consequence of the lease worth knowing: a pooled decoder arrives parked
+ * at wherever it was last seeked, so the first `nextImage()` after a scrub can
+ * return that older position before the new seek lands. It is always the SAME
+ * media — the pool is keyed by uri — so what shows for a frame is a different
+ * moment of this clip rather than a different clip, and the retry loop below
+ * corrects it on the next tick.
  */
-import { useCallback, useEffect, useState } from 'react';
-import { Skia, type SkImage, type Video } from '@shopify/react-native-skia';
+import { type SkImage } from '@shopify/react-native-skia';
 import {
-  createWorkletRuntime,
-  runOnJS,
-  runOnRuntime,
   useFrameCallback,
   useSharedValue,
   type SharedValue,
 } from 'react-native-reanimated';
-
-const loadRuntime = createWorkletRuntime('orbit-video-loader');
+import { useLeasedVideo } from './mediaCache';
 
 export function useClipFrame(
   uri: string | null,
@@ -28,19 +30,16 @@ export function useClipFrame(
   /** desired SOURCE time in seconds: trimIn + (playhead - clip.start) */
   timeSV: SharedValue<number>,
 ): SharedValue<SkImage | null> {
-  const [video, setVideo] = useState<Video | null>(null);
-
-  const load = useCallback((src: string) => {
-    'worklet';
-    const v = Skia.Video(src);
-    runOnJS(setVideo)(v as Video);
-  }, []);
-
-  useEffect(() => {
-    if (uri) runOnRuntime(loadRuntime, load)(uri);
-    else setVideo(null);
-    return () => setVideo(null);
-  }, [uri, load]);
+  /*
+   * Leased from a pool rather than opened here. Every visual layer is keyed by
+   * clip id, so dragging the playhead across a cut unmounts this hook and
+   * mounts a fresh one — and opening a decoder is expensive enough that it is
+   * already kept off the UI thread on its own worklet runtime. Recrossing the
+   * same cut used to pay that cost again in both directions; now it pays a
+   * seek. The lease is exclusive: two layers sharing one decoder would fight
+   * over its position, and this hook seeks on every scrub.
+   */
+  const video = useLeasedVideo(uri);
 
   const currentFrame = useSharedValue<SkImage | null>(null);
   const lastTs = useSharedValue(-1);

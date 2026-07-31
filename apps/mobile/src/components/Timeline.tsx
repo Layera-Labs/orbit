@@ -683,7 +683,23 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
 
   const scrollRef = useRef<ScrollView>(null);
   const [viewW, setViewW] = useState(0);
+  /*
+   * True from the moment a finger lands on the timeline until the scroll view
+   * has fully come to rest — INCLUDING the momentum glide after the finger has
+   * gone. Getting that second half wrong is what made the timeline jump: this
+   * used to be cleared in `onScrollEndDrag`, which fires at finger-lift while
+   * the content is still coasting, so for the whole glide `onScroll` refused to
+   * move the playhead and the sync effect below was free to yank `scrollTo`
+   * back to wherever the finger had let go. A flick scrubbed, then snapped back.
+   */
   const userScrolling = useRef(false);
+  /**
+   * The scroll offset the view is actually at, updated from `onScroll`. The
+   * sync effect compares against it so a playhead change that merely echoes the
+   * scroll it came from issues no `scrollTo` at all — a redundant one lands
+   * mid-glide and stops the deceleration dead.
+   */
+  const scrollX = useRef(0);
   // A group the user tapped to expand while nothing is selected. Cleared whenever
   // the selection changes (selecting a clip drives expansion on its own).
   const [manualExpand, setManualExpand] = useState<string | null>(null);
@@ -913,16 +929,51 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
   const contentW = Math.max(1, end * pxPerSec + ADD_TILE_W + 8);
 
   useEffect(() => {
-    if (!userScrolling.current && viewW > 0)
-      scrollRef.current?.scrollTo({
-        x: playheadSec * pxPerSec,
-        animated: false,
-      });
+    if (userScrolling.current || viewW <= 0) return;
+    const x = playheadSec * pxPerSec;
+    // Half a pixel is below anything the eye or the scroll view can act on, and
+    // skipping the call is what keeps a scroll that is settling from being
+    // interrupted by the playhead update it just produced.
+    if (Math.abs(x - scrollX.current) < 0.5) return;
+    scrollX.current = x;
+    scrollRef.current?.scrollTo({ x, animated: false });
   }, [playheadSec, pxPerSec, viewW]);
 
+  /*
+   * `onScrollEndDrag` cannot tell us on its own whether a glide follows: its
+   * velocity is reported inconsistently across platforms, and treating a small
+   * one as "no momentum" strands the flag set forever on the occasions it is
+   * wrong — after which the playhead could never scroll the timeline again.
+   * So a short timer arms at finger-lift and `onMomentumScrollBegin` disarms
+   * it. Whichever actually happens, the flag ends up right.
+   */
+  const restTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearRestTimer = () => {
+    if (restTimer.current) clearTimeout(restTimer.current);
+    restTimer.current = null;
+  };
+  useEffect(() => clearRestTimer, []);
+  const beginScroll = () => {
+    clearRestTimer();
+    userScrolling.current = true;
+  };
+  const endScroll = () => {
+    clearRestTimer();
+    userScrolling.current = false;
+  };
+  const liftFinger = () => {
+    clearRestTimer();
+    restTimer.current = setTimeout(endScroll, 80);
+  };
+
   function onScroll(e: NativeSyntheticEvent<NativeScrollEvent>) {
+    const x = e.nativeEvent.contentOffset.x;
+    scrollX.current = x;
     if (!userScrolling.current) return;
-    setPlayhead(e.nativeEvent.contentOffset.x / Math.max(1, pxPerSec));
+    // Rubber-banding past the start reports a negative offset; a negative
+    // playhead would be clamped on the way in and then written back out as a
+    // scrollTo(0), fighting the bounce.
+    setPlayhead(Math.max(0, x) / Math.max(1, pxPerSec));
   }
 
   return (
@@ -1005,9 +1056,10 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
               scrollEnabled={scrollEnabled}
               scrollEventThrottle={16}
               onScroll={onScroll}
-              onScrollBeginDrag={() => (userScrolling.current = true)}
-              onMomentumScrollEnd={() => (userScrolling.current = false)}
-              onScrollEndDrag={() => (userScrolling.current = false)}
+              onScrollBeginDrag={beginScroll}
+              onScrollEndDrag={liftFinger}
+              onMomentumScrollBegin={beginScroll}
+              onMomentumScrollEnd={endScroll}
               contentContainerStyle={{
                 paddingLeft: PLAYHEAD_X,
                 paddingRight: scrollW,

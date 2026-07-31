@@ -38,7 +38,6 @@ import {
   Shader,
   Skia,
   rect,
-  useImage,
   vec,
 } from "@shopify/react-native-skia";
 import {
@@ -47,6 +46,11 @@ import {
   useSharedValue,
 } from "react-native-reanimated";
 import { useClipFrame } from "../preview/useClipFrame";
+import {
+  prefetchImage,
+  prefetchVideo,
+  useCachedImage,
+} from "../preview/mediaCache";
 import { motionTransform, motionStateAt, hasMotion } from "../preview/motion";
 import { blendToSkia } from "../preview/blend";
 import { snapSpan, targetsFor, type Span } from "../preview/snap";
@@ -100,7 +104,7 @@ function BackgroundFill({
   width: number;
   height: number;
 }) {
-  const bgImg = useImage(bg?.type === "image" ? toUri(bg.src) : null);
+  const bgImg = useCachedImage(bg?.type === "image" ? toUri(bg.src) : null);
   if (bg?.type === "image") {
     return bgImg ? (
       <SkImg
@@ -630,7 +634,10 @@ function OverlayImageLayer({
   height: number;
   playheadSec: number;
 }) {
-  const img = useImage(toUri(clip.src));
+  // Cached, not `useImage`: this layer is keyed by clip id, so every crossing
+  // of a cut remounts it, and `useImage` re-reads and re-decodes the file each
+  // time — with nothing on screen until it lands.
+  const img = useCachedImage(toUri(clip.src));
   if (!img) return null;
   return (
     <OverlayFrame
@@ -731,6 +738,24 @@ export function Preview({ width, height }: { width: number; height: number }) {
   const baseOp = baseActive
     ? transitionOpacity(baseActive, nextBaseClip, playheadSec)
     : 1;
+
+  /*
+   * Warm the clips either side of the one on screen, so crossing a cut finds
+   * its media already decoded instead of starting a disk read at the moment it
+   * is needed. Both neighbours, because scrubbing goes backwards as often as
+   * forwards. Prefetching is idempotent — a hit and a load already in flight
+   * both return immediately — so running it on every clip change costs nothing
+   * once warm.
+   */
+  const prevSrc = baseIdx > 0 ? baseClips[baseIdx - 1] : undefined;
+  useEffect(() => {
+    for (const c of [prevSrc, nextBaseClip]) {
+      if (!c) continue;
+      if (c.type === "image") prefetchImage(toUri(c.src));
+      else prefetchVideo(toUri(c.src));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prevSrc?.src, prevSrc?.type, nextBaseClip?.src, nextBaseClip?.type]);
 
   /*
    * Transport clock.
