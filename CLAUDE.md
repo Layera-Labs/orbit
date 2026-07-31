@@ -272,7 +272,10 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
 
 ## Design system ("Vela")
 
-Originally specced from `CapCut-style editing app UI/Vela.dc.html` (the user's mockup).
+Originally specced from the user's `Vela.dc.html` mockup, which lived in a
+`CapCut-style editing app UI/` directory at the repo root until 2026-07-31. It is no
+longer in the working tree; recover it from history if a detail is ever in question
+(`git show 0b1cfb2:'CapCut-style editing app UI/Vela.dc.html'`).
 Tokens in `apps/mobile/src/constants.ts` — `vela` / `theme.vela`, plus `sp` (spacing),
 `r` (radii), `elev` (tight directional shadows).
 
