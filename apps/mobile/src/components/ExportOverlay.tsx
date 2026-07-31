@@ -87,9 +87,11 @@ export function ExportOverlay() {
   );
 
   const [tip, setTip] = useState(0);
+  const [posterFailed, setPosterFailed] = useState(false);
   useEffect(() => {
     if (!exporting) {
       setTip(0);
+      setPosterFailed(false);
       return;
     }
     const timer = setInterval(() => setTip((n) => n + 1), TIP_MS);
@@ -98,6 +100,11 @@ export function ExportOverlay() {
 
   const ratio =
     project && project.height > 0 ? project.width / project.height : 9 / 16;
+  const [stage, setStage] = useState({ w: 0, h: 0 });
+  // Fit inside the stage on BOTH axes: a tall 9:16 is bounded by height, a wide
+  // 16:9 by width, and neither is ever cropped or pushed off the screen.
+  const frameW = Math.max(0, Math.min(stage.w, stage.h * ratio));
+  const frameH = ratio > 0 ? frameW / ratio : 0;
   const pct = state?.progress ?? null;
   /*
    * A project can be built entirely from stickers and captions on a colour, in
@@ -105,58 +112,90 @@ export function ExportOverlay() {
    * video's first frame — more honest than an empty grey rectangle.
    */
   const bg = project?.background;
-  const frameFill =
-    bg?.type === "color" && bg.color ? bg.color : vela.card;
+  const frameFill = bg?.type === "color" && bg.color ? bg.color : vela.card;
 
   return (
-    // SafeAreaView, not raw padding: this is a full-screen Modal, so on a
-    // notched phone the frame sat under the status bar and the tip line landed
-    // in the home-indicator zone.
+    /*
+     * SafeAreaView keeps the frame out from under the status bar and the tip
+     * out of the home-indicator zone — but it carries NO padding of its own,
+     * and that is not a style preference.
+     *
+     * RN's SafeAreaView applies the insets by writing `padding` onto its own
+     * native view, which silently REPLACES whatever padding its style asked
+     * for. In portrait the left and right insets are zero, so a
+     * `paddingHorizontal` declared here became 0 and the headline, the bar and
+     * the tip all ran flush to both rims. The gutter has to live on a child the
+     * insets cannot reach.
+     */
     <Modal visible={exporting} animationType="fade" statusBarTranslucent>
-      <SafeAreaView style={s.screen}>
-        {/*
-          The video, given the room. `aspectRatio` with both maxes set means a
-          tall 9:16 project is bounded by height and a wide 16:9 one by width,
-          so neither is ever cropped or pushed off the screen.
-        */}
-        <View style={s.stage}>
-          <View
-            style={[s.frame, { aspectRatio: ratio, backgroundColor: frameFill }]}
-          >
-            {posterUri ? (
-              <Image
-                source={{ uri: posterUri }}
-                style={StyleSheet.absoluteFill}
-                resizeMode="cover"
-              />
-            ) : null}
-          </View>
-        </View>
+      <SafeAreaView style={s.safe}>
+        <View style={s.screen}>
+          {/*
+            The video, given the room — sized in JS from the measured stage, the
+            same way `EditorScreen` sizes the live preview.
 
-        {/*
+            This was `aspectRatio` with `maxWidth`/`maxHeight` at 100%, which
+            looks like it should work and does not: a max is a CLAMP, not a
+            size, so with no width or height to start from Yoga resolved the
+            frame to **zero** and the whole top of the screen was empty. The
+            poster had nowhere to draw even when there was one, which is why
+            fixing the poster's uri alone would not have fixed the screen.
+          */}
+          <View
+            style={s.stage}
+            onLayout={(e) =>
+              setStage({
+                w: e.nativeEvent.layout.width,
+                h: e.nativeEvent.layout.height,
+              })
+            }
+          >
+            <View
+              style={[
+                s.frame,
+                { width: frameW, height: frameH, backgroundColor: frameFill },
+              ]}
+            >
+              {posterUri && !posterFailed ? (
+                <Image
+                  source={{ uri: posterUri }}
+                  style={StyleSheet.absoluteFill}
+                  resizeMode="cover"
+                  // A poster is an absolute path into a container iOS renumbers
+                  // on every install. `<Image>` fails silently on a dead one, so
+                  // without this the frame is an unexplained rectangle and there
+                  // is nothing on screen or in the log to say why.
+                  onError={() => setPosterFailed(true)}
+                />
+              ) : null}
+            </View>
+          </View>
+
+          {/*
           Anchored to the bottom and left-aligned, rather than a stack of
           centred rows — the frame above is the composition, and this reads as
           a caption to it.
         */}
-        <View style={s.readout}>
-          <View style={s.headRow}>
-            <Text style={s.head}>Exporting</Text>
-            {pct != null ? (
-              <Text style={s.pct}>{Math.round(pct * 100)}%</Text>
-            ) : null}
-          </View>
+          <View style={s.readout}>
+            <View style={s.headRow}>
+              <Text style={s.head}>Exporting</Text>
+              {pct != null ? (
+                <Text style={s.pct}>{Math.round(pct * 100)}%</Text>
+              ) : null}
+            </View>
 
-          <ProgressBar value={pct} />
+            <ProgressBar value={pct} />
 
-          <Text style={s.stageLine}>
-            {state ? exportStageLabel(state) : "Getting your video ready"}
-          </Text>
+            <Text style={s.stageLine}>
+              {state ? exportStageLabel(state) : "Getting your video ready"}
+            </Text>
 
-          {/*
+            {/*
             Rendered at full opacity from the first frame. Nothing here waits on
             an animation to become visible.
           */}
-          <Text style={s.tip}>{tips[tip % tips.length]}</Text>
+            <Text style={s.tip}>{tips[tip % tips.length]}</Text>
+          </View>
         </View>
       </SafeAreaView>
     </Modal>
@@ -199,29 +238,35 @@ function ProgressBar({ value }: { value: number | null }) {
 }
 
 const s = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: vela.editorBg },
   screen: {
     flex: 1,
-    backgroundColor: vela.editorBg,
     // A real gutter. At 16 the copy ran almost to the rim on both sides, which
     // reads as a missing margin rather than a full-bleed decision.
     paddingHorizontal: sp.xxl,
     paddingTop: sp.xl,
-    // Clear of the home indicator, and enough that the tip is not the last
-    // thing before the edge of the screen.
-    paddingBottom: 40,
+    // Enough that the tip is not the last thing before the edge of the screen.
+    // The home indicator itself is already cleared by the safe area above.
+    paddingBottom: sp.xl,
   },
   stage: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingBottom: sp.xxl,
+    // A MARGIN, not padding: the gap to the readout has to sit outside the box
+    // `onLayout` reports, or the frame would be sized against space it is not
+    // allowed to use and would push into the text below it.
+    marginBottom: sp.xxl,
   },
   frame: {
-    maxWidth: "100%",
-    maxHeight: "100%",
     borderRadius: r.lg,
     borderCurve: "continuous",
     overflow: "hidden",
+    // A project on a black background is black on a near-black screen, so
+    // without an edge the frame has no findable boundary and the whole top of
+    // the screen reads as empty rather than as a video waiting to be made.
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: vela.divider,
   },
   readout: { gap: sp.sm },
   headRow: {

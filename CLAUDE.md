@@ -104,12 +104,27 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   explain the dead ones with an alert. It is positioned from state that already exists —
   scrolling the timeline IS setting the playhead, so the scroll offset is
   `playheadSec * pxPerSec` and the clip's on-screen centre needs no plumbing out of
-  `Timeline`. Vertically it stays above the timeline: `styles.root` has `overflow: hidden`,
-  and dropping the bar onto the selected lane would bury three others.
+  `Timeline`. Vertically it clears the timeline ENTIRELY (`top: -(BAR_H + 8)` against the
+  timeline's top edge): dropping it on the selected clip's lane would bury three others, and
+  the first attempt at "just above" used a flat `-22` against a 56pt bar, so two thirds of it
+  still sat on the ruler and the music track. `BAR_H` is a stated constant because the bar is
+  absolutely positioned and contributes no height for a percentage to measure against.
 - **Export**: upload local media → `POST /v1/upload` (`upload:<id>` token) → resolved project →
   `POST /v1/render` → download MP4 → save to Photos. The server's `resolveSrc` only maps tokens
   to files in its media dir and rejects non-token/non-URL srcs (clients can't point ffmpeg
   at arbitrary paths).
+- **The H.264 level is capped at 5.2, and that is what makes an export saveable** (2026-07-31,
+  measured against ffmpeg 8.1.2). Left alone x264 picks whatever level its VBV needs, and
+  **`bufsize` is the knob that drives it, not the resolution**: 2160×3840 at `-b:v 160M
+  -bufsize 320M` emits **Level 6.1**; the same bitrate at `-bufsize 160M` emits 5.1. Apple's
+  decoder stops at 5.2, and the way that surfaces is not a playback glitch — `PHPhotoLibrary`
+  refuses the asset, so a render that completed end to end dies at the last step with "this
+  video couldn't be saved to the Camera Roll album". A device reproduced it every time on
+  4K/High while 4K/Low, whose smaller buffer stayed inside 5.1, saved fine. `-level:v 5.2`
+  makes x264 warn and clamp the buffer, which is the outcome we want. The other half of the
+  fix is `exportMbps`: it was `scale²` off a 40 Mbps 1080p reference (160 Mbps at 4K), and is
+  now `scale^1.5` — pixels^0.75, how H.264 actually behaves — off 18, so 4K/High lands at
+  ~51 Mbps and the worst case in the UI (4K/High/60) measures Level 5.2 with no warning.
 - **Every call to the service is under a JWT** (2026-07-29) — generation, credits, upload
   and render alike. Guest-first survives because signed-out is a **guest token**
   (`POST /v1/auth/guest`), not the absence of one: signed by the server, naming a subject
@@ -131,6 +146,25 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   as an unexplained rectangle again. `GenRecord.thumbUri` persists a video's poster; without
   it every tile re-extracted one on every sheet open, forever. The same staleness is why
   `ensurePoster` checks that its file EXISTS rather than just that a poster is set.
+- **A src is stored two ways and only one of them loads.** `copyIntoMedia` returns a `file://`
+  URI; anything that takes a clip's `src` at face value gets a bare path. `<Image>` and Skia
+  both need the URI form and both fail SILENTLY on the bare one. `ensurePoster` fed
+  `setPoster` a bare `clip.src` for any project opening on an image, which blanked the poster
+  on the export screen, the export sheet, the projects list and Home at once — and, because
+  `fileExists` requires the `file:` scheme, made "do we have a poster?" answer NO forever, so
+  every call re-derived it and wrote the project to disk again. `toFileUri` (`storage/media.ts`)
+  is the one normaliser; `setPoster` applies it so no consumer has to.
+- **Preview media is cached across mounts** (`src/preview/{mediaCache,mediaPool}.ts`,
+  2026-07-31). Every visual layer is keyed by clip id, so crossing a cut unmounts and
+  remounts it — and `useImage` has no cache at all (it re-reads and re-decodes the file on
+  every mount, rendering NOTHING until it lands) while `Skia.Video` reopens a decoder. That
+  was seconds of blank picture per scrub. Images now sit in a `ByteLru` and decoders are
+  leased from a `LeasePool`, and the two are different structures for a reason: an image may
+  be drawn by several layers and is never handed back, so eviction may only DROP a reference
+  (freeing one that is on screen is a crash) and the bound must be bytes, not entries;
+  a decoder is leased to exactly one layer and always returns, so an idle one can be freed —
+  and the lease must be exclusive, because two layers sharing a decoder would fight over its
+  seek position. Both neighbours of the on-screen clip are prefetched.
 - **HDR10 is gated on a capability probe**, not attempted and refused. `/health` reports
   `capabilities.hdr` from `ffmpegSupportsHdr`, mobile caches it per server URL
   (`src/net/capabilities.ts`, fail-CLOSED — an unreachable server hides the toggle rather
@@ -191,6 +225,18 @@ Editor panels are in `EditorSheets.tsx` plus dedicated sheets (`MosaicSheet`,
   even changes, from the edits to existing files) while leaving the new module out of the
   graph entirely. The check then passes against a bundle that does not contain the thing
   you are checking. Grep the bundle for a distinctive string from the new file to be sure.
+- **RN's `SafeAreaView` OVERWRITES the padding in its own style.** It applies insets by
+  writing `padding` onto its native view, so a `paddingHorizontal` declared on the same
+  style is silently replaced — and in portrait the left/right insets are ZERO, so the
+  gutter becomes 0 and copy runs flush to both rims. `ExportOverlay` shipped exactly that.
+  Put the safe area on an outer view that carries nothing but `flex`/background, and the
+  gutter on a child.
+- **A missing simulator build is not always a code problem.** `expo run:ios` failing with
+  `rsync … libskia.xcframework/ios-arm64_arm64e_x86_64-simulator/*: No such file` means
+  that slice directory is EMPTY (an interrupted install), not that the project is broken:
+  `rm -rf node_modules/@shopify/react-native-skia && npm install` restores it. Note this is
+  the one package where the device slice can be present and the simulator slice absent, so
+  a working device build proves nothing about the simulator.
 - **Simulator**: bundle id `com.orbitvideo.app`; `npx expo run:ios --device <UDID>`.
   It has been renamed twice (`com.anonymous.orbit-video` → `com.galaxy.orbit` 2026-07-27 →
   here 2026-07-30), and each rename makes a **different app** as far as iOS is concerned:

@@ -7,7 +7,7 @@
  *
  * **These are RN views over the canvas, not shapes inside it.** Gesture Handler
  * attaches to native views, so each handle gets real arbitration and its own
- * `hitSlop` — a 9pt dot needs a ~44pt touch target, and hand-rolled hit-testing
+ * `hitSlop` — a 14pt dot needs a ~44pt touch target, and hand-rolled hit-testing
  * inside the one canvas-wide pan gesture could give it neither. Keeping the
  * chrome outside `<Canvas>` also makes it structurally impossible for it to
  * leak into anything the canvas renders, which matters because the Skia tree is
@@ -48,7 +48,17 @@ export interface TransformPatch {
   crop?: SourceRect;
 }
 
-const DOT = 9;
+/*
+ * Sized to be FOUND, not merely to exist. At 9pt with a 1.5pt ring these read
+ * as specks against a photograph — the picture behind them is full of detail at
+ * that scale, and a marker has to out-weigh it to register as chrome. 14pt of
+ * white with a 2pt accent ring does; so does a 1.5pt frame line instead of a
+ * 1pt one. None of this is a glow, and none of it needs to be: contrast here
+ * comes from a light shape carrying a dark ring, which reads on a bright
+ * picture and a dark one alike.
+ */
+const DOT = 14;
+const RING = 2;
 const SLOP = { top: 16, bottom: 16, left: 16, right: 16 };
 /** How far above the top edge the rotate handle floats, and its stalk length. */
 const STALK = 26;
@@ -196,7 +206,7 @@ export function PreviewTransformHandles({
           accessibilityRole="adjustable"
           accessibilityLabel="Trim the left edge"
           hitSlop={SLOP}
-          style={[styles.barV, { left: -3 }]}
+          style={[styles.barV, { left: -4 }]}
         />
       </GestureDetector>
       <GestureDetector gesture={edgeGesture("right")}>
@@ -204,7 +214,7 @@ export function PreviewTransformHandles({
           accessibilityRole="adjustable"
           accessibilityLabel="Trim the right edge"
           hitSlop={SLOP}
-          style={[styles.barV, { right: -3 }]}
+          style={[styles.barV, { right: -4 }]}
         />
       </GestureDetector>
       <GestureDetector gesture={edgeGesture("top")}>
@@ -212,7 +222,7 @@ export function PreviewTransformHandles({
           accessibilityRole="adjustable"
           accessibilityLabel="Trim the top edge"
           hitSlop={SLOP}
-          style={[styles.barH, { top: -3 }]}
+          style={[styles.barH, { top: -4 }]}
         />
       </GestureDetector>
       <GestureDetector gesture={edgeGesture("bottom")}>
@@ -220,7 +230,7 @@ export function PreviewTransformHandles({
           accessibilityRole="adjustable"
           accessibilityLabel="Trim the bottom edge"
           hitSlop={SLOP}
-          style={[styles.barH, { bottom: -3 }]}
+          style={[styles.barH, { bottom: -4 }]}
         />
       </GestureDetector>
 
@@ -255,7 +265,7 @@ const styles = StyleSheet.create({
   // underneath is the subject, and the box only has to say where it ends.
   outline: {
     ...StyleSheet.absoluteFillObject,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: vela.accent,
   },
   dot: {
@@ -264,29 +274,29 @@ const styles = StyleSheet.create({
     height: DOT,
     borderRadius: DOT / 2,
     backgroundColor: "#fff",
-    borderWidth: 1.5,
+    borderWidth: RING,
     borderColor: vela.accent,
   },
   barV: {
     position: "absolute",
     top: "50%",
-    marginTop: -11,
-    width: 6,
-    height: 22,
-    borderRadius: 3,
+    marginTop: -14,
+    width: 8,
+    height: 28,
+    borderRadius: 4,
     backgroundColor: "#fff",
-    borderWidth: 1.5,
+    borderWidth: RING,
     borderColor: vela.accent,
   },
   barH: {
     position: "absolute",
     left: "50%",
-    marginLeft: -11,
-    width: 22,
-    height: 6,
-    borderRadius: 3,
+    marginLeft: -14,
+    width: 28,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: "#fff",
-    borderWidth: 1.5,
+    borderWidth: RING,
     borderColor: vela.accent,
   },
   // The arm that makes the handle read as a lever rather than a loose dot.
@@ -304,15 +314,15 @@ const styles = StyleSheet.create({
   rotate: {
     position: "absolute",
     left: "50%",
-    marginLeft: -13,
-    top: -STALK - 26,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    marginLeft: -15,
+    top: -STALK - 30,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#fff",
-    borderWidth: 1.5,
+    borderWidth: RING,
     borderColor: vela.accent,
   },
 });

@@ -63,7 +63,12 @@ import {
   type ExportProgress,
 } from "../net/renderClient";
 import { getCredits, transcribe } from "../net/genClient";
-import { downloadToMedia, fileExists, videoThumbnail } from "../storage/media";
+import {
+  downloadToMedia,
+  fileExists,
+  toFileUri,
+  videoThumbnail,
+} from "../storage/media";
 import { Alert, Share } from "react-native";
 
 export type ExportStage =
@@ -751,7 +756,19 @@ export const useEditor = create<EditorState>((set, get) => ({
   setZoom: (pxPerSec) =>
     set({ pxPerSec: Math.max(8, Math.min(400, pxPerSec)) }),
   setPlaying: (v) => set({ isPlaying: v }),
-  setPoster: (uri) => {
+  setPoster: (raw) => {
+    /*
+     * Normalised here, once, because every consumer of `posterUri` renders it
+     * with `<Image source={{uri}}>` — the export screen, the export sheet, the
+     * projects list, the home screen — and a bare path fails silently in all
+     * four. `ensurePoster` fed it one directly off `clip.src` for any project
+     * that opens on an image, and the result was not only four blank tiles: it
+     * also made `fileExists` (which requires the `file:` scheme) answer NO
+     * forever, so every call re-derived the same poster and wrote the project
+     * to disk again.
+     */
+    const uri = toFileUri(raw);
+    if (!uri) return;
     set({ posterUri: uri });
     const { projectId, name, project, mediaDurations } = get();
     if (projectId && project)

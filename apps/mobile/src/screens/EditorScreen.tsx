@@ -504,10 +504,23 @@ export function EditorScreen() {
           once: this screen cannot display HDR, and the sheen made the preview
           genuinely lighter than the file it is meant to predict.
         */}
-        <View style={[styles.whiteFrame, { width: iw + 14, height: ih + 14 }]}>
-          <View style={{ width: iw, height: ih }}>
-            <Preview width={iw} height={ih} />
-          </View>
+        {/*
+          The picture sits directly on the stage. It used to be matted in a
+          solid white card with 7pt of padding, which put the brightest surface
+          in the app immediately around the one thing whose brightness is being
+          judged — and rounded corners the exported file does not have.
+
+          What replaces it is an edge, not a frame: a hairline one step off the
+          background, drawn as an overlay so it costs the canvas no pixels and
+          the picture stays exactly `iw × ih`. It exists because a dark clip on
+          a dark stage otherwise has no findable boundary.
+        */}
+        <View style={{ width: iw, height: ih }}>
+          <Preview width={iw} height={ih} />
+          <View
+            pointerEvents="none"
+            style={[StyleSheet.absoluteFill, styles.stageEdge]}
+          />
         </View>
         <Pressable style={styles.fullscreenBtn} onPress={openFullscreen}>
           <VIcon name="fullscreen" size={18} color="#fff" />
@@ -709,7 +722,10 @@ const styles = StyleSheet.create({
     position: "relative",
     overflow: "hidden",
   },
-  whiteFrame: { backgroundColor: "#fff", borderRadius: 6, padding: 7 },
+  stageEdge: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: vela.divider,
+  },
   fullscreenBtn: {
     position: "absolute",
     right: 24,

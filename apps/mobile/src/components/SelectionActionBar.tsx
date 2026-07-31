@@ -11,9 +11,9 @@
  *   nothing; an action that cannot apply simply is not in the list now.
  * - It is not parked in the middle. It follows the selected clip along the
  *   timeline, so it reads as belonging to that clip rather than to the screen.
- *   Vertically it stays just above the timeline: the timeline root clips its
- *   overflow, and dropping the bar onto the selected lane would bury three
- *   other lanes under it.
+ *   Vertically it clears the timeline ENTIRELY rather than floating over its
+ *   first lane — dropping it onto the selected clip's own lane would bury three
+ *   other lanes, and leaving it half-overlapping (which it did) buries one.
  *
  * No enter/exit animation, because the bar MOVES — a slide-in replayed on every
  * reposition reads as broken rather than lively.
@@ -43,6 +43,17 @@ interface Action {
 /** One slot per action. Six is the widest set, and 6×54 clears an iPhone SE. */
 const ITEM_W = 54;
 const EDGE = 8;
+/**
+ * The bar's exact height: 42pt of button, 6pt of padding either side, and its
+ * 1pt border top and bottom. Stated as a constant because it is what lifts the
+ * bar clear of the timeline, and a wrong number here does not misalign the bar
+ * — it puts it back on top of the lanes.
+ *
+ * A percentage (`bottom: '100%'`) would express the same intent without the
+ * magic number, but the bar is absolutely positioned and so contributes no
+ * height to measure against.
+ */
+const BAR_H = 42 + 12 + 2;
 
 export function SelectionActionBar() {
   const selected = useEditor((s) => s.selected);
@@ -105,17 +116,45 @@ export function SelectionActionBar() {
   let actions: Action[];
   if (isText) {
     actions = [
-      { key: "edit", icon: "pencil", label: "Edit", onPress: () => setPanel("textedit") },
-      { key: "font", icon: "font", label: "Font", onPress: () => setPanel("textedit-font") },
-      { key: "color", icon: "color", label: "Colour", onPress: () => setPanel("textedit-color") },
+      {
+        key: "edit",
+        icon: "pencil",
+        label: "Edit",
+        onPress: () => setPanel("textedit"),
+      },
+      {
+        key: "font",
+        icon: "font",
+        label: "Font",
+        onPress: () => setPanel("textedit-font"),
+      },
+      {
+        key: "color",
+        icon: "color",
+        label: "Colour",
+        onPress: () => setPanel("textedit-color"),
+      },
       dup,
       del,
     ];
   } else if (isAudio) {
     actions = [
-      { key: "audio", icon: "audio", label: "Edit", a11y: "Edit audio", onPress: () => setPanel("audioclip") },
-      { key: "volume", icon: "volume", label: "Volume", onPress: () => setPanel("volume") },
-      { key: "curve", icon: "curve", label: "Curve", onPress: () => setPanel("curve") },
+      {
+        key: "audio",
+        icon: "audio",
+        label: "Edit",
+        a11y: "Edit audio",
+        onPress: () => setPanel("audioclip"),
+      },
+      {
+        key: "volume",
+        icon: "volume",
+        label: "Volume",
+        onPress: () => setPanel("volume"),
+      },
+      // No Curve here. Edit opens `AudioClipSheet`, which owns fade in, fade
+      // out and the handoff to the curve editor — so a second entry point sat
+      // beside it offering the harder half of what it already does.
       split,
       dup,
       del,
@@ -124,9 +163,24 @@ export function SelectionActionBar() {
     // A sticker or PiP on an overlay track: how it sits on the canvas is the
     // whole point of it, so placement leads.
     actions = [
-      { key: "position", icon: "position", label: "Position", onPress: () => setPanel("position") },
-      { key: "opacity", icon: "opacity", label: "Opacity", onPress: () => setPanel("opacity") },
-      { key: "blend", icon: "blending", label: "Blend", onPress: () => setPanel("blend") },
+      {
+        key: "position",
+        icon: "position",
+        label: "Position",
+        onPress: () => setPanel("position"),
+      },
+      {
+        key: "opacity",
+        icon: "opacity",
+        label: "Opacity",
+        onPress: () => setPanel("opacity"),
+      },
+      {
+        key: "blend",
+        icon: "blending",
+        label: "Blend",
+        onPress: () => setPanel("blend"),
+      },
       keyframe,
       dup,
       del,
@@ -135,8 +189,18 @@ export function SelectionActionBar() {
     // A still has no sound and no speed; Ken Burns is what gives it life.
     actions = [
       split,
-      { key: "filter", icon: "filter", label: "Filter", onPress: () => setPanel("filter") },
-      { key: "motion", icon: "motion", label: "Motion", onPress: () => setPanel("motion") },
+      {
+        key: "filter",
+        icon: "filter",
+        label: "Filter",
+        onPress: () => setPanel("filter"),
+      },
+      {
+        key: "motion",
+        icon: "motion",
+        label: "Motion",
+        onPress: () => setPanel("motion"),
+      },
       keyframe,
       dup,
       del,
@@ -144,8 +208,18 @@ export function SelectionActionBar() {
   } else {
     actions = [
       split,
-      { key: "volume", icon: "volume", label: "Volume", onPress: () => setPanel("volume") },
-      { key: "filter", icon: "filter", label: "Filter", onPress: () => setPanel("filter") },
+      {
+        key: "volume",
+        icon: "volume",
+        label: "Volume",
+        onPress: () => setPanel("volume"),
+      },
+      {
+        key: "filter",
+        icon: "filter",
+        label: "Filter",
+        onPress: () => setPanel("filter"),
+      },
       keyframe,
       dup,
       del,
@@ -171,7 +245,7 @@ export function SelectionActionBar() {
 
   return (
     <View style={styles.wrap} pointerEvents="box-none">
-      <View style={[styles.bar, { left, width: barW }]}>
+      <View style={[styles.bar, { left, width: barW, top: -(BAR_H + 8) }]}>
         {actions.map((a) => (
           <Pressable
             key={a.key}
@@ -192,9 +266,13 @@ export function SelectionActionBar() {
 }
 
 const styles = StyleSheet.create({
+  // Anchored to the timeline's TOP EDGE, with the bar itself lifted entirely
+  // above it. It used to sit at -22, which cleared nothing: the bar is 56 tall,
+  // so two thirds of it hung over the ruler and the first lane and buried the
+  // music track it was supposed to be describing.
   wrap: {
     position: "absolute",
-    top: -22,
+    top: 0,
     left: 0,
     right: 0,
     zIndex: 30,

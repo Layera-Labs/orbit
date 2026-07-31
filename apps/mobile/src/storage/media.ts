@@ -37,6 +37,23 @@ export async function downloadToMedia(url: string, fallbackExt: string): Promise
 }
 
 /**
+ * A src as something that can actually be loaded.
+ *
+ * Media srcs are stored two ways in this app and always have been: a `file://`
+ * URI from `copyIntoMedia`, or a bare path from anything that took a clip's
+ * `src` at face value. `<Image>` and Skia both need the URI form and both fail
+ * SILENTLY on the bare one, so the difference shows up as a blank rectangle
+ * with no error anywhere — which is exactly how it reached the export screen,
+ * the projects list and the home screen at once via `posterUri`.
+ */
+export function toFileUri(p: string): string;
+export function toFileUri(p: string | null | undefined): string | null;
+export function toFileUri(p?: string | null): string | null {
+  if (!p) return null;
+  return p.startsWith('http') || p.startsWith('file:') ? p : `file://${p}`;
+}
+
+/**
  * Whether a local file is really there. Never throws — a malformed URI, a
  * remote one, or a path in a container this install no longer owns all just
  * mean "no".
