@@ -910,26 +910,45 @@ const RES_STEPS = [
 const FPS_OPTS = [24, 25, 30, 50, 60];
 
 /** Mbps at the reference point — 1080p, 30fps — for each quality step. */
-const QUALITY_MBPS = { Low: 8, Medium: 20, High: 40 } as const;
+const QUALITY_MBPS = { Low: 6, Medium: 12, High: 18 } as const;
 /** AAC stereo, the rate the render service encodes audio at. */
 const AUDIO_MBPS = 0.192;
 
 /**
  * The bitrate this export should actually be encoded at.
  *
- * It scales with PIXELS (hence `scale²`) and linearly with frame rate. The old
- * number did neither: 480p and 4K were both requested at the 1080p rate, so the
- * estimate below never moved when you changed resolution AND the 4K file came
- * out under-encoded. One function now, feeding both the number on screen and
- * the number sent to the server, so they cannot drift apart.
+ * It scales with frame rate linearly and with PIXEL COUNT sub-linearly — the
+ * `1.5` exponent on a linear scale factor is pixels to the power 0.75, which is
+ * roughly how H.264 behaves: a bigger frame needs more bits, but not
+ * proportionally more, because its detail is spread over more pixels and
+ * predicts better. That puts 4K/High at ~51 Mbps, which is where every
+ * published recommendation for 4K30 H.264 sits.
+ *
+ * It was `scale²` with a 40 Mbps reference, and that was not merely generous —
+ * it asked for 160 Mbps at 4K/High, and the VBV buffer that implies pushes
+ * x264 to emit **H.264 Level 6.1**, which Apple cannot decode. The export then
+ * rendered perfectly and was rejected by Photos at the very last step. See the
+ * level cap in `ffmpeg.ts`; the numbers here are the other half of that fix.
+ *
+ * One function, feeding both the size on screen and the rate sent to the
+ * server, so the estimate and the file can never disagree.
  */
 function exportMbps(
   quality: keyof typeof QUALITY_MBPS,
   scale: number,
   fps: number,
 ): number {
-  return QUALITY_MBPS[quality] * scale ** 2 * (fps / 30);
+  return QUALITY_MBPS[quality] * scale ** 1.5 * (fps / 30);
 }
+
+/**
+ * yuv420p subsamples chroma by two, so an odd dimension has no valid encoding.
+ * `buildFFmpegArgs` already evens what it is handed — `1920 * 0.667` asks for
+ * 1281 — so this changes no output; it makes the size the client requested and
+ * the size the server encodes the same number, which is what anything
+ * reasoning about the request downstream has to be able to assume.
+ */
+const evenPx = (n: number) => Math.max(2, Math.round(n / 2) * 2);
 
 function ExportSheet() {
   const setPanel = useEditor((s) => s.setPanel);
@@ -982,8 +1001,8 @@ function ExportSheet() {
     const output: ExportOutput = audioOnly
       ? { audioOnly: true }
       : {
-          width: Math.round(W * scale),
-          height: Math.round(H * scale),
+          width: evenPx(W * scale),
+          height: evenPx(H * scale),
           fps,
           bitrate,
           hdr: hdr || undefined,

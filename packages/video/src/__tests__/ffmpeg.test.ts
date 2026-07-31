@@ -107,4 +107,39 @@ describe('buildFFmpegArgs', () => {
     expect(s).not.toContain('xfade');
     expect(s).toContain('-t 4');
   });
+
+  /*
+   * Measured against ffmpeg 8.1.2, not reasoned about. Left to itself x264
+   * picks the level its VBV needs, and `bufsize` is what drives it: 2160x3840
+   * at `-b:v 160M -bufsize 320M` emits Level 6.1, the same bitrate at
+   * `-bufsize 160M` emits 5.1. Apple's H.264 decoder stops at 5.2, and a file
+   * above it does not merely stutter — `PHPhotoLibrary` refuses the asset, so
+   * a render that succeeded end to end fails at the save with "this video
+   * couldn't be saved to the Camera Roll album". A device reproduced it every
+   * time on 4K/High while 4K/Low, whose smaller buffer stayed inside 5.1,
+   * saved fine. So the cap is not a preference; it is what makes an export
+   * openable on the platform it is being exported to.
+   */
+  it('caps the H.264 level at what Apple can decode', () => {
+    // Multi-track, because output overrides are refused on the legacy path.
+    const p = createProject({ width: 1080, height: 1920 });
+    p.tracks = [
+      {
+        id: 't',
+        kind: 'visual',
+        clips: [
+          { id: 'c', type: 'video', src: 'a.mp4', start: 0, duration: 2, trimIn: 0 },
+        ],
+      },
+    ];
+    const s = buildFFmpegArgs(p, {
+      outputPath: 'out.mp4',
+      baseImage: '/tmp/bg.png',
+      output: { width: 2160, height: 3840, fps: 30, bitrate: 160 },
+    }).join(' ');
+    expect(s).toContain('-level:v 5.2');
+    // The cap has to precede the rate settings it constrains for x264 to clamp
+    // the buffer rather than take it and raise the level to suit.
+    expect(s.indexOf('-level:v')).toBeLessThan(s.indexOf('-b:v'));
+  });
 });

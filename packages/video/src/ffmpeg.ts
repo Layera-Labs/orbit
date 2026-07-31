@@ -881,6 +881,29 @@ function buildMultiTrackArgs(
       "yuv420p",
       "-profile:v",
       "high",
+      /*
+       * Cap the level, measured against ffmpeg 8.1.2 rather than assumed.
+       *
+       * Left to itself x264 picks whatever level the requested VBV needs, and
+       * `bufsize` is what drives it — not the resolution and not the bitrate on
+       * its own. A 2160x3840 encode at `-b:v 160M -bufsize 320M` comes out
+       * **Level 6.1**; the same bitrate at `-bufsize 160M` comes out 5.1.
+       *
+       * Level 6.1 is undecodable on Apple hardware, and the way that surfaces
+       * is not a playback error — `PHPhotoLibrary` refuses the asset outright,
+       * so a render that succeeded end to end dies at the last step with
+       * "this video couldn't be saved to the Camera Roll album". The exact
+       * report from a device: 4K/High failed every time while 4K/Low, whose
+       * smaller buffer stayed inside 5.1, saved fine.
+       *
+       * 5.2 is the ceiling Apple's H.264 decoder supports. Asking for a VBV
+       * larger than it allows makes x264 warn and clamp, which is the outcome
+       * we want — a slightly smaller buffer beats an unplayable file. The
+       * bitrates in the export sheet are chosen to stay under it anyway; this
+       * is the guarantee that no future combination can get out.
+       */
+      "-level:v",
+      "5.2",
       "-preset",
       "veryfast",
     );
