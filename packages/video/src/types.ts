@@ -126,19 +126,17 @@ export type Background =
  * A mat painted over the FINISHED frame: a border band and rounded inner
  * corners, in one colour.
  *
- * "Rounded corners" here means the PICTURE's corners are rounded, not the
- * file's — a video frame is opaque, so the corner wedges have to be filled with
- * something, and they are filled with `color` exactly as the band is. That is
- * why `color` is required rather than optional: a radius with nothing to fill
- * its wedges with is a state no renderer could honour.
+ * "Rounded corners" rounds the OPENING and, concentrically, the mat's own
+ * outside — a card rather than a square with a hole in it. A video frame is
+ * opaque, so the wedges left outside that card have to be filled with
+ * something, and they are filled with the BACKGROUND: `frameOuterPaint` in
+ * `canvas-frame.ts` reduces it to a colour or the same gradient the base layer
+ * uses, and a photograph (which no rasterized SVG can embed) resolves to black
+ * in every renderer alike.
  *
- * Filling from the background instead was considered and does not survive: a
- * gradient would have to be duplicated into this shape and kept in sync, and an
- * image cannot be embedded at all because `assertNoExternalRefs` forbids
- * `<image>` in anything `rasterizeSVG` touches. The UI seeds `color` from a
- * solid background when the frame is first switched on, which gives the
- * corners-reveal-the-background look in the common case without any renderer
- * having to reason about the background.
+ * `color` is still required, because it is the band, and the UI seeds it from a
+ * solid background when the frame is first switched on so a fresh frame reads
+ * as rounded corners rather than as a coloured border that appeared.
  *
  * `width` and `radius` are fractions of `min(width, height)` so a frame
  * authored at 1080p survives an export at 4K — the same reason `rect` and

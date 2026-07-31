@@ -7,11 +7,18 @@
  *
  * Two things worth stating about the frame controls.
  *
- * **Turning the frame on seeds its colour from the background.** A mat's corner
- * wedges have to be filled with something (a video frame is opaque, so rounded
- * corners are not transparency), and matching the background is what makes them
- * read as "the corners are rounded" rather than "a coloured border appeared".
- * The renderers know nothing about this — it is a default, chosen once, here.
+ * **Turning the frame on seeds its colour from the background.** The band has
+ * to start as some colour, and matching the background is what makes the first
+ * frame you switch on read as "the corners are rounded" rather than "a coloured
+ * border appeared". The renderers know nothing about this — it is a default,
+ * chosen once, here.
+ *
+ * **Rounding the corners rounds the CARD.** The mat's own outside curves with
+ * the opening, concentrically, and the background shows in the corners around
+ * it, so the frame reads as an object on the page rather than a square with a
+ * hole in it. Over a PHOTO background those corners are black instead: the
+ * frame is rasterized as one PNG and nothing can embed a photograph in it, so
+ * black is the one answer the preview and the export can both give.
  *
  * **Opacity is honestly labelled.** Below 1 the picture shows through the corner
  * wedges as well as the band, because they are one shape. Saying so costs a
@@ -128,9 +135,16 @@ export function CanvasSheet() {
               />
             </Field>
             <Text style={s.note}>
-              Below full opacity the picture shows through the corners as well
-              as the band — they are one shape.
+              Below full opacity the picture shows through the band's corners as
+              well as the band — they are one shape.
             </Text>
+            {(frame!.radius ?? 0) > 0 && bg?.type === "image" ? (
+              <Text style={s.note}>
+                Rounding also rounds the frame's outside. Over a photo
+                background those corners fill black — the export cannot paint a
+                photo into them.
+              </Text>
+            ) : null}
           </>
         ) : null}
       </ScrollView>

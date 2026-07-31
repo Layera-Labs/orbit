@@ -9,8 +9,8 @@
  * "the same" helper drift apart without anyone noticing.
  */
 import { describe, expect, it } from "vitest";
-import { canvasFramePx, hasCanvasFrame } from "../canvasFrame";
-import type { CanvasFrame } from "../../model/types";
+import { canvasFramePx, frameOuterPaint, hasCanvasFrame } from "../canvasFrame";
+import type { Background, CanvasFrame } from "../../model/types";
 
 const FRAMES: (CanvasFrame | undefined)[] = [
   undefined,
@@ -59,5 +59,23 @@ describe("mobile mirrors packages/video", () => {
     const project = canvasFramePx(f, 1080, 1920);
     expect(project.borderPx / preview.borderPx).toBeCloseTo(1080 / 342, 9);
     expect(project.radiusPx / preview.radiusPx).toBeCloseTo(1080 / 342, 9);
+  });
+
+  it("agrees on what is painted outside the card", async () => {
+    // The one that matters is `image`: it must be null in BOTH, or the preview
+    // rounds a card whose exported corners are still square.
+    const shared = await import(
+      "../../../../../packages/video/src/canvas-frame"
+    );
+    const BGS: (Background | undefined)[] = [
+      undefined,
+      { type: "color", color: "#123456" },
+      { type: "gradient", from: "#f00", to: "#00f", angle: 45 },
+      { type: "gradient", from: "#f00", to: "#00f" },
+      { type: "image", src: "a.jpg" },
+      { type: "blur", amount: 8 },
+    ];
+    for (const bg of BGS)
+      expect(frameOuterPaint(bg)).toEqual(shared.frameOuterPaint(bg as never));
   });
 });

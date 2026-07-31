@@ -178,7 +178,9 @@ export async function renderProject(project: VideoProject, opts: RenderOptions):
       frameImage = join(dir, 'frame.png');
       await writeFile(
         frameImage,
-        rasterizeSVG(canvasFrameToSVG(project.frame, project.width, project.height)!),
+        rasterizeSVG(
+          canvasFrameToSVG(project.frame, project.width, project.height, project.background)!,
+        ),
       );
     }
     // Download any Google fonts the captions use so resvg embeds them.

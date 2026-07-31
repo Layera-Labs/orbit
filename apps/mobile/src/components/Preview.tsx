@@ -49,7 +49,12 @@ import {
 } from "react-native-reanimated";
 import { useClipFrame } from "../preview/useClipFrame";
 import { buildFadeMap, fadeFactorAt } from "../preview/transitions";
-import { canvasFramePx, hasCanvasFrame } from "../preview/canvasFrame";
+import {
+  canvasFramePx,
+  frameOuterPaint,
+  hasCanvasFrame,
+} from "../preview/canvasFrame";
+import { gradientEnds } from "../preview/gradient";
 import {
   prefetchImage,
   prefetchVideo,
@@ -121,39 +126,85 @@ half4 main(float2 xy) {
  *
  * `DiffRect` is the mat exactly — an outer rect minus an inner rounded one —
  * so the shape needs no approximating, and the geometry comes from the mirrored
- * `canvasFramePx` rather than being worked out again here.
+ * `canvasFramePx` rather than being worked out again here. Rounding the opening
+ * rounds the CARD too, concentrically, and the wedges left outside it are
+ * painted with the background, so the mat reads as an object sitting on the
+ * page rather than a square with a hole in it.
  */
 function CanvasFrameLayer({
   frame,
+  background,
   width,
   height,
 }: {
   frame: CanvasFrame | undefined;
+  background: Background | undefined;
   width: number;
   height: number;
 }) {
   if (!hasCanvasFrame(frame)) return null;
-  const { borderPx, radiusPx } = canvasFramePx(frame, width, height);
+  const { borderPx, radiusPx, outerRadiusPx } = canvasFramePx(
+    frame,
+    width,
+    height,
+  );
   const inner = rect(
     borderPx,
     borderPx,
     Math.max(0, width - borderPx * 2),
     Math.max(0, height - borderPx * 2),
   );
+  const full = rect(0, 0, width, height);
+  /*
+   * What shows outside the card. Read from the mirrored `frameOuterPaint` and
+   * never worked out here: a photo background resolves to black in the export
+   * because no rasterized SVG can carry a photograph, and painting the real
+   * photo here instead would be exactly the divergence that helper exists to
+   * prevent.
+   */
+  const paint = frameOuterPaint(background);
+  const outerR = outerRadiusPx;
   return (
     <Canvas
       style={StyleSheet.absoluteFill}
       pointerEvents="none"
       accessibilityElementsHidden
     >
+      {outerR > 0 ? (
+        /* Outside the card: the background, opaque, whatever the band's own
+           opacity is — see the shared SVG builder. */
+        <DiffRect
+          outer={rrect(full, 0, 0)}
+          inner={rrect(full, outerR, outerR)}
+          color={paint.kind === "color" ? paint.color : undefined}
+        >
+          {paint.kind === "gradient" ? (
+            <LinearGradient
+              start={gradientStart(paint.angle, width, height)}
+              end={gradientEnd(paint.angle, width, height)}
+              colors={[paint.from, paint.to]}
+            />
+          ) : null}
+        </DiffRect>
+      ) : null}
       <DiffRect
-        outer={rrect(rect(0, 0, width, height), 0, 0)}
+        outer={rrect(full, outerR, outerR)}
         inner={rrect(inner, radiusPx, radiusPx)}
         color={frame.color}
         opacity={frame.opacity ?? 1}
       />
     </Canvas>
   );
+}
+
+/** A gradient's endpoints in canvas px, from the shared angle convention. */
+function gradientStart(angle: number | undefined, w: number, h: number) {
+  const g = gradientEnds(angle);
+  return vec(g.x1 * w, g.y1 * h);
+}
+function gradientEnd(angle: number | undefined, w: number, h: number) {
+  const g = gradientEnds(angle);
+  return vec(g.x2 * w, g.y2 * h);
 }
 
 /** The project background (solid / gradient / image) — mirrors the engine bg. */
@@ -182,16 +233,14 @@ function BackgroundFill({
     );
   }
   if (bg?.type === "gradient") {
-    const a = ((bg.angle ?? 0) * Math.PI) / 180;
-    const cx = width / 2;
-    const cy = height / 2;
-    const hx = (Math.cos(a) * Math.max(width, height)) / 2;
-    const hy = (Math.sin(a) * Math.max(width, height)) / 2;
+    // The angle comes from the SHARED convention, not from local cos/sin: the
+    // old line here ran 180deg right-to-left while every export ran it
+    // top-to-bottom. See `preview/gradient.ts`.
     return (
       <Fill>
         <LinearGradient
-          start={vec(cx - hx, cy - hy)}
-          end={vec(cx + hx, cy + hy)}
+          start={gradientStart(bg.angle, width, height)}
+          end={gradientEnd(bg.angle, width, height)}
           colors={[bg.from, bg.to]}
         />
       </Fill>
@@ -1353,6 +1402,7 @@ export function Preview({ width, height }: { width: number; height: number }) {
             overlay does. */}
         <CanvasFrameLayer
           frame={project?.frame}
+          background={project?.background}
           width={width}
           height={height}
         />

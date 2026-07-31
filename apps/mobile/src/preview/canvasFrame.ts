@@ -19,7 +19,7 @@
  * inline: an out-of-range radius resolves differently in SVG, in canvas and in
  * Skia, so it is pinned once here and no renderer ever sees a bad one.
  */
-import type { CanvasFrame } from "../model/types";
+import type { Background, CanvasFrame } from "../model/types";
 
 /** Whether this frame would paint anything at all. */
 export function hasCanvasFrame(f: CanvasFrame | undefined): f is CanvasFrame {
@@ -36,8 +36,9 @@ export function canvasFramePx(
   f: CanvasFrame | undefined,
   w: number,
   h: number,
-): { borderPx: number; radiusPx: number } {
-  if (!f || w <= 0 || h <= 0) return { borderPx: 0, radiusPx: 0 };
+): { borderPx: number; radiusPx: number; outerRadiusPx: number } {
+  if (!f || w <= 0 || h <= 0)
+    return { borderPx: 0, radiusPx: 0, outerRadiusPx: 0 };
   const unit = Math.min(w, h);
   const borderPx = clamp(f.width ?? 0, 0, 0.5) * unit;
   const openW = Math.max(0, w - borderPx * 2);
@@ -47,5 +48,29 @@ export function canvasFramePx(
     openW / 2,
     openH / 2,
   );
-  return { borderPx, radiusPx };
+  // Concentric with the opening, and zero when the opening is square — see the
+  // shared copy for why a thick band alone must not round a stored frame.
+  const outerRadiusPx =
+    radiusPx > 0 ? Math.min(radiusPx + borderPx, w / 2, h / 2) : 0;
+  return { borderPx, radiusPx, outerRadiusPx };
+}
+
+/**
+ * What is painted outside the card. Mirror of the shared `frameOuterPaint` — a
+ * PHOTO background resolves to black in BOTH, because the frame's PNG cannot
+ * carry a photograph in the export and a preview that showed one would be the
+ * divergence this file exists to prevent. See the shared copy for the full
+ * reasoning.
+ */
+export type FrameOuterPaint =
+  | { kind: "color"; color: string }
+  | { kind: "gradient"; from: string; to: string; angle?: number };
+
+export function frameOuterPaint(bg: Background | undefined): FrameOuterPaint {
+  if (!bg) return { kind: "color", color: "#000000" };
+  if (bg.type === "color") return { kind: "color", color: bg.color };
+  if (bg.type === "gradient")
+    return { kind: "gradient", from: bg.from, to: bg.to, angle: bg.angle };
+  if (bg.type === "blur") return { kind: "color", color: "#111111" };
+  return { kind: "color", color: "#000000" };
 }

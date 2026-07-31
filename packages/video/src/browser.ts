@@ -93,6 +93,7 @@ export { backgroundToSVG } from './background-svg';
 export {
   canvasFramePx,
   canvasFrameToSVG,
+  frameOuterPaint,
   hasCanvasFrame,
 } from './canvas-frame';
 export { captionReel, lyricVideo, quoteCard, TEMPLATE_LIST } from './templates';
