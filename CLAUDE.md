@@ -219,7 +219,17 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   a gradient would have to be duplicated and kept in sync, and an image cannot be
   embedded at all since `assertNoExternalRefs` forbids `<image>`. The UI seeds the
   colour from a solid background instead, so the common case still looks like corners
-  revealing the background. **Three placement rules in `ffmpeg.ts`, all of which look
+  revealing the background. **Rounding the corners rounds the CARD** (2026-07-31):
+  `outerRadiusPx` is concentric — radius plus band — and the wedges outside it are
+  painted by `frameOuterPaint`, which reduces any background to a colour or the same
+  gradient the base layer uses (`gradientEnds` is shared, so the corners cannot drift
+  from the page behind them). It is 0 when `radius` is 0, so a frame authored before
+  this still renders exactly as it did. A PHOTO background resolves to BLACK in all
+  three renderers — no rasterized SVG can carry a photograph, and reproducing it would
+  mean a masked second overlay of the base in ffmpeg plus a clip in two preview
+  compositors; leaving the outer edge square instead was considered and fixes nothing
+  for the person who asked for a rounded card. The web needed no change: it draws the
+  same SVG. **Three placement rules in `ffmpeg.ts`, all of which look
   nearly right when broken**: the input is appended LAST (indices come from `idx++`, so
   inserting earlier repoints every clip at the wrong file); the overlay goes after the
   last caption; and it goes BEFORE the output tail, or `scale` quarters the band's
@@ -230,6 +240,12 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   On mobile the mat is its OWN `<Canvas>` layered after the captions, because captions
   are RN `<Text>` outside the Skia canvas and would otherwise cover a frame the export
   draws over them.
+- **Mobile's gradient BACKGROUND was drawn at the wrong angle** (fixed 2026-07-31).
+  `BackgroundFill` built its line from `cos`/`sin` of the raw angle while the export
+  and the web use `dx=sin, dy=-cos` in normalized coords, so the default 180deg ran
+  RIGHT-TO-LEFT in the preview and top-to-bottom in every export. A two-stop gradient
+  looks plausible from either end, which is why it survived. `src/preview/gradient.ts`
+  mirrors `gradientEnds`; `__tests__/gradient.test.ts` compares the two.
 - **Element animation is fade and slide, and deliberately nothing else**
   (`packages/video/src/element-anim.ts`, 2026-07-31). `animateIn`/`animateOut` on every
   visual clip AND every text overlay. Built in the `curve.ts`/`keyframes.ts` shape — a

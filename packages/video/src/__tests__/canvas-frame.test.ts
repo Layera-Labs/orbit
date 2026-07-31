@@ -89,6 +89,28 @@ describe('canvasFramePx', () => {
     expect(canvasFramePx({ color: '#fff', width: 0.1 }, 0, 0)).toEqual({
       borderPx: 0,
       radiusPx: 0,
+      outerRadiusPx: 0,
+    });
+  });
+
+  describe('the outer radius', () => {
+    it('is concentric with the opening: one radius plus the band', () => {
+      const g = canvasFramePx({ color: '#fff', width: 0.05, radius: 0.1 }, W, H);
+      expect(g.outerRadiusPx).toBeCloseTo(g.radiusPx + g.borderPx, 6);
+    });
+
+    it('is zero when the opening is square, however thick the band', () => {
+      // Frames authored before the outer edge could round asked for a
+      // rectangle; rounding one because its band is thick would rewrite the
+      // look of a stored document nobody touched.
+      expect(
+        canvasFramePx({ color: '#fff', width: 0.4 }, W, H).outerRadiusPx,
+      ).toBe(0);
+    });
+
+    it('never exceeds half the canvas', () => {
+      const g = canvasFramePx({ color: '#fff', width: 0.5, radius: 0.5 }, W, H);
+      expect(g.outerRadiusPx).toBeLessThanOrEqual(Math.min(W, H) / 2);
     });
   });
 });
@@ -130,6 +152,56 @@ describe('canvasFrameToSVG', () => {
       H,
     )!;
     expect(svg).toContain('fill-opacity="0.4"');
+  });
+
+  describe('the rounded outer edge', () => {
+    const F = { color: '#ffffff', width: 0.05, radius: 0.08 } as const;
+
+    it('paints the wedges outside the card with a solid background', () => {
+      const svg = canvasFrameToSVG(F, W, H, { type: 'color', color: '#123456' })!;
+      expect((svg.match(/<path/g) ?? []).length).toBe(2);
+      expect(svg).toContain('fill="#123456"');
+      // The card's own outer edge is no longer the bare canvas rectangle.
+      expect(svg).not.toContain(`M0,0H${W}V${H}H0ZM54,54`);
+    });
+
+    it('reuses the background gradient rather than restating it', async () => {
+      const bg = { type: 'gradient', from: '#ff0000', to: '#0000ff', angle: 45 } as const;
+      const svg = canvasFrameToSVG(F, W, H, bg)!;
+      const { gradientEnds } = await import('../background-svg');
+      const { x1, y1, x2, y2 } = gradientEnds(45);
+      expect(svg).toContain(`x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"`);
+      expect(svg).toContain('url(#fo)');
+    });
+
+    it('sits the card on black over a photo background', () => {
+      // resvg refuses `<image>`, so the photograph itself cannot go in the
+      // frame's PNG. Black is what all three renderers can agree on — and
+      // agreeing matters more here than being pretty.
+      const svg = canvasFrameToSVG(F, W, H, { type: 'image', src: 'a.jpg' })!;
+      expect((svg.match(/<path/g) ?? []).length).toBe(2);
+      expect(svg).toContain('fill="#000000"');
+    });
+
+    it('paints the wedges opaque even when the band is see-through', () => {
+      const svg = canvasFrameToSVG(
+        { ...F, opacity: 0.4 },
+        W,
+        H,
+        { type: 'color', color: '#123456' },
+      )!;
+      expect(svg).toContain('fill="#123456"/>');
+      expect(svg).toContain('fill-opacity="0.4"');
+    });
+
+    it('survives a hostile background colour', () => {
+      const svg = canvasFrameToSVG(F, W, H, {
+        type: 'color',
+        color: "url('/etc/passwd')",
+      })!;
+      expect(svg).not.toContain('/etc/passwd');
+      expect(() => assertNoExternalRefs(svg)).not.toThrow();
+    });
   });
 
   it('survives a hostile colour without emitting a reference', () => {

@@ -275,7 +275,7 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
     ops.push({
       kind: 'frame',
       id: 'frame',
-      svg: canvasFrameToSVG(p.frame, W, H)!,
+      svg: canvasFrameToSVG(p.frame, W, H, p.background)!,
       dst: { x: 0, y: 0, w: W, h: H },
       // The SVG is authored at exactly W×H, so stretching is the identity —
       // the same reason the background op stretches.
