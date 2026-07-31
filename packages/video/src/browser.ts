@@ -26,6 +26,9 @@ export type {
   AudioClip,
   Background,
   CanvasFrame,
+  AnimKind,
+  ElementAnim,
+  SlideEdge,
   Transition,
   TransitionType,
   ClipFilter,
@@ -73,6 +76,19 @@ export { createProject, projectDuration, transitionDuration } from './project';
 export { buildFFmpegArgs, MOSAIC_BLOCK } from './ffmpeg';
 export type { BuildFFmpegOptions } from './ffmpeg';
 export { overlayBox, overlayToSVG } from './overlay-svg';
+export {
+  LEGACY_FADE_D,
+  SLIDE_DISTANCE,
+  animWindows,
+  elementFadeAt,
+  hasAnim,
+  hasFade,
+  hasSlide,
+  resolveAnim,
+  slideExpr,
+  slideOffsetAt,
+} from './element-anim';
+export type { ElementAnimPair } from './element-anim';
 export { backgroundToSVG } from './background-svg';
 export {
   canvasFramePx,

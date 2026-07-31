@@ -84,7 +84,16 @@ export interface TextOverlay {
   stroke?: TextStroke;
   /** Optional caption background box. */
   box?: { color: string; opacity?: number; padding?: number };
+  /**
+   * @deprecated Superseded by `animateIn`/`animateOut`. Still READ, never
+   * written: `resolveAnim` maps a stored `"fade"` to the 0.3s fade the export
+   * has always applied, so old documents render byte-identically.
+   */
   animation?: "none" | "fade";
+  /** Entrance animation. See `element-anim.ts`. */
+  animateIn?: ElementAnim;
+  /** Exit animation. */
+  animateOut?: ElementAnim;
   /** Ken-Burns camera move animated over the caption window (preview + export). */
   motion?: Motion;
   /** Keyframes animating opacity + position over the caption (≥2 to animate). */
@@ -148,6 +157,25 @@ export interface CanvasFrame {
    * separated, which is a thing to say in the UI rather than pretend otherwise.
    */
   opacity?: number;
+}
+
+/** How an element enters or leaves. No scale: ffmpeg cannot animate one. */
+export type AnimKind = "none" | "fade" | "slide";
+/** The edge a slide comes FROM on the way in, and goes TO on the way out. */
+export type SlideEdge = "left" | "right" | "up" | "down";
+
+/**
+ * One end of an element's entrance/exit animation. See `element-anim.ts` for
+ * the sampler and its matching ffmpeg expression.
+ */
+export interface ElementAnim {
+  type: AnimKind;
+  /** Seconds. Clamped to half the element's window so in and out cannot cross. */
+  duration: number;
+  /** Which edge a slide travels from / to. Ignored by fade. */
+  edge?: SlideEdge;
+  /** Travel distance as a fraction of min(W,H). Defaults to `SLIDE_DISTANCE`. */
+  distance?: number;
 }
 
 export type TransitionType =
@@ -406,6 +434,16 @@ export interface VisualTrackClip {
   keyframes?: Keyframe[];
   /** Transition INTO this clip from the previous base-track clip (crossfade etc.). */
   transitionIn?: Transition;
+  /**
+   * Entrance animation for this element itself.
+   *
+   * Distinct from `transitionIn`, which is about the CUT between consecutive
+   * main-track clips. Both may be set, and their alphas multiply — honestly,
+   * because that is what chained `fade` filters do in the export.
+   */
+  animateIn?: ElementAnim;
+  /** Exit animation. */
+  animateOut?: ElementAnim;
   /** Authoring-only storyboard note. Never rendered — the renderer ignores it;
    *  it exists so editor annotations survive a save/load round trip. */
   note?: string;
