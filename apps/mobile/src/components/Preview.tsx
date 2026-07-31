@@ -46,6 +46,7 @@ import {
   useSharedValue,
 } from "react-native-reanimated";
 import { useClipFrame } from "../preview/useClipFrame";
+import { buildFadeMap, fadeFactorAt } from "../preview/transitions";
 import {
   prefetchImage,
   prefetchVideo,
@@ -437,27 +438,6 @@ function toUri(p?: string | null): string | null {
   return p.startsWith("http") || p.startsWith("file:") ? p : `file://${p}`;
 }
 
-/** Base-clip opacity for fade-through-black transitions (in/out windows). */
-function transitionOpacity(
-  clip: VisualTrackClip,
-  next: VisualTrackClip | undefined,
-  t: number,
-): number {
-  const fin =
-    clip.transitionIn && clip.transitionIn.type !== "cut"
-      ? clip.transitionIn.duration
-      : 0;
-  const fout =
-    next?.transitionIn && next.transitionIn.type !== "cut"
-      ? next.transitionIn.duration
-      : 0;
-  const S = clip.start;
-  const E = clip.start + clip.duration;
-  let op = 1;
-  if (fin > 0 && t < S + fin) op = Math.min(op, (t - S) / fin);
-  if (fout > 0 && t > E - fout) op = Math.min(op, (E - t) / fout);
-  return Math.max(0, Math.min(1, op));
-}
 
 type OverlayGeom = {
   x: number;
@@ -735,8 +715,20 @@ export function Preview({ width, height }: { width: number; height: number }) {
     ? baseClips.findIndex((c) => c.id === baseActive.id)
     : -1;
   const nextBaseClip = baseIdx >= 0 ? baseClips[baseIdx + 1] : undefined;
+  /*
+   * The fade the export will apply, from the mirrored `transitions.ts` rather
+   * than computed here. It used to be a second copy of the same maths living in
+   * this file, agreeing with the engine by luck and with nothing checking that
+   * it kept agreeing — `preview/__tests__/transitions.test.ts` is now that
+   * check.
+   */
   const baseOp = baseActive
-    ? transitionOpacity(baseActive, nextBaseClip, playheadSec)
+    ? fadeFactorAt(
+        buildFadeMap(baseClips).get(baseActive.id),
+        baseActive.start,
+        baseActive.start + baseActive.duration,
+        playheadSec,
+      )
     : 1;
 
   /*
