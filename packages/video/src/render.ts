@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildFFmpegArgs, type BuildFFmpegOptions } from './ffmpeg';
 import { backgroundToSVG } from './background-svg';
+import { canvasFrameToSVG, hasCanvasFrame } from './canvas-frame';
 import { overlayToSVG } from './overlay-svg';
 import { rasterizeSVG } from './raster';
 import { fontFilesFor } from './google-fonts';
@@ -162,6 +163,24 @@ export async function renderProject(project: VideoProject, opts: RenderOptions):
       baseImage = join(dir, 'background.png');
       await writeFile(baseImage, rasterizeSVG(backgroundToSVG(project.background, project.width, project.height)));
     }
+    /*
+     * The canvas frame, rasterized once for the whole render — it is static, so
+     * there is nothing to redraw per frame.
+     *
+     * Gated on `hasCanvasFrame` rather than on `project.frame` being present: a
+     * frame of zero width and zero radius paints nothing, and rasterizing a
+     * fully transparent PNG for it would cost an input, a decode and a
+     * composite pass on every frame of the export. Skipped entirely for an
+     * audio-only export, where there is no picture to put it on.
+     */
+    let frameImage: string | undefined;
+    if (!opts.output?.audioOnly && hasCanvasFrame(project.frame)) {
+      frameImage = join(dir, 'frame.png');
+      await writeFile(
+        frameImage,
+        rasterizeSVG(canvasFrameToSVG(project.frame, project.width, project.height)!),
+      );
+    }
     // Download any Google fonts the captions use so resvg embeds them.
     const families = project.overlays.flatMap((o) => (o.type === 'text' && o.fontFamily ? [o.fontFamily] : []));
     const fontFiles = await fontFilesFor(families);
@@ -195,7 +214,7 @@ export async function renderProject(project: VideoProject, opts: RenderOptions):
     );
     const hasAudio = (resolvedSrc: string) => withAudio.has(resolvedSrc);
 
-    const args = buildFFmpegArgs(project, { ...opts, overlayImages, baseImage, hasAudio });
+    const args = buildFFmpegArgs(project, { ...opts, overlayImages, baseImage, frameImage, hasAudio });
 
     /*
      * Turn ffmpeg's own reporting into a fraction. The total comes from the

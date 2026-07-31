@@ -51,6 +51,13 @@ export interface BuildFFmpegOptions {
   overlayImages?: Record<string, string>;
   /** Base image to use when the project has no visual clip (e.g. a rendered background). */
   baseImage?: string;
+  /**
+   * The rasterized canvas frame, composited over everything. Absent when the
+   * project has no frame, or one that would paint nothing — `hasCanvasFrame`
+   * gates the caller, and it must, or a fully transparent PNG costs an input,
+   * a decode and a composite pass per frame to draw exactly nothing.
+   */
+  frameImage?: string;
   /** Map a clip/audio `src` to a local file path. Defaults to identity. */
   resolveSrc?: (src: string) => string;
   /** Whether a resolved src actually has an audio stream. Defaults to assuming
@@ -232,6 +239,14 @@ export function buildFFmpegArgs(
     throw new Error(
       "Export settings (resolution, fps, bitrate, HDR, audio-only) need a " +
         "multi-track project; this one still uses the legacy single-track model.",
+    );
+  }
+  // Same reasoning for the canvas frame: silently dropping it would return a
+  // file that looks like an answer.
+  if (project.frame) {
+    throw new Error(
+      "A canvas frame needs a multi-track project; this one still uses the " +
+        "legacy single-track model.",
     );
   }
 
@@ -453,6 +468,17 @@ function buildMultiTrackArgs(
     inputs.push("-i", resolve(a.src));
     return idx++;
   });
+  /*
+   * The frame is appended LAST, after the audio, and that is not a style
+   * choice. Every index above comes from `idx++`, so inserting this anywhere
+   * earlier renumbers every clip and every caption input — silently repointing
+   * each one at the wrong file, with nothing in the graph to show for it.
+   */
+  let frameIdx: number | null = null;
+  if (opts.frameImage) {
+    inputs.push("-loop", "1", "-t", String(duration), "-i", opts.frameImage);
+    frameIdx = idx++;
+  }
 
   // Colour/gradient backgrounds are rasterized at exactly W×H (stretch = identity);
   // an image background is an arbitrary photo, so cover-scale + crop it to fill.
@@ -756,6 +782,29 @@ function buildMultiTrackArgs(
     );
     prev = `[tc${i}]`;
   });
+
+  /*
+   * ---- the canvas frame, over everything ----
+   *
+   * Static, so no `geq` and no `enable=` — it is on for the whole output.
+   *
+   * Its POSITION in this file is load-bearing twice over, and both failures
+   * look nearly right in a thumbnail:
+   *
+   *  - It must come after every clip and every caption, which is what makes it
+   *    a frame rather than a layer things can cover.
+   *  - It must come BEFORE the output tail below. After the `scale` there, a
+   *    mat authored against a 1080 project lands on a 4K frame at a quarter of
+   *    its thickness; after `HDR_CONVERT_FILTER`, its Rec.709 colours are
+   *    composited into a stream that is then TAGGED PQ BT.2020 without being
+   *    converted — exactly the mistagging `hdr.ts` was written about, which
+   *    would blow a white border out to the wrong primaries.
+   */
+  if (frameIdx != null) {
+    segments.push(`[${frameIdx}:v]format=rgba[fr]`);
+    segments.push(`${prev}[fr]overlay=0:0:eof_action=pass[fc]`);
+    prev = "[fc]";
+  }
   const vLabel = prev;
 
   // ---- audio: positioned audio clips + each video clip's own audio, mixed ----

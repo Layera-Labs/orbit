@@ -35,9 +35,11 @@ import {
   Path as SkPath,
   RuntimeShader,
   type SkImage,
+  DiffRect,
   Shader,
   Skia,
   rect,
+  rrect,
   vec,
 } from "@shopify/react-native-skia";
 import {
@@ -47,6 +49,7 @@ import {
 } from "react-native-reanimated";
 import { useClipFrame } from "../preview/useClipFrame";
 import { buildFadeMap, fadeFactorAt } from "../preview/transitions";
+import { canvasFramePx, hasCanvasFrame } from "../preview/canvasFrame";
 import {
   prefetchImage,
   prefetchVideo,
@@ -69,6 +72,7 @@ import { clipAtTime } from "../model/editor-ops";
 import { projectDuration } from "../model/project";
 import type {
   Background,
+  CanvasFrame,
   TextOverlay,
   VisualTrack,
   VisualTrackClip,
@@ -94,6 +98,53 @@ half4 main(float2 xy) {
   float a = ka * c.a;
   return half4(c.rgb * a, a);
 }`)!;
+
+/**
+ * The canvas frame: a mat over the finished picture.
+ *
+ * In its OWN `<Canvas>`, layered after the captions rather than drawn as the
+ * last child of the main one — and that is a z-order fix, not a preference.
+ * Captions are RN `<Text>` outside the Skia canvas (they need real font
+ * rendering), so anything drawn inside the canvas sits UNDER them, while the
+ * export composites the frame over every caption. Drawn here, the order is the
+ * export's: picture, captions, frame.
+ *
+ * `DiffRect` is the mat exactly — an outer rect minus an inner rounded one —
+ * so the shape needs no approximating, and the geometry comes from the mirrored
+ * `canvasFramePx` rather than being worked out again here.
+ */
+function CanvasFrameLayer({
+  frame,
+  width,
+  height,
+}: {
+  frame: CanvasFrame | undefined;
+  width: number;
+  height: number;
+}) {
+  if (!hasCanvasFrame(frame)) return null;
+  const { borderPx, radiusPx } = canvasFramePx(frame, width, height);
+  const inner = rect(
+    borderPx,
+    borderPx,
+    Math.max(0, width - borderPx * 2),
+    Math.max(0, height - borderPx * 2),
+  );
+  return (
+    <Canvas
+      style={StyleSheet.absoluteFill}
+      pointerEvents="none"
+      accessibilityElementsHidden
+    >
+      <DiffRect
+        outer={rrect(rect(0, 0, width, height), 0, 0)}
+        inner={rrect(inner, radiusPx, radiusPx)}
+        color={frame.color}
+        opacity={frame.opacity ?? 1}
+      />
+    </Canvas>
+  );
+}
 
 /** The project background (solid / gradient / image) — mirrors the engine bg. */
 function BackgroundFill({
@@ -1250,6 +1301,14 @@ export function Preview({ width, height }: { width: number; height: number }) {
             return caption;
           })}
         </View>
+
+        {/* Last, so it covers the captions exactly as the export's final
+            overlay does. */}
+        <CanvasFrameLayer
+          frame={project?.frame}
+          width={width}
+          height={height}
+        />
       </View>
     </GestureDetector>
   );

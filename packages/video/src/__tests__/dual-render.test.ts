@@ -457,3 +457,95 @@ describe('rotation and crop', () => {
     );
   });
 });
+
+/*
+ * The canvas frame reaches ffmpeg as a rasterized PNG, so — unlike a grade or
+ * an overlay position — there are no numbers in the filtergraph to compare a
+ * preview against. That is the same position the background and the captions
+ * are already in, and it is why this file asserts nothing about background
+ * colour either. The geometry's teeth live in `canvas-frame.test.ts`.
+ *
+ * What the graph CAN prove is the two things that would actually go wrong, and
+ * both of them look nearly right in a thumbnail.
+ */
+describe('the canvas frame is composited in the right place', () => {
+  const framed = (): VideoProject => ({
+    ...fixture(),
+    frame: { color: '#ffffff', width: 0.04, radius: 0.06 },
+  });
+  const build = (p: VideoProject, frameImage?: string) =>
+    buildFFmpegArgs(p, {
+      outputPath: '/tmp/out.mp4',
+      baseImage: '/tmp/bg.png',
+      overlayImages: { cap: '/tmp/cap.png' },
+      frameImage,
+      hasAudio: () => false,
+      output: { width: 2160, height: 3840 },
+    });
+  const fArgs = build(framed(), '/tmp/frame.png');
+  const fGraph = fArgs[fArgs.indexOf('-filter_complex') + 1];
+
+  it('lands after every clip and every caption', () => {
+    // A frame something can cover is not a frame. This catches the one
+    // ordering mistake anyone actually makes: inserting it before the captions.
+    const segs = fGraph.split(';');
+    const frameSeg = segs.findIndex((s) => s.includes('[fr]overlay=0:0'));
+    const lastContent = Math.max(
+      ...segs.map((s, i) => (/\[(c|tc)\d+\]$/.test(s) ? i : -1)),
+    );
+    expect(frameSeg).toBeGreaterThan(-1);
+    expect(frameSeg).toBeGreaterThan(lastContent);
+  });
+
+  it('lands BEFORE the output resize, or a 4K export gets a quarter-thick mat', () => {
+    // The mat is authored against the project (1080) and the tail scales to
+    // the requested output (2160). Composite after that scale and the band is
+    // half the width the preview showed — in each axis, so a quarter the area.
+    expect(fGraph.indexOf('[fr]overlay=0:0')).toBeLessThan(
+      fGraph.indexOf('scale=2160:3840'),
+    );
+  });
+
+  it('lands BEFORE the HDR conversion, or its white is the wrong white', () => {
+    const hdrArgs = buildFFmpegArgs(framed(), {
+      outputPath: '/tmp/out.mp4',
+      baseImage: '/tmp/bg.png',
+      overlayImages: { cap: '/tmp/cap.png' },
+      frameImage: '/tmp/frame.png',
+      hasAudio: () => false,
+      output: { hdr: true },
+    });
+    const g = hdrArgs[hdrArgs.indexOf('-filter_complex') + 1];
+    // After the conversion, the mat's Rec.709 codes would be composited into a
+    // stream that is then TAGGED PQ BT.2020 without being converted — the exact
+    // mistagging `hdr.ts` exists to prevent.
+    expect(g.indexOf('[fr]overlay=0:0')).toBeLessThan(g.indexOf('zscale'));
+  });
+
+  it('is the LAST input, so no clip or caption index shifts', () => {
+    // Every index comes from `idx++`. Inserting the frame anywhere earlier
+    // repoints every other input at the wrong file, silently.
+    const iAt = fArgs.reduce<number[]>(
+      (acc, a, i) => (a === '-i' ? [...acc, i] : acc),
+      [],
+    );
+    expect(fArgs[iAt[iAt.length - 1] + 1]).toBe('/tmp/frame.png');
+  });
+
+  it('is the last op in the preview too', () => {
+    const ops = frameStateAt(framed(), 3);
+    expect(ops[ops.length - 1].kind).toBe('frame');
+  });
+
+  it('leaves the graph byte-identical when the frame paints nothing', () => {
+    // A frame of zero width and zero radius must cost nothing at all — not an
+    // input, not a decode, not a composite pass per frame. `hasCanvasFrame`
+    // gates the caller, so no `frameImage` is produced and none is wired.
+    const neutral: VideoProject = {
+      ...fixture(),
+      frame: { color: '#ffffff', width: 0, radius: 0 },
+    };
+    expect(build(neutral)).toEqual(build(fixture()));
+    expect(build(fixture()).join(' ')).not.toContain('[fr]overlay=0:0');
+  });
+});
