@@ -11,21 +11,18 @@
  *   nothing; an action that cannot apply simply is not in the list now.
  * - It is not parked in the middle. It follows the selected clip along the
  *   timeline, so it reads as belonging to that clip rather than to the screen.
- *   Vertically it clears the timeline ENTIRELY rather than floating over its
- *   first lane — dropping it onto the selected clip's own lane would bury three
- *   other lanes, and leaving it half-overlapping (which it did) buries one.
+ * - It does not sit on anything. Vertically it clears the timeline AND the
+ *   transport row above it, which took two goes: dropping it on the selected
+ *   clip's own lane buries three other lanes; the first fix cleared the lanes
+ *   but landed on the play button, the timecode and undo. Clearing both means
+ *   it can only overlap the very bottom edge of the picture, which is the one
+ *   thing on this screen nothing is ever read from.
  *
  * No enter/exit animation, because the bar MOVES — a slide-in replayed on every
  * reposition reads as broken rather than lively.
  */
-import {
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-  useWindowDimensions,
-} from "react-native";
-import { font, vela } from "../constants";
+import { Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
+import { vela } from "../constants";
 import { GUTTER_W, PLAYHEAD_X } from "./Timeline";
 import { VIcon, type VIconName } from "./VIcon";
 import type { VisualTrackClip } from "../model/types";
@@ -40,22 +37,35 @@ interface Action {
   onPress: () => void;
 }
 
-/** One slot per action. Six is the widest set, and 6×54 clears an iPhone SE. */
-const ITEM_W = 54;
+/**
+ * One slot per action, icon only.
+ *
+ * The labels moved out. There is exactly 80pt between the bottom of the
+ * preview and the top of the timeline, and the transport — the timecode, the
+ * play button, undo and redo — sits in the middle of it, so a bar tall enough
+ * to carry text under each icon cannot fit above the timeline without landing
+ * on either the picture or the controls. Dropping the labels halves its height
+ * and it clears both.
+ *
+ * Nothing is lost by it: the bottom tool rail already shows this same selection
+ * its own labelled actions, and every button here keeps its accessibility
+ * label. A floating bar's job is proximity to the clip, not teaching.
+ */
+const ITEM_W = 46;
 const EDGE = 8;
 /**
- * The bar's exact height: 42pt of button, 6pt of padding either side, and its
- * 1pt border top and bottom. Stated as a constant because it is what lifts the
- * bar clear of the timeline, and a wrong number here does not misalign the bar
- * — it puts it back on top of the lanes.
+ * The bar's exact height: a 20pt icon, 9pt of padding either side, and its 1pt
+ * border top and bottom. Stated as a constant because it is what lifts the bar
+ * clear of the timeline, and a wrong number here does not merely misalign the
+ * bar — it puts it back on top of the lanes.
  *
  * A percentage (`bottom: '100%'`) would express the same intent without the
  * magic number, but the bar is absolutely positioned and so contributes no
  * height to measure against.
  */
-const BAR_H = 42 + 12 + 2;
+const BAR_H = 20 + 18 + 2;
 
-export function SelectionActionBar() {
+export function SelectionActionBar({ liftBy = 0 }: { liftBy?: number }) {
   const selected = useEditor((s) => s.selected);
   const project = useEditor((s) => s.project);
   const pxPerSec = useEditor((s) => s.pxPerSec);
@@ -245,7 +255,16 @@ export function SelectionActionBar() {
 
   return (
     <View style={styles.wrap} pointerEvents="box-none">
-      <View style={[styles.bar, { left, width: barW, top: -(BAR_H + 8) }]}>
+      <View
+        style={[
+          styles.bar,
+          // Clear of the timeline AND of the transport row above it. `liftBy`
+          // is the transport's MEASURED height rather than a guess, because
+          // being a few points short here does not look slightly wrong — it
+          // puts the bar back on top of the play button.
+          { left, width: barW, top: -(BAR_H + 8 + liftBy) },
+        ]}
+      >
         {actions.map((a) => (
           <Pressable
             key={a.key}
@@ -254,10 +273,7 @@ export function SelectionActionBar() {
             style={styles.item}
             onPress={a.onPress}
           >
-            <VIcon name={a.icon} size={18} color="#fff" strokeWidth={1.7} />
-            <Text numberOfLines={1} style={styles.label}>
-              {a.label}
-            </Text>
+            <VIcon name={a.icon} size={20} color="#fff" strokeWidth={1.7} />
           </Pressable>
         ))}
       </View>
@@ -281,7 +297,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     flexDirection: "row",
     paddingHorizontal: 2,
-    paddingVertical: 6,
+    paddingVertical: 9,
     backgroundColor: vela.accent,
     borderRadius: 14,
     borderCurve: "continuous",
@@ -292,15 +308,8 @@ const styles = StyleSheet.create({
   },
   item: {
     width: ITEM_W,
-    height: 42,
+    height: BAR_H - 2,
     alignItems: "center",
     justifyContent: "center",
-    gap: 3,
-  },
-  label: {
-    color: "#fff",
-    fontSize: 9,
-    fontFamily: font.medium,
-    textAlign: "center",
   },
 });

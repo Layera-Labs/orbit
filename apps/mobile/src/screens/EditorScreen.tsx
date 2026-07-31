@@ -1,6 +1,6 @@
 /**
  * Editor screen — Vela skin. Top bar (back · help · ratio chip · ⋯ · Save ·
- * Export), a white-framed composite preview, a transport row, the Vela timeline,
+ * Export), the composite preview, a transport row, the Vela timeline,
  * and the bottom tool rail. Every tool on the rail does what it says — the
  * "soon" badge and its alert are gone, and nothing was using them. Sheets
  * (settings, project menu, insert, audio, prefs, filter, export) live in
@@ -37,7 +37,6 @@ interface Tool {
 }
 
 const TOOL_WIDTH = 66;
-
 
 function ToolButton({ tool }: { tool: Tool }) {
   const color = vela.textLight;
@@ -87,6 +86,8 @@ export function EditorScreen() {
   // Fullscreen player: `fsMounted` keeps the modal alive through its exit
   // animation; `fsAnim` (0→1) drives an expand-in / shrink-out of the player.
   const [fsMounted, setFsMounted] = useState(false);
+  /** Measured, so the selection bar can clear the transport rather than cover it. */
+  const [transportH, setTransportH] = useState(0);
   const fsAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -150,8 +151,8 @@ export function EditorScreen() {
     Math.min(360, screenH - timelineMaxH - 290),
   );
 
-  // Fit the white preview frame (7px white padding all round) into the space
-  // left after the header, transport, timeline viewport, and tool rail.
+  // Fit the preview into the space left after the header, transport, timeline
+  // viewport, and tool rail.
   const ar = project.width / project.height;
   let iw = screenW - 48;
   let ih = iw / ar;
@@ -528,7 +529,10 @@ export function EditorScreen() {
       </View>
 
       {/* Transport */}
-      <View style={styles.transport}>
+      <View
+        style={styles.transport}
+        onLayout={(e) => setTransportH(e.nativeEvent.layout.height)}
+      >
         <Text style={styles.tc}>
           {playheadSec.toFixed(2)}
           <Text style={styles.tcDim}>s / {dur.toFixed(2)}s</Text>
@@ -568,7 +572,14 @@ export function EditorScreen() {
       {/* Timeline (with the floating selection action bar over its top) */}
       <View style={[styles.timelineWrap, { maxHeight: timelineMaxH }]}>
         <Timeline maxHeight={timelineMaxH} />
-        <SelectionActionBar />
+        {/*
+          The bar is lifted clear of the transport as well as the timeline.
+          Its height is measured rather than assumed because the transport is
+          the row holding play, undo and redo — landing a few points short of
+          it does not look slightly off, it makes the play button unreachable
+          for as long as a clip is selected.
+        */}
+        <SelectionActionBar liftBy={transportH} />
       </View>
 
       {/* Bottom tool rail */}
