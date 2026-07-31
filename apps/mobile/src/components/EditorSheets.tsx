@@ -207,8 +207,17 @@ function FullSheet({
  */
 const RATIO_GRID_COLS = 4;
 const RATIO_GRID_GAP = 10;
-/** Fixed, not square: four rows of a square cell make an overlong sheet. */
-const RATIO_CELL_H = 76;
+/**
+ * Fixed, not square: four rows of a square cell make an overlong sheet.
+ *
+ * The three things stacked inside sit on ONE gap with the text boxes trimmed to
+ * their glyphs (see `ratioLabel`/`ratioHint`'s explicit `lineHeight`). Left at
+ * their default line height a 13pt label reserves ~16pt, so the leading padded
+ * the gap under the swatch while the label and its caption stayed tight — the
+ * stack read as top-heavy even though the numbers said it was centred.
+ */
+const RATIO_CELL_H = 84;
+const RATIO_CELL_GAP = 6;
 const RATIO_SWATCH = 26;
 /** Below this a hairline-thin swatch loses its corner radius and reads broken. */
 const RATIO_SWATCH_MIN = 7;
@@ -309,15 +318,19 @@ function VideoSettingsSheet() {
         })}
       </View>
 
-      {/* Always present, so choosing never changes the sheet's height. */}
+      {/* Always rendered, and holding two lines of copy, so moving through the
+          grid never resizes the sheet under your finger. */}
       <View style={s.ratioMeta}>
-        <Text style={s.ratioMetaHead}>
-          {current?.label ?? ratioLabel(project.width, project.height)}
-          <Text style={s.ratioMetaDims}>
-            {"   "}
-            {project.width} × {project.height}
+        <View style={s.ratioMetaTop}>
+          <Text style={s.ratioMetaHead}>
+            {current?.label ?? ratioLabel(project.width, project.height)}
           </Text>
-        </Text>
+          <View style={s.ratioMetaBadge}>
+            <Text style={s.ratioMetaDims}>
+              {project.width} × {project.height}
+            </Text>
+          </View>
+        </View>
         <Text style={s.ratioMetaBody}>
           {current?.use ?? "A custom size, kept exactly as it is."}
         </Text>
@@ -3145,7 +3158,13 @@ const s = StyleSheet.create({
     backgroundColor: vela.lightSurface,
     alignItems: "center",
     justifyContent: "center",
-    gap: 7,
+    gap: RATIO_CELL_GAP,
+    // The caption's line box reserves descender room that "Reels" and "9:16"
+    // never use, so a metrically centred stack reads bottom-heavy: the eye
+    // measures ink to edge, not box to edge. Nudged down until the gap above
+    // the swatch and the gap under the caption's baseline matched on screen —
+    // 3 overshot the other way, so this is measured, not derived.
+    paddingTop: 1.5,
   },
   ratioCardOn: {
     backgroundColor: vela.accentSoft,
@@ -3161,27 +3180,56 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   ratioBox: { borderWidth: 2, borderRadius: 4, borderCurve: "continuous" },
-  ratioLabel: { fontSize: 13, fontFamily: font.bold },
+  // The explicit line heights are what make the one `gap` above read as even.
+  ratioLabel: { fontSize: 13, lineHeight: 15, fontFamily: font.bold },
   ratioHint: {
     fontSize: 10.5,
+    lineHeight: 12,
     fontFamily: font.medium,
     color: vela.lightMuted,
-    marginTop: -3,
+    // Optical, not metric: a ratio label carries no descender, so the box under
+    // it is emptier than the box above it and the same 6pt gap looks wider.
+    marginTop: -2,
   },
-  ratioMeta: { paddingTop: 2, gap: 3 },
-  ratioMetaHead: { fontSize: 15, fontFamily: font.bold, color: vela.ink },
-  // Mono for the pixels only: they are data, and they change under the same
-  // heading as you move through the grid.
+  ratioMeta: {
+    backgroundColor: vela.lightSurface,
+    borderRadius: 14,
+    borderCurve: "continuous",
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    gap: 7,
+  },
+  ratioMetaTop: { flexDirection: "row", alignItems: "center", gap: 9 },
+  ratioMetaHead: { fontSize: 16, fontFamily: font.bold, color: vela.ink },
+  // The badge sits a step lighter than the block it is on, so it reads as a
+  // measurement lifted out of the sentence rather than a tinted label chip.
+  ratioMetaBadge: {
+    backgroundColor: vela.lightCard,
+    borderRadius: 8,
+    borderCurve: "continuous",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: vela.lightBorder,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  // Mono for the pixels only: they are genuinely data, and they change under
+  // the same heading as you move through the grid.
   ratioMetaDims: {
-    fontSize: 12,
+    fontSize: 11.5,
+    lineHeight: 14,
     fontFamily: mono.regular,
-    color: vela.lightMuted,
+    color: vela.ink3,
   },
   ratioMetaBody: {
     fontSize: 13,
     lineHeight: 18,
     fontFamily: font.medium,
     color: vela.ink3,
+    // Two lines are RESERVED, not enforced: most of these sentences wrap to
+    // two, so holding the space stops the block resizing under your finger as
+    // you move through the grid. A cap would be the other, worse fix — on a
+    // narrow phone it would slice a sentence to keep the box still.
+    minHeight: 36,
   },
 
   // project menu
