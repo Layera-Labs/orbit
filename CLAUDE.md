@@ -109,6 +109,30 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   the first attempt at "just above" used a flat `-22` against a 56pt bar, so two thirds of it
   still sat on the ruler and the music track. `BAR_H` is a stated constant because the bar is
   absolutely positioned and contributes no height for a percentage to measure against.
+- **A clip's level has ONE writer, because a curve overrides `volume`** (2026-07-31).
+  `clipGainAt` and `ffmpeg.ts` both read `volumeCurve` INSTEAD of `volume` when one is
+  set — deliberate, and the reason `withFades` writes the plateau into both. But the
+  Volume panel wrote `volume` alone, so on any clip carrying a fade it moved a number no
+  renderer reads: set a fade, drag Volume to 200%, and the export came back at 100% with
+  nothing to say why. Both controls go through `withVolume` (`model/audio-fade.ts`) now,
+  which moves a recognised fade's plateau, SCALES a hand-drawn curve (flattening someone's
+  duck to obey a slider would destroy work to honour it), and drops a curve that is silent
+  throughout. Measured after the fix against ffmpeg 8.1.2: a faded clip at 200% renders
+  **+6.00 dB** over the same clip at 100%. `setClipVolumeCurve` clamps points to 0..2 like
+  `setClipVolume` — unclamped, a curve point was the one way to store a gain the UI could
+  neither show nor undo. The ceiling is 2 everywhere; there has never been a 1000.
+- **Above 100% is inaudible in the mobile preview and real in the export.** `expo-audio`'s
+  `player.volume` is a 0–1 property and the native player saturates, so 150% and 200% both
+  sound like 100%. A gain node needs a native module, and quietening every other voice to
+  make headroom would just move the lie. The timeline waveform is the mitigation:
+  `components/waveformBars.ts` scales the bars by that same `clipGainAt`, so a boost you
+  cannot hear is one you can see — and a fade in ramps the bars up, a fade out ramps them
+  down. The per-bar AMPLITUDE is synthetic (nothing installed can decode PCM; `expo-audio`
+  is playback only), but it is now sampled from a field indexed on SOURCE time, so trimming
+  slides a window instead of re-rolling the shape, and the seed is the `src`, so two clips
+  of one song draw the same waveform. Unity deliberately lands at half the lane so 200% has
+  somewhere to go. Real peaks would need a `/v1/peaks` endpoint — `apps/web`'s
+  `timeline/waveform.ts` (WebAudio + IndexedDB) is the shape to copy if it is ever built.
 - **Export**: upload local media → `POST /v1/upload` (`upload:<id>` token) → resolved project →
   `POST /v1/render` → download MP4 → save to Photos. The server's `resolveSrc` only maps tokens
   to files in its media dir and rejects non-token/non-URL srcs (clients can't point ffmpeg

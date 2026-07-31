@@ -387,7 +387,12 @@ export function buildFFmpegArgs(
     audioMap = aLabels[0];
   } else if (aLabels.length > 1) {
     segments.push(
-      `${aLabels.join("")}amix=inputs=${aLabels.length}:dropout_transition=0[a]`,
+      // `normalize=0` for the same reason the multi-track mix carries it:
+      // amix's default scales every input by 1/N, so two sources came out 6 dB
+      // down and four came out 12 dB down whatever their `volume` said. No
+      // current client sends a legacy project, which is exactly why this was
+      // able to sit here silently losing gain.
+      `${aLabels.join("")}amix=inputs=${aLabels.length}:dropout_transition=0:normalize=0[a]`,
     );
     audioMap = "[a]";
   }
