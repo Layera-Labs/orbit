@@ -190,6 +190,20 @@ export function EditorScreen() {
       label: "Effect",
       onPress: () => setPanel("fx"),
     },
+    /*
+     * Also on the rail, not only on the stage.
+     *
+     * The stage button is the right place for it — canvas properties belong to
+     * the picture, not to the timeline — but it is a 34pt icon in a corner, and
+     * the rail is where anyone actually looks for "what can I do here". Two
+     * doors into one sheet is cheaper than a feature nobody finds.
+     */
+    {
+      key: "canvas",
+      icon: "frame",
+      label: "Canvas",
+      onPress: () => setPanel("canvas"),
+    },
     {
       key: "more",
       icon: "dots",

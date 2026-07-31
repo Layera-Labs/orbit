@@ -2689,8 +2689,10 @@ function ContentLibrarySheet() {
 
       {tab === "backgrounds" ? (
         <ScrollView
-          style={{ maxHeight: 380 }}
-          showsVerticalScrollIndicator={false}
+          // Tall enough for whole rows, and the indicator is ON: at 380 with no
+          // indicator the second row of solids was sliced to coloured slivers
+          // at the sheet's edge, which reads as broken rather than scrollable.
+          style={{ maxHeight: 440 }}
           contentContainerStyle={{ gap: 12, paddingBottom: 8 }}
         >
           <Text style={s.libSection}>Gradients</Text>
@@ -2708,7 +2710,7 @@ function ContentLibrarySheet() {
                   ]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
-                  style={s.libSwatch}
+                  style={[s.libSwatch, s.libSwatchEdge]}
                 />
               </Pressable>
             ))}
@@ -2724,11 +2726,8 @@ function ContentLibrarySheet() {
                 <View
                   style={[
                     s.libSwatch,
-                    {
-                      backgroundColor: (p.bg as { color: string }).color,
-                      borderWidth: 1,
-                      borderColor: "rgba(255,255,255,0.15)",
-                    },
+                    s.libSwatchEdge,
+                    { backgroundColor: (p.bg as { color: string }).color },
                   ]}
                 />
               </Pressable>
@@ -3455,6 +3454,15 @@ const s = StyleSheet.create({
   },
   libCellOn: { borderWidth: 2, borderColor: vela.accent },
   libSwatch: { flex: 1, borderRadius: 10 },
+  /*
+   * Every swatch gets an edge, because this sheet is WHITE.
+   *
+   * It used to be a 15%-white border, which is a dark-surface idiom: on this
+   * surface it is invisible, and `#ffffff` is in `SOLID_PRESETS`, so the white
+   * background swatch rendered as nothing at all — a gap in the grid where a
+   * choice should be. A pale gradient washed out the same way.
+   */
+  libSwatchEdge: { borderWidth: 1, borderColor: vela.lightBorder },
   emojiCell: {
     width: 56,
     height: 56,
