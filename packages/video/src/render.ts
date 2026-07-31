@@ -98,7 +98,7 @@ function killAfter(proc: { kill: (sig?: NodeJS.Signals) => boolean }, ms: number
  */
 const hdrCapable = new Map<string, Promise<boolean>>();
 
-function ffmpegSupportsHdr(bin: string): Promise<boolean> {
+export function ffmpegSupportsHdr(bin: string): Promise<boolean> {
   const cached = hdrCapable.get(bin);
   if (cached) return cached;
   const probe = new Promise<boolean>((resolve) => {

@@ -57,7 +57,34 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   Skia preview and the ffmpeg/resvg export. Filters=`<ColorMatrix>`/eq; Transitions=
   `<Group opacity>`/xfade; Blur=`<Blur>`/gblur; Motion(Ken Burns)=`<Group transform>`/zoompan;
   Cutout(chroma)=Skia `RuntimeEffect`/`colorkey`. Shared math lives in `packages/video/src/`
-  (`motion|cutout|mask|blend|curve|keyframes|filters.ts`) mirrored into `apps/mobile/src/preview/`.
+  (`motion|cutout|mask|blend|curve|keyframes|filters|transform.ts`) mirrored into
+  `apps/mobile/src/preview/`.
+- **Rotation + crop** (2026-07-31, `packages/video/src/transform.ts`). `rotation` is
+  CLOCKWISE **degrees** about the centre of `rect`; `crop` is a `SourceRect` normalized to
+  the media's **own** size — it has to be, because `ffmpeg.ts` never probes the media and
+  `frameStateAt` is sync and pure. Order everywhere: decode → **crop** → grade → cover-fit
+  into `rect` → effects → **rotate** → composite. There is still exactly ONE cover-fit; it
+  just reads from the crop window, so nothing crops twice (`sourceCropPx(nw,nh,undefined,…)`
+  === `coverCrop(…)`, asserted). Four things measured against real ffmpeg 8.1.2, not
+  reasoned about:
+  - `rotate=…:c=none` **needs `format=rgba`** — with no alpha plane the fill is opaque black
+    and every rotated clip gets black corners.
+  - `ow`/`oh` come from `rotatedBoxPx`, never ffmpeg's `rotw()`/`roth()`, so the preview and
+    the test can reproduce the encoder's exact number. It rounds **UP** to even (rounding to
+    nearest shaves the corner the rotation just made) and snaps trig noise to zero — without
+    that, `cos(π/2)` = 6.1e-17 made a 96px box come out 98.
+  - The overlay origin is pulled back by half the growth (`rx-dx`), which pins the turn to
+    the rect CENTRE. Values go negative; `overlay` accepts that, but the **blend path's base
+    `crop` does not** — it is clamped, or a rotated PiP touching an edge aborts the render.
+  - **No supersampling.** It was tried: `scale` 2x → rotate → `scale …:flags=area` gives four
+    coverage steps instead of one, but the downscale averages colour against the transparent
+    fill's black, so composited over black a red edge measured 16/64/144 where it should be
+    64/128/192 — **up to 64/255 too dark on every boundary pixel**. `unpremultiply` does not
+    fix it (the framework auto-inserts a matching `auto_premultiply` and the pair cancels);
+    `setparams=alpha_mode=premultiplied` would, but only exists in ffmpeg 8 and would fail
+    outright on 7.x. So the export's rotated edge is one honest hard pixel and both previews
+    antialias — a recorded divergence on the boundary pixel only, far smaller than the
+    alternative's error. Do not "improve" this without re-measuring.
 - **State**: zustand — `src/store/{editorStore,authStore,aiActions}.ts`. Sheets are driven by
   store `panel` state (`setPanel`); prefs in store `prefs`; export in `exportToPhotos`.
 - **Persistence**: expo-file-system v55 class API (`File`/`Directory`/`Paths`), one JSON per
@@ -65,6 +92,20 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
 - **Timeline** (`Timeline.tsx`): fixed left gutter of VIcons over 5 lanes — Music · Text ·
   Image · Video (main) · Sound (read-only mirror). Scrub by scrolling under a fixed center
   playhead; scroll locks while a clip is selected so trim-handle pans win.
+  **Nothing here is animated on purpose** — a `LinearTransition` on the body dragged the
+  whole timeline along behind a trim. Trim handles keep the geometry in LOCAL state and
+  write the store **once, on release** (the web editor's `useClipDrag` rule): a per-frame
+  `apply()` clones the project and re-renders three screens, so the edge trailed the finger.
+  The body MOVE deliberately still writes live, because `setClipStart` re-packs the track in
+  Quick mode and moves neighbours under linkage — deferring that would replace live feedback
+  with a snap.
+- **`SelectionActionBar` follows the clip.** Its actions branch by track kind + clip type
+  (video / image / audio / caption / sticker); it used to show one set for everything and
+  explain the dead ones with an alert. It is positioned from state that already exists —
+  scrolling the timeline IS setting the playhead, so the scroll offset is
+  `playheadSec * pxPerSec` and the clip's on-screen centre needs no plumbing out of
+  `Timeline`. Vertically it stays above the timeline: `styles.root` has `overflow: hidden`,
+  and dropping the bar onto the selected lane would bury three others.
 - **Export**: upload local media → `POST /v1/upload` (`upload:<id>` token) → resolved project →
   `POST /v1/render` → download MP4 → save to Photos. The server's `resolveSrc` only maps tokens
   to files in its media dir and rejects non-token/non-URL srcs (clients can't point ffmpeg
@@ -81,6 +122,20 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   a guest account would detach them from their own credits. `ORBIT_JWT_SECRET` is required
   in production and ephemeral in dev. Render jobs carry their `account`, so
   `GET /v1/render/:id` 404s someone else's job rather than handing over the MP4.
+- **Every absolute `file://` we persist goes stale, and `rebaseMediaUri` is the cure.** iOS
+  hands the app a fresh container UUID on every install. `projects.ts` has healed project
+  JSON for a long time; `genHistory.ts` did NOT, so the Library and Upload grids pointed at
+  dead paths and `<Image>` failed *silently* — nothing painted and the tile's own background
+  showed through as a blank grey box. `loadHistory` now rebases, drops records whose file is
+  really gone, and `MediaTile` has an `onError` fallback so a broken image can never render
+  as an unexplained rectangle again. `GenRecord.thumbUri` persists a video's poster; without
+  it every tile re-extracted one on every sheet open, forever. The same staleness is why
+  `ensurePoster` checks that its file EXISTS rather than just that a poster is set.
+- **HDR10 is gated on a capability probe**, not attempted and refused. `/health` reports
+  `capabilities.hdr` from `ffmpegSupportsHdr`, mobile caches it per server URL
+  (`src/net/capabilities.ts`, fail-CLOSED — an unreachable server hides the toggle rather
+  than offering it on a guess), and `ExportSheet` only renders the row when it is true.
+  Homebrew's ffmpeg has no `zscale`, so on a dev Mac the toggle is simply absent.
 - **BYOK stock media**: Orbit is a developer/SDK product, so Unsplash/Pexels use
   **bring-your-own-key**, stored in the OS keychain via `expo-secure-store`, never in the
   bundle and never sent to Orbit's server. `src/content/{keys,stock}.ts`, `KeysSheet`.

@@ -24,7 +24,11 @@ import { font, r, ratioLabel, sp, vela } from "../constants";
 import { VIcon } from "../components/VIcon";
 import { newId } from "../model/editor-ops";
 import type { VisualTrackClip } from "../model/types";
-import { loadHistory, type GenRecord } from "../storage/genHistory";
+import {
+  loadHistory,
+  setHistoryThumb,
+  type GenRecord,
+} from "../storage/genHistory";
 import { copyIntoMedia, downloadToMedia, videoThumbnail } from "../storage/media";
 import {
   isMissingKey,
@@ -341,12 +345,17 @@ function LibraryGrid({ pickedIds, orderOf, onToggle }: GridProps) {
   const [records] = useState<GenRecord[]>(() => loadHistory());
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
 
+  // Only for records that do not already carry a poster; `setHistoryThumb`
+  // means the next screen to ask for one gets it for free.
   useEffect(() => {
     let alive = true;
     for (const r of records) {
-      if (r.kind !== "video" || !r.url.startsWith("file:")) continue;
+      if (r.kind !== "video" || r.thumbUri) continue;
+      if (!r.url.startsWith("file:")) continue;
       void videoThumbnail(r.url, 0).then((t) => {
-        if (alive && t) setThumbs((c) => ({ ...c, [r.id]: t }));
+        if (!alive || !t) return;
+        setThumbs((c) => ({ ...c, [r.id]: t }));
+        setHistoryThumb(r.id, t);
       });
     }
     return () => {
@@ -370,7 +379,11 @@ function LibraryGrid({ pickedIds, orderOf, onToggle }: GridProps) {
       contentContainerStyle={s.grid}
       renderItem={({ item }) => (
         <PickTile
-          uri={item.kind === "image" ? item.url : thumbs[item.id]}
+          uri={
+            item.kind === "image"
+              ? item.url
+              : (item.thumbUri ?? thumbs[item.id])
+          }
           video={item.kind === "video"}
           duration={item.durationSec}
           selected={pickedIds.has(item.id)}

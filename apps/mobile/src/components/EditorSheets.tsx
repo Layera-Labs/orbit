@@ -65,6 +65,8 @@ import { AiHubSheet } from "./AiHubSheet";
 import { MediaDrawerSheet } from "./MediaDrawerSheet";
 import { AudioDrawerSheet } from "./AudioDrawerSheet";
 import { TextDrawerSheet } from "./TextDrawerSheet";
+import { serverCapabilities } from "../net/capabilities";
+import { AudioClipSheet } from "./AudioClipSheet";
 import { MosaicSheet } from "./MosaicSheet";
 import { MagnifierSheet } from "./MagnifierSheet";
 import { StorySheet } from "./StorySheet";
@@ -228,8 +230,12 @@ function VideoSettingsSheet() {
       <View style={s.infoCard}>
         <View style={{ flex: 1 }}>
           <Text style={s.infoTitle}>HDR</Text>
+          {/* It used to promise a "brighter preview". The preview's HDR
+              treatment was removed on purpose — this screen cannot display
+              HDR, so a bloom made the preview lighter than the file it exists
+              to predict. All this flag does now is arm the export toggle. */}
           <Text style={s.infoSub}>
-            Brighter preview, and HDR10 (10-bit HEVC) on export
+            Turn on HDR10 (10-bit HEVC) by default when exporting
           </Text>
         </View>
         <Switch
@@ -902,26 +908,74 @@ const RES_STEPS = [
 ];
 const FPS_OPTS = [24, 25, 30, 50, 60];
 
+/** Mbps at the reference point — 1080p, 30fps — for each quality step. */
+const QUALITY_MBPS = { Low: 8, Medium: 20, High: 40 } as const;
+/** AAC stereo, the rate the render service encodes audio at. */
+const AUDIO_MBPS = 0.192;
+
+/**
+ * The bitrate this export should actually be encoded at.
+ *
+ * It scales with PIXELS (hence `scale²`) and linearly with frame rate. The old
+ * number did neither: 480p and 4K were both requested at the 1080p rate, so the
+ * estimate below never moved when you changed resolution AND the 4K file came
+ * out under-encoded. One function now, feeding both the number on screen and
+ * the number sent to the server, so they cannot drift apart.
+ */
+function exportMbps(
+  quality: keyof typeof QUALITY_MBPS,
+  scale: number,
+  fps: number,
+): number {
+  return QUALITY_MBPS[quality] * scale ** 2 * (fps / 30);
+}
+
 function ExportSheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const exportToPhotos = useEditor((s) => s.exportToPhotos);
   const project = useEditor((s) => s.project);
   const projectName = useEditor((s) => s.name);
   const posterUri = useEditor((s) => s.posterUri);
+  const serverUrl = useEditor((s) => s.serverUrl);
   const [quality, setQuality] = useState<"Low" | "Medium" | "High">("High");
   const [audioOnly, setAudioOnly] = useState(false);
-  const [hdr, setHdr] = useState(!!project?.hdr); // default from the project's HDR toggle
+  const [wantHdr, setWantHdr] = useState(!!project?.hdr);
   const [resIdx, setResIdx] = useState(2);
   const [fpsIdx, setFpsIdx] = useState(2);
   const close = () => setPanel(null);
+
+  /*
+   * Only offer HDR10 where this server's ffmpeg can produce it. `zscale` is a
+   * compile-time option and a stock Homebrew build does not have it, so the
+   * toggle used to be there, be flipped, and fail the export with a message
+   * about libzimg — which is a true message and a useless control.
+   *
+   * `wantHdr` is what the user asked for; `hdr` is what will be sent. Keeping
+   * them separate means turning it on, losing the server, and getting it back
+   * does not silently forget the choice.
+   */
+  const [hdrCapable, setHdrCapable] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void serverCapabilities(serverUrl).then((caps) => {
+      if (alive) setHdrCapable(caps.hdr);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [serverUrl]);
+  const hdr = wantHdr && hdrCapable;
 
   const W = project?.width ?? 1080;
   const H = project?.height ?? 1920;
   const dur = project ? projectDuration(project) : 0;
   const scale = RES_STEPS[resIdx].scale;
   const fps = FPS_OPTS[fpsIdx];
-  const bitrate = quality === "Low" ? 8 : quality === "Medium" ? 20 : 40;
-  const estMB = Math.max(1, Math.round((bitrate * dur) / 8));
+  const bitrate = Math.round(exportMbps(quality, scale, fps) * 10) / 10;
+  const estMB = Math.max(
+    1,
+    Math.round(((audioOnly ? AUDIO_MBPS : bitrate + AUDIO_MBPS) * dur) / 8),
+  );
 
   const onExport = () => {
     const output: ExportOutput = audioOnly
@@ -1026,11 +1080,18 @@ function ExportSheet() {
           </View>
 
           <View style={s.exportAdvanced}>
-            <View style={s.rowBetween}>
-              <Text style={s.exportToggleLabel}>HDR10</Text>
-              <VToggle value={hdr} onChange={() => setHdr((value) => !value)} />
-            </View>
-            <View style={s.exportDivider} />
+            {hdrCapable ? (
+              <>
+                <View style={s.rowBetween}>
+                  <Text style={s.exportToggleLabel}>HDR10</Text>
+                  <VToggle
+                    value={wantHdr}
+                    onChange={() => setWantHdr((value) => !value)}
+                  />
+                </View>
+                <View style={s.exportDivider} />
+              </>
+            ) : null}
             <View style={s.rowBetween}>
               <Text style={s.exportToggleLabel}>Audio only</Text>
               <VToggle
@@ -1738,20 +1799,32 @@ function PositionSheet() {
       ? { x: overlay0.x, y: overlay0.y, fontSize: overlay0.fontSize }
       : null,
   );
-  const r0 = effectsTarget()?.clip.rect ?? { x: 0, y: 0, w: 1, h: 1 };
+  const target0 = effectsTarget();
+  const r0 = target0?.clip.rect ?? { x: 0, y: 0, w: 1, h: 1 };
   const [r, setR] = useState(r0);
   const close = () => setPanel(null);
-  // Resize keeps the rect centred and clamped on-canvas.
-  const setSize = (size: number) => {
+  /*
+   * Scale about the centre, keeping the clip's PROPORTIONS.
+   *
+   * It used to set w and h to the same number, which turned any non-square clip
+   * into a square the instant the slider was touched — a 16:9 PiP became a
+   * square crop of itself and there was no way back. `size` is now a factor of
+   * the clip's own shape, not an absolute side.
+   */
+  const setSize = (factor: number) => {
     const cx = r.x + r.w / 2;
     const cy = r.y + r.h / 2;
-    const w = Math.max(0.1, Math.min(1, size));
-    const h = Math.max(0.1, Math.min(1, size));
+    // Never smaller than a target you could still grab, never past the canvas.
+    const lo = 0.06 / Math.max(0.001, Math.max(r0.w, r0.h));
+    const hi = 1 / Math.max(0.001, Math.max(r0.w, r0.h));
+    const scale = Math.max(lo, Math.min(hi, factor));
+    const nw = r0.w * scale;
+    const nh = r0.h * scale;
     const nr = {
-      x: Math.max(0, Math.min(1 - w, cx - w / 2)),
-      y: Math.max(0, Math.min(1 - h, cy - h / 2)),
-      w,
-      h,
+      x: Math.max(0, Math.min(1 - nw, cx - nw / 2)),
+      y: Math.max(0, Math.min(1 - nh, cy - nh / 2)),
+      w: nw,
+      h: nh,
     };
     setR(nr);
     applyClipRect(nr);
@@ -1764,7 +1837,9 @@ function PositionSheet() {
     setR(nr);
     applyClipRect(nr);
   };
-  const size = Math.max(r.w, r.h);
+  // The slider reads as a factor of the clip's own starting size, so 100% is
+  // "as it was" rather than "as wide as the canvas".
+  const size = r0.w > 0 ? r.w / r0.w : 1;
   const setTextPosition = (
     patch: Partial<{ x: number; y: number; fontSize: number }>,
   ) => {
@@ -1856,7 +1931,7 @@ function PositionSheet() {
               <VSlider
                 value={size}
                 min={0.1}
-                max={1}
+                max={2}
                 onChange={(v) => setSize(Math.round(v * 100) / 100)}
               />
             </View>
@@ -2833,6 +2908,7 @@ export function EditorSheets() {
       {panel === "magnifier" && <MagnifierSheet />}
       {panel === "story" && <StorySheet />}
       {panel === "voiceover" && <VoiceoverSheet />}
+      {panel === "audioclip" && <AudioClipSheet />}
       {panel === "soundfx" && <SoundFxSheet />}
       {panel === "auth" && (
         <AuthSheet

@@ -9,6 +9,7 @@
  * Re-insertion branches on `source` (download-from-URL vs use the local file).
  */
 import { File, Paths } from 'expo-file-system';
+import { rebaseMediaUri } from './projects';
 
 export interface GenRecord {
   id: string;
@@ -19,6 +20,13 @@ export interface GenRecord {
   url: string;
   audioUrl?: string;
   durationSec?: number;
+  /**
+   * Local poster for a video record. Videos have no frame to show until one is
+   * extracted, and extraction is async and can fail — without a stored poster
+   * every tile started as a grey placeholder and re-extracted on every sheet
+   * open, for the life of the record.
+   */
+  thumbUri?: string;
   /** The generation prompt (ai only). */
   prompt?: string;
   createdAt: number;
@@ -30,17 +38,72 @@ function historyFile(): File {
   return new File(Paths.document, 'gen-history.json');
 }
 
+function isLocal(uri: string | undefined): uri is string {
+  return !!uri && uri.startsWith('file:');
+}
+
+function exists(uri: string): boolean {
+  try {
+    return new File(uri).exists;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Load, heal and prune.
+ *
+ * Every local `url` here is an ABSOLUTE path into the app's Documents
+ * container, and iOS hands the app a fresh container UUID on every install — so
+ * these go stale exactly the way project media does. `rebaseMediaUri` already
+ * exists for that (see `projects.ts`) but was only ever applied to projects, so
+ * the Library and Upload grids pointed at dead paths: `<Image>` failed
+ * silently, nothing painted, and the tile's own background showed through as a
+ * blank grey box.
+ *
+ * A record whose file is gone even after rebasing is dropped rather than kept,
+ * because keeping it guarantees a permanently blank tile. Writing back only
+ * when something actually changed keeps this a read in the common case.
+ */
 export function loadHistory(): GenRecord[] {
   try {
     const f = historyFile();
-    if (f.exists) {
-      const data = JSON.parse(f.textSync()) as GenRecord[];
-      if (Array.isArray(data)) return data;
+    if (!f.exists) return [];
+    const data = JSON.parse(f.textSync()) as GenRecord[];
+    if (!Array.isArray(data)) return [];
+
+    let changed = false;
+    const healed: GenRecord[] = [];
+    for (const raw of data) {
+      if (!raw || typeof raw.url !== 'string') {
+        changed = true;
+        continue;
+      }
+      const url = rebaseMediaUri(raw.url);
+      const thumbUri = raw.thumbUri ? rebaseMediaUri(raw.thumbUri) : undefined;
+      if (url !== raw.url || thumbUri !== raw.thumbUri) changed = true;
+      if (isLocal(url) && !exists(url)) {
+        changed = true;
+        continue;
+      }
+      // A missing poster is not a reason to drop the record — the video is
+      // still there and the tile falls back to its icon.
+      const poster = isLocal(thumbUri) && !exists(thumbUri) ? undefined : thumbUri;
+      if (poster !== raw.thumbUri) changed = true;
+      healed.push({ ...raw, url, thumbUri: poster });
     }
+    if (changed) save(healed);
+    return healed;
   } catch {
-    // fall through to empty
+    return [];
   }
-  return [];
+}
+
+/** Attach a poster to an existing record (videos, once a frame is extracted). */
+export function setHistoryThumb(id: string, thumbUri: string): GenRecord[] {
+  const next = loadHistory().map((r) => (r.id === id ? { ...r, thumbUri } : r));
+  save(next);
+  return next;
 }
 
 function save(records: GenRecord[]): void {

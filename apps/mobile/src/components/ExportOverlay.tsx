@@ -11,8 +11,15 @@
  * So: the video itself, big, at its real aspect ratio, and a bar that means
  * something because the server now measures the encode.
  */
-import { useEffect, useState } from "react";
-import { Image, Modal, StyleSheet, Text, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Image,
+  Modal,
+  SafeAreaView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -20,6 +27,7 @@ import Animated, {
   Easing,
 } from "react-native-reanimated";
 import { font, mono, sp, r, vela } from "../constants";
+import type { VideoProject } from "../model/types";
 import { exportStageLabel, useEditor } from "../store/editorStore";
 
 /**
@@ -29,15 +37,36 @@ import { exportStageLabel, useEditor } from "../store/editorStore";
  * goes stale by the tenth export, and a line you have read nine times is worse
  * than no line at all.
  */
-const TIPS = [
-  "Drag a clip's edge to trim it. The rest of the timeline stays where you put it.",
-  "Pinch the timeline to zoom in for frame-accurate cuts.",
-  "Captions export as a separate .srt file as well as burned into the picture.",
-  "Drop a second clip on the image lane to get picture-in-picture.",
-  "Hold a photo in the media drawer to pick several at once.",
-  "A clip's speed changes its sound too — the pitch follows.",
-  "Anything you generate with AI is saved to your Library for every project.",
-  "Your projects sync across devices once you sign in.",
+interface Tip {
+  text: string;
+  /** Left out when it does not apply to the project being exported. */
+  when?: (project: VideoProject) => boolean;
+}
+
+const TIPS: Tip[] = [
+  {
+    text: "Drag a clip's edge to trim it. The rest of the timeline stays where you put it.",
+  },
+  { text: "Pinch the timeline to zoom in for frame-accurate cuts." },
+  {
+    text: "Captions export as a separate .srt file as well as burned into the picture.",
+    // Nobody wants to be told about the .srt file for a video with no words in
+    // it — a true statement about someone else's project.
+    when: (p) => p.overlays.length > 0,
+  },
+  { text: "Drop a second clip on the image lane to get picture-in-picture." },
+  { text: "Hold a photo in the media drawer to pick several at once." },
+  {
+    text: "A clip's speed changes its sound too — the pitch follows.",
+    when: (p) =>
+      (p.tracks ?? []).some((t) =>
+        t.clips.some((c) => "type" in c && c.type === "video"),
+      ),
+  },
+  {
+    text: "Anything you generate with AI is saved to your Library for every project.",
+  },
+  { text: "Your projects sync across devices once you sign in." },
 ];
 
 /** How long each tip stays up. Long enough to read twice, unhurried. */
@@ -49,33 +78,51 @@ export function ExportOverlay() {
   const project = useEditor((s) => s.project);
   const posterUri = useEditor((s) => s.posterUri);
 
+  const tips = useMemo(
+    () =>
+      TIPS.filter((t) => !t.when || (project && t.when(project))).map(
+        (t) => t.text,
+      ),
+    [project],
+  );
+
   const [tip, setTip] = useState(0);
   useEffect(() => {
     if (!exporting) {
       setTip(0);
       return;
     }
-    const timer = setInterval(
-      () => setTip((n) => (n + 1) % TIPS.length),
-      TIP_MS,
-    );
+    const timer = setInterval(() => setTip((n) => n + 1), TIP_MS);
     return () => clearInterval(timer);
   }, [exporting]);
 
   const ratio =
     project && project.height > 0 ? project.width / project.height : 9 / 16;
   const pct = state?.progress ?? null;
+  /*
+   * A project can be built entirely from stickers and captions on a colour, in
+   * which case there is no frame to poster and the flat background IS the
+   * video's first frame — more honest than an empty grey rectangle.
+   */
+  const bg = project?.background;
+  const frameFill =
+    bg?.type === "color" && bg.color ? bg.color : vela.card;
 
   return (
+    // SafeAreaView, not raw padding: this is a full-screen Modal, so on a
+    // notched phone the frame sat under the status bar and the tip line landed
+    // in the home-indicator zone.
     <Modal visible={exporting} animationType="fade" statusBarTranslucent>
-      <View style={s.screen}>
+      <SafeAreaView style={s.screen}>
         {/*
           The video, given the room. `aspectRatio` with both maxes set means a
           tall 9:16 project is bounded by height and a wide 16:9 one by width,
           so neither is ever cropped or pushed off the screen.
         */}
         <View style={s.stage}>
-          <View style={[s.frame, { aspectRatio: ratio }]}>
+          <View
+            style={[s.frame, { aspectRatio: ratio, backgroundColor: frameFill }]}
+          >
             {posterUri ? (
               <Image
                 source={{ uri: posterUri }}
@@ -109,9 +156,9 @@ export function ExportOverlay() {
             Rendered at full opacity from the first frame. Nothing here waits on
             an animation to become visible.
           */}
-          <Text style={s.tip}>{TIPS[tip]}</Text>
+          <Text style={s.tip}>{tips[tip % tips.length]}</Text>
         </View>
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 }
@@ -155,22 +202,26 @@ const s = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: vela.editorBg,
-    paddingHorizontal: sp.lg,
+    // A real gutter. At 16 the copy ran almost to the rim on both sides, which
+    // reads as a missing margin rather than a full-bleed decision.
+    paddingHorizontal: sp.xxl,
     paddingTop: sp.xl,
-    paddingBottom: sp.xl,
+    // Clear of the home indicator, and enough that the tip is not the last
+    // thing before the edge of the screen.
+    paddingBottom: 40,
   },
   stage: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingBottom: sp.lg,
+    paddingBottom: sp.xxl,
   },
   frame: {
     maxWidth: "100%",
     maxHeight: "100%",
     borderRadius: r.lg,
+    borderCurve: "continuous",
     overflow: "hidden",
-    backgroundColor: vela.card,
   },
   readout: { gap: sp.sm },
   headRow: {

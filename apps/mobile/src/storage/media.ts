@@ -36,6 +36,20 @@ export async function downloadToMedia(url: string, fallbackExt: string): Promise
   return dest.uri;
 }
 
+/**
+ * Whether a local file is really there. Never throws — a malformed URI, a
+ * remote one, or a path in a container this install no longer owns all just
+ * mean "no".
+ */
+export function fileExists(uri: string | undefined | null): boolean {
+  if (!uri || !uri.startsWith('file:')) return false;
+  try {
+    return new File(uri).exists;
+  } catch {
+    return false;
+  }
+}
+
 /** Best-effort thumbnail for a video at `timeSec`; undefined on failure. */
 export async function videoThumbnail(uri: string, timeSec = 0): Promise<string | undefined> {
   try {

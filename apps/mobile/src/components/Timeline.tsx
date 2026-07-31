@@ -33,11 +33,6 @@ import {
   GestureDetector,
   ScrollView,
 } from "react-native-gesture-handler";
-import Animated, {
-  FadeInDown,
-  FadeOutDown,
-  LinearTransition,
-} from "react-native-reanimated";
 import { font, mono, vela } from "../constants";
 import { VIcon, type VIconName } from "./VIcon";
 import { MIN_CLIP } from "../model/editor-ops";
@@ -56,14 +51,16 @@ const IMAGE_H = 40;
 const VIDEO_H = 54;
 const SOUND_H = 32;
 const RULER_H = 22;
-const GUTTER_W = 48;
+/** Fixed left icon column. Exported so the floating HUD can sit over a clip. */
+export const GUTTER_W = 48;
 const LANE_GAP = 6;
 const SQUEEZE_H = 30; // compact height for a collapsed multi-lane group
 const HANDLE_W = 16;
 const ADD_TILE_W = 42;
 const GAP_HUD_W = 174;
 const GAP_HUD_BG = "#5b4bff";
-const PLAYHEAD_X = 10; // playhead offset from the gutter — clips start right here (no big gap)
+/** Playhead offset from the gutter — clips start right here (no big gap). */
+export const PLAYHEAD_X = 10;
 const clamp = (v: number, lo: number, hi: number) =>
   Math.max(lo, Math.min(hi, v));
 
@@ -219,9 +216,23 @@ function ClipView({
   const moveSelectedLayer = useEditor((s) => s.moveSelectedLayer);
   const mediaDurations = useEditor((s) => s.mediaDurations);
   const startRef = useRef({ start: 0, trimIn: 0, duration: 0 });
+  /*
+   * While a trim handle is down the rectangle follows the finger from LOCAL
+   * state and the store is written once, on release. Writing it per pointer
+   * frame cloned the whole project, re-rendered the timeline, the preview and
+   * the editor chrome, and queued a save and a sync — so the edge trailed the
+   * finger by several frames, which reads as an animation rather than a drag.
+   * Committing once also makes the whole drag exactly one undo step, instead of
+   * depending on HISTORY_COALESCE_MS to merge it.
+   */
+  const [live, setLive] = useState<{
+    start: number;
+    trimIn: number;
+    duration: number;
+  } | null>(null);
 
-  const left = clip.start * pxPerSec;
-  const width = Math.max(20, clip.duration * pxPerSec);
+  const left = (live?.start ?? clip.start) * pxPerSec;
+  const width = Math.max(20, (live?.duration ?? clip.duration) * pxPerSec);
   const v = clip as VisualTrackClip;
   const isPip =
     kind === "visual" &&
@@ -250,35 +261,53 @@ function ClipView({
         startRef.current.start + e.translationX / pxPerSec,
       ),
     );
+  // Both trim geometries live in one function each, so the rectangle under the
+  // finger and the value finally committed can never disagree.
+  function leftGeom(dx: number) {
+    const s = startRef.current;
+    const newStart = Math.max(0, s.start + dx / pxPerSec);
+    const applied = newStart - s.start;
+    return {
+      start: newStart,
+      trimIn: Math.max(0, s.trimIn + applied),
+      duration: Math.max(MIN_CLIP, s.duration - applied),
+    };
+  }
+  function rightGeom(dx: number) {
+    const s = startRef.current;
+    const srcLen = clip.src ? mediaDurations[clip.src] : undefined;
+    const maxDur =
+      kind === "visual" && v.type === "video" && srcLen
+        ? srcLen - s.trimIn
+        : 36000;
+    return {
+      start: s.start,
+      trimIn: s.trimIn,
+      duration: clamp(s.duration + dx / pxPerSec, MIN_CLIP, maxDur),
+    };
+  }
   const leftPan = Gesture.Pan()
     .runOnJS(true)
     .blocksExternalGesture(scrollRef as never)
     .onBegin(begin)
-    .onUpdate((e) => {
-      const ds = e.translationX / pxPerSec;
-      const newStart = Math.max(0, startRef.current.start + ds);
-      const applied = newStart - startRef.current.start;
-      trimClip(trackId, clip.id, {
-        start: newStart,
-        trimIn: Math.max(0, startRef.current.trimIn + applied),
-        duration: Math.max(MIN_CLIP, startRef.current.duration - applied),
-      });
-    });
+    .onUpdate((e) => setLive(leftGeom(e.translationX)))
+    .onEnd((e) => trimClip(trackId, clip.id, leftGeom(e.translationX)))
+    // Runs after onEnd, and also when the gesture is cancelled — so a cancelled
+    // trim snaps back to the stored clip rather than stranding the live value.
+    .onFinalize(() => setLive(null));
   const rightPan = Gesture.Pan()
     .runOnJS(true)
     .blocksExternalGesture(scrollRef as never)
     .onBegin(begin)
-    .onUpdate((e) => {
-      const ds = e.translationX / pxPerSec;
-      const srcLen = clip.src ? mediaDurations[clip.src] : undefined;
-      const maxDur =
-        kind === "visual" && v.type === "video" && srcLen
-          ? srcLen - startRef.current.trimIn
-          : 36000;
+    .onUpdate((e) => setLive(rightGeom(e.translationX)))
+    .onEnd((e) =>
+      // Only `duration` — passing start/trimIn back would write a 0 onto clips
+      // whose trimIn is legitimately undefined.
       trimClip(trackId, clip.id, {
-        duration: clamp(startRef.current.duration + ds, MIN_CLIP, maxDur),
-      });
-    });
+        duration: rightGeom(e.translationX).duration,
+      }),
+    )
+    .onFinalize(() => setLive(null));
   // Drag the selected clip vertically to restack it — up = higher layer. Commits
   // by lanes crossed on release. Loses to a horizontal move/trim (Race below).
   const vertPan = Gesture.Pan()
@@ -482,9 +511,7 @@ function ClipLane({
                   ) : null}
                 </Pressable>
                 {isSelected ? (
-                  <Animated.View
-                    entering={FadeInDown.duration(170)}
-                    exiting={FadeOutDown.duration(120)}
+                  <View
                     style={[
                       styles.gapHud,
                       {
@@ -527,7 +554,7 @@ function ClipLane({
                       <Text style={styles.gapHudText}>Delete</Text>
                     </Pressable>
                     <View style={styles.gapHudPointer} />
-                  </Animated.View>
+                  </View>
                 ) : null}
               </Fragment>
             );
@@ -908,10 +935,10 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
         contentContainerStyle={styles.verticalContent}
         nestedScrollEnabled
       >
-        <Animated.View
-          layout={LinearTransition.springify().damping(18).stiffness(180)}
-          style={styles.body}
-        >
+        {/* Deliberately unanimated. A spring layout transition here made lanes
+            squeeze and expand with a lag, and every trim that changed which
+            lanes exist dragged the whole timeline along behind the finger. */}
+        <View style={styles.body}>
           {/* Fixed left gutter: per-row add icons */}
           <View style={styles.gutter}>
             <View style={{ height: RULER_H }} />
@@ -989,10 +1016,19 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
               <View style={{ width: contentW }}>
                 {/* Tap empty timeline (or the ruler) to deselect — hides the
                   selection toolbar. Sits behind the clips, which catch their own
-                  taps; a scroll drag cancels the press so scrubbing still works. */}
+                  taps; a scroll drag cancels the press so scrubbing still works.
+                  It runs `scrollW` past the content because the track scrolls a
+                  full viewport further than that: bounded to `contentW`, a tap
+                  in the empty space past the last clip did nothing at all. */}
                 {selected || selectedGap ? (
                   <Pressable
-                    style={StyleSheet.absoluteFill}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      bottom: 0,
+                      left: 0,
+                      width: contentW + scrollW,
+                    }}
                     onPress={() => select(null)}
                   />
                 ) : null}
@@ -1060,7 +1096,7 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
               <View style={styles.playheadLine} />
             </View>
           </View>
-        </Animated.View>
+        </View>
       </ScrollView>
     </View>
   );

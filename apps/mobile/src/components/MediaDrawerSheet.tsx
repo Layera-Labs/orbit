@@ -28,7 +28,12 @@ import { newId } from "../model/editor-ops";
 import type { VisualTrackClip } from "../model/types";
 import { openAi } from "../store/aiActions";
 import { useEditor } from "../store/editorStore";
-import { addHistory, loadHistory, type GenRecord } from "../storage/genHistory";
+import {
+  addHistory,
+  loadHistory,
+  setHistoryThumb,
+  type GenRecord,
+} from "../storage/genHistory";
 import {
   copyIntoMedia,
   downloadToMedia,
@@ -83,6 +88,16 @@ const TABS: Array<{
   { key: "library", label: "Library", icon: "templates", color: "#8b5cf6" },
 ];
 
+/**
+ * A record's poster, wherever it came from — the image itself, a persisted
+ * video frame, or one extracted this session. One function passed down to every
+ * grid, so a tile cannot end up with its own idea of what to show.
+ */
+type Poster = (record: GenRecord) => string | undefined;
+
+const sourceOf = (uri: string | undefined): ImageSourcePropType | undefined =>
+  uri ? { uri } : undefined;
+
 const delay = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -119,24 +134,34 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
     ? ratioLabel(project.width, project.height)
     : "9:16";
 
+  /*
+   * Extract a poster for any video record that still has none, and PERSIST it.
+   * Without the write this ran again on every sheet open, for the life of the
+   * record — and, because the effect depends on the map it fills, once more per
+   * poster found. `records` carries `thumbUri` now, so a second visit is free.
+   */
   useEffect(() => {
     let alive = true;
     for (const record of records) {
-      if (
-        record.kind !== "video" ||
-        videoThumbs[record.id] ||
-        !record.url.startsWith("file:")
-      )
-        continue;
+      if (record.kind !== "video") continue;
+      if (record.thumbUri || videoThumbs[record.id]) continue;
+      if (!record.url.startsWith("file:")) continue;
       void videoThumbnail(record.url, 0).then((thumb) => {
-        if (alive && thumb)
-          setVideoThumbs((current) => ({ ...current, [record.id]: thumb }));
+        if (!alive || !thumb) return;
+        setVideoThumbs((current) => ({ ...current, [record.id]: thumb }));
+        setHistoryThumb(record.id, thumb);
       });
     }
     return () => {
       alive = false;
     };
   }, [records, videoThumbs]);
+
+  /** The poster for a record, wherever it came from. */
+  const posterOf = (record: GenRecord): string | undefined =>
+    record.kind === "image"
+      ? record.url
+      : (record.thumbUri ?? videoThumbs[record.id]);
 
   const updateUpload = (id: string, patch: Partial<UploadItem>) => {
     setUploads((current) =>
@@ -199,6 +224,9 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
             source: "upload",
             url: stableUri,
             durationSec: duration,
+            // The frame was already extracted for the queued tile; keeping it
+            // means the Library never has to extract it again.
+            thumbUri: isVideo ? preview : undefined,
           });
           const record = next[0];
           setRecords(next);
@@ -439,6 +467,7 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
               records={records.filter((record) => record.source === "ai")}
               {...pickProps}
               ratio={previewRatio}
+              poster={posterOf}
               onGenerate={openGenerate}
             />
           ) : tab === "upload" ? (
@@ -447,7 +476,7 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
               records={records.filter((record) => record.source === "upload")}
               {...pickProps}
               ratio={previewRatio}
-              thumbs={videoThumbs}
+              poster={posterOf}
               onUpload={pickUploads}
             />
           ) : tab === "stock" ? (
@@ -462,7 +491,7 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
               records={records.filter((record) => record.source === "upload")}
               {...pickProps}
               ratio={previewRatio}
-              thumbs={videoThumbs}
+              poster={posterOf}
               onUpload={pickUploads}
             />
           )}
@@ -556,11 +585,13 @@ function PanelHeading({
 function AiPanel({
   records,
   ratio,
+  poster,
   onGenerate,
   ...pick
 }: PickProps & {
   records: GenRecord[];
   ratio: number;
+  poster: Poster;
   onGenerate: () => void;
 }) {
   const recent = records.slice(0, 6);
@@ -593,9 +624,7 @@ function AiPanel({
             {recent.map((record) => (
               <MediaTile
                 key={`recent-${record.id}`}
-                source={
-                  record.kind === "image" ? { uri: record.url } : undefined
-                }
+                source={sourceOf(poster(record))}
                 video={record.kind === "video"}
                 ratio={ratio}
                 width={104}
@@ -608,9 +637,7 @@ function AiPanel({
             {records.map((record) => (
               <MediaTile
                 key={record.id}
-                source={
-                  record.kind === "image" ? { uri: record.url } : undefined
-                }
+                source={sourceOf(poster(record))}
                 video={record.kind === "video"}
                 ratio={ratio}
                 {...tileProps(pick, asRecord(record))}
@@ -627,14 +654,14 @@ function UploadPanel({
   uploads,
   records,
   ratio,
-  thumbs,
+  poster,
   onUpload,
   ...pick
 }: PickProps & {
   uploads: UploadItem[];
   records: GenRecord[];
   ratio: number;
-  thumbs: Record<string, string>;
+  poster: Poster;
   onUpload: () => void;
 }) {
   const queuedIds = new Set(
@@ -680,13 +707,7 @@ function UploadPanel({
           {older.map((record) => (
             <MediaTile
               key={record.id}
-              source={
-                record.kind === "image"
-                  ? { uri: record.url }
-                  : thumbs[record.id]
-                    ? { uri: thumbs[record.id] }
-                    : undefined
-              }
+              source={sourceOf(poster(record))}
               video={record.kind === "video"}
               ratio={ratio}
               {...tileProps(pick, asRecord(record))}
@@ -701,13 +722,13 @@ function UploadPanel({
 function LibraryPanel({
   records,
   ratio,
-  thumbs,
+  poster,
   onUpload,
   ...pick
 }: PickProps & {
   records: GenRecord[];
   ratio: number;
-  thumbs: Record<string, string>;
+  poster: Poster;
   onUpload: () => void;
 }) {
   const [filter, setFilter] = useState<"all" | "image" | "video">("all");
@@ -753,13 +774,7 @@ function LibraryPanel({
             {visible.map((record) => (
               <MediaTile
                 key={record.id}
-                source={
-                  record.kind === "image"
-                    ? { uri: record.url }
-                    : thumbs[record.id]
-                      ? { uri: thumbs[record.id] }
-                      : undefined
-                }
+                source={sourceOf(poster(record))}
                 video={record.kind === "video"}
                 ratio={ratio}
                 {...tileProps(pick, asRecord(record))}
@@ -953,6 +968,11 @@ function MediaTile({
   onPress?: () => void;
   onLongPress?: () => void;
 }) {
+  const [broken, setBroken] = useState(false);
+  const uri = typeof source === "object" && "uri" in source ? source.uri : null;
+  // Re-arm when the tile is pointed somewhere else, or a healed path would keep
+  // showing the placeholder from the previous, dead one.
+  useEffect(() => setBroken(false), [uri]);
   return (
     <Pressable
       accessibilityRole="button"
@@ -972,11 +992,15 @@ function MediaTile({
         selected && styles.mediaTileSelected,
       ]}
     >
-      {source ? (
+      {source && !broken ? (
         <Image
           source={source}
           style={StyleSheet.absoluteFill}
           resizeMode="cover"
+          // A file that has gone missing used to render as nothing at all, so
+          // the tile's own background showed through and the picture simply
+          // looked absent rather than broken. Fall back to the placeholder.
+          onError={() => setBroken(true)}
         />
       ) : (
         <View style={styles.videoFallback}>

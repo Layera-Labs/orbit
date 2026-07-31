@@ -11,6 +11,8 @@ import { DEFAULT_SERVER } from "../constants";
 import { createProject, projectDuration } from "../model/project";
 import * as ops from "../model/editor-ops";
 import { MIN_CLIP, newId } from "../model/editor-ops";
+import { withFades, type AudioFades } from "../model/audio-fade";
+import { resetCapabilities } from "../net/capabilities";
 import {
   FULL_FRAME,
   type AudioTrackClip,
@@ -60,7 +62,7 @@ import {
   type ExportProgress,
 } from "../net/renderClient";
 import { getCredits, transcribe } from "../net/genClient";
-import { downloadToMedia, videoThumbnail } from "../storage/media";
+import { downloadToMedia, fileExists, videoThumbnail } from "../storage/media";
 import { Alert, Share } from "react-native";
 
 export type ExportStage =
@@ -176,6 +178,7 @@ export type EditorPanel =
   | "magnifier"
   | "story"
   | "voiceover"
+  | "audioclip"
   | "blend"
   | "curve"
   | "library"
@@ -352,6 +355,16 @@ interface EditorState {
     clipId: string,
     patch: { start?: number; trimIn?: number; duration?: number },
   ) => void;
+  /**
+   * Set an audio clip's plateau volume and its fades in one write. They have to
+   * travel together — a `volumeCurve` overrides `volume` rather than scaling
+   * it, so writing one without the other silently drops the other.
+   */
+  applyAudioFades: (
+    trackId: string,
+    clipId: string,
+    fades: AudioFades,
+  ) => void;
   setClipRect: (trackId: string, clipId: string, rect: Rect) => void;
   setSelectedFilter: (filter: ClipFilter | undefined) => void;
   /** Apply a filter to the effects target (selected visual clip, else base clip at playhead). */
@@ -451,6 +464,9 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
   setServerUrl: (url) => {
     const serverUrl = url.trim() || DEFAULT_SERVER;
+    // A different server is a different ffmpeg build, so what the last one
+    // could do says nothing about this one.
+    resetCapabilities();
     set({ serverUrl });
     saveSettings({
       serverUrl,
@@ -736,7 +752,15 @@ export const useEditor = create<EditorState>((set, get) => ({
       });
   },
   ensurePoster: () => {
-    if (get().posterUri) return;
+    /*
+     * A poster is persisted with the project, and it is an absolute path into
+     * a container iOS renumbers on every install — so "we already have one" is
+     * not the same as "there is a picture there". The export screen showed an
+     * empty rectangle for exactly this reason. Re-derive when the file is gone.
+     */
+    const current = get().posterUri;
+    if (current && fileExists(current)) return;
+    if (current) set({ posterUri: undefined });
     const { project } = get();
     const mainId = get().mainTrackId();
     const main = project && mainId ? ops.findTrack(project, mainId) : undefined;
@@ -790,6 +814,9 @@ export const useEditor = create<EditorState>((set, get) => ({
       Alert.alert("Nothing to export", "Import a clip first.");
       return;
     }
+    // The export screen shows the poster, so this is the moment it has to be
+    // real — a stale one leaves an empty frame where the video should be.
+    get().ensurePoster();
     set({ panel: null, exporting: true, exportState: { stage: "preparing", progress: 0 } });
     try {
       const url = await exportProject(
@@ -820,6 +847,9 @@ export const useEditor = create<EditorState>((set, get) => ({
       Alert.alert("Nothing to share", "Import a clip first.");
       return;
     }
+    // The export screen shows the poster, so this is the moment it has to be
+    // real — a stale one leaves an empty frame where the video should be.
+    get().ensurePoster();
     set({ panel: null, exporting: true, exportState: { stage: "preparing", progress: 0 } });
     try {
       const url = await exportProject(
@@ -1100,6 +1130,10 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   importAudio: (clip) => {
+    // Which track it lands on is decided inside the reducer (a project with no
+    // audio track gets one), and the caller needs it to select the new clip.
+    // `apply` runs its function exactly once, synchronously.
+    let landedOn = "";
     get().apply((p) => {
       let np = p;
       const existing = (np.tracks ?? []).find((t) => t.kind === "audio");
@@ -1110,6 +1144,7 @@ export const useEditor = create<EditorState>((set, get) => ({
       } else {
         trackId = existing.id;
       }
+      landedOn = trackId;
       const duration =
         clip.duration && clip.duration > 0
           ? clip.duration
@@ -1120,6 +1155,8 @@ export const useEditor = create<EditorState>((set, get) => ({
         duration,
       });
     });
+    if (landedOn)
+      set({ selected: { trackId: landedOn, clipId: clip.id }, selectedGap: null });
   },
 
   addText: () => {
@@ -1324,6 +1361,20 @@ export const useEditor = create<EditorState>((set, get) => ({
       return;
     }
     get().apply((p) => ops.trimClip(p, trackId, clipId, patch));
+  },
+  applyAudioFades: (trackId, clipId, fades) => {
+    get().apply((p) => {
+      const track = (p.tracks ?? []).find((t) => t.id === trackId);
+      const clip = track?.clips.find((c) => c.id === clipId);
+      if (!clip) return p;
+      const { volume, volumeCurve } = withFades(clip.duration, fades);
+      return ops.setClipVolumeCurve(
+        ops.setClipVolume(p, trackId, clipId, volume),
+        trackId,
+        clipId,
+        volumeCurve,
+      );
+    });
   },
   setClipRect: (trackId, clipId, rect) =>
     get().apply((p) => ops.setClipRect(p, trackId, clipId, rect)),

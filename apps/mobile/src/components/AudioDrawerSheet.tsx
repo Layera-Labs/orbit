@@ -243,17 +243,20 @@ export function AudioDrawerSheet() {
           src: item.url,
           start: playheadSec,
           duration: item.durationSec ?? 0,
-          volume: 0.85,
+          // Full, like the other two insert paths (bundled SFX and voiceover).
+          // This one used to arrive at 0.85 for no stated reason, so the same
+          // file was quieter depending on which drawer you found it in.
+          volume: 1,
         });
       }
       setSelection(null);
       /*
-       * And close, matching the media drawer. Adding audio is a one-shot
-       * insert, and every other one-shot inserter in this app dismisses itself;
-       * these two drawers stayed open behind a 1.5s "Added to timeline" note,
-       * so you had to close them by hand before you could see the clip land.
+       * Hand the new clip its own editor rather than just closing. `importAudio`
+       * selects what it added, so the sheet opens on the right clip — and the
+       * 260ms in `replaceDrawer` is there because RN otherwise leaves this
+       * Modal on top of the one replacing it.
        */
-      setPanel(null);
+      replaceDrawer(() => setPanel("audioclip"));
     } catch (error) {
       Alert.alert(
         "Could not add audio",
