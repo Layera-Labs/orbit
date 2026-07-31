@@ -4,7 +4,16 @@ import Constants from 'expo-constants';
 export interface RatioPreset {
   key: string;
   label: string;
+  /**
+   * Where the shape is USED, in one or two words, for the cell under the label.
+   *
+   * It used to name the shape instead — three of these read "Portrait", which
+   * told you nothing the picture had not already said. A ratio is chosen for
+   * where the video is going, so that is what the caption answers.
+   */
   hint: string;
+  /** The same answer at length, for the detail line under a picker. */
+  use: string;
   width: number;
   height: number;
 }
@@ -14,31 +23,117 @@ export const RATIOS: RatioPreset[] = [
   {
     key: '9:16',
     label: '9:16',
-    hint: 'Reel / Story',
+    hint: 'Reels',
+    use: 'TikTok, Reels, Shorts and Stories — the full phone screen.',
     width: 1080,
     height: 1920,
   },
-  { key: '4:5', label: '4:5', hint: 'Portrait', width: 1080, height: 1350 },
-  { key: '2:3', label: '2:3', hint: 'Portrait', width: 1080, height: 1620 },
-  { key: '3:4', label: '3:4', hint: 'Portrait', width: 1080, height: 1440 },
-  { key: '1:2', label: '1:2', hint: 'Tall', width: 1080, height: 2160 },
+  {
+    key: '4:5',
+    label: '4:5',
+    hint: 'Feed post',
+    use: 'The tallest post an Instagram or Facebook feed will show.',
+    width: 1080,
+    height: 1350,
+  },
+  {
+    key: '2:3',
+    label: '2:3',
+    hint: 'Pinterest',
+    use: 'Pinterest pins, and standard photo prints.',
+    width: 1080,
+    height: 1620,
+  },
+  {
+    key: '3:4',
+    label: '3:4',
+    hint: 'Phone photo',
+    use: 'Phone and tablet stills held upright.',
+    width: 1080,
+    height: 1440,
+  },
+  {
+    key: '1:2',
+    label: '1:2',
+    hint: 'Extra tall',
+    use: 'Taller than any feed will show — long banners and signage.',
+    width: 1080,
+    height: 2160,
+  },
   // Square
-  { key: '1:1', label: '1:1', hint: 'Square', width: 1080, height: 1080 },
+  {
+    key: '1:1',
+    label: '1:1',
+    hint: 'Square',
+    use: 'Square posts on Instagram, X and Facebook.',
+    width: 1080,
+    height: 1080,
+  },
   // Landscape
-  { key: '16:9', label: '16:9', hint: 'Landscape', width: 1920, height: 1080 },
-  { key: '4:3', label: '4:3', hint: 'Classic', width: 1440, height: 1080 },
-  { key: '3:2', label: '3:2', hint: 'Photo', width: 1620, height: 1080 },
-  { key: '2:1', label: '2:1', hint: 'Wide', width: 2160, height: 1080 },
-  { key: '1.85:1', label: '1.85:1', hint: 'Film', width: 1998, height: 1080 },
+  {
+    key: '16:9',
+    label: '16:9',
+    hint: 'YouTube',
+    use: 'YouTube, television, and most video on the web.',
+    width: 1920,
+    height: 1080,
+  },
+  {
+    key: '4:3',
+    label: '4:3',
+    hint: 'Classic',
+    use: 'Older television, and stills from many compact cameras.',
+    width: 1440,
+    height: 1080,
+  },
+  {
+    key: '3:2',
+    label: '3:2',
+    hint: 'Camera',
+    use: '35mm film, and most DSLR and mirrorless photographs.',
+    width: 1620,
+    height: 1080,
+  },
+  {
+    key: '2:1',
+    label: '2:1',
+    hint: 'Wide',
+    use: 'Univisium — wide web banners and some streaming series.',
+    width: 2160,
+    height: 1080,
+  },
+  {
+    key: '1.85:1',
+    label: '1.85:1',
+    hint: 'Cinema',
+    use: 'The standard widescreen cinema frame.',
+    width: 1998,
+    height: 1080,
+  },
   {
     key: '2.35:1',
     label: '2.35:1',
-    hint: 'Cinemascope',
+    hint: 'Scope',
+    use: 'Anamorphic CinemaScope — the widest frame in common use.',
     width: 2538,
     height: 1080,
   },
-  { key: '21:9', label: '21:9', hint: 'Cinematic', width: 2520, height: 1080 },
-  { key: '42:9', label: '42:9', hint: 'Ultrawide', width: 5040, height: 1080 },
+  {
+    key: '21:9',
+    label: '21:9',
+    hint: 'Ultrawide',
+    use: 'Ultrawide monitors, and cinematic crops for the web.',
+    width: 2520,
+    height: 1080,
+  },
+  {
+    key: '42:9',
+    label: '42:9',
+    hint: 'Dual screen',
+    use: 'Super-ultrawide and dual-monitor displays.',
+    width: 5040,
+    height: 1080,
+  },
 ];
 
 export function ratioLabel(width: number, height: number): string {

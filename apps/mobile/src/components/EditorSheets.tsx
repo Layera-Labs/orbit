@@ -194,9 +194,21 @@ function FullSheet({
  * told apart at a glance instead of by reading two labels. The old strip drew
  * the identical 24×30 portrait box for all fifteen, so the picture carried no
  * information at all.
+ *
+ * **Where each shape is used is told in two sizes, not in icons.** A cell has
+ * room for one word, and 9:16 is TikTok AND Reels AND Shorts AND Stories — so
+ * the cell carries the shortest true answer ("Reels") and the line under the
+ * grid names the rest for whatever is selected. Platform LOGOS were the obvious
+ * alternative and are the wrong one: several marks per cell at 12pt would be
+ * unreadable, we would be shipping other companies' trademarks inside the app,
+ * and any shape has more homes than the two or three we could fit — so the row
+ * would quietly read as a complete list when it is not. Words scale down to a
+ * hint and up to a sentence; a logo does neither.
  */
-const RATIO_GRID_COLS = 5;
+const RATIO_GRID_COLS = 4;
 const RATIO_GRID_GAP = 10;
+/** Fixed, not square: four rows of a square cell make an overlong sheet. */
+const RATIO_CELL_H = 76;
 const RATIO_SWATCH = 26;
 /** Below this a hairline-thin swatch loses its corner radius and reads broken. */
 const RATIO_SWATCH_MIN = 7;
@@ -223,12 +235,17 @@ function VideoSettingsSheet() {
         {
           key: "orig",
           label: "Original",
+          hint: "Source",
+          use: "The shape of the media this project started from.",
           width: sourceDims.width,
           height: sourceDims.height,
         },
         ...RATIOS,
       ]
     : RATIOS;
+  const current = options.find(
+    (r) => r.width === project.width && r.height === project.height,
+  );
 
   /*
    * The cells divide the row evenly, so the grid's outer edges line up with the
@@ -266,7 +283,11 @@ function VideoSettingsSheet() {
               accessibilityRole="button"
               accessibilityState={{ selected: on }}
               accessibilityLabel={`${r.label} aspect`}
-              style={[s.ratioCard, { width: cell, height: cell }, on && s.ratioCardOn]}
+              style={[
+                s.ratioCard,
+                { width: cell, height: RATIO_CELL_H },
+                on && s.ratioCardOn,
+              ]}
               onPress={() => setRatio(r.width, r.height)}
             >
               <View style={s.ratioBoxWell}>
@@ -274,15 +295,32 @@ function VideoSettingsSheet() {
                   style={[s.ratioBox, ratioSwatch(r.width, r.height), { borderColor: fg }]}
                 />
               </View>
+              <Text numberOfLines={1} style={[s.ratioLabel, { color: fg }]}>
+                {r.label}
+              </Text>
               <Text
                 numberOfLines={1}
-                style={[s.ratioLabel, { color: fg }]}
+                style={[s.ratioHint, on && { color: vela.accent }]}
               >
-                {r.label}
+                {r.hint}
               </Text>
             </Pressable>
           );
         })}
+      </View>
+
+      {/* Always present, so choosing never changes the sheet's height. */}
+      <View style={s.ratioMeta}>
+        <Text style={s.ratioMetaHead}>
+          {current?.label ?? ratioLabel(project.width, project.height)}
+          <Text style={s.ratioMetaDims}>
+            {"   "}
+            {project.width} × {project.height}
+          </Text>
+        </Text>
+        <Text style={s.ratioMetaBody}>
+          {current?.use ?? "A custom size, kept exactly as it is."}
+        </Text>
       </View>
     </BottomSheet>
   );
@@ -3123,7 +3161,28 @@ const s = StyleSheet.create({
     justifyContent: "center",
   },
   ratioBox: { borderWidth: 2, borderRadius: 4, borderCurve: "continuous" },
-  ratioLabel: { fontSize: 12, fontFamily: font.bold },
+  ratioLabel: { fontSize: 13, fontFamily: font.bold },
+  ratioHint: {
+    fontSize: 10.5,
+    fontFamily: font.medium,
+    color: vela.lightMuted,
+    marginTop: -3,
+  },
+  ratioMeta: { paddingTop: 2, gap: 3 },
+  ratioMetaHead: { fontSize: 15, fontFamily: font.bold, color: vela.ink },
+  // Mono for the pixels only: they are data, and they change under the same
+  // heading as you move through the grid.
+  ratioMetaDims: {
+    fontSize: 12,
+    fontFamily: mono.regular,
+    color: vela.lightMuted,
+  },
+  ratioMetaBody: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: font.medium,
+    color: vela.ink3,
+  },
 
   // project menu
   menuSheet: {
