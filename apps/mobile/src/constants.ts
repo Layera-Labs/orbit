@@ -318,4 +318,4 @@ export const REVENUECAT_API_KEY = { ios: '', android: '' } as const;
  */
 export const SUPPORT_URL =
   (Constants.expoConfig?.extra as { supportUrl?: string } | undefined)?.supportUrl ||
-  'https://github.com/jsonpreet/orbit/issues';
+  'https://github.com/Layera-Labs/orbit/issues';
