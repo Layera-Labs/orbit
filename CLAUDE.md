@@ -11,6 +11,14 @@ Next.js, and React Native.
 **Current focus: a native mobile video-editing app (`apps/mobile`), modelled on the VN
 Video Editor app.** That is where nearly all active work happens.
 
+**One brand, settled 2026-07-31: Layera Labs is the org, Orbit is the product.**
+`github.com/Layera-Labs/orbit`. The SDK is Orbit SDK and the app is Orbit — not two
+names. Naming the SDK **Galaxy was considered and rejected**: Apple's identifier
+namespace is global and another team holds `com.galaxy.*` (see the bundle-id note
+below, which cost a rename), Samsung owns the mark in exactly this space, and the
+codebase is `@orbit/*` down to storage keys, `ORBIT_JWT_SECRET`, the `.orbit` CSS
+scope and the bundle id. Don't re-open it.
+
 Source-of-truth docs: [docs/roadmap.md](docs/roadmap.md),
 [docs/architecture-v2.md](docs/architecture-v2.md),
 [docs/feature-status.md](docs/feature-status.md) (audit, 2026-07-26),
