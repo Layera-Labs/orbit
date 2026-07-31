@@ -170,6 +170,44 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   (`src/net/capabilities.ts`, fail-CLOSED — an unreachable server hides the toggle rather
   than offering it on a guess), and `ExportSheet` only renders the row when it is true.
   Homebrew's ffmpeg has no `zscale`, so on a dev Mac the toggle is simply absent.
+- **The canvas frame is a MAT, and the shape is the whole design** (2026-07-31).
+  `CanvasFrame` on the project — one required `color`, a `width` band and an optional
+  `radius`/`opacity`, all fractions of `min(W,H)`. It renders as one rectangle with a
+  rounded-rect hole punched out, filled even-odd, because every renderer has a
+  first-class primitive for exactly that: an `evenodd` path in SVG (export + web) and
+  `<DiffRect>` in Skia (mobile). `color` is REQUIRED because an opaque MP4's corner
+  wedges must be filled with something; filling from the background does not survive —
+  a gradient would have to be duplicated and kept in sync, and an image cannot be
+  embedded at all since `assertNoExternalRefs` forbids `<image>`. The UI seeds the
+  colour from a solid background instead, so the common case still looks like corners
+  revealing the background. **Three placement rules in `ffmpeg.ts`, all of which look
+  nearly right when broken**: the input is appended LAST (indices come from `idx++`, so
+  inserting earlier repoints every clip at the wrong file); the overlay goes after the
+  last caption; and it goes BEFORE the output tail, or `scale` quarters the band's
+  thickness at 4K and `HDR_CONVERT_FILTER` leaves its Rec.709 colours tagged PQ BT.2020
+  without conversion. Radius is clamped once in `canvasFramePx` — SVG, `ctx.roundRect`
+  and Skia's `RRectXY` all resolve an over-large one differently. `even()` is
+  deliberately NOT used: that is for H.264 chroma subsampling on scale/crop dims.
+  On mobile the mat is its OWN `<Canvas>` layered after the captions, because captions
+  are RN `<Text>` outside the Skia canvas and would otherwise cover a frame the export
+  draws over them.
+- **Element animation is fade and slide, and deliberately nothing else**
+  (`packages/video/src/element-anim.ts`, 2026-07-31). `animateIn`/`animateOut` on every
+  visual clip AND every text overlay. Built in the `curve.ts`/`keyframes.ts` shape — a
+  JS sampler plus the same function as an ffmpeg expression — and the fade is NOT a
+  second ramp: `animWindows` returns a `ClipFade` and `elementFadeAt` delegates to
+  `fadeFactorAt`, so it is provably the transition's curve on a different window.
+  **No scale**: ffmpeg cannot animate it per frame, and an option that only worked in
+  the preview is the drift this repo refuses. Three things learned the hard way:
+  `hasFade(anim)` must join the `yuva420p` condition at `ffmpeg.ts`, because that
+  format is otherwise chosen from the TRANSITION fade alone and `fade=alpha=1` on a
+  stream with no alpha plane does NOTHING; `slideExpr` must `clip(…,0,1)` its progress,
+  since an `if`-window leaves the ramp unbounded below `start` where it exceeds full
+  travel (caught by the numeric agreement test, which is a bar `keyframes.ts` has never
+  been held to); and slide is REFUSED on a blended clip in all three renderers, because
+  the blend path crops the base region under a fixed-size box. `TextOverlay.animation`
+  is absorbed by `resolveAnim` rather than migrated — stored documents are never
+  rewritten, and a legacy `'fade'` still produces a byte-identical graph.
 - **BYOK stock media**: Orbit is a developer/SDK product, so Unsplash/Pexels use
   **bring-your-own-key**, stored in the OS keychain via `expo-secure-store`, never in the
   bundle and never sent to Orbit's server. `src/content/{keys,stock}.ts`, `KeysSheet`.
