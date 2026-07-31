@@ -43,6 +43,12 @@ import {
   rotatedBoxPx,
 } from "./transform";
 import { buildFadeMap } from "./transitions";
+import {
+  animWindows,
+  hasFade,
+  resolveAnim,
+  slideExpr,
+} from "./element-anim";
 import { HDR_CONVERT_FILTER, HDR_X265_PARAMS } from "./hdr";
 
 export interface BuildFFmpegOptions {
@@ -516,7 +522,28 @@ function buildMultiTrackArgs(
     const key = chromaToFFmpeg(c.cutout);
     const kfs = c.keyframes;
     const kfOpacity = hasKeyframes(kfs) && animatesOpacity(kfs!);
-    const kfPosition = hasKeyframes(kfs) && animatesPosition(kfs!);
+    /*
+     * A blended clip is composited at a FIXED origin (the `blend` branch below
+     * crops the base region under its box, and `crop` cannot vary its width or
+     * height per frame), so neither a keyframed position nor a slide can move
+     * it in the export. `frameStateAt` carries the identical gate, so the
+     * previews hold it still too.
+     *
+     * That is a fix, not a limitation being introduced: keyframed position was
+     * already dropped here while the preview went on moving the clip — a
+     * preview that looks better than the file, which is the direction of drift
+     * this codebase refuses.
+     */
+    const blended = !!blendToFFmpeg(c.blend);
+    const kfPosition =
+      hasKeyframes(kfs) && animatesPosition(kfs!) && !blended;
+    /*
+     * The FADE survives a blend — it is baked into the alpha plane before the
+     * blend branch alphamerges it back on — so only movement is lost. Hence
+     * gating `kfPosition` and the slide expressions rather than the whole
+     * animation.
+     */
+    const anim = resolveAnim(c);
     // static opacity (keyframes override when they animate opacity).
     const staticOpacity =
       !kfOpacity && c.opacity != null && c.opacity < 0.999
@@ -529,6 +556,13 @@ function buildMultiTrackArgs(
      * OR rotation. `rotate=…:c=none` writes a TRANSPARENT fill into the corners
      * the rotation opens up; with no alpha plane that fill is opaque black and
      * every rotated clip gets black triangles at its corners.
+     *
+     * `hasFade(anim)` belongs here for a subtler reason than it looks. `fade`
+     * above is only the TRANSITION fade, so an element fade on a clip with no
+     * transition, no mask, no opacity and no key would land on `yuv420p` — and
+     * `fade=alpha=1` on a stream with no alpha plane does nothing at all. The
+     * preview would fade and the export would hard-cut, with nothing in the
+     * graph to show for it.
      */
     const fmt =
       c.type === "image" ||
@@ -540,7 +574,7 @@ function buildMultiTrackArgs(
       c.magnifier ||
       deg !== 0
         ? "rgba"
-        : fade
+        : fade || hasFade(anim)
           ? "yuva420p"
           : "yuv420p";
     /*
@@ -578,6 +612,18 @@ function buildMultiTrackArgs(
     if (fade?.fin) chain += `,fade=t=in:st=${r3(S)}:d=${fade.fin}:alpha=1`;
     if (fade?.fout)
       chain += `,fade=t=out:st=${r3(E - fade.fout)}:d=${fade.fout}:alpha=1`;
+    /*
+     * The element's own fade, chained AFTER the transition's. Two `fade`
+     * filters multiply their alphas, which is exactly what `frameStateAt` does
+     * with the two factors — so a clip carrying both really is at 0.25 halfway
+     * through overlapping ramps, in the file and in the preview alike. The UI
+     * is where that combination gets discouraged; the engine just tells the
+     * truth about it.
+     */
+    const aFade = animWindows(anim, S, E, "fade");
+    if (aFade.fin) chain += `,fade=t=in:st=${r3(S)}:d=${r3(aFade.fin)}:alpha=1`;
+    if (aFade.fout)
+      chain += `,fade=t=out:st=${r3(E - aFade.fout)}:d=${r3(aFade.fout)}:alpha=1`;
     const hasLocalFx = !!(c.mosaic || c.magnifier);
     /*
      * Rotation is appended in exactly ONE place, at the very end, because the
@@ -720,16 +766,41 @@ function buildMultiTrackArgs(
         segments.push(`${prev}null[c${i}]`);
       }
     } else {
-      const ox = kfPosition
-        ? dx
-          ? `'(${keyframeExpr(kfs!, "x", S, c.duration, "t", W)})-${dx}'`
-          : `'${keyframeExpr(kfs!, "x", S, c.duration, "t", W)}'`
-        : `${px}`;
-      const oy = kfPosition
-        ? dy
-          ? `'(${keyframeExpr(kfs!, "y", S, c.duration, "t", H)})-${dy}'`
-          : `'${keyframeExpr(kfs!, "y", S, c.duration, "t", H)}'`
-        : `${py}`;
+      /*
+       * A slide is a DELTA, so it composes with whatever already placed the
+       * clip — a static rect or a keyframed position — instead of replacing it.
+       * `slideExpr` returns the literal `'0'` when this axis does not move, and
+       * the `!== '0'` check is what keeps the graph byte-identical for a clip
+       * with no animation.
+       */
+      const sx = slideExpr(anim, S, E, W, H, "x");
+      const sy = slideExpr(anim, S, E, W, H, "y");
+      const place = (
+        base: string,
+        kfExpr: string | null,
+        anchor: number,
+        slide: string,
+      ) => {
+        const parts: string[] = [];
+        if (kfExpr) parts.push(anchor ? `(${kfExpr})-${anchor}` : kfExpr);
+        else parts.push(String(base));
+        if (slide !== "0") parts.push(`(${slide})`);
+        return parts.length === 1 && !kfExpr
+          ? `${base}`
+          : `'${parts.join("+")}'`;
+      };
+      const ox = place(
+        `${px}`,
+        kfPosition ? keyframeExpr(kfs!, "x", S, c.duration, "t", W) : null,
+        dx,
+        sx,
+      );
+      const oy = place(
+        `${py}`,
+        kfPosition ? keyframeExpr(kfs!, "y", S, c.duration, "t", H) : null,
+        dy,
+        sy,
+      );
       segments.push(
         `${prev}[v${i}]overlay=${ox}:${oy}:enable='between(t,${S},${E})':eof_action=pass[c${i}]`,
       );
@@ -761,22 +832,45 @@ function buildMultiTrackArgs(
     } else if (o.opacity != null && o.opacity < 1) {
       chain.push(`colorchannelmixer=aa=${Math.max(0, Math.min(1, o.opacity))}`);
     }
-    if (!kfOpacity && o.animation === "fade") {
-      const d = 0.3;
-      chain.push(
-        `fade=t=in:st=${r3(S)}:d=${d}:alpha=1`,
-        `fade=t=out:st=${r3(Math.max(0, E - d))}:d=${d}:alpha=1`,
-      );
+    /*
+     * The legacy `animation: 'fade'` resolves through the same module as an
+     * explicit `animateIn`, so a stored caption keeps the 0.3s fade it has
+     * always had — a literal that used to be written out in three separate
+     * files and now lives once, in `element-anim.ts`.
+     */
+    const anim = resolveAnim(o);
+    if (!kfOpacity) {
+      const w = animWindows(anim, S, E, "fade");
+      if (w.fin) chain.push(`fade=t=in:st=${r3(S)}:d=${r3(w.fin)}:alpha=1`);
+      if (w.fout)
+        chain.push(
+          `fade=t=out:st=${r3(Math.max(0, E - w.fout))}:d=${r3(w.fout)}:alpha=1`,
+        );
     }
     const textMask = maskToFFmpeg(o.mask, W, H);
     if (textMask) chain.push(textMask);
     segments.push(`[${oIn[i]}:v]${chain.join(",")}[t${i}]`);
-    const ox = kfPosition
-      ? `'(${keyframeExpr(kfs!, "x", S, dur, "t", W)})-${r3(o.x * W)}'`
-      : `0`;
-    const oy = kfPosition
-      ? `'(${keyframeExpr(kfs!, "y", S, dur, "t", H)})-${r3(o.y * H)}'`
-      : `0`;
+    // A caption's `overlay` offset is already a DELTA from its baked anchor, so
+    // a slide composes with it by addition and needs no special case.
+    const sx = slideExpr(anim, S, E, W, H, "x");
+    const sy = slideExpr(anim, S, E, W, H, "y");
+    const capPlace = (kf: string | null, anchor: number, slide: string) => {
+      const parts: string[] = [];
+      if (kf) parts.push(`(${kf})-${anchor}`);
+      if (slide !== "0") parts.push(`(${slide})`);
+      if (!parts.length) return `0`;
+      return `'${parts.join("+")}'`;
+    };
+    const ox = capPlace(
+      kfPosition ? keyframeExpr(kfs!, "x", S, dur, "t", W) : null,
+      r3(o.x * W),
+      sx,
+    );
+    const oy = capPlace(
+      kfPosition ? keyframeExpr(kfs!, "y", S, dur, "t", H) : null,
+      r3(o.y * H),
+      sy,
+    );
     segments.push(
       `${prev}[t${i}]overlay=${ox}:${oy}:enable='between(t,${r3(S)},${r3(E)})'[tc${i}]`,
     );

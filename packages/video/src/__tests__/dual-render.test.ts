@@ -11,13 +11,14 @@
  * divergence; do not relax the assertion.
  */
 import { describe, expect, it } from 'vitest';
-import type { VideoProject, VisualTrack } from '../types';
+import type { VideoProject, VisualTrack, VisualTrackClip } from '../types';
 import { buildFFmpegArgs } from '../ffmpeg';
 import { frameStateAt } from '../frame';
 import { resolveFilter, temperatureGains, temperatureKelvin } from '../filters';
 import { chromaAlphaAt, chromaParams } from '../cutout';
 import { fadeFactorAt, projectFadeMap } from '../transitions';
 import { rotatedBoxPx } from '../transform';
+import { SLIDE_DISTANCE } from '../element-anim';
 import { clipRectPx } from '../layout';
 
 /**
@@ -188,7 +189,15 @@ describe('preview draw list matches the exported filtergraph', () => {
   });
 
   it('fades over the window the export fades over', () => {
-    const fin = graph.match(/fade=t=in:st=([\d.]+):d=([\d.]+):alpha=1/)!;
+    /*
+     * Scoped to clip b's own SEGMENT, not matched against the whole graph.
+     * `match` returns the FIRST hit, and a graph can now carry several `fade`
+     * filters — a transition's and an element's, on different clips — so a
+     * whole-graph regex would happily assert against the wrong one and keep
+     * passing. A test that stops testing is worse than no test.
+     */
+    const seg = graph.split(';').find((s) => s.endsWith('[v1]'))!;
+    const fin = seg.match(/fade=t=in:st=([\d.]+):d=([\d.]+):alpha=1/)!;
     expect(Number(fin[1])).toBe(6); // clip b starts at 6
     expect(Number(fin[2])).toBe(1);
 
@@ -200,7 +209,8 @@ describe('preview draw list matches the exported filtergraph', () => {
   });
 
   it('fades out the outgoing clip across the same boundary', () => {
-    const fout = graph.match(/fade=t=out:st=([\d.]+):d=([\d.]+):alpha=1/)!;
+    const seg = graph.split(';').find((s) => s.endsWith('[v0]'))!;
+    const fout = seg.match(/fade=t=out:st=([\d.]+):d=([\d.]+):alpha=1/)!;
     expect(Number(fout[1])).toBe(5); // a ends at 6, fades out over the last 1s
     expect(opsAt(5.5).find((o) => o.id === 'a')!.alpha).toBeCloseTo(0.5, 6);
   });
@@ -468,6 +478,124 @@ describe('rotation and crop', () => {
  * What the graph CAN prove is the two things that would actually go wrong, and
  * both of them look nearly right in a thumbnail.
  */
+describe('element animation matches between preview and export', () => {
+  const animated = (
+    a: Partial<Pick<VisualTrackClip, 'animateIn' | 'animateOut' | 'blend'>>,
+  ): VideoProject => {
+    const p = fixture();
+    (p.tracks as VisualTrack[])[0].clips = [
+      { id: 'a', type: 'video', src: 'a.mp4', start: 0, duration: 6, ...a },
+    ];
+    (p.tracks as VisualTrack[]).length = 1;
+    p.overlays = [];
+    return p;
+  };
+  const build = (p: VideoProject) =>
+    buildFFmpegArgs(p, {
+      outputPath: '/tmp/out.mp4',
+      baseImage: '/tmp/bg.png',
+      hasAudio: () => false,
+    });
+  const graphOf = (p: VideoProject) => {
+    const a = build(p);
+    return a[a.indexOf('-filter_complex') + 1];
+  };
+
+  it('gives a faded clip an alpha plane to fade INTO', () => {
+    /*
+     * The landmine. `fade=alpha=1` on a stream with no alpha plane does
+     * nothing at all, and the format is otherwise chosen from the TRANSITION
+     * fade alone — so an element fade on a clip with no transition, no mask,
+     * no opacity and no key would have previewed as a fade and exported as a
+     * hard cut, with nothing in the graph to show for it.
+     */
+    const g = graphOf(animated({ animateIn: { type: 'fade', duration: 1 } }));
+    expect(g).toContain('format=yuva420p');
+    expect(g).toContain('fade=t=in:st=0:d=1:alpha=1');
+  });
+
+  it('agrees on the alpha at sampled times', () => {
+    const p = animated({
+      animateIn: { type: 'fade', duration: 1 },
+      animateOut: { type: 'fade', duration: 2 },
+    });
+    const alphaAt = (t: number) =>
+      frameStateAt(p, t).find((o) => o.id === 'a')!.alpha;
+    expect(alphaAt(0)).toBe(0);
+    expect(alphaAt(0.5)).toBeCloseTo(0.5, 9);
+    expect(alphaAt(3)).toBe(1);
+    expect(alphaAt(5)).toBeCloseTo(0.5, 9);
+    expect(alphaAt(6)).toBe(0);
+    // …and the export's windows are the same two numbers.
+    const g = graphOf(p);
+    expect(g).toContain('fade=t=in:st=0:d=1:alpha=1');
+    expect(g).toContain('fade=t=out:st=4:d=2:alpha=1');
+  });
+
+  it('slides by the same pixels the expression computes', () => {
+    const p = animated({
+      animateIn: { type: 'slide', duration: 1, edge: 'left' },
+    });
+    const g = graphOf(p);
+    const m = g.match(/overlay='([^']+)':/)!;
+    // The expression is in the graph…
+    expect(m[1]).toContain('clip(');
+    // …and the preview's dst carries the same offset at the same instants.
+    const travel = SLIDE_DISTANCE * 1080;
+    expect(frameStateAt(p, 0).find((o) => o.id === 'a')!.dst.x).toBe(-travel);
+    expect(frameStateAt(p, 0.5).find((o) => o.id === 'a')!.dst.x).toBe(
+      -travel / 2,
+    );
+    expect(frameStateAt(p, 1).find((o) => o.id === 'a')!.dst.x).toBe(0);
+  });
+
+  it('holds a BLENDED clip still, because the export cannot move it', () => {
+    /*
+     * The blend branch crops the base region under the clip and `crop` cannot
+     * vary its width or height per frame, so a moving box is not expressible.
+     * Both previews must therefore hold it still — this used to be a real
+     * drift, with the export pinning a keyframed clip while `frameStateAt`
+     * moved it.
+     */
+    const p = animated({
+      blend: 'screen',
+      animateIn: { type: 'slide', duration: 1, edge: 'left' },
+    });
+    expect(frameStateAt(p, 0).find((o) => o.id === 'a')!.dst.x).toBe(0);
+    expect(graphOf(p)).not.toMatch(/overlay='/);
+  });
+
+  it('still fades a blended clip, because that part DOES survive', () => {
+    // The fade is baked into the alpha plane before the blend branch merges it
+    // back on, so only movement is lost. Gating the whole animation would have
+    // removed something that works.
+    const p = animated({
+      blend: 'screen',
+      animateIn: { type: 'fade', duration: 1 },
+    });
+    expect(frameStateAt(p, 0.5).find((o) => o.id === 'a')!.alpha).toBeCloseTo(
+      0.5,
+      9,
+    );
+    expect(graphOf(p)).toContain('fade=t=in:st=0:d=1:alpha=1');
+  });
+
+  it('leaves the graph byte-identical without animation, and for a legacy caption', () => {
+    // Neutral fields must cost nothing…
+    const none = animated({});
+    const neutral = animated({ animateIn: { type: 'none', duration: 1 } });
+    expect(build(neutral)).toEqual(build(none));
+    // …and a stored `animation:'fade'` must render exactly as it always has,
+    // which is the whole migration story in one assertion.
+    const legacy = fixture();
+    const viaNew = fixture();
+    legacy.overlays[0].animation = 'fade';
+    viaNew.overlays[0].animateIn = { type: 'fade', duration: 0.3 };
+    viaNew.overlays[0].animateOut = { type: 'fade', duration: 0.3 };
+    expect(graphOf(viaNew)).toBe(graphOf(legacy));
+  });
+});
+
 describe('the canvas frame is composited in the right place', () => {
   const framed = (): VideoProject => ({
     ...fixture(),
