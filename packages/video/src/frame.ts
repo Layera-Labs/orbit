@@ -34,6 +34,8 @@ import {
 import { clipRectPx, progressAt, r3, srcTimeAt } from './layout';
 import { isFullSource, normalizeRotation } from './transform';
 import { fadeFactorAt, projectFadeMap } from './transitions';
+import { elementFadeAt, resolveAnim, slideOffsetAt } from './element-anim';
+import { blendToFFmpeg } from './blend';
 import { backgroundToSVG } from './background-svg';
 import { canvasFrameToSVG, hasCanvasFrame } from './canvas-frame';
 import { overlayToSVG } from './overlay-svg';
@@ -141,7 +143,17 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
     const box = clipRectPx(c.rect ?? FULL_FRAME, W, H);
     const kfs = c.keyframes;
     const kfOpacity = hasKeyframes(kfs) && animatesOpacity(kfs!);
-    const kfPosition = hasKeyframes(kfs) && animatesPosition(kfs!);
+    /*
+     * A blended clip cannot MOVE in the export: the blend branch crops the base
+     * region under its box and `crop` cannot vary its size per frame, so the
+     * composite origin is fixed. Both previews therefore hold it still too.
+     *
+     * This closes a real gap rather than opening one — keyframed position was
+     * already dropped by the export while `frameStateAt` went on moving the
+     * clip, which is a preview that looks better than the file.
+     */
+    const blended = !!blendToFFmpeg(c.blend);
+    const kfPosition = hasKeyframes(kfs) && animatesPosition(kfs!) && !blended;
     const p01 = progressAt(S, c.duration, t);
 
     let alpha = kfOpacity
@@ -150,15 +162,32 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
         ? Math.max(0, c.opacity)
         : 1;
     alpha *= fadeFactorAt(fades.get(c.id), S, E, t);
+    /*
+     * The element's own fade multiplies with the transition's, because two
+     * chained `fade` filters multiply their alphas and this has to say what the
+     * file will do. A clip carrying both really is at 0.25 halfway through
+     * overlapping ramps — the UI discourages that combination; the engine
+     * reports it honestly.
+     */
+    const anim = resolveAnim(c);
+    alpha *= elementFadeAt(anim, S, E, t);
 
     // Keyframed position replaces the rect origin, exactly as the export swaps
     // `overlay=rx:ry` for the keyframe expression.
-    const dst = kfPosition
+    const base = kfPosition
       ? (() => {
           const k = sampleKeyframes(kfs!, p01);
           return { x: Math.round(k.x * W), y: Math.round(k.y * H), w: box.w, h: box.h };
         })()
       : box;
+    // A slide is a delta on top of wherever the clip already sits.
+    const slide = blended
+      ? { dx: 0, dy: 0 }
+      : slideOffsetAt(anim, S, E, t, W, H);
+    const dst =
+      slide.dx || slide.dy
+        ? { ...base, x: base.x + slide.dx, y: base.y + slide.dy }
+        : base;
 
     const filter = resolveFilter(c.filter);
     ops.push({
@@ -200,8 +229,10 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
       : o.opacity != null && o.opacity < 1
         ? Math.max(0, o.opacity)
         : 1;
-    if (!kfOpacity && o.animation === 'fade')
-      alpha *= fadeFactorAt({ fin: 0.3, fout: 0.3 }, o.start, o.end, t);
+    // The legacy `animation:'fade'` resolves through the same module as an
+    // explicit `animateIn`, so a stored caption keeps exactly the fade it had.
+    const anim = resolveAnim(o);
+    if (!kfOpacity) alpha *= elementFadeAt(anim, o.start, o.end, t);
 
     let dx = 0;
     let dy = 0;
@@ -210,6 +241,11 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
       dx = r3(k.x * W - o.x * W);
       dy = r3(k.y * H - o.y * H);
     }
+    // A caption's dst is already a delta from its baked anchor, so a slide
+    // composes by addition — no special case.
+    const slide = slideOffsetAt(anim, o.start, o.end, t, W, H);
+    dx += slide.dx;
+    dy += slide.dy;
 
     ops.push({
       kind: 'overlay',
