@@ -1,6 +1,6 @@
 /**
  * Editor sheets — Vela's panel set, driven by the store's `panel` state.
- * Bottom sheets: Insert · Audio · Video Settings · Project menu · Editor
+ * Bottom sheets: Insert · Audio · Video Aspect Size · Project menu · Editor
  * Preferences. Full-screen: Filter · Export. Every control here does what it
  * says — the "soon" placeholders are gone, because a picker that answers a tap
  * with an apology is worse than one that offers less.
@@ -14,10 +14,10 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
@@ -180,14 +180,42 @@ function FullSheet({
   );
 }
 
-// ---- Video Settings ------------------------------------------------------
+// ---- Video Aspect Size ---------------------------------------------------
+
+/**
+ * Every aspect the project can take, laid out at once.
+ *
+ * It used to be a horizontal strip, which hid ten of the fifteen options behind
+ * a swipe with nothing to say they were there — and this is a list you choose
+ * from ONCE, so paging through it is all cost and no benefit.
+ *
+ * The swatch inside each cell is drawn at the ratio it names, fitted into one
+ * shared 26pt square. That makes the grid a proportion chart: 42:9 and 9:16 are
+ * told apart at a glance instead of by reading two labels. The old strip drew
+ * the identical 24×30 portrait box for all fifteen, so the picture carried no
+ * information at all.
+ */
+const RATIO_GRID_COLS = 5;
+const RATIO_GRID_GAP = 10;
+const RATIO_SWATCH = 26;
+/** Below this a hairline-thin swatch loses its corner radius and reads broken. */
+const RATIO_SWATCH_MIN = 7;
+
+function ratioSwatch(width: number, height: number) {
+  const land = width >= height;
+  return {
+    width: land ? RATIO_SWATCH : Math.max(RATIO_SWATCH_MIN, (RATIO_SWATCH * width) / height),
+    height: land ? Math.max(RATIO_SWATCH_MIN, (RATIO_SWATCH * height) / width) : RATIO_SWATCH,
+  };
+}
 
 function VideoSettingsSheet() {
   const project = useEditor((s) => s.project)!;
   const setRatio = useEditor((s) => s.setRatio);
-  const setHdr = useEditor((s) => s.setHdr);
   const sourceDims = useEditor((s) => s.sourceDims);
   const setPanel = useEditor((s) => s.setPanel);
+  const { width: winW } = useWindowDimensions();
+  const [gridW, setGridW] = useState(0);
   const close = () => setPanel(null);
 
   const options = sourceDims
@@ -202,18 +230,32 @@ function VideoSettingsSheet() {
       ]
     : RATIOS;
 
+  /*
+   * The cells divide the row evenly, so the grid's outer edges line up with the
+   * title above it.
+   *
+   * The width is MEASURED, not derived from the window minus the sheet's known
+   * padding. That arithmetic came out ~15pt optimistic here and the fifth cell
+   * wrapped, leaving a whole cell of dead space on the right of every row —
+   * and being wrong by one point is enough to do it. The window is only the
+   * first-frame fallback, so nothing is ever laid out at zero.
+   */
+  const cell = Math.floor(
+    ((gridW || winW - 36) - RATIO_GRID_GAP * (RATIO_GRID_COLS - 1)) /
+      RATIO_GRID_COLS,
+  );
+
   return (
     <BottomSheet onClose={close}>
       <View style={s.rowBetween}>
-        <Text style={s.sheetTitle}>Video Settings</Text>
+        <Text style={s.sheetTitle}>Video Aspect Size</Text>
         <Pressable onPress={close} hitSlop={10}>
           <VIcon name="check" size={24} color={vela.accent} />
         </Pressable>
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={s.ratioRow}
+      <View
+        style={s.ratioGrid}
+        onLayout={(e) => setGridW(e.nativeEvent.layout.width)}
       >
         {options.map((r) => {
           const on = r.width === project.width && r.height === project.height;
@@ -221,34 +263,26 @@ function VideoSettingsSheet() {
           return (
             <Pressable
               key={r.key}
-              style={[s.ratioCard, on && s.ratioCardOn]}
+              accessibilityRole="button"
+              accessibilityState={{ selected: on }}
+              accessibilityLabel={`${r.label} aspect`}
+              style={[s.ratioCard, { width: cell, height: cell }, on && s.ratioCardOn]}
               onPress={() => setRatio(r.width, r.height)}
             >
-              <View style={[s.ratioBox, { borderColor: fg }]} />
-              <Text style={[s.ratioLabel, { color: fg }]}>{r.label}</Text>
+              <View style={s.ratioBoxWell}>
+                <View
+                  style={[s.ratioBox, ratioSwatch(r.width, r.height), { borderColor: fg }]}
+                />
+              </View>
+              <Text
+                numberOfLines={1}
+                style={[s.ratioLabel, { color: fg }]}
+              >
+                {r.label}
+              </Text>
             </Pressable>
           );
         })}
-      </ScrollView>
-      <View style={s.infoCard}>
-        <View style={{ flex: 1 }}>
-          <Text style={s.infoTitle}>HDR</Text>
-          {/* It used to promise a "brighter preview". The preview's HDR
-              treatment was removed on purpose — this screen cannot display
-              HDR, so a bloom made the preview lighter than the file it exists
-              to predict. All this flag does now is arm the export toggle. */}
-          <Text style={s.infoSub}>
-            Turn on HDR10 (10-bit HEVC) by default when exporting
-          </Text>
-        </View>
-        <Switch
-          accessibilityLabel="HDR video"
-          value={!!project.hdr}
-          onValueChange={setHdr}
-          trackColor={{ true: vela.accent, false: "#c7c9d4" }}
-          ios_backgroundColor="#c7c9d4"
-          thumbColor="#fff"
-        />
       </View>
     </BottomSheet>
   );
@@ -961,7 +995,7 @@ function ExportSheet() {
   const serverUrl = useEditor((s) => s.serverUrl);
   const [quality, setQuality] = useState<"Low" | "Medium" | "High">("High");
   const [audioOnly, setAudioOnly] = useState(false);
-  const [wantHdr, setWantHdr] = useState(!!project?.hdr);
+  const [wantHdr, setWantHdr] = useState(false);
   const [resIdx, setResIdx] = useState(2);
   const [fpsIdx, setFpsIdx] = useState(2);
   const close = () => setPanel(null);
@@ -975,6 +1009,11 @@ function ExportSheet() {
    * `wantHdr` is what the user asked for; `hdr` is what will be sent. Keeping
    * them separate means turning it on, losing the server, and getting it back
    * does not silently forget the choice.
+   *
+   * It starts off every time, and there is no longer a project-level flag to
+   * seed it from: HDR is a property of the FILE you are making now, not of the
+   * document. The setting that used to arm it lived on a sheet about aspect
+   * ratio, where nobody would look for it.
    */
   const [hdrCapable, setHdrCapable] = useState(false);
   useEffect(() => {
@@ -3055,40 +3094,36 @@ const s = StyleSheet.create({
     borderRadius: 13,
   },
 
-  // video settings
-  ratioRow: { gap: 12, paddingVertical: 2 },
+  // video aspect size
+  ratioGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: RATIO_GRID_GAP,
+    paddingVertical: 2,
+  },
   ratioCard: {
-    width: 78,
-    height: 78,
     borderRadius: 14,
+    borderCurve: "continuous",
     backgroundColor: vela.lightSurface,
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 7,
   },
   ratioCardOn: {
     backgroundColor: vela.accentSoft,
     borderWidth: 1.5,
     borderColor: vela.accent,
   },
-  ratioBox: { width: 24, height: 30, borderWidth: 2, borderRadius: 4 },
-  ratioLabel: { fontSize: 13, fontFamily: font.bold },
-  infoCard: {
-    flexDirection: "row",
+  // A fixed well so every swatch is centred on the same line whatever its
+  // proportion — without it a 42:9 sliver rides up and the row goes ragged.
+  ratioBoxWell: {
+    width: RATIO_SWATCH,
+    height: RATIO_SWATCH,
     alignItems: "center",
-    backgroundColor: vela.lightSurface,
-    borderRadius: 16,
-    padding: 16,
-    marginTop: 2,
+    justifyContent: "center",
   },
-  infoTitle: { color: vela.ink, fontFamily: font.bold, fontSize: 16 },
-  infoSub: {
-    color: vela.lightMuted,
-    fontFamily: font.medium,
-    fontSize: 12.5,
-    marginTop: 3,
-    maxWidth: 230,
-  },
+  ratioBox: { borderWidth: 2, borderRadius: 4, borderCurve: "continuous" },
+  ratioLabel: { fontSize: 12, fontFamily: font.bold },
 
   // project menu
   menuSheet: {

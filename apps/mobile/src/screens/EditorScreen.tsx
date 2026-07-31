@@ -515,9 +515,10 @@ export function EditorScreen() {
       <View style={styles.stage}>
         {/*
           No HDR treatment here. A white bloom and a 7% white wash used to
-          appear when the project's HDR flag was on, which was two mistakes at
+          appear when a project-level HDR flag was on, which was two mistakes at
           once: this screen cannot display HDR, and the sheen made the preview
-          genuinely lighter than the file it is meant to predict.
+          genuinely lighter than the file it is meant to predict. The flag
+          itself is gone now — HDR10 is chosen per export, where it applies.
         */}
         {/*
           The picture sits directly on the stage. It used to be matted in a
