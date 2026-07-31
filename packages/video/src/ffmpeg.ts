@@ -37,6 +37,11 @@ import {
   r3,
   regionBoxPx,
 } from "./layout";
+import {
+  isFullSource,
+  normalizeRotation,
+  rotatedBoxPx,
+} from "./transform";
 import { buildFadeMap } from "./transitions";
 import { HDR_CONVERT_FILTER, HDR_X265_PARAMS } from "./hdr";
 
@@ -75,6 +80,44 @@ export { MOSAIC_BLOCK } from "./layout";
  *  corners are visibly tighter than the ones the user positioned. */
 // Lives in `layout.ts` so the browser compositor rounds by the same factor.
 import { ROUNDED_R } from "./layout";
+
+/**
+ * The filter that rotates a clip clockwise about the centre of its box.
+ *
+ * `ow`/`oh` come from `rotatedBoxPx` rather than ffmpeg's own `rotw()`/`roth()`
+ * so `frameStateAt` and the dual-render test can reproduce the exact number the
+ * encoder used — the same rule as `regionBoxPx`. `c=none` fills the corners the
+ * rotation opens with TRANSPARENT, which is why the clip is forced to `rgba`.
+ *
+ * MEASURED, against ffmpeg 8.1.2, because the obvious improvement is a trap:
+ *
+ * - Multiples of 90 are bit-exact — no resampling happens at all.
+ * - At other angles the interior is bilinear (sub-1/255), and the boundary is a
+ *   HARD, two-level matte: `rotate` does an in/out test per pixel and emits no
+ *   partial coverage.
+ * - Supersampling (`scale` 2x -> rotate -> `scale …:flags=area`) does give four
+ *   coverage steps instead of one, and was tried. It is WORSE. The area
+ *   downscale averages RGB across the shape boundary against the transparent
+ *   fill's black, so every partial pixel comes out with its colour already
+ *   multiplied by its coverage — and `overlay` then multiplies by it again.
+ *   Composited over black, a pure red edge measured 16/64/144 where it should
+ *   have been 64/128/192: up to **64/255 too dark**, on every boundary pixel.
+ *   `unpremultiply` does not fix it — the framework auto-inserts a matching
+ *   `auto_premultiply` in front of it and the pair cancels (verified in the
+ *   filtergraph log). The real fix, `setparams=alpha_mode=premultiplied`, only
+ *   exists in ffmpeg 8, and emitting it would make every rotated export fail
+ *   outright on the 7.x builds this ships against.
+ *
+ * So: one honest hard-edged pixel rather than four systematically dark ones.
+ * The consequence is written down rather than claimed away — both previews
+ * antialias a rotated blit and the export does not, so the two differ along the
+ * single boundary pixel of a rotated clip. Same class as the recorded grade
+ * tolerance, and an order of magnitude smaller than the alternative's error.
+ */
+function rotateChain(deg: number, rw: number, rh: number): string {
+  const { ow, oh } = rotatedBoxPx({ w: rw, h: rh }, deg);
+  return `rotate=${r3(deg)}*PI/180:c=none:ow=${ow}:oh=${oh}`;
+}
 
 /** An ffmpeg eval expression that is true inside `shape`, inset by `inset` px. */
 function shapeInside(
@@ -454,7 +497,13 @@ function buildMultiTrackArgs(
         ? Math.max(0, c.opacity)
         : null;
     const maskChain = maskToFFmpeg(c.mask, rw, rh);
-    // alpha plane needed for keying, animated/static opacity, a mask, OR fades.
+    const deg = normalizeRotation(c.rotation);
+    /*
+     * Alpha plane needed for keying, animated/static opacity, a mask, fades —
+     * OR rotation. `rotate=…:c=none` writes a TRANSPARENT fill into the corners
+     * the rotation opens up; with no alpha plane that fill is opaque black and
+     * every rotated clip gets black triangles at its corners.
+     */
     const fmt =
       c.type === "image" ||
       key ||
@@ -462,12 +511,22 @@ function buildMultiTrackArgs(
       staticOpacity != null ||
       maskChain ||
       c.mosaic ||
-      c.magnifier
+      c.magnifier ||
+      deg !== 0
         ? "rgba"
         : fade
           ? "yuva420p"
           : "yuv420p";
-    let chain = `${prep}${grade}scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1,fps=${fps},format=${fmt}`;
+    /*
+     * The user's crop runs FIRST, so the cover-fit below reads from the window
+     * they chose rather than the whole frame. There is still exactly one
+     * cover-fit; nothing crops twice. Doing it first also means fewer pixels go
+     * through everything downstream.
+     */
+    const srcCrop = isFullSource(c.crop)
+      ? ""
+      : `crop=iw*${r3(c.crop!.w)}:ih*${r3(c.crop!.h)}:iw*${r3(c.crop!.x)}:ih*${r3(c.crop!.y)},`;
+    let chain = `${prep}${srcCrop}${grade}scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1,fps=${fps},format=${fmt}`;
     if (key) chain += `,${key}`;
     if (c.blur && c.blur > 0) chain += `,gblur=sigma=${r3(c.blur * 20)}`;
     if (hasMotion(c.motion)) {
@@ -494,7 +553,15 @@ function buildMultiTrackArgs(
     if (fade?.fout)
       chain += `,fade=t=out:st=${r3(E - fade.fout)}:d=${fade.fout}:alpha=1`;
     const hasLocalFx = !!(c.mosaic || c.magnifier);
-    const rawLabel = hasLocalFx ? `vr${i}` : `v${i}`;
+    /*
+     * Rotation is appended in exactly ONE place, at the very end, because the
+     * plain path and the local-effects path produce the clip's final label
+     * separately — bolt it onto one and a mosaicked clip silently stops
+     * rotating. When there is no rotation `preRot` IS `v${i}`, so the emitted
+     * graph for every existing project is byte-for-byte what it was.
+     */
+    const preRot = deg === 0 ? `v${i}` : `vq${i}`;
+    const rawLabel = hasLocalFx ? `vr${i}` : preRot;
     segments.push(`[${vIn[i]}:v]${chain}[${rawLabel}]`);
     // Keep a copy of the clip's own alpha; it is merged back after every region
     // has been composited so the regions cannot double-composite it.
@@ -572,33 +639,71 @@ function buildMultiTrackArgs(
     if (hasLocalFx) {
       // Restore the clip's own alpha exactly once, after all regions.
       segments.push(`[fxa${i}]alphaextract[fxam${i}]`);
-      segments.push(`${localFxLabel}[fxam${i}]alphamerge[v${i}]`);
+      segments.push(`${localFxLabel}[fxam${i}]alphamerge[${preRot}]`);
     }
+    const { ow, oh, dx, dy } = rotatedBoxPx({ w: rw, h: rh }, deg);
+    if (deg !== 0) segments.push(`[${preRot}]${rotateChain(deg, rw, rh)}[v${i}]`);
+    /*
+     * Where the clip lands. Rotation grows the box symmetrically, so pulling
+     * the origin back by half the growth pins the rotation to the CENTRE of the
+     * clip's rect rather than its top-left. `overlay` accepts negative offsets;
+     * with no rotation dx and dy are zero and this is the old expression.
+     */
+    const px = rx - dx;
+    const py = ry - dy;
     const blendMode = blendToFFmpeg(c.blend);
     if (blendMode) {
-      // Blend the clip with the base region under its rect, then overlay the
-      // blended patch back (time-gated). Clip alpha (mask/cutout/opacity) is
-      // preserved via alphamerge so it still composites correctly.
-      segments.push(`${prev}split[bk${i}][bcs${i}]`);
-      segments.push(
-        `[bcs${i}]crop=${rw}:${rh}:${rx}:${ry},format=rgba[bc${i}]`,
-      );
-      segments.push(`[v${i}]format=rgba,split[vc${i}][vas${i}]`);
-      segments.push(`[vas${i}]alphaextract[va${i}]`);
-      segments.push(
-        `[bc${i}][vc${i}]blend=all_mode=${blendMode}:eof_action=pass[blr${i}]`,
-      );
-      segments.push(`[blr${i}][va${i}]alphamerge[bl${i}]`);
-      segments.push(
-        `[bk${i}][bl${i}]overlay=${rx}:${ry}:enable='between(t,${S},${E})':eof_action=pass[c${i}]`,
-      );
+      /*
+       * Blend the clip with the base region under its box, then overlay the
+       * blended patch back (time-gated). Clip alpha (mask/cutout/opacity) is
+       * preserved via alphamerge so it still composites correctly.
+       *
+       * The base crop is CLAMPED to the canvas: `crop` rejects a negative
+       * origin and refuses to read past the input, so a rotated clip whose
+       * grown box hangs off an edge would abort the whole render. At zero
+       * rotation, and for any box already inside the canvas, this collapses to
+       * exactly rx/ry/rw/rh.
+       */
+      const bx = Math.max(0, px);
+      const by = Math.max(0, py);
+      const bw = Math.min(W, px + ow) - bx;
+      const bh = Math.min(H, py + oh) - by;
+      if (bw > 0 && bh > 0) {
+        segments.push(`${prev}split[bk${i}][bcs${i}]`);
+        segments.push(
+          `[bcs${i}]crop=${bw}:${bh}:${bx}:${by},format=rgba[bc${i}]`,
+        );
+        // Take the matching window OUT of the clip when it was clamped, so the
+        // two streams handed to `blend` are the same size.
+        const vcrop =
+          bx === px && by === py && bw === ow && bh === oh
+            ? ""
+            : `crop=${bw}:${bh}:${bx - px}:${by - py},`;
+        segments.push(`[v${i}]${vcrop}format=rgba,split[vc${i}][vas${i}]`);
+        segments.push(`[vas${i}]alphaextract[va${i}]`);
+        segments.push(
+          `[bc${i}][vc${i}]blend=all_mode=${blendMode}:eof_action=pass[blr${i}]`,
+        );
+        segments.push(`[blr${i}][va${i}]alphamerge[bl${i}]`);
+        segments.push(
+          `[bk${i}][bl${i}]overlay=${bx}:${by}:enable='between(t,${S},${E})':eof_action=pass[c${i}]`,
+        );
+      } else {
+        // Entirely off-canvas: nothing to blend with, and `blend` on a zero-size
+        // stream is an error. Drop the clip, exactly as `frameAt` does.
+        segments.push(`${prev}null[c${i}]`);
+      }
     } else {
       const ox = kfPosition
-        ? `'${keyframeExpr(kfs!, "x", S, c.duration, "t", W)}'`
-        : `${rx}`;
+        ? dx
+          ? `'(${keyframeExpr(kfs!, "x", S, c.duration, "t", W)})-${dx}'`
+          : `'${keyframeExpr(kfs!, "x", S, c.duration, "t", W)}'`
+        : `${px}`;
       const oy = kfPosition
-        ? `'${keyframeExpr(kfs!, "y", S, c.duration, "t", H)}'`
-        : `${ry}`;
+        ? dy
+          ? `'(${keyframeExpr(kfs!, "y", S, c.duration, "t", H)})-${dy}'`
+          : `'${keyframeExpr(kfs!, "y", S, c.duration, "t", H)}'`
+        : `${py}`;
       segments.push(
         `${prev}[v${i}]overlay=${ox}:${oy}:enable='between(t,${S},${E})':eof_action=pass[c${i}]`,
       );

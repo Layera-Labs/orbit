@@ -488,11 +488,16 @@ export function EditorScreen() {
         </View>
       </View>
 
-      {/* Preview (tap to deselect — hides the selection action bar) */}
-      <Pressable
-        style={styles.stage}
-        onPress={() => (selected || selectedGap) && select(null)}
-      >
+      {/*
+        Deliberately a View, not a Pressable.
+        
+        It used to deselect on press — a second selection path, sitting OUTSIDE
+        Gesture Handler's arbitration, so it could fire at the end of a
+        low-movement drag on one of the preview's transform handles and tear the
+        selection down while the user was mid-edit. `Preview`'s own tap gesture
+        already deselects, and it knows what was actually hit.
+      */}
+      <View style={styles.stage}>
         {/*
           No HDR treatment here. A white bloom and a 7% white wash used to
           appear when the project's HDR flag was on, which was two mistakes at
@@ -507,7 +512,7 @@ export function EditorScreen() {
         <Pressable style={styles.fullscreenBtn} onPress={openFullscreen}>
           <VIcon name="fullscreen" size={18} color="#fff" />
         </Pressable>
-      </Pressable>
+      </View>
 
       {/* Transport */}
       <View style={styles.transport}>

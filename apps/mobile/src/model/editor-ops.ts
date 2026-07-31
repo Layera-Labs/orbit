@@ -16,6 +16,7 @@ import type {
   Keyframe,
   Motion,
   Rect,
+  SourceRect,
   VolumePoint,
   TextOverlay,
   Track,
@@ -23,6 +24,7 @@ import type {
   VideoProject,
   VisualTrackClip,
 } from "./types";
+import { isFullSource, normalizeRotation } from "../preview/transform";
 
 export const MIN_CLIP = 0.1;
 
@@ -542,6 +544,42 @@ export function setClipRect(
     p,
     trackId,
     (cs) => cs.map((c) => (c.id === clipId ? { ...c, rect } : c)),
+    (cs) => cs,
+  );
+}
+
+/**
+ * Placement, rotation and crop in one write.
+ *
+ * The preview's transform handles change more than one of these per gesture — a
+ * mid-edge crop moves the rect as well as the crop window — and three separate
+ * mutations would be three undo steps for one drag.
+ */
+export function setClipTransform(
+  p: VideoProject,
+  trackId: string,
+  clipId: string,
+  patch: { rect?: Rect; rotation?: number; crop?: SourceRect },
+): VideoProject {
+  const apply = <C extends VisualTrackClip>(c: C): C =>
+    c.id === clipId
+      ? {
+          ...c,
+          ...(patch.rect ? { rect: patch.rect } : {}),
+          ...(patch.rotation !== undefined
+            ? // Normalize on the way IN, so nothing downstream has to wonder
+              // whether 370 and 10 are the same clip.
+              { rotation: normalizeRotation(patch.rotation) || undefined }
+            : {}),
+          ...(patch.crop
+            ? { crop: isFullSource(patch.crop) ? undefined : patch.crop }
+            : {}),
+        }
+      : c;
+  return updateClips(
+    p,
+    trackId,
+    (cs) => cs.map(apply),
     (cs) => cs,
   );
 }

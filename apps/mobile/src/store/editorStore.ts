@@ -26,6 +26,7 @@ import {
   type Keyframe,
   type Motion,
   type Rect,
+  type SourceRect,
   type TextOverlay,
   type Transition,
   type VideoProject,
@@ -366,6 +367,18 @@ interface EditorState {
     fades: AudioFades,
   ) => void;
   setClipRect: (trackId: string, clipId: string, rect: Rect) => void;
+  /**
+   * Write a clip's placement, rotation and crop in ONE mutation.
+   *
+   * One call, not three, because the preview's transform handles change more
+   * than one of them per gesture (a crop moves the rect too) and three writes
+   * would be three undo steps for one drag.
+   */
+  applyClipTransform: (
+    trackId: string,
+    clipId: string,
+    patch: { rect?: Rect; rotation?: number; crop?: SourceRect },
+  ) => void;
   setSelectedFilter: (filter: ClipFilter | undefined) => void;
   /** Apply a filter to the effects target (selected visual clip, else base clip at playhead). */
   applyClipFilter: (filter: ClipFilter | undefined) => void;
@@ -1378,6 +1391,8 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
   setClipRect: (trackId, clipId, rect) =>
     get().apply((p) => ops.setClipRect(p, trackId, clipId, rect)),
+  applyClipTransform: (trackId, clipId, patch) =>
+    get().apply((p) => ops.setClipTransform(p, trackId, clipId, patch)),
 
   setSelectedFilter: (filter) => {
     const s = get().selected;

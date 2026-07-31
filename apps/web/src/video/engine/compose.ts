@@ -17,7 +17,7 @@
  */
 import {
   blendToCanvas,
-  coverCrop,
+  sourceCropPx,
   magnifierCropPx,
   mosaicBlurSigma,
   mosaicStepPx,
@@ -168,7 +168,26 @@ export function renderFrame(
     ctx.globalAlpha = op.alpha;
     ctx.globalCompositeOperation =
       (blendToCanvas(op.blend) as GlobalCompositeOperation | null) ?? 'source-over';
-    ctx.drawImage(patch, Math.round(op.dst.x), Math.round(op.dst.y), dw, dh);
+    if (op.rotation) {
+      /*
+       * Rotation is one transform on the BLIT, so everything already composed
+       * into the patch — grade, blur, mask, motion, the local effects — turns
+       * with the clip for free. Positive is clockwise, the same direction the
+       * export's `rotate` goes, so there is no sign flip anywhere.
+       *
+       * About the centre of `dst`, matching the export's overlay origin being
+       * pulled back by half the rotated box's growth (`rotatedBoxPx`).
+       */
+      const cx = Math.round(op.dst.x) + dw / 2;
+      const cy = Math.round(op.dst.y) + dh / 2;
+      ctx.save();
+      ctx.translate(cx, cy);
+      ctx.rotate((op.rotation * Math.PI) / 180);
+      ctx.drawImage(patch, -dw / 2, -dh / 2, dw, dh);
+      ctx.restore();
+    } else {
+      ctx.drawImage(patch, Math.round(op.dst.x), Math.round(op.dst.y), dw, dh);
+    }
   }
 
   ctx.globalAlpha = 1;
@@ -303,7 +322,10 @@ function drawFitted(
     ctx.drawImage(source, 0, 0, dw, dh);
     return;
   }
-  const { sx, sy, sw, sh } = coverCrop(natural.w, natural.h, dw, dh);
+  // The user's crop and the cover-fit resolve TOGETHER, in one shared function:
+  // the cover-fit reads from the crop window rather than the whole frame, so
+  // nothing crops twice. With no crop this is exactly `coverCrop`.
+  const { sx, sy, sw, sh } = sourceCropPx(natural.w, natural.h, op.srcRect, dw, dh);
   ctx.drawImage(source, sx, sy, sw, sh, 0, 0, dw, dh);
 }
 

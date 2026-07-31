@@ -118,6 +118,10 @@ const ICONS = {
   keyframe: { paths: ['M12 4l7 8-7 8-7-8z'], sw: 1.8 },
   curve: { paths: ['M5 19C6 11 13 6 19 5'], circles: [[5, 19, 1.8], [19, 5, 1.8]], sw: 1.8 },
   lock: { rects: [[5, 11, 14, 9, 2]], paths: ['M8 11V7.5a4 4 0 018 0V11'], sw: 1.8 },
+  // A near-closed circle with a head on the open end: this is TURNING, not
+  // "redo". The redo glyph was standing in for it, and this editor already has
+  // a redo button in its header meaning something else entirely.
+  rotate: { paths: ['M18.2 8.2A7 7 0 105 12', 'M18.6 4.4v4.2h-4.2'], sw: 1.9 },
   duplicate: { paths: ['M8 8h12v12H8z', 'M4 4h12v3', 'M4 4v12h3'], sw: 1.8 },
   rippleDelete: {
     paths: [

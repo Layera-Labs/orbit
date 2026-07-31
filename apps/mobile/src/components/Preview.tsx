@@ -10,9 +10,19 @@
  * clock advances the playhead; per-clip filters/transitions slot into the Skia
  * layers (P4/P5). The server export is the true composite.
  */
-import { useEffect, useMemo, useRef, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { StyleSheet, Text, View, type TextStyle } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import {
+  Gesture,
+  GestureDetector,
+  type GestureType,
+} from "react-native-gesture-handler";
 import {
   Blur,
   Canvas,
@@ -31,12 +41,21 @@ import {
   useImage,
   vec,
 } from "@shopify/react-native-skia";
-import { type SharedValue, useSharedValue } from "react-native-reanimated";
+import {
+  type SharedValue,
+  useDerivedValue,
+  useSharedValue,
+} from "react-native-reanimated";
 import { useClipFrame } from "../preview/useClipFrame";
 import { motionTransform, motionStateAt, hasMotion } from "../preview/motion";
 import { blendToSkia } from "../preview/blend";
 import { snapSpan, targetsFor, type Span } from "../preview/snap";
 import { hasKeyframes, sampleKeyframes } from "../preview/keyframes";
+import { cropDrawRect, normalizeRotation } from "../preview/transform";
+import {
+  PreviewTransformHandles,
+  type TransformPatch,
+} from "./PreviewTransformHandles";
 import { previewAudioOf, PreviewAudio } from "../preview/audioGraph";
 import { ensureFontsLoaded, useFontsVersion } from "../text/fonts";
 import { colorMatrix } from "../filters/registry";
@@ -306,6 +325,38 @@ function hexToRgb01(hex: string): [number, number, number] {
   ];
 }
 
+/**
+ * Where a clip's picture is drawn, and how.
+ *
+ * With no crop this is just the box with Skia's own `cover` fit, which agrees
+ * with the export's `scale=…:force_original_aspect_ratio=increase,crop=`.
+ *
+ * With a crop, Skia has no way to say "draw this part of the source" — `<Image>`
+ * takes no source rect. So the WHOLE image is drawn oversized and positioned so
+ * the chosen window lands on the box (`fit="fill"`), and the caller clips to the
+ * box. The rect is a derived value because for a video the natural size only
+ * exists on the UI thread, inside the decoded frame.
+ */
+function useDrawRect(
+  image: SkImage | SharedValue<SkImage | null>,
+  crop: VisualTrackClip["crop"],
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+) {
+  const box = rect(x, y, w, h);
+  const derived = useDerivedValue(() => {
+    const img = "value" in image ? image.value : image;
+    if (!img || !crop) return box;
+    const d = cropDrawRect(img.width(), img.height(), crop, { x, y, w, h });
+    return rect(d.x, d.y, d.w, d.h);
+  }, [image, crop, x, y, w, h]);
+  return crop
+    ? ({ rect: derived, fit: "fill" } as const)
+    : ({ rect: box, fit: "cover" } as const);
+}
+
 /** Draw `image` with a chroma key (cutout) into the given canvas rect. */
 function ChromaImage({
   image,
@@ -313,7 +364,7 @@ function ChromaImage({
   y,
   w,
   h,
-  fit,
+  crop,
   cutout,
 }: {
   image: SkImage | SharedValue<SkImage | null>;
@@ -321,10 +372,13 @@ function ChromaImage({
   y: number;
   w: number;
   h: number;
-  fit: "contain" | "cover";
+  crop?: VisualTrackClip["crop"];
   cutout: NonNullable<VisualTrackClip["cutout"]>;
 }) {
   const [r, g, b] = hexToRgb01(cutout.color);
+  // The keyed path needs the identical treatment: a cropped green-screen clip
+  // whose shader sampled the whole frame would key the wrong pixels.
+  const draw = useDrawRect(image, crop, x, y, w, h);
   return (
     <Fill>
       <Shader
@@ -337,13 +391,39 @@ function ChromaImage({
       >
         <ImageShader
           image={image}
-          fit={fit}
-          rect={rect(x, y, w, h)}
+          fit={draw.fit}
+          rect={draw.rect}
           tx="decal"
           ty="decal"
         />
       </Shader>
     </Fill>
+  );
+}
+
+/** An image or video frame drawn into a box, honouring the clip's crop. */
+function ClipImage({
+  image,
+  x,
+  y,
+  w,
+  h,
+  crop,
+  children,
+}: {
+  image: SkImage | SharedValue<SkImage | null>;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  crop?: VisualTrackClip["crop"];
+  children?: React.ReactNode;
+}) {
+  const draw = useDrawRect(image, crop, x, y, w, h);
+  return (
+    <SkImg image={image} rect={draw.rect} fit={draw.fit}>
+      {children}
+    </SkImg>
   );
 }
 
@@ -373,169 +453,6 @@ function transitionOpacity(
   if (fin > 0 && t < S + fin) op = Math.min(op, (t - S) / fin);
   if (fout > 0 && t > E - fout) op = Math.min(op, (E - t) / fout);
   return Math.max(0, Math.min(1, op));
-}
-
-/** Active base VIDEO clip — its own `useVideo` decoder; mounted only while active. */
-function BaseVideo({
-  clip,
-  width,
-  height,
-  isPlaying,
-  playheadSec,
-}: {
-  clip: VisualTrackClip;
-  width: number;
-  height: number;
-  isPlaying: boolean;
-  playheadSec: number;
-}) {
-  const playing = useSharedValue(isPlaying);
-  const timeSV = useSharedValue(0);
-  useEffect(() => {
-    playing.value = isPlaying;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isPlaying]);
-  useEffect(() => {
-    const sp = clip.speed && clip.speed > 0 ? clip.speed : 1;
-    timeSV.value =
-      (clip.trimIn ?? 0) + Math.max(0, (playheadSec - clip.start) * sp);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playheadSec, clip.start, clip.trimIn, clip.speed]);
-  const frame = useClipFrame(toUri(clip.src), playing, timeSV);
-  const cm = colorMatrix(clip.filter);
-  const mt = motionTransform(
-    clip.motion,
-    clip.start,
-    clip.duration,
-    playheadSec,
-    width,
-    height,
-  );
-  const mc = maskClipFor(clip.mask, 0, 0, width, height);
-  const content =
-    clip.cutout && frame ? (
-      <ChromaImage
-        image={frame}
-        x={0}
-        y={0}
-        w={width}
-        h={height}
-        fit="contain"
-        cutout={clip.cutout}
-      />
-    ) : (
-      <SkImg
-        image={frame}
-        x={0}
-        y={0}
-        width={width}
-        height={height}
-        fit="contain"
-      >
-        {cm ? <ColorMatrix matrix={cm} /> : null}
-        {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
-      </SkImg>
-    );
-  const composed = (
-    <>
-      {content}
-      <LocalVisualEffects
-        clip={clip}
-        content={content}
-        x={0}
-        y={0}
-        w={width}
-        h={height}
-      />
-    </>
-  );
-  return (
-    <Group
-      transform={mt}
-      origin={{ x: width / 2, y: height / 2 }}
-      opacity={clipKfOpacity(clip, playheadSec)}
-      blendMode={blendToSkia(clip.blend)}
-    >
-      {mc ? (
-        <Group clip={mc.clip} invertClip={mc.invertClip}>
-          {composed}
-        </Group>
-      ) : (
-        composed
-      )}
-    </Group>
-  );
-}
-
-/** Active base IMAGE clip. */
-function BaseImage({
-  clip,
-  width,
-  height,
-  playheadSec,
-}: {
-  clip: VisualTrackClip;
-  width: number;
-  height: number;
-  playheadSec: number;
-}) {
-  const img = useImage(toUri(clip.src));
-  const cm = colorMatrix(clip.filter);
-  const mt = motionTransform(
-    clip.motion,
-    clip.start,
-    clip.duration,
-    playheadSec,
-    width,
-    height,
-  );
-  const mc = maskClipFor(clip.mask, 0, 0, width, height);
-  if (!img) return null;
-  const content = clip.cutout ? (
-    <ChromaImage
-      image={img}
-      x={0}
-      y={0}
-      w={width}
-      h={height}
-      fit="contain"
-      cutout={clip.cutout}
-    />
-  ) : (
-    <SkImg image={img} x={0} y={0} width={width} height={height} fit="contain">
-      {cm ? <ColorMatrix matrix={cm} /> : null}
-      {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
-    </SkImg>
-  );
-  const composed = (
-    <>
-      {content}
-      <LocalVisualEffects
-        clip={clip}
-        content={content}
-        x={0}
-        y={0}
-        w={width}
-        h={height}
-      />
-    </>
-  );
-  return (
-    <Group
-      transform={mt}
-      origin={{ x: width / 2, y: height / 2 }}
-      opacity={clipKfOpacity(clip, playheadSec)}
-      blendMode={blendToSkia(clip.blend)}
-    >
-      {mc ? (
-        <Group clip={mc.clip} invertClip={mc.invertClip}>
-          {composed}
-        </Group>
-      ) : (
-        composed
-      )}
-    </Group>
-  );
 }
 
 type OverlayGeom = {
@@ -604,14 +521,14 @@ function OverlayFrame({
       y={y}
       w={w}
       h={h}
-      fit="cover"
+      crop={clip.crop}
       cutout={clip.cutout}
     />
   ) : (
-    <SkImg image={image} x={x} y={y} width={w} height={h} fit="cover">
+    <ClipImage image={image} x={x} y={y} w={w} h={h} crop={clip.crop}>
       {cm ? <ColorMatrix matrix={cm} /> : null}
       {clip.blur ? <Blur blur={clip.blur * 20} /> : null}
-    </SkImg>
+    </ClipImage>
   );
   const composed = (
     <>
@@ -626,7 +543,18 @@ function OverlayFrame({
       />
     </>
   );
-  return (
+  /*
+   * Rotation goes on an OUTER group, outside the rect clip — an axis-aligned
+   * clip applied after the turn would shave the corners the rotation just
+   * created. It is also NOT folded into the motion transform below: motion
+   * pivots on the frame centre and rotation on the rect centre, and one
+   * transform array carries one origin.
+   *
+   * Positive is clockwise, the same direction as the export's `rotate` and the
+   * canvas compositor's `ctx.rotate`.
+   */
+  const deg = normalizeRotation(clip.rotation);
+  const body = (
     <Group
       clip={rect(x, y, w, h)}
       opacity={op}
@@ -641,6 +569,15 @@ function OverlayFrame({
           composed
         )}
       </Group>
+    </Group>
+  );
+  if (!deg) return body;
+  return (
+    <Group
+      transform={[{ rotate: (deg * Math.PI) / 180 }]}
+      origin={{ x: x + w / 2, y: y + h / 2 }}
+    >
+      {body}
     </Group>
   );
 }
@@ -718,6 +655,7 @@ export function Preview({ width, height }: { width: number; height: number }) {
   const selected = useEditor((s) => s.selected);
   const panel = useEditor((s) => s.panel);
   const setClipRect = useEditor((s) => s.setClipRect);
+  const applyClipTransform = useEditor((s) => s.applyClipTransform);
   const applyClipMosaic = useEditor((s) => s.applyClipMosaic);
   const applyClipMagnifier = useEditor((s) => s.applyClipMagnifier);
   const updateSelectedOverlay = useEditor((s) => s.updateSelectedOverlay);
@@ -759,9 +697,32 @@ export function Preview({ width, height }: { width: number; height: number }) {
   );
   const base = visualTracks[0];
   const overlayTracks = visualTracks.slice(1);
-  const baseActive = base
+  /*
+   * What a transform handle is doing RIGHT NOW.
+   *
+   * Held here rather than written through the store on every pointer frame:
+   * this component is the only one that needs to redraw during a resize, and
+   * going through `apply` would clone the project, re-render the timeline and
+   * the editor chrome, and queue a save and a sync sixty times a second. The
+   * store is written once, on release.
+   */
+  const [live, setLive] = useState<
+    (TransformPatch & { clipId: string }) | null
+  >(null);
+  const withLive = (c: VisualTrackClip): VisualTrackClip =>
+    live && live.clipId === c.id
+      ? {
+          ...c,
+          ...(live.rect ? { rect: live.rect } : {}),
+          ...(live.rotation != null ? { rotation: live.rotation } : {}),
+          ...(live.crop ? { crop: live.crop } : {}),
+        }
+      : c;
+
+  const baseRaw = base
     ? (clipAtTime(base, lookupT) as VisualTrackClip | undefined)
     : undefined;
+  const baseActive = baseRaw ? withLive(baseRaw) : undefined;
   const baseClips = base?.clips ?? [];
   const baseIdx = baseActive
     ? baseClips.findIndex((c) => c.id === baseActive.id)
@@ -836,7 +797,7 @@ export function Preview({ width, height }: { width: number; height: number }) {
   const activeOverlays = overlayTracks
     .map((t) => {
       const c = clipAtTime(t, lookupT) as VisualTrackClip | undefined;
-      return c ? { clip: c, trackId: t.id } : null;
+      return c ? { clip: withLive(c), trackId: t.id } : null;
     })
     .filter((x): x is { clip: VisualTrackClip; trackId: string } => !!x);
   const captions = (project?.overlays ?? []).filter(
@@ -911,6 +872,11 @@ export function Preview({ width, height }: { width: number; height: number }) {
 
   // Drag a selected PiP/overlay clip to reposition it on the canvas; a tap
   // (no movement) selects. Dragging the base clip does nothing.
+  /*
+   * The transform handles need to beat the canvas's own pan, whichever would
+   * activate first, so they take a ref to it rather than relying on ordering.
+   */
+  const canvasGesture = useRef<GestureType>(undefined);
   const dragPan = Gesture.Pan()
     .runOnJS(true)
     .onBegin(() => {
@@ -1013,11 +979,32 @@ export function Preview({ width, height }: { width: number; height: number }) {
       );
       setClipRect(sel.trackId, sel.clipId, { ...r, x: nx, y: ny });
     });
+  dragPan.withRef(canvasGesture);
   const tap = Gesture.Tap()
     .runOnJS(true)
     .maxDistance(10)
     .onEnd((e) => onTapPreview(e.x, e.y));
   const gesture = Gesture.Race(dragPan, tap);
+
+  /*
+   * The selected clip, if it is a visual one that is on screen right now — the
+   * handles have nothing to attach to otherwise. Captions are excluded: they
+   * are RN text with their own anchor, not a box on the canvas.
+   */
+  const handleTarget = (() => {
+    if (!selected || isPlaying) return null;
+    const overlay = activeOverlays.find(
+      (o) => o.trackId === selected.trackId && o.clip.id === selected.clipId,
+    );
+    if (overlay) return overlay;
+    if (base && baseActive && selected.trackId === base.id && selected.clipId === baseActive.id)
+      return { clip: baseActive, trackId: base.id };
+    return null;
+  })();
+  const handleGeom = handleTarget
+    ? overlayGeom(handleTarget.clip, width, height, playheadSec)
+    : null;
+
 
   return (
     <GestureDetector gesture={gesture}>
@@ -1028,9 +1015,18 @@ export function Preview({ width, height }: { width: number; height: number }) {
             width={width}
             height={height}
           />
+          {/*
+            The base clip goes through exactly the same layer as an overlay.
+            It used to have its own pair of components, and they had drifted
+            from the export in two ways: they drew with `fit="contain"` while
+            `buildMultiTrackArgs` (and `frameStateAt`) cover-fit every clip, so
+            a clip whose aspect differed from the project's letterboxed here and
+            was centre-cropped in the MP4; and they ignored `rect` entirely, so
+            a main-track clip made picture-in-picture still filled the preview.
+          */}
           <Group opacity={baseOp}>
             {baseActive?.type === "video" ? (
-              <BaseVideo
+              <OverlayVideoLayer
                 key={baseActive.id}
                 clip={baseActive}
                 width={width}
@@ -1039,7 +1035,7 @@ export function Preview({ width, height }: { width: number; height: number }) {
                 playheadSec={playheadSec}
               />
             ) : baseActive?.type === "image" ? (
-              <BaseImage
+              <OverlayImageLayer
                 key={baseActive.id}
                 clip={baseActive}
                 width={width}
@@ -1075,6 +1071,30 @@ export function Preview({ width, height }: { width: number; height: number }) {
             your clip ·{" "}
             {project ? ratioLabel(project.width, project.height) : "9:16"}
           </Text>
+        ) : null}
+
+        {handleTarget && handleGeom ? (
+          <PreviewTransformHandles
+            clip={handleTarget.clip}
+            box={{
+              x: handleGeom.x,
+              y: handleGeom.y,
+              w: handleGeom.w,
+              h: handleGeom.h,
+            }}
+            width={width}
+            height={height}
+            canvasGesture={canvasGesture}
+            onLive={(patch) =>
+              setLive(patch ? { ...patch, clipId: handleTarget.clip.id } : null)
+            }
+            onCommit={(patch) => {
+              // One write, one history entry, one save, one sync — however many
+              // pointer frames the gesture took.
+              applyClipTransform(handleTarget.trackId, handleTarget.clip.id, patch);
+              setLive(null);
+            }}
+          />
         ) : null}
 
         <View style={StyleSheet.absoluteFill} pointerEvents="none">

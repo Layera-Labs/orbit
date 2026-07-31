@@ -66,6 +66,7 @@ import { MediaDrawerSheet } from "./MediaDrawerSheet";
 import { AudioDrawerSheet } from "./AudioDrawerSheet";
 import { TextDrawerSheet } from "./TextDrawerSheet";
 import { serverCapabilities } from "../net/capabilities";
+import { normalizeRotation } from "../preview/transform";
 import { AudioClipSheet } from "./AudioClipSheet";
 import { MosaicSheet } from "./MosaicSheet";
 import { MagnifierSheet } from "./MagnifierSheet";
@@ -1792,6 +1793,7 @@ function OpacitySheet() {
 function PositionSheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const applyClipRect = useEditor((s) => s.applyClipRect);
+  const applyClipTransform = useEditor((s) => s.applyClipTransform);
   const updateSelectedOverlay = useEditor((s) => s.updateSelectedOverlay);
   const overlay0 = selectedOverlay();
   const [overlay, setOverlay] = useState(() =>
@@ -1802,6 +1804,9 @@ function PositionSheet() {
   const target0 = effectsTarget();
   const r0 = target0?.clip.rect ?? { x: 0, y: 0, w: 1, h: 1 };
   const [r, setR] = useState(r0);
+  const [rot, setRot] = useState(() =>
+    normalizeRotation(target0?.clip.rotation),
+  );
   const close = () => setPanel(null);
   /*
    * Scale about the centre, keeping the clip's PROPORTIONS.
@@ -1828,6 +1833,11 @@ function PositionSheet() {
     };
     setR(nr);
     applyClipRect(nr);
+  };
+  const setRotation = (deg: number) => {
+    const d = normalizeRotation(deg);
+    setRot(d);
+    applyClipTransform(target0!.trackId, target0!.clipId, { rotation: d });
   };
   const setPos = (axis: "x" | "y", v: number) => {
     const nr = {
@@ -1936,6 +1946,20 @@ function PositionSheet() {
               />
             </View>
             <Text style={s.intensityVal}>{Math.round(size * 100)}%</Text>
+          </View>
+          {/* The exact-angle path. The preview's rotate handle snaps to 15°
+              steps, which is right for a finger and wrong when you want 7. */}
+          <View style={s.intensityRow}>
+            <Text style={s.intensityLabel}>Rotate</Text>
+            <View style={{ flex: 1 }}>
+              <VSlider
+                value={rot}
+                min={-180}
+                max={180}
+                onChange={(v) => setRotation(Math.round(v))}
+              />
+            </View>
+            <Text style={s.intensityVal}>{rot}°</Text>
           </View>
         </>
       )}

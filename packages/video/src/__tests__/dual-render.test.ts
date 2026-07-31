@@ -17,6 +17,8 @@ import { frameStateAt } from '../frame';
 import { resolveFilter, temperatureGains, temperatureKelvin } from '../filters';
 import { chromaAlphaAt, chromaParams } from '../cutout';
 import { fadeFactorAt, projectFadeMap } from '../transitions';
+import { rotatedBoxPx } from '../transform';
+import { clipRectPx } from '../layout';
 
 /**
  * Two visual clips on the main track — the second is a PiP with a colour grade,
@@ -314,5 +316,144 @@ describe('chroma key agrees between the filtergraph and the preview', () => {
     const p = chromaParams({ color: '#00ff00', similarity: 0.3, smoothness: 0 })!;
     expect(chromaAlphaAt(p, 0.5, 1, 0.5)).toBe(1);
     expect(chromaAlphaAt(p, 64 / 255, 1, 64 / 255)).toBe(0);
+  });
+});
+
+
+/**
+ * Rotation and source-crop, which are the newest way for the preview and the
+ * export to disagree — both change WHERE pixels land, and neither is visible in
+ * the numbers the older assertions read.
+ */
+describe('rotation and crop', () => {
+  /** The fixture plus ONE clip that is both rotated and cropped. */
+  function turned(): VideoProject {
+    const p = fixture();
+    (p.tracks as VisualTrack[]).push({
+      id: 'turned',
+      kind: 'visual',
+      clips: [
+        {
+          id: 'd',
+          type: 'image',
+          src: 'd.png',
+          start: 2,
+          duration: 4,
+          // An odd-pixel rect again, and an angle that is NOT a multiple of 90,
+          // so the box genuinely has to grow.
+          rect: { x: 0.3, y: 0.25, w: 0.401, h: 0.2015 },
+          rotation: 22.5,
+          crop: { x: 0.1, y: 0.2, w: 0.6, h: 0.55 },
+        },
+      ],
+    });
+    return p;
+  }
+  const build = (p: VideoProject) =>
+    buildFFmpegArgs(p, {
+      outputPath: '/tmp/out.mp4',
+      baseImage: '/tmp/bg.png',
+      overlayImages: { cap: '/tmp/cap.png' },
+      hasAudio: () => false,
+    });
+  const args2 = build(turned());
+  const graph = args2[args2.indexOf('-filter_complex') + 1];
+  const opsAt = (t: number) => frameStateAt(turned(), t);
+  const overlays = () =>
+    [
+      ...graph.matchAll(
+        /overlay=(-?[\d.]+):(-?[\d.]+):enable='between\(t,([\d.]+),([\d.]+)\)'/g,
+      ),
+    ].map((m) => ({
+      x: Number(m[1]),
+      y: Number(m[2]),
+      start: Number(m[3]),
+      end: Number(m[4]),
+    }));
+
+  const rotated = () =>
+    [...graph.matchAll(/rotate=(-?[\d.]+)\*PI\/180:c=none:ow=(\d+):oh=(\d+)/g)].map(
+      (m) => ({ deg: Number(m[1]), ow: Number(m[2]), oh: Number(m[3]) }),
+    );
+
+  it('emits one rotate per rotated clip, and none for the others', () => {
+    const r = rotated();
+    expect(r).toHaveLength(1);
+    const d = opsAt(3).find((o) => o.id === 'd')!;
+    expect(r[0].deg).toBe(d.rotation);
+  });
+
+  it('sizes the rotated box with the SHARED helper, not ffmpeg rotw()/roth()', () => {
+    const d = opsAt(3).find((o) => o.id === 'd')!;
+    const want = rotatedBoxPx({ w: d.dst.w, h: d.dst.h }, d.rotation!);
+    expect(rotated()[0]).toMatchObject({ ow: want.ow, oh: want.oh });
+  });
+
+  it('pulls the overlay origin back by half the growth, pinning the centre', () => {
+    // Everything the preview knows about the box is `dst` — the UNROTATED box.
+    // The export must therefore land it at dst minus the growth, or the clip
+    // rotates about its corner in the file and its centre on screen.
+    const d = opsAt(3).find((o) => o.id === 'd')!;
+    const { dx, dy } = rotatedBoxPx({ w: d.dst.w, h: d.dst.h }, d.rotation!);
+    const g = overlays().find((o) => o.start === 2 && o.end === 6)!;
+    expect([g.x, g.y]).toEqual([d.dst.x - dx, d.dst.y - dy]);
+    // And the two centres agree, which is the property that actually matters.
+    const { ow, oh } = rotatedBoxPx({ w: d.dst.w, h: d.dst.h }, d.rotation!);
+    expect([g.x + ow / 2, g.y + oh / 2]).toEqual([
+      d.dst.x + d.dst.w / 2,
+      d.dst.y + d.dst.h / 2,
+    ]);
+  });
+
+  it('forces an alpha plane on a rotated clip', () => {
+    // `rotate=…:c=none` writes a transparent fill; with no alpha plane that
+    // fill is opaque BLACK and every rotated clip gets black corners.
+    const seg = graph
+      .split(';')
+      .find((s) => s.includes('scale=') && s.includes('[vq'))!;
+    expect(seg).toContain('format=rgba');
+  });
+
+  it('crops the SOURCE, and does it before the cover-fit', () => {
+    const d = opsAt(3).find((o) => o.id === 'd')!;
+    expect(d.srcRect).toEqual({ x: 0.1, y: 0.2, w: 0.6, h: 0.55 });
+    const seg = graph.split(';').find((s) => s.includes('[vq'))!;
+    const crop = seg.indexOf('crop=iw*0.6:ih*0.55:iw*0.1:ih*0.2');
+    const cover = seg.indexOf('force_original_aspect_ratio=increase');
+    expect(crop).toBeGreaterThanOrEqual(0);
+    // Order IS the argument that nothing crops twice: the one cover-fit reads
+    // from the window the user chose.
+    expect(crop).toBeLessThan(cover);
+  });
+
+  it('leaves the graph byte-identical for a project with neither', () => {
+    // The whole point of the feature not being a rewrite: an existing project
+    // must produce exactly the bytes it produced before.
+    const plain = turned();
+    const withFields = turned();
+    // …with the rotation and crop stripped from BOTH, so what is compared is
+    // "fields present but neutral" against "fields absent".
+    for (const track of plain.tracks as VisualTrack[])
+      for (const clip of track.clips) {
+        delete (clip as { rotation?: number }).rotation;
+        delete (clip as { crop?: unknown }).crop;
+      }
+    for (const track of withFields.tracks as VisualTrack[]) {
+      for (const clip of track.clips) {
+        (clip as { rotation?: number }).rotation = 0;
+        (clip as { crop?: unknown }).crop = { x: 0, y: 0, w: 1, h: 1 };
+      }
+    }
+    // A zero rotation and a whole-frame crop are the same as not having them.
+    expect(build(withFields)).toEqual(build(plain));
+    expect(build(plain).join(' ')).not.toContain('rotate=');
+    expect(build(plain).join(' ')).not.toContain('crop=iw*');
+  });
+
+  it('agrees on the unrotated box, which is what dst means', () => {
+    const d = opsAt(3).find((o) => o.id === 'd')!;
+    expect({ x: d.dst.x, y: d.dst.y, w: d.dst.w, h: d.dst.h }).toEqual(
+      clipRectPx({ x: 0.3, y: 0.25, w: 0.401, h: 0.2015 }, 1080, 1920),
+    );
   });
 });

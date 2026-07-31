@@ -299,6 +299,25 @@ export interface Rect {
 /** Full-frame placement default. */
 export const FULL_FRAME: Rect = { x: 0, y: 0, w: 1, h: 1 };
 
+/**
+ * A sub-rectangle of the SOURCE media, normalized to its own decoded size.
+ *
+ * Deliberately not in destination pixels: the export builder never probes the
+ * media and `frameStateAt` is synchronous and pure, so neither can know a
+ * file's natural dimensions. Fractions are the one representation both can
+ * emit blind — ffmpeg resolves them with `iw`/`ih`, the compositors after
+ * decode. See `transform.ts`.
+ */
+export interface SourceRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** The whole frame — what an absent `crop` means. */
+export const FULL_SOURCE: SourceRect = { x: 0, y: 0, w: 1, h: 1 };
+
 export interface VisualTrackClip {
   id: ID;
   type: "video" | "image";
@@ -311,6 +330,16 @@ export interface VisualTrackClip {
   trimIn?: number;
   /** Placement on the canvas (default full-frame). Overlay tracks use a sub-rect for PiP. */
   rect?: Rect;
+  /**
+   * CLOCKWISE rotation in DEGREES about the centre of `rect` (default 0).
+   *
+   * Clockwise because that is what ffmpeg's `rotate` does, and what Skia and
+   * canvas do, so no renderer flips the sign. Degrees so 90 round-trips
+   * through JSON exactly.
+   */
+  rotation?: number;
+  /** Which part of the source to show (default all of it). See `SourceRect`. */
+  crop?: SourceRect;
   /** 0..1 gain on the clip's own audio. */
   volume?: number;
   /** Volume envelope over the clip (≥2 points; overrides `volume` when set). */
