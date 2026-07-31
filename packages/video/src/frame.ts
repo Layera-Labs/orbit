@@ -35,13 +35,14 @@ import { clipRectPx, progressAt, r3, srcTimeAt } from './layout';
 import { isFullSource, normalizeRotation } from './transform';
 import { fadeFactorAt, projectFadeMap } from './transitions';
 import { backgroundToSVG } from './background-svg';
+import { canvasFrameToSVG, hasCanvasFrame } from './canvas-frame';
 import { overlayToSVG } from './overlay-svg';
 
 /** How a source fills its destination box. Mirrors the export's scale/crop. */
 export type Fit = 'cover' | 'stretch';
 
 export interface DrawOp {
-  kind: 'background' | 'clip' | 'overlay';
+  kind: 'background' | 'clip' | 'overlay' | 'frame';
   /** Clip / overlay id. The background op is always `'background'`. */
   id: string;
   /** Media source, for ops backed by a file (`background` image, `clip`). */
@@ -222,6 +223,31 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
       blurSigma: 0,
       motion: hasMotion(o.motion) ? motionStateAt(o.motion, p01) : undefined,
       mask: o.mask,
+    });
+  }
+
+  /*
+   * The canvas frame, over everything — matching the export, where it is the
+   * last overlay before the output tail. It carries no window and no fade: it
+   * is static for the whole render, which is exactly why it can be a single
+   * rasterized PNG there and a single shape here.
+   *
+   * `blend: 'normal'` is stated rather than left undefined because the web
+   * compositor reads `blendToCanvas(op.blend)` for every op.
+   */
+  if (hasCanvasFrame(p.frame)) {
+    ops.push({
+      kind: 'frame',
+      id: 'frame',
+      svg: canvasFrameToSVG(p.frame, W, H)!,
+      dst: { x: 0, y: 0, w: W, h: H },
+      // The SVG is authored at exactly W×H, so stretching is the identity —
+      // the same reason the background op stretches.
+      fit: 'stretch',
+      alpha: 1,
+      blend: 'normal',
+      filter: resolveFilter(undefined),
+      blurSigma: 0,
     });
   }
 
