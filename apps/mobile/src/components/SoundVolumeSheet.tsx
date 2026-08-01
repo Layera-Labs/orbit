@@ -25,6 +25,7 @@ import { LANES } from "./laneColors";
 import { font, mono, sp, r, vela } from "../constants";
 import type { VisualTrackClip } from "../model/types";
 import { useEditor } from "../store/editorStore";
+import { MAX_VOLUME } from "../model/audio-fade";
 
 export function SoundVolumeSheet() {
   const selected = useEditor((s) => s.selected);
@@ -118,7 +119,7 @@ export function SoundVolumeSheet() {
         <VSlider
           value={volume}
           min={0}
-          max={2}
+          max={MAX_VOLUME}
           disabled={muted}
           onChange={(v) => applyClipVolume(Math.round(v * 20) / 20)}
         />

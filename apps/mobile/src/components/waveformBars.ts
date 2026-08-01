@@ -24,15 +24,44 @@
  */
 import type { VolumePoint } from "../model/types";
 import { clipGainAt } from "../preview/curve";
+import { MAX_VOLUME } from "../model/audio-fade";
 
 /** Pixels between bars. Unchanged from the strip this replaces. */
 export const BAR_PITCH = 5;
 /** Buckets per second of SOURCE audio — the resolution of the fixed field. */
 export const FIELD_HZ = 60;
-/** Bar height at unity gain, as a fraction of the lane. Gain 2 reaches 1.0. */
-export const UNITY_H = 0.5;
-/** The gain that fills the lane. Matches the UI's ceiling (`setClipVolume`). */
-export const GAIN_MAX = 2;
+/**
+ * The gain that fills the lane: the UI's own ceiling, so the tallest bar the
+ * strip can draw is the loudest value the app can store.
+ */
+export const GAIN_MAX = MAX_VOLUME;
+
+/**
+ * Bar height at unity gain, as a fraction of the lane.
+ *
+ * Chosen so `GAIN_MAX` lands exactly at 1.0 under the SQUARE-ROOT scale below,
+ * which is the reason it is a computed number rather than a round one.
+ */
+export const UNITY_H = 1 / Math.sqrt(GAIN_MAX);
+
+/**
+ * Gain → height, compressed.
+ *
+ * Linear worked while the ceiling was 2 (unity at half the lane, 2× filling
+ * it). At a ceiling of 5 it does not: unity would sit at a fifth of the lane,
+ * so ordinary audio — which is nearly all audio — would be drawn as a stripe
+ * along the bottom, and the strip would stop being readable for the common
+ * case in order to leave room for the rare one.
+ *
+ * A square root keeps unity at ~45% of the lane (barely moved from the old
+ * 50%), puts 2× at ~63%, and still lets 5× reach the top. The cost is that the
+ * top of the range is compressed, which is the right way round: the difference
+ * between 100% and 200% is what people read, and the difference between 400%
+ * and 500% is not.
+ */
+export function gainToHeight(gain: number): number {
+  return Math.sqrt(Math.max(0, Math.min(GAIN_MAX, gain))) * UNITY_H;
+}
 /** Silence is still a hairline, never an empty box — as the web strip does. */
 export const FLOOR_H = 0.02;
 
@@ -84,8 +113,7 @@ export function barHeights(clip: BarInput): number[] {
     // shape. 1e-6 of a bucket is 17 nanoseconds; the float error is smaller
     // still, and no real value is within it.
     const bucket = Math.floor((trimIn + p * clip.duration) * FIELD_HZ + 1e-6);
-    const gain = Math.min(GAIN_MAX, clipGainAt(clip, p));
-    const h = bucketAmp(seed, bucket) * UNITY_H * gain;
+    const h = bucketAmp(seed, bucket) * gainToHeight(clipGainAt(clip, p));
     out.push(Math.max(FLOOR_H, Math.min(1, h)));
   }
   return out;

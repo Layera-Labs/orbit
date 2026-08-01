@@ -26,6 +26,7 @@ import type {
   VisualTrackClip,
 } from "./types";
 import { isFullSource, normalizeRotation } from "../preview/transform";
+import { MAX_VOLUME } from "./audio-fade";
 
 export const MIN_CLIP = 0.1;
 
@@ -833,7 +834,7 @@ export function setClipVolume(
   clipId: string,
   volume: number,
 ): VideoProject {
-  const v = Math.max(0, Math.min(2, volume));
+  const v = Math.max(0, Math.min(MAX_VOLUME, volume));
   return updateClips(
     p,
     trackId,
@@ -877,7 +878,7 @@ export function setClipVolumeCurve(
   // the one way to store a gain the UI could neither show nor undo.
   const vc =
     curve && curve.length >= 2
-      ? curve.map((k) => ({ t: k.t, v: Math.max(0, Math.min(2, k.v)) }))
+      ? curve.map((k) => ({ t: k.t, v: Math.max(0, Math.min(MAX_VOLUME, k.v)) }))
       : undefined;
   return updateClips(
     p,

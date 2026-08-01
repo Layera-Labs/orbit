@@ -20,7 +20,7 @@ import { BottomSheet } from "./BottomSheet";
 import { VIcon } from "./VIcon";
 import { VSlider } from "./VSlider";
 import { font, mono, sp, vela } from "../constants";
-import { fadesOf, maxFadeFor, withFades } from "../model/audio-fade";
+import { fadesOf, maxFadeFor, MAX_VOLUME, withFades } from "../model/audio-fade";
 import type { AudioTrackClip } from "../model/types";
 import { useEditor } from "../store/editorStore";
 
@@ -178,7 +178,7 @@ export function AudioClipSheet() {
             <VSlider
               value={fades.volume}
               min={0}
-              max={2}
+              max={MAX_VOLUME}
               onChange={(v) =>
                 commitFades({ ...fades, volume: Math.round(v * 20) / 20 })
               }

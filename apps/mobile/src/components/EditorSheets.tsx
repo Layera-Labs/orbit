@@ -114,6 +114,7 @@ import {
   selectedOverlay,
   useEditor,
 } from "../store/editorStore";
+import { MAX_VOLUME } from "../model/audio-fade";
 
 
 /**
@@ -1419,7 +1420,7 @@ function VolumeSheet() {
           <VSlider
             value={vol}
             min={0}
-            max={2}
+            max={MAX_VOLUME}
             onChange={(v) => set(Math.round(v * 20) / 20)}
           />
         </View>

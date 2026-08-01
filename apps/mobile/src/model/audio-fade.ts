@@ -29,8 +29,22 @@ export interface AudioFades {
 /** Longest fade offered, and the longest that can fit in a clip. */
 export const MAX_FADE = 5;
 
-/** Loudest gain the app stores anywhere. Mirrored by `ops.setClipVolume`. */
-export const MAX_VOLUME = 2;
+/**
+ * Loudest gain the app stores anywhere. THE single ceiling — `setClipVolume`,
+ * `setClipVolumeCurve`, every volume slider and the waveform's scale all read
+ * this, so raising it moves all of them together.
+ *
+ * 5 (500%) since 2026-08-01, up from 2. Quiet source material — a phone
+ * recording of a room, a voice memo under music — genuinely needs more than
+ * +6 dB, and 200% was not enough to rescue it.
+ *
+ * **+14 dB is loud enough to clip**, and nothing here prevents that: ffmpeg's
+ * `volume` filter multiplies and lets the result hard-clip at full scale. That
+ * is the honest behaviour for a gain control and matches what every editor
+ * does, but it does mean the top of this range is a tool for quiet audio, not
+ * a way to make loud audio louder.
+ */
+export const MAX_VOLUME = 5;
 
 export function maxFadeFor(duration: number): number {
   // Half the clip each, so a fade in and a fade out can never cross.

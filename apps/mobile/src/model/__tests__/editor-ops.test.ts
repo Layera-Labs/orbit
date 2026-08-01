@@ -22,6 +22,7 @@ import {
   titleCardOf,
 } from "../editor-ops";
 import type { VideoProject, VisualTrackClip } from "../types";
+import { MAX_VOLUME } from "../audio-fade";
 
 const project: VideoProject = {
   id: "project",
@@ -562,16 +563,16 @@ describe("volume ceilings agree", () => {
     // Unclamped, a curve point was the one way to store a gain the UI could
     // neither show nor undo — and a curve overrides the number.
     const p = setClipVolumeCurve(project, "main", "image-1", [
-      { t: 0, v: 9 },
+      { t: 0, v: 99 },
       { t: 1, v: -3 },
     ]);
     expect((p.tracks![0].clips[0] as VisualTrackClip).volumeCurve).toEqual([
-      { t: 0, v: 2 },
+      { t: 0, v: MAX_VOLUME },
       { t: 1, v: 0 },
     ]);
     expect(
-      (setClipVolume(project, "main", "image-1", 9).tracks![0]
+      (setClipVolume(project, "main", "image-1", 99).tracks![0]
         .clips[0] as VisualTrackClip).volume,
-    ).toBe(2);
+    ).toBe(MAX_VOLUME);
   });
 });

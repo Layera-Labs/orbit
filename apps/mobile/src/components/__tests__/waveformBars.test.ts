@@ -7,15 +7,7 @@
  * visible.
  */
 import { describe, expect, it } from "vitest";
-import {
-  BAR_PITCH,
-  FIELD_HZ,
-  FLOOR_H,
-  UNITY_H,
-  barHeights,
-  bucketAmp,
-  seedOf,
-} from "../waveformBars";
+import { BAR_PITCH, FIELD_HZ, FLOOR_H, GAIN_MAX, UNITY_H, barHeights, bucketAmp, gainToHeight, seedOf } from "../waveformBars";
 
 const SRC = "file:///media/song.m4a";
 
@@ -73,18 +65,31 @@ describe("the envelope", () => {
     barHeights({ src: SRC, width: 600, duration: 10, ...opts });
 
   it("scales with gain, and 200% draws taller than 100%", () => {
+    // A SQUARE ROOT, not linear. With a ceiling of 5, linear would put unity at
+    // a fifth of the lane and draw ordinary audio as a stripe along the bottom.
     const unity = bars({ volume: 1 });
     const loud = bars({ volume: 2 });
     const quiet = bars({ volume: 0.5 });
     for (let i = 0; i < unity.length; i++) {
-      expect(loud[i]).toBeCloseTo(unity[i] * 2, 6);
-      expect(quiet[i]).toBeCloseTo(unity[i] / 2, 6);
+      expect(loud[i]).toBeCloseTo(unity[i] * Math.SQRT2, 6);
+      expect(quiet[i]).toBeCloseTo(unity[i] / Math.SQRT2, 6);
+      expect(loud[i]).toBeGreaterThan(unity[i]);
     }
     expect(Math.max(...loud)).toBeLessThanOrEqual(1);
   });
 
+  it("maps the ceiling to a full-height bar, and no further", () => {
+    // The loudest storable value is the tallest drawable bar: the strip's range
+    // and the control's range are the same range. Asserted on the SCALE, not on
+    // rendered bars — the synthetic amplitude peaks below 1, so the tallest bar
+    // is maxAmp x 1.0 and testing it here would really be testing the noise.
+    expect(gainToHeight(GAIN_MAX)).toBeCloseTo(1, 6);
+    expect(gainToHeight(GAIN_MAX * 4)).toBeCloseTo(1, 6);
+    expect(Math.max(...bars({ volume: GAIN_MAX }))).toBeLessThanOrEqual(1);
+  });
+
   it("holds gain above the ceiling at the ceiling", () => {
-    expect(bars({ volume: 9 })).toEqual(bars({ volume: 2 }));
+    expect(bars({ volume: 99 })).toEqual(bars({ volume: GAIN_MAX }));
   });
 
   it("floors silence to a hairline rather than an empty box", () => {
@@ -118,18 +123,31 @@ describe("the envelope", () => {
       if (env[i] !== null && env[i - 1] !== null) expect(rising(i)).toBe(true);
     for (let i = Math.ceil(n * 0.8) + 1; i < n; i++)
       if (env[i] !== null && env[i - 1] !== null) expect(falling(i)).toBe(true);
-    // The ramps really do reach the floor at both ends.
-    expect(faded[0]).toBe(FLOOR_H);
-    expect(faded[n - 1]).toBe(FLOOR_H);
+    /*
+     * The ramps run right down at both ends. NOT to exactly FLOOR_H any more:
+     * the height scale is a square root, which lifts very small gains, so the
+     * last bar of a fade sits near 5% of the lane rather than under the 2%
+     * floor. That is the scale doing its job — it is closer to how loudness is
+     * heard than a linear one — so the assertion is that the ends are far below
+     * the plateau, plus the case that must still be exact.
+     */
+    expect(faded[0]).toBeLessThan(0.1);
+    expect(faded[n - 1]).toBeLessThan(0.1);
+    expect(faded[0]).toBeLessThan(flat[0] / 4);
+    // True silence still floors exactly, which is what the floor is for.
+    expect(bars({ volume: 0 })[0]).toBe(FLOOR_H);
     // The plateau is untouched.
     for (let i = Math.ceil(n * 0.25); i < n * 0.75; i++)
       expect(env[i]).toBeCloseTo(1, 6);
   });
 
-  it("puts unity at half the lane, so there is room above it", () => {
+  it("keeps unity well under the lane, so there is room above it", () => {
     const b = bars({ volume: 1 });
     expect(Math.max(...b)).toBeLessThan(UNITY_H);
     expect(Math.max(...bars({ volume: 2 }))).toBeGreaterThan(UNITY_H);
+    // Unity must stay a readable size, or the common case is unreadable in
+    // order to leave room for the rare one. This is what the sqrt buys.
+    expect(UNITY_H).toBeGreaterThan(0.4);
   });
 });
 

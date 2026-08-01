@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fadesOf, maxFadeFor, withFades, withVolume } from "../audio-fade";
+import { MAX_VOLUME, fadesOf, maxFadeFor, withFades, withVolume } from "../audio-fade";
 
 const clip = (duration: number, patch: Record<string, unknown> = {}) => ({
   duration,
@@ -62,12 +62,12 @@ describe("withFades", () => {
   it("clamps the plateau to the ceiling, not just to zero", () => {
     // Unclamped, `volume` was pinned to 2 by `setClipVolume` while the curve
     // kept the larger number — and the curve is what the renderer reads.
-    expect(withFades(10, { volume: 9, fadeIn: 2, fadeOut: 0 })).toEqual({
-      volume: 2,
+    expect(withFades(10, { volume: 99, fadeIn: 2, fadeOut: 0 })).toEqual({
+      volume: MAX_VOLUME,
       volumeCurve: [
         { t: 0, v: 0 },
-        { t: 0.2, v: 2 },
-        { t: 1, v: 2 },
+        { t: 0.2, v: MAX_VOLUME },
+        { t: 1, v: MAX_VOLUME },
       ],
     });
   });
@@ -133,8 +133,9 @@ describe("withVolume", () => {
       { duration: 10, volumeCurve: [{ t: 0, v: 1 }, { t: 0.5, v: 0.2 }, { t: 1, v: 1 }] },
     ]) {
       const next = withVolume(clip, 9);
-      expect(next.volume).toBeLessThanOrEqual(2);
-      for (const p of next.volumeCurve ?? []) expect(p.v).toBeLessThanOrEqual(2);
+      expect(next.volume).toBeLessThanOrEqual(MAX_VOLUME);
+      for (const p of next.volumeCurve ?? [])
+        expect(p.v).toBeLessThanOrEqual(MAX_VOLUME);
     }
   });
 });

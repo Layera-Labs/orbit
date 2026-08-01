@@ -141,20 +141,30 @@ export class PreviewAudio {
          * ANYTHING ABOVE 1 IS INAUDIBLE HERE, AND IS NOT IN THE EXPORT.
          *
          * `expo-audio`'s `player.volume` is a 0–1 property and the native
-         * player saturates there, so 150% and 200% both sound like 100% in this
-         * preview while ffmpeg renders the real boost. There is no mixer to
-         * borrow headroom from — a gain node would need a native module — and
+         * player saturates there, so 150%, 200% and 500% all sound like 100% in
+         * this preview while ffmpeg renders the real boost. Raising the app's
+         * ceiling to 500% (2026-08-01) widened that gap and did not create it:
+         * closing it needs a real gain stage, which means a native audio module
+         * (`react-native-audio-api`'s GainNode or equivalent) and a rewrite of
+         * this file onto it. There is no mixer here to borrow headroom from, and
          * quietening every OTHER voice to make room would make the preview
          * quieter than the file, which is the same lie pointed the other way.
          * The timeline's waveform is the mitigation: `waveformBars` scales the
          * bars by this exact gain, so a boost you cannot hear is at least one
          * you can see.
          */
-        // Only write on a real change: this runs at the preview frame rate, and
-        // the setter crosses into native every time.
-        if (Math.abs(gain - voice.gain) > 0.01) {
-          player.volume = gain;
-          voice.gain = gain;
+        /*
+         * Clamped HERE rather than left to the native player, and the CLAMPED
+         * value is what gets cached. Caching the raw gain would rewrite the
+         * property every frame while a clip sat anywhere above 1 — 500% to
+         * 300% is a change of 2 that lands on the same 1.0 — and every write
+         * crosses into native.
+         */
+        const applied = Math.max(0, Math.min(1, gain));
+        // Only write on a real change: this runs at the preview frame rate.
+        if (Math.abs(applied - voice.gain) > 0.01) {
+          player.volume = applied;
+          voice.gain = applied;
         }
       } catch {
         /* a player disposed underneath us */
