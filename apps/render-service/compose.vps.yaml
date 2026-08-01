@@ -57,7 +57,16 @@ services:
       # who have no password to sign back in with and so lose their credits.
       ORBIT_JWT_SECRET: ${ORBIT_JWT_SECRET:?set ORBIT_JWT_SECRET in .env — the service will not start without it}
 
-      DATABASE_URL: postgres://orbit:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/orbit
+      # `sslmode=disable` is REQUIRED here and is not a weakening.
+      #
+      # makePgPool treats any host that is not localhost as a managed database
+      # and turns SSL on, which is right for Neon or Supabase and wrong for
+      # this: `db` is a compose service name on a private bridge network that
+      # never leaves the host, and the postgres image does not serve SSL at
+      # all. Without this the pool throws "The server does not support SSL
+      # connections" — AFTER the service has logged that it is listening, so it
+      # looks like the app started and then died for no reason.
+      DATABASE_URL: postgres://orbit:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/orbit?sslmode=disable
 
       # Where media and finished renders live. `os.tmpdir()` reads this, and the
       # volume below is mounted at the same path.
