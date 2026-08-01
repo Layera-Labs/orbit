@@ -80,11 +80,19 @@ services:
       ORBIT_MAX_CONCURRENT_RENDERS: ${ORBIT_MAX_CONCURRENT_RENDERS:-2}
       ORBIT_MAX_QUEUED_RENDERS: ${ORBIT_MAX_QUEUED_RENDERS:-8}
 
-      # Byte budgets for the two directories on the volume. Both default to 5 GB
-      # and evict oldest-first; set them under the disk you actually have, or
-      # the volume fills and renders start failing on write.
-      ORBIT_MAX_MEDIA_BYTES: ${ORBIT_MAX_MEDIA_BYTES:-}
-      ORBIT_MAX_OUTPUT_BYTES: ${ORBIT_MAX_OUTPUT_BYTES:-}
+      # Byte budgets for the two directories on the volume. Both evict
+      # oldest-first; set them under the disk you actually have, or the volume
+      # fills and renders start failing on write.
+      #
+      # Stated with a REAL default rather than `${X:-}`. That idiom passes the
+      # EMPTY STRING when the variable is unset, and the service used to read
+      # these with `Number(process.env.X ?? default)` — `??` does not fire on
+      # "" and `Number("")` is 0, so the budget silently became zero bytes and
+      # eviction deleted every upload the instant it landed. `envNumber` now
+      # rejects an empty value on the server side too, but there is no reason
+      # to hand it one.
+      ORBIT_MAX_MEDIA_BYTES: ${ORBIT_MAX_MEDIA_BYTES:-5368709120}
+      ORBIT_MAX_OUTPUT_BYTES: ${ORBIT_MAX_OUTPUT_BYTES:-5368709120}
 
       RUNWAY_API_TOKEN: ${RUNWAY_API_TOKEN:-}
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
