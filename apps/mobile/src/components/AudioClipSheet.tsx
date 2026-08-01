@@ -19,6 +19,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { BottomSheet } from "./BottomSheet";
 import { VIcon } from "./VIcon";
 import { VSlider } from "./VSlider";
+import { PercentField } from "./PercentField";
 import { font, mono, sp, vela } from "../constants";
 import { fadesOf, maxFadeFor, MAX_VOLUME, withFades } from "../model/audio-fade";
 import type { AudioTrackClip } from "../model/types";
@@ -153,12 +154,8 @@ export function AudioClipSheet() {
               value={trimIn}
               min={0}
               max={Math.max(0.1, sourceLen - 0.5)}
-              onChange={(v) =>
-                commitTrim(
-                  Math.round(v * 10) / 10,
-                  Math.min(duration, sourceLen - Math.round(v * 10) / 10),
-                )
-              }
+              step={0.1}
+              onChange={(v) => commitTrim(v, Math.min(duration, sourceLen - v))}
             />
           </Row>
           <Row label="Length">
@@ -166,7 +163,8 @@ export function AudioClipSheet() {
               value={duration}
               min={0.5}
               max={Math.max(0.6, sourceLen - trimIn)}
-              onChange={(v) => commitTrim(trimIn, Math.round(v * 10) / 10)}
+              step={0.1}
+              onChange={(v) => commitTrim(trimIn, v)}
             />
           </Row>
         </View>
@@ -174,14 +172,26 @@ export function AudioClipSheet() {
 
       {fades ? (
         <View style={s.block}>
-          <Row label="Volume" value={`${Math.round(fades.volume * 100)}%`}>
+          <Row
+            label="Volume"
+            value={
+              <PercentField
+                label="Volume"
+                value={fades.volume}
+                min={0}
+                max={MAX_VOLUME}
+                onCommit={(v) => commitFades({ ...fades, volume: v })}
+              />
+            }
+          >
+            {/* 5% steps: the track spans 0–500%, so a finer grid is a value
+                nobody can hit deliberately and a write nobody asked for. */}
             <VSlider
               value={fades.volume}
               min={0}
               max={MAX_VOLUME}
-              onChange={(v) =>
-                commitFades({ ...fades, volume: Math.round(v * 20) / 20 })
-              }
+              step={0.05}
+              onChange={(v) => commitFades({ ...fades, volume: v })}
             />
           </Row>
           <Row label="Fade in" value={`${fades.fadeIn.toFixed(1)}s`}>
@@ -189,9 +199,8 @@ export function AudioClipSheet() {
               value={fades.fadeIn}
               min={0}
               max={Math.max(0.1, maxFade)}
-              onChange={(v) =>
-                commitFades({ ...fades, fadeIn: Math.round(v * 10) / 10 })
-              }
+              step={0.1}
+              onChange={(v) => commitFades({ ...fades, fadeIn: v })}
             />
           </Row>
           <Row label="Fade out" value={`${fades.fadeOut.toFixed(1)}s`}>
@@ -199,9 +208,8 @@ export function AudioClipSheet() {
               value={fades.fadeOut}
               min={0}
               max={Math.max(0.1, maxFade)}
-              onChange={(v) =>
-                commitFades({ ...fades, fadeOut: Math.round(v * 10) / 10 })
-              }
+              step={0.1}
+              onChange={(v) => commitFades({ ...fades, fadeOut: v })}
             />
           </Row>
         </View>
@@ -230,14 +238,19 @@ function Row({
   children,
 }: {
   label: string;
-  value?: string;
+  /** A read-only string, or a control — the volume row hands over a field. */
+  value?: string | React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
     <View style={s.row}>
       <Text style={s.rowLabel}>{label}</Text>
       <View style={{ flex: 1 }}>{children}</View>
-      {value ? <Text style={s.value}>{value}</Text> : null}
+      {typeof value === "string" ? (
+        <Text style={s.value}>{value}</Text>
+      ) : (
+        (value ?? null)
+      )}
     </View>
   );
 }

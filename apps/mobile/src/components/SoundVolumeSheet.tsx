@@ -21,8 +21,9 @@ import { Alert, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { BottomSheet } from "./BottomSheet";
 import { VIcon } from "./VIcon";
 import { VSlider } from "./VSlider";
+import { PercentField } from "./PercentField";
 import { LANES } from "./laneColors";
-import { font, mono, sp, r, vela } from "../constants";
+import { font, sp, r, vela } from "../constants";
 import type { VisualTrackClip } from "../model/types";
 import { useEditor } from "../store/editorStore";
 import { MAX_VOLUME } from "../model/audio-fade";
@@ -112,16 +113,24 @@ export function SoundVolumeSheet() {
       <View style={s.field}>
         <View style={s.fieldHead}>
           <Text style={[s.rowLabel, muted && s.off]}>Volume</Text>
-          <Text style={[s.value, muted && s.off]}>
-            {Math.round(volume * 100)}%
-          </Text>
+          <PercentField
+            label="Volume"
+            value={volume}
+            min={0}
+            max={MAX_VOLUME}
+            disabled={muted}
+            onCommit={applyClipVolume}
+          />
         </View>
+        {/* 5% steps: the track spans 0–500%, so a finer grid is a value nobody
+            can hit deliberately and a write nobody asked for. */}
         <VSlider
           value={volume}
           min={0}
           max={MAX_VOLUME}
+          step={0.05}
           disabled={muted}
-          onChange={(v) => applyClipVolume(Math.round(v * 20) / 20)}
+          onChange={applyClipVolume}
         />
         {muted ? (
           <Text style={s.note}>Muted — unmute to change the level.</Text>
@@ -176,9 +185,6 @@ const s = StyleSheet.create({
     marginTop: sp.sm,
   },
   rowLabel: { flex: 1, color: vela.ink, fontFamily: font.medium, fontSize: 15 },
-  // Mono for the level: it changes as the slider moves, and a proportional face
-  // makes it jitter as the digits change width.
-  value: { color: vela.lightMuted, fontFamily: mono.regular, fontSize: 12.5 },
   off: { color: vela.lightMuted3 },
   field: { paddingHorizontal: sp.lg, paddingVertical: 6, gap: sp.xs },
   fieldHead: { flexDirection: "row", alignItems: "center" },

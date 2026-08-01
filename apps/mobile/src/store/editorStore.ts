@@ -453,6 +453,28 @@ const HISTORY_COALESCE_MS = 450;
 const HISTORY_MAX = 60;
 let lastHistoryAt = 0;
 
+/**
+ * Select a clip, unless it is already the selected one.
+ *
+ * Every `applyClip*` action re-selects the clip it just changed, because a
+ * sheet can act on the clip under the playhead without it ever having been
+ * tapped. Writing a FRESH object each time is what made that expensive: the
+ * identity of `selected` changed on every gesture frame, so every consumer
+ * re-rendered and every `useEffect` keyed on it re-ran — for a value that had
+ * not actually changed. Dragging the volume slider ran that until React gave up
+ * with "Maximum update depth exceeded".
+ */
+function reselect(
+  set: (partial: Partial<EditorState>) => void,
+  get: () => EditorState,
+  trackId: string,
+  clipId: string,
+): void {
+  const cur = get().selected;
+  if (cur && cur.trackId === trackId && cur.clipId === clipId) return;
+  set({ selected: { trackId, clipId } });
+}
+
 export const useEditor = create<EditorState>((set, get) => ({
   screen: "projects",
   projects: [],
@@ -1443,13 +1465,13 @@ export const useEditor = create<EditorState>((set, get) => ({
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipFilter(p, t.trackId, t.clipId, filter));
-    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+    reselect(set, get, t.trackId, t.clipId);
   },
   applyClipBlur: (blur) => {
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipBlur(p, t.trackId, t.clipId, blur));
-    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+    reselect(set, get, t.trackId, t.clipId);
   },
   applyClipOpacity: (opacity) => {
     const overlay = selectedOverlay();
@@ -1460,13 +1482,13 @@ export const useEditor = create<EditorState>((set, get) => ({
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipOpacity(p, t.trackId, t.clipId, opacity));
-    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+    reselect(set, get, t.trackId, t.clipId);
   },
   applyClipRect: (rect) => {
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipRect(p, t.trackId, t.clipId, rect));
-    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+    reselect(set, get, t.trackId, t.clipId);
   },
   applyClipMask: (mask) => {
     const overlay = selectedOverlay();
@@ -1477,19 +1499,19 @@ export const useEditor = create<EditorState>((set, get) => ({
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipMask(p, t.trackId, t.clipId, mask));
-    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+    reselect(set, get, t.trackId, t.clipId);
   },
   applyClipMosaic: (mosaic) => {
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipMosaic(p, t.trackId, t.clipId, mosaic));
-    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+    reselect(set, get, t.trackId, t.clipId);
   },
   applyClipMagnifier: (magnifier) => {
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipMagnifier(p, t.trackId, t.clipId, magnifier));
-    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+    reselect(set, get, t.trackId, t.clipId);
   },
   setClipNote: (trackId, clipId, note) => {
     get().apply((p) => ops.setClipNote(p, trackId, clipId, note));
@@ -1508,7 +1530,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipBlend(p, t.trackId, t.clipId, blend));
-    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+    reselect(set, get, t.trackId, t.clipId);
   },
   applyClipMotion: (motion) => {
     const sel = get().selected;
@@ -1524,13 +1546,13 @@ export const useEditor = create<EditorState>((set, get) => ({
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipMotion(p, t.trackId, t.clipId, motion));
-    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+    reselect(set, get, t.trackId, t.clipId);
   },
   applyClipCutout: (cutout) => {
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipCutout(p, t.trackId, t.clipId, cutout));
-    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+    reselect(set, get, t.trackId, t.clipId);
   },
   applyClipKeyframes: (keyframes) => {
     const sel = get().selected;
@@ -1546,13 +1568,13 @@ export const useEditor = create<EditorState>((set, get) => ({
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipKeyframes(p, t.trackId, t.clipId, keyframes));
-    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+    reselect(set, get, t.trackId, t.clipId);
   },
   applyClipSpeed: (speed) => {
     const t = effectsTarget();
     if (!t) return;
     get().apply((p) => ops.setClipSpeed(p, t.trackId, t.clipId, speed));
-    set({ selected: { trackId: t.trackId, clipId: t.clipId } });
+    reselect(set, get, t.trackId, t.clipId);
   },
   applyClipVolume: (volume) => {
     const s = get().selected;
@@ -1580,7 +1602,7 @@ export const useEditor = create<EditorState>((set, get) => ({
         next.volumeCurve,
       );
     });
-    set({ selected: tt });
+    reselect(set, get, tt.trackId, tt.clipId);
   },
   /*
    * Mute is a FLAG, not a volume of zero.
@@ -1644,7 +1666,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (!target) return;
     const tt = target;
     get().apply((p) => ops.setClipVolumeCurve(p, tt.trackId, tt.clipId, curve));
-    set({ selected: tt });
+    reselect(set, get, tt.trackId, tt.clipId);
   },
   applyBackground: (background) => {
     get().apply((p) => ops.setBackground(p, background));

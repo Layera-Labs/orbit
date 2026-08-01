@@ -28,6 +28,7 @@ import { VIcon, type VIconName } from "./VIcon";
 import { BottomSheet as BaseBottomSheet } from "./BottomSheet";
 import { InputSheet } from "./InputSheet";
 import { VSlider } from "./VSlider";
+import { PercentField } from "./PercentField";
 import { ColorSheet } from "./ColorSheet";
 import { TextSettingsSheet } from "./TextSettingsSheet";
 import { SoundVolumeSheet } from "./SoundVolumeSheet";
@@ -1417,14 +1418,17 @@ function VolumeSheet() {
       <View style={s.intensityRow}>
         <Text style={s.intensityLabel}>Volume</Text>
         <View style={{ flex: 1 }}>
-          <VSlider
-            value={vol}
-            min={0}
-            max={MAX_VOLUME}
-            onChange={(v) => set(Math.round(v * 20) / 20)}
-          />
+          {/* 5% steps: the track spans 0–500%, so a finer grid is a value
+              nobody can hit deliberately and a write nobody asked for. */}
+          <VSlider value={vol} min={0} max={MAX_VOLUME} step={0.05} onChange={set} />
         </View>
-        <Text style={s.intensityVal}>{Math.round(vol * 100)}%</Text>
+        <PercentField
+          label="Volume"
+          value={vol}
+          min={0}
+          max={MAX_VOLUME}
+          onCommit={set}
+        />
       </View>
     </BottomSheet>
   );
