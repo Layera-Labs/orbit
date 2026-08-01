@@ -14,13 +14,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import Animated, {
-  FadeIn,
-  LinearTransition,
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
 import { font, mono, vela } from "../constants";
 import type { TextAlign } from "../model/types";
 import { useEditor } from "../store/editorStore";
@@ -158,8 +152,8 @@ export function TextSettingsSheet({
             {/* Body */}
             <Animated.View
               key={tab}
-              entering={FadeIn.duration(170)}
-              layout={LinearTransition.duration(180)}
+             
+             
               style={[styles.body, { height: bodyH }]}
             >
               {tab === "text" ? (

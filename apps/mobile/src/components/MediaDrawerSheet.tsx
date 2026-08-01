@@ -17,12 +17,7 @@ import {
   View,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
-import Animated, {
-  FadeInRight,
-  FadeOutLeft,
-  LinearTransition,
-  ZoomIn,
-} from "react-native-reanimated";
+import Animated from 'react-native-reanimated';
 import { font, vela, ratioLabel } from "../constants";
 import { newId } from "../model/editor-ops";
 import type { VisualTrackClip } from "../model/types";
@@ -458,8 +453,8 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
 
         <Animated.View
           key={tab}
-          entering={FadeInRight.duration(180)}
-          exiting={FadeOutLeft.duration(120)}
+         
+         
           style={styles.panel}
         >
           {tab === "ai" ? (
@@ -915,7 +910,7 @@ function StockPanel({
             {Array.from({ length: 6 }).map((_, index) => (
               <Animated.View
                 key={index}
-                entering={ZoomIn.delay(index * 35)}
+               
                 style={[styles.skeleton, { aspectRatio: ratio }]}
               />
             ))}

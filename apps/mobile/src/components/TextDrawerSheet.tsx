@@ -10,11 +10,7 @@ import {
   Text,
   View,
 } from "react-native";
-import Animated, {
-  FadeInRight,
-  FadeOutLeft,
-  LinearTransition,
-} from "react-native-reanimated";
+import Animated from 'react-native-reanimated';
 import { Directory, File, Paths } from "expo-file-system";
 import { LinearGradient } from "expo-linear-gradient";
 import { font, vela } from "../constants";
@@ -599,8 +595,8 @@ export function TextDrawerSheet() {
 
         <Animated.View
           key={tab}
-          entering={FadeInRight.duration(180)}
-          exiting={FadeOutLeft.duration(120)}
+         
+         
           style={styles.panel}
         >
           {tab === "default" ? (
@@ -873,7 +869,7 @@ function RecentPreviewCard({
   const previewColor = recentPreviewColor(overlay.color, accent);
   return (
     <Animated.View
-      layout={LinearTransition.duration(180)}
+     
       style={styles.gridCell}
     >
       <Pressable
@@ -1074,7 +1070,7 @@ function TextPreviewCard({
 }) {
   return (
     <Animated.View
-      layout={LinearTransition.duration(180)}
+     
       style={styles.gridCell}
     >
       <Pressable

@@ -1289,7 +1289,6 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
             {selLane ? (
               <SelectionActionBar
                 laneTop={selLane.top}
-                laneH={selLane.height}
                 width={scrollW}
                 originX={PLAYHEAD_X}
               />

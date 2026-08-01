@@ -78,8 +78,6 @@ const LANE_GAP = 5;
 export interface SelectionActionBarProps {
   /** Top of the selected clip's lane, in the timeline scroll area's own space. */
   laneTop: number;
-  /** That lane's height, so the bar can drop below it when it cannot go above. */
-  laneH: number;
   /** Width of the scroll area, for clamping the bar inside it. */
   width: number;
   /** x of time zero in that same space (the timeline's playhead offset). */
@@ -88,7 +86,6 @@ export interface SelectionActionBarProps {
 
 export function SelectionActionBar({
   laneTop,
-  laneH,
   width,
   originX,
 }: SelectionActionBarProps) {
@@ -298,14 +295,24 @@ export function SelectionActionBar({
   const left = Math.max(EDGE, Math.min(width - barW - EDGE, centre - barW / 2));
 
   /*
-   * Above its lane, or below it when there is nothing above to sit on. The
-   * first lane is the case that decides this: `above` goes negative there,
-   * which would put the bar over the ruler and then onto the transport, so it
-   * drops to the far side of the lane instead. Either way it never covers the
-   * clip it describes.
+   * ALWAYS above its own lane. Asked for repeatedly, and the reason is that a
+   * bar which sometimes sits above and sometimes below has no readable
+   * relationship to the lane it belongs to — you have to work out which lane it
+   * came from instead of seeing it.
+   *
+   * The music lane is the case that used to break it: it is the top lane, so
+   * `above` goes negative (RULER_H is 22 against a bar of ~41) and the old rule
+   * flipped the bar to the far side, where it landed on the text lane and read
+   * as belonging to that.
+   *
+   * Clamped to 0 rather than allowed negative, which would put it over the
+   * transport controls — the play button and undo, which have to stay
+   * tappable. On the top lane that means it overlaps the ruler and the top few
+   * pixels of the lane's own strip. That is a deliberate trade: covering a
+   * little of the waveform it names is much cheaper than appearing over a
+   * different lane entirely.
    */
-  const above = laneTop - BAR_H - LANE_GAP;
-  const top = above >= 0 ? above : laneTop + laneH + LANE_GAP;
+  const top = Math.max(0, laneTop - BAR_H - LANE_GAP);
 
   return (
     <View style={styles.wrap} pointerEvents="box-none">

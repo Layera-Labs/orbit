@@ -3,7 +3,7 @@
  * gesture-handler. Used across the editor sheets for size, intensity, speed,
  * volume, opacity, etc. Reports values on the JS thread via onChange.
  */
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { vela } from '../constants';
@@ -39,10 +39,31 @@ export function VSlider({
     onChange(Math.max(min, Math.min(max, v)));
   };
 
-  const pan = Gesture.Pan()
-    .runOnJS(true)
-    .onBegin((e) => set(e.x))
-    .onUpdate((e) => set(e.x));
+  /*
+   * The gesture is built ONCE, and reads the current `set` through a ref.
+   *
+   * Built inline it was a new Gesture object on every render, so
+   * GestureDetector tore down and re-attached its handler each time — and
+   * because `onBegin` sets state, that re-render produced another new gesture,
+   * which began again. React caught the loop as "Maximum update depth
+   * exceeded" the moment anyone touched the music volume slider.
+   *
+   * A ref rather than a dependency list, because every caller passes an inline
+   * `onChange`: a memo keyed on it would be invalidated on every render, which
+   * is the bug again with more ceremony.
+   */
+  const setRef = useRef(set);
+  useEffect(() => {
+    setRef.current = set;
+  });
+  const pan = useMemo(
+    () =>
+      Gesture.Pan()
+        .runOnJS(true)
+        .onBegin((e) => setRef.current(e.x))
+        .onUpdate((e) => setRef.current(e.x)),
+    [],
+  );
 
   const pct = max > min ? Math.max(0, Math.min(1, (value - min) / (max - min))) : 0;
   const paint = disabled ? vela.lightMuted3 : fill;

@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import RNColorPicker, { HueSlider, Panel1 } from 'reanimated-color-picker';
-import Animated, { FadeIn, FadeOut, LinearTransition, ZoomIn } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 import { font, mono, vela } from '../constants';
 import { addCustomColor, loadCustomColors } from '../storage/colorPrefs';
 import { VIcon } from './VIcon';
@@ -42,7 +42,7 @@ export function ColorPickerBody({ value, onChange }: { value: string; onChange: 
   const colors = [...customColors, ...PALETTE.filter((color) => !customColors.includes(color))];
 
   return (
-    <Animated.View layout={LinearTransition.duration(180)} style={styles.body}>
+    <Animated.View style={styles.body}>
       <View style={styles.selectedRow}>
         <View style={[styles.selectedColor, { backgroundColor: selected }]} />
         <View style={{ flex: 1 }}>
@@ -56,7 +56,7 @@ export function ColorPickerBody({ value, onChange }: { value: string; onChange: 
         ) : null}
       </View>
 
-      {!customOpen ? <Animated.View entering={FadeIn.duration(160)} exiting={FadeOut.duration(100)} style={styles.paletteGrid}>
+      {!customOpen ? <Animated.View style={styles.paletteGrid}>
         <Pressable accessibilityRole='button' accessibilityLabel='Create custom color' style={styles.swatchWrap} onPress={() => setCustomOpen(true)}>
           <LinearGradient colors={['#ff375f', '#ffcc00', '#30d158', '#32ade6', '#5b4bff', '#bf5af2']} start={{ x: 0, y: 1 }} end={{ x: 1, y: 0 }} style={styles.customSwatch}>
             <View style={styles.customPlus}>
@@ -68,7 +68,7 @@ export function ColorPickerBody({ value, onChange }: { value: string; onChange: 
         {colors.map((color, index) => {
           const active = selected === color.toLowerCase();
           return (
-            <Animated.View key={color} entering={ZoomIn.delay(Math.min(index, 8) * 18).duration(160)} layout={LinearTransition.duration(160)}>
+            <Animated.View key={color}>
               <Pressable accessibilityRole='button' accessibilityLabel={`Use ${color}`} accessibilityState={{ selected: active }} style={[styles.swatch, { backgroundColor: color }, color === '#ffffff' && styles.whiteSwatch, active && styles.swatchOn]} onPress={() => pick(color)}>
                 {active ? <VIcon name='check' size={18} color={color === '#ffffff' ? vela.accent : '#fff'} strokeWidth={3} /> : null}
               </Pressable>
@@ -78,7 +78,7 @@ export function ColorPickerBody({ value, onChange }: { value: string; onChange: 
       </Animated.View> : null}
 
       {customOpen ? (
-        <Animated.View entering={FadeIn.duration(180)} exiting={FadeOut.duration(120)} style={styles.customPicker}>
+        <Animated.View style={styles.customPicker}>
           <RNColorPicker value={draft} onCompleteJS={({ hex }) => setDraft(normalizeHex(hex))} style={styles.pickerInner}>
             <Panel1 style={styles.panel} />
             <HueSlider style={styles.hue} />

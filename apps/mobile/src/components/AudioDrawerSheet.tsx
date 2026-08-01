@@ -15,18 +15,7 @@ import {
   useAudioPlayer,
   useAudioPlayerStatus,
 } from "expo-audio";
-import Animated, {
-  cancelAnimation,
-  Easing,
-  FadeInRight,
-  FadeInUp,
-  FadeOutLeft,
-  LinearTransition,
-  useAnimatedStyle,
-  useSharedValue,
-  withRepeat,
-  withTiming,
-} from "react-native-reanimated";
+import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { BUNDLED_SFX } from "../content/assets";
 import { SFX, type SfxItem } from "../content/catalog";
 import { addBundledSfx } from "../content/library";
@@ -353,8 +342,8 @@ export function AudioDrawerSheet() {
 
         <Animated.View
           key={tab}
-          entering={FadeInRight.duration(180)}
-          exiting={FadeOutLeft.duration(120)}
+         
+         
           style={styles.panel}
         >
           {tab === "music" ? (
@@ -762,7 +751,7 @@ function ActionPanel({
   onAction: () => void;
 }) {
   return (
-    <Animated.View entering={FadeInUp.duration(220)} style={styles.emptyState}>
+    <Animated.View style={styles.emptyState}>
       <View style={styles.emptyIcon}>
         <VIcon name={icon} size={24} color={vela.accent} />
       </View>
@@ -801,8 +790,8 @@ function AudioRow({
 }) {
   return (
     <Animated.View
-      entering={FadeInUp.delay(Math.min(index, 8) * 25).duration(180)}
-      layout={LinearTransition.duration(160)}
+     
+     
       style={[styles.audioRow, selected && styles.audioRowSelected]}
     >
       <Pressable
@@ -841,7 +830,7 @@ function AudioRow({
 
 function UploadProgressRow({ item }: { item: AudioUpload }) {
   return (
-    <Animated.View layout={LinearTransition} style={styles.uploadRow}>
+    <Animated.View style={styles.uploadRow}>
       {item.status === "failed" ? (
         <VIcon name="close" size={18} color={vela.danger} />
       ) : (

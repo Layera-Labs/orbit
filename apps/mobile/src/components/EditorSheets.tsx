@@ -22,7 +22,7 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
-import Animated, { FadeInUp } from "react-native-reanimated";
+import Animated from 'react-native-reanimated';
 import { font, mono, orbitTonal, vela, RATIOS, ratioLabel } from "../constants";
 import { VIcon, type VIconName } from "./VIcon";
 import { BottomSheet as BaseBottomSheet } from "./BottomSheet";
@@ -504,9 +504,7 @@ function GridSheet({
                 return (
                   <Animated.View
                     key={it.label}
-                    entering={FadeInUp.delay(
-                      (sectionIndex * 4 + index) * 40,
-                    ).duration(220)}
+                   
                     style={{ width }}
                   >
                     <Pressable
