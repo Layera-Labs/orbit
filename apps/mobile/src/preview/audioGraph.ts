@@ -21,16 +21,48 @@
  * here like it will sound in the file. And the export was never silent —
  * `buildMultiTrackArgs` has always mixed every audio clip.
  */
-import {
-  AudioContext,
-  AudioManager,
-  type AudioBuffer,
-  type AudioBufferSourceNode,
-  type GainNode,
+import type {
+  AudioBuffer,
+  AudioBufferSourceNode,
+  AudioContext as AudioContextType,
+  GainNode,
 } from "react-native-audio-api";
 import type { AudioTrackClip, VideoProject, VisualTrack } from "../model/types";
 import { clipGainAt } from "./curve";
 import { needsRearm, scheduleAt, speedOf } from "./audioSchedule";
+
+/**
+ * The native module, loaded lazily and allowed to be absent.
+ *
+ * A STATIC import of `react-native-audio-api` throws at module-evaluation time
+ * when the native side is not in the installed binary — "Failed to install
+ * react-native-audio-api: The native module could not be found" — which takes
+ * the whole app down before any component renders. That is not hypothetical:
+ * `ios/` is gitignored and rebuilt on demand, so every JS bundle that reaches a
+ * binary built before this dependency landed hits exactly that, and a guard
+ * inside the constructor is far too late to help.
+ *
+ * So the module is required on FIRST USE and a failure degrades to a silent
+ * preview — which is what the editor did before this file existed at all.
+ * Cached in both directions so a missing module is not re-required on every
+ * mount.
+ */
+type AudioApi = typeof import("react-native-audio-api");
+let api: AudioApi | null | undefined;
+
+function audioApi(): AudioApi | null {
+  if (api !== undefined) return api;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    api = require("react-native-audio-api") as AudioApi;
+  } catch {
+    api = null;
+    console.warn(
+      "[orbit] native audio module missing — preview audio is off until the app is rebuilt",
+    );
+  }
+  return api;
+}
 
 /**
  * Anything the preview can make a sound out of.
@@ -68,7 +100,7 @@ interface Voice {
 }
 
 export class PreviewAudio {
-  private ctx: AudioContext | null = null;
+  private ctx: AudioContextType | null = null;
   private voices = new Map<string, Voice>();
   /** Timeline second the running sources were armed from, and when. */
   private armedT = 0;
@@ -76,22 +108,23 @@ export class PreviewAudio {
   private playing = false;
 
   constructor() {
+    const audio = audioApi();
+    if (!audio) return;
     try {
       /*
        * Play even when the ringer switch is off. An editor whose preview is
        * silent because of a hardware switch reads as broken, and the user has
        * explicitly pressed play.
        */
-      AudioManager.setAudioSessionOptions({
+      audio.AudioManager.setAudioSessionOptions({
         iosCategory: "playback",
         iosMode: "default",
       });
-      void AudioManager.setAudioSessionActivity(true).catch(() => {});
-      this.ctx = new AudioContext();
+      void audio.AudioManager.setAudioSessionActivity(true).catch(() => {});
+      this.ctx = new audio.AudioContext();
     } catch {
-      // A device without the native module (or a bad session) must not take the
-      // editor down; the preview is simply silent, as it was before this
-      // existed at all.
+      // A bad session must not take the editor down; the preview is simply
+      // silent, as it was before this existed at all.
       this.ctx = null;
     }
   }
