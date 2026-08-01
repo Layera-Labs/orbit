@@ -151,6 +151,31 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   audio — as a stripe along the bottom. Sqrt keeps unity at ~45%, puts 2x at ~63%, and
   still lets 5x reach the top; it also lifts very small gains, so a fade's last bar no
   longer lands on `FLOOR_H`.
+- **A slider must not write the store on every touch event** (2026-08-01). Dragging the
+  volume slider threw "Maximum update depth exceeded" and the knob trailed the finger —
+  one cause, two symptoms. Three parts, all in `VSlider`/`sliderValue.ts`, and each is
+  load-bearing: values are QUANTIZED and an unchanged one is not reported (default grid
+  1/200 of the range; volume passes `step={0.05}` for 5% snapping) — and `quantize`
+  rounds off float fuzz, because `0 + 3*0.05` is `0.15000000000000002` and the dedupe
+  compares with `===`, so without it nothing is ever deduplicated; reports are coalesced
+  to **one per frame** with a guaranteed flush on release, so a fast swipe crossing every
+  bucket still cannot storm; and the knob is drawn from the FINGER while it is down, not
+  from `value`, which is what removes the round-trip lag. The gesture object is also built
+  ONCE behind a config ref — inline, `GestureDetector` re-attached on every render and a
+  handler that sets state re-rendered into another new gesture.
+  The other half of that crash was in the store: **every `applyClip*` action re-selected
+  its clip with a FRESH object** (`set({ selected: { trackId, clipId } })`), so `selected`
+  changed identity on every gesture frame and every consumer re-rendered and every
+  `useEffect` keyed on it re-ran, for a value that had not changed. `reselect(set, get, …)`
+  is now the single writer and no-ops when the same clip is already selected.
+- **The percentage beside a volume slider is a typed field** (`PercentField`). 0–500% in
+  5% steps, and it commits on blur, on Done **and on unmount** — a number pad has no
+  return key, so tapping the sheet's ✓ or the backdrop tears the field down without ever
+  blurring it, and without that flush a typed number is silently discarded. It never
+  commits per keystroke: "1" on the way to "150" is a real value that would drop the clip
+  to 1% and rescale a fade's curve to match. `parsePercent` REFUSES an empty or
+  unparseable field rather than coercing — `Number("")` is 0, and reading a cleared field
+  as "mute" is not helpfulness.
 - **Mute is a flag, and the Sound lane is now a control.** `clip.muted` is what both
   previews and the export read; muting used to write `volume: 0` and unmute used to
   write 1, so a clip you had at 40% came back at 100% with the number gone.
