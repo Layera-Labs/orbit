@@ -83,12 +83,51 @@ import { PgJobQueue } from "./job-queue.js";
 import { PgProjectStore, type SyncedProject } from "./project-store.js";
 import { storageFromEnv } from "./storage.js";
 
+/**
+ * A number from the environment, falling back on anything that isn't one.
+ *
+ * `Number(process.env.X ?? fallback)` is WRONG and was used everywhere here.
+ * `??` only fires on null/undefined, and an environment variable is very often
+ * the empty string instead — every `docker compose` file written as
+ * `X: ${X:-}` sets it that way, which is the idiomatic way to make a variable
+ * optional. `Number("")` is 0, not NaN, so the fallback is skipped and the
+ * setting silently becomes zero.
+ *
+ * That is not a theoretical sharp edge. It shipped: `ORBIT_MAX_MEDIA_BYTES`
+ * came through as "" on the first real deployment, the media budget became 0
+ * bytes, and `evictMedia()` — which runs immediately after every upload —
+ * deleted each file the instant it landed. Uploads answered 200, the render
+ * then died with "No such file or directory", and nothing anywhere said the
+ * budget was zero. The same trap sat under the rate limits (0 = refuse every
+ * request), the render concurrency (0 = never run one) and the worker poll
+ * interval (0 = spin).
+ *
+ * So: empty, NaN and anything below `min` all mean "not configured". `min`
+ * defaults to 1 because a limit, a budget or an interval has no meaningful
+ * zero — but the credit settings pass 0, where "free" and "no bonus" are real
+ * answers a deployment can choose.
+ */
+export function envNumber(name: string, fallback: number, min = 1): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < min) {
+    console.warn(
+      `[orbit] ${name}="${raw}" is not a usable number — using ${fallback}`,
+    );
+    return fallback;
+  }
+  return n;
+}
+
 /** Per-file upload cap, and the total media-store budget before eviction. */
-const MAX_UPLOAD_BYTES = Number(
-  process.env.ORBIT_MAX_UPLOAD_BYTES ?? 500 * 1024 * 1024,
+const MAX_UPLOAD_BYTES = envNumber(
+  "ORBIT_MAX_UPLOAD_BYTES",
+  500 * 1024 * 1024,
 );
-const MAX_MEDIA_BYTES = Number(
-  process.env.ORBIT_MAX_MEDIA_BYTES ?? 5 * 1024 * 1024 * 1024,
+const MAX_MEDIA_BYTES = envNumber(
+  "ORBIT_MAX_MEDIA_BYTES",
+  5 * 1024 * 1024 * 1024,
 );
 /**
  * The same budget for finished renders.
@@ -98,9 +137,7 @@ const MAX_MEDIA_BYTES = Number(
  * outage with no signal until it lands. With S3 configured the local copy is
  * only a staging file and this bound matters even more.
  */
-const MAX_OUTPUT_BYTES = Number(
-  process.env.ORBIT_MAX_OUTPUT_BYTES ?? 5 * 1024 * 1024 * 1024,
-);
+const MAX_OUTPUT_BYTES = envNumber("ORBIT_MAX_OUTPUT_BYTES", 5 * 1024 * 1024 * 1024);
 /**
  * What a failure is allowed to tell the caller.
  *
@@ -134,9 +171,9 @@ export function clientMessage(err: unknown, limit = 200): string {
  * guest token is cheap to mint, so a per-account limit would be one token away
  * from no limit at all.
  */
-const RATE_WINDOW_MS = Number(process.env.ORBIT_RATE_WINDOW_MS ?? 60_000);
-const UPLOAD_RATE_LIMIT = Number(process.env.ORBIT_UPLOAD_RATE_LIMIT ?? 60);
-const RENDER_RATE_LIMIT = Number(process.env.ORBIT_RENDER_RATE_LIMIT ?? 10);
+const RATE_WINDOW_MS = envNumber("ORBIT_RATE_WINDOW_MS", 60_000);
+const UPLOAD_RATE_LIMIT = envNumber("ORBIT_UPLOAD_RATE_LIMIT", 60);
+const RENDER_RATE_LIMIT = envNumber("ORBIT_RENDER_RATE_LIMIT", 10);
 /**
  * The auth routes, which had no limit at all.
  *
@@ -150,8 +187,8 @@ const RENDER_RATE_LIMIT = Number(process.env.ORBIT_RENDER_RATE_LIMIT ?? 10);
  * Creation is held tighter than verification because its cost is real money
  * and real email, not CPU.
  */
-const AUTH_RATE_LIMIT = Number(process.env.ORBIT_AUTH_RATE_LIMIT ?? 20);
-const AUTH_CREATE_RATE_LIMIT = Number(process.env.ORBIT_AUTH_CREATE_RATE_LIMIT ?? 5);
+const AUTH_RATE_LIMIT = envNumber("ORBIT_AUTH_RATE_LIMIT", 20);
+const AUTH_CREATE_RATE_LIMIT = envNumber("ORBIT_AUTH_CREATE_RATE_LIMIT", 5);
 /**
  * Guest tokens get their own, looser budget.
  *
@@ -160,7 +197,7 @@ const AUTH_CREATE_RATE_LIMIT = Number(process.env.ORBIT_AUTH_CREATE_RATE_LIMIT ?
  * shared IP — an office, a campus, a carrier NAT — is many first-time visitors
  * in one minute, and refusing them is refusing to let the app start at all.
  */
-const GUEST_RATE_LIMIT = Number(process.env.ORBIT_GUEST_RATE_LIMIT ?? 30);
+const GUEST_RATE_LIMIT = envNumber("ORBIT_GUEST_RATE_LIMIT", 30);
 
 /**
  * Build identity, reported by `/health`.
@@ -567,11 +604,11 @@ export function createServer(): Express {
    */
   const MAX_CONCURRENT_RENDERS = Math.max(
     1,
-    Number(process.env.ORBIT_MAX_CONCURRENT_RENDERS ?? 2),
+    envNumber("ORBIT_MAX_CONCURRENT_RENDERS", 2),
   );
   const MAX_QUEUED_RENDERS = Math.max(
     0,
-    Number(process.env.ORBIT_MAX_QUEUED_RENDERS ?? 8),
+    envNumber("ORBIT_MAX_QUEUED_RENDERS", 8),
   );
 
   class QueueFullError extends Error {
@@ -718,13 +755,13 @@ export function createServer(): Express {
     model: process.env.ELEVENLABS_MODEL,
   });
   const ttsGen = new GenerationService(elevenLabs, ledger);
-  const FREE_CREDITS = Number(process.env.ORBIT_FREE_CREDITS ?? 100);
+  const FREE_CREDITS = envNumber("ORBIT_FREE_CREDITS", 100, 0);
   /** Credits an export costs. 0 (the default) leaves rendering unmetered. */
-  const RENDER_COST = Math.max(0, Number(process.env.ORBIT_RENDER_COST ?? 0));
+  const RENDER_COST = envNumber("ORBIT_RENDER_COST", 0, 0);
   /** Credits a transcription costs. Priced like TTS: one pass over the audio. */
   const TRANSCRIBE_COST = Math.max(
     0,
-    Number(process.env.ORBIT_TRANSCRIBE_COST ?? 5),
+    envNumber("ORBIT_TRANSCRIBE_COST", 5, 0),
   );
   const seeded = new Set<AccountId>();
 
@@ -762,7 +799,7 @@ export function createServer(): Express {
   }
   const auth = authFromEnv(authEnv, { userStore });
   const LICENSE_KEY = process.env.ORBIT_LICENSE_KEY ?? "orbit";
-  const SIGNUP_BONUS = Number(process.env.ORBIT_SIGNUP_BONUS ?? 0);
+  const SIGNUP_BONUS = envNumber("ORBIT_SIGNUP_BONUS", 0, 0);
 
   // ---- purchases: RevenueCat product id → credits granted ----
   // Override with ORBIT_CREDIT_PACKS (JSON, e.g. {"credits_500":550}). The store
@@ -1068,7 +1105,7 @@ export function createServer(): Express {
   let inFlight: string | null = null;
   const WORKER_POLL_MS = Math.max(
     250,
-    Number(process.env.ORBIT_WORKER_POLL_MS ?? 2000),
+    envNumber("ORBIT_WORKER_POLL_MS", 2000),
   );
 
   if (queue && process.env.ORBIT_WORKER !== "0") {
