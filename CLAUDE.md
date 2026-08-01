@@ -168,6 +168,21 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   changed identity on every gesture frame and every consumer re-rendered and every
   `useEffect` keyed on it re-ran, for a value that had not changed. `reselect(set, get, …)`
   is now the single writer and no-ops when the same clip is already selected.
+- **The volume slider shows its scale and detents onto 100%.** `ticks` draws a mark every
+  N value units (volume: every 50%) and `defaultValue` draws a taller one at the level the
+  control normally sits at — and the finger SNAPS onto it within `DETENT_PX` (6), so the
+  mark is something you can aim at rather than a decoration. The radius is deliberately
+  small: at 5% steps on a ~300pt track a step is ~3pt, and a greedy detent would make 90%
+  unreachable. `tickValues` refuses to draw more than `MAX_TICKS` (40) — past that a scale
+  stops saying where you are and becomes texture — and carries an epsilon, because
+  `5 / 0.5` is `9.999999999999998` and a plain floor drops the mark on 500%.
+- **Apply-to-all exists twice, and they are separate actions on purpose.**
+  `applySoundToAll` (Sound lane) takes only video clips and carries mute;
+  `applyAudioVolumeToAll` (`AudioClipSheet`) takes every clip on ONE audio track and moves
+  the level only. Both go through `withVolume`, so a clip carrying a fade has its plateau
+  moved rather than being flattened. Both name their scope and their count in a
+  confirmation — a project can hold more than one audio track, and relevelling one the
+  user was not looking at is how a mix gets lost.
 - **The percentage beside a volume slider is a typed field** (`PercentField`). 0–500% in
   5% steps, and it commits on blur, on Done **and on unmount** — a number pad has no
   return key, so tapping the sheet's ✓ or the backdrop tears the field down without ever
