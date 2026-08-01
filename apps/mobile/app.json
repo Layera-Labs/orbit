@@ -45,7 +45,8 @@
         }
       ],
       "expo-font",
-      "expo-secure-store"
+      "expo-secure-store",
+      "react-native-audio-api"
     ],
     "android": {
       "package": "com.orbitvideo.app"

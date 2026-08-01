@@ -1,27 +1,36 @@
 /**
  * Sound for the timeline preview.
  *
- * Until now the mobile preview was silent — not a bug in any one feature, just
- * absent: there was no `expo-audio` anywhere near `Preview.tsx`, and Skia's
- * video decoder only ever produces frames, never audio. So you could add music,
- * see it on the timeline, hear nothing while editing, and only find out what it
- * sounded like after an export. The export was never silent: `buildMultiTrackArgs`
- * has always mixed every audio clip.
+ * Ported from `expo-audio` to a real Web Audio graph
+ * (`react-native-audio-api`) on 2026-08-01, for one reason: **gain above 1**.
+ * `expo-audio`'s `player.volume` is a 0–1 property that saturates in the native
+ * player, so a clip set to 200% — or 500%, once the ceiling moved — sounded
+ * exactly like 100% here while ffmpeg rendered the real boost. A `GainNode`'s
+ * `gain` has no upper bound, so the preview can finally be as loud as the file.
  *
- * This is a port of the web engine's `AudioGraph` (`apps/web/src/video/engine/
- * audio.ts`), which had solved the same problem with WebAudio. The design is
- * the part worth keeping, not the API: one player per clip, held open, and
- * re-positioned against the project clock every tick rather than "scheduled".
- * Scheduling assumes playback starts at zero and runs to the end; an editor
- * gets scrubbed, paused mid-clip and restarted from anywhere.
+ * That swap forced a different shape. An `expo-audio` player can SEEK, so the
+ * old graph held one open per clip and re-positioned it against the project
+ * clock every tick. A Web Audio `AudioBufferSourceNode` cannot: it is one-shot,
+ * started once with an offset and a duration, and immovable afterwards. So this
+ * ARMS — on play, and again whenever the playhead jumps somewhere the running
+ * sources cannot follow — and otherwise leaves them running and only moves the
+ * gain. `audioSchedule.ts` holds that arithmetic, and is where it is tested.
  *
- * Gain comes from the same `sampleVolume` the export bakes into its `volume`
- * expression, so a fade drawn on the timeline sounds here like it will sound in
- * the file.
+ * What did not change: gain still comes from the same `clipGainAt` the export
+ * bakes into its `volume` expression, so a fade drawn on the timeline sounds
+ * here like it will sound in the file. And the export was never silent —
+ * `buildMultiTrackArgs` has always mixed every audio clip.
  */
-import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from "expo-audio";
+import {
+  AudioContext,
+  AudioManager,
+  type AudioBuffer,
+  type AudioBufferSourceNode,
+  type GainNode,
+} from "react-native-audio-api";
 import type { AudioTrackClip, VideoProject, VisualTrack } from "../model/types";
 import { clipGainAt } from "./curve";
+import { needsRearm, scheduleAt, speedOf } from "./audioSchedule";
 
 /**
  * Anything the preview can make a sound out of.
@@ -42,60 +51,77 @@ export interface PreviewAudioClip {
   speed?: number;
 }
 
-/**
- * How far a player may drift before it is seeked back.
- *
- * Every correction is audible — expo-audio's `seekTo` is not gapless — so the
- * threshold has to be wide enough that ordinary jitter never triggers it. The
- * web engine settled on the same 200ms for the same reason.
- */
-const DRIFT_TOLERANCE_SEC = 0.2;
+/** Decoded files, shared across voices and across mounts. */
+const buffers = new Map<string, Promise<AudioBuffer | null>>();
 
 interface Voice {
-  player: AudioPlayer;
   clip: PreviewAudioClip;
-  /** What we last set the volume to, so we only cross the bridge on a change. */
-  gain: number;
+  /** Resolved file uri, so a re-`sync` can tell a changed src from a moved clip. */
+  uri: string;
+  /** Per-clip gain. Lives for the voice; sources come and go beneath it. */
+  gain: GainNode;
+  /** The currently sounding source, if any. One-shot: replaced, never moved. */
+  source: AudioBufferSourceNode | null;
+  buffer: AudioBuffer | null;
+  /** Last value written to `gain.gain`, so we only touch it on a real change. */
+  lastGain: number;
 }
 
 export class PreviewAudio {
+  private ctx: AudioContext | null = null;
   private voices = new Map<string, Voice>();
-  private ready = false;
+  /** Timeline second the running sources were armed from, and when. */
+  private armedT = 0;
+  private armedAt = 0;
+  private playing = false;
 
   constructor() {
-    /*
-     * Play even when the ringer switch is off. An editor whose preview is
-     * silent because of a hardware switch reads as broken, and the user has
-     * explicitly pressed play.
-     */
-    void setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
-    this.ready = true;
+    try {
+      /*
+       * Play even when the ringer switch is off. An editor whose preview is
+       * silent because of a hardware switch reads as broken, and the user has
+       * explicitly pressed play.
+       */
+      AudioManager.setAudioSessionOptions({
+        iosCategory: "playback",
+        iosMode: "default",
+      });
+      void AudioManager.setAudioSessionActivity(true).catch(() => {});
+      this.ctx = new AudioContext();
+    } catch {
+      // A device without the native module (or a bad session) must not take the
+      // editor down; the preview is simply silent, as it was before this
+      // existed at all.
+      this.ctx = null;
+    }
   }
 
   /**
-   * Match the live set of clips: open a player for anything new, drop anything
-   * gone. Existing players are kept — reopening one on every edit would stutter
-   * playback each time an unrelated clip moved.
+   * Match the live set of clips: open a gain for anything new, drop anything
+   * gone, and start decoding files we have not seen.
+   *
+   * Geometry changes (a move, a retrim) keep the voice — it is the same sound
+   * in a new place, and re-arming is what repositions it. A changed `src` is a
+   * different sound and gets a new voice.
    */
   sync(clips: PreviewAudioClip[], resolve: (src: string) => string): void {
-    if (!this.ready) return;
+    const ctx = this.ctx;
+    if (!ctx) return;
     const keep = new Set<string>();
     for (const clip of clips) {
       keep.add(clip.id);
+      const uri = resolve(clip.src);
       const existing = this.voices.get(clip.id);
-      if (existing) {
-        // Same clip, possibly moved or retrimmed: keep the player, take the
-        // new geometry.
+      if (existing && existing.uri === uri) {
         existing.clip = clip;
         continue;
       }
-      try {
-        const player = createAudioPlayer({ uri: resolve(clip.src) });
-        this.voices.set(clip.id, { player, clip, gain: -1 });
-      } catch {
-        // A missing file must not take the preview down with it. The clip is
-        // simply inaudible, exactly as it is today.
-      }
+      if (existing) this.release(existing);
+      const gain = ctx.createGain();
+      gain.connect(ctx.destination);
+      const voice: Voice = { clip, uri, gain, source: null, buffer: null, lastGain: -1 };
+      this.voices.set(clip.id, voice);
+      void this.load(voice, uri);
     }
     for (const [id, voice] of [...this.voices]) {
       if (keep.has(id)) continue;
@@ -104,95 +130,142 @@ export class PreviewAudio {
     }
   }
 
+  /**
+   * Decode a file once and hand the buffer to the voice.
+   *
+   * Cached by uri across voices AND across mounts, because two clips of one
+   * song are the common case and decoding is neither cheap nor free in memory.
+   * A failure caches as `null`: a file that cannot be decoded will not decode
+   * on the next tick either, and retrying it every sync is a busy loop.
+   */
+  private async load(voice: Voice, uri: string): Promise<void> {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    let pending = buffers.get(uri);
+    if (!pending) {
+      pending = ctx.decodeAudioData(uri).catch(() => null);
+      buffers.set(uri, pending);
+    }
+    const buffer = await pending;
+    // The voice may have been released while this was in flight.
+    if (!buffer || this.voices.get(voice.clip.id) !== voice) return;
+    voice.buffer = buffer;
+    /*
+     * Arm THIS voice if the transport is already running. Without it, a clip
+     * whose file lands mid-playback stays silent until the next seek — which is
+     * exactly what happens when you press play the instant a project opens.
+     */
+    if (this.playing) {
+      const t = this.armedT + (ctx.currentTime - this.armedAt);
+      this.armVoice(voice, t);
+    }
+  }
+
   /** Put every voice where timeline second `t` says it should be. */
   update(t: number, playing: boolean): void {
+    const ctx = this.ctx;
+    if (!ctx) return;
+
+    if (!playing) {
+      if (this.playing) this.stopAll();
+      this.playing = false;
+      // Gains still track the playhead while paused, so scrubbing to a quiet
+      // part and pressing play does not start loud and then duck.
+      this.writeGains(t);
+      return;
+    }
+
+    const started = !this.playing;
+    const jumped =
+      !started && needsRearm(t, this.armedT, this.armedAt, ctx.currentTime);
+    if (started || jumped) {
+      this.stopAll();
+      this.playing = true;
+      this.armedT = t;
+      this.armedAt = ctx.currentTime;
+      for (const voice of this.voices.values()) this.armVoice(voice, t);
+    }
+    this.writeGains(t);
+  }
+
+  /** Start one voice from timeline second `t`, if it has anything to play. */
+  private armVoice(voice: Voice, t: number): void {
+    const ctx = this.ctx;
+    if (!ctx || !voice.buffer) return;
+    const plan = scheduleAt(voice.clip, t);
+    if (!plan) return;
+    try {
+      const source = ctx.createBufferSource();
+      source.buffer = voice.buffer;
+      source.playbackRate.value = speedOf(voice.clip);
+      source.connect(voice.gain);
+      source.start(ctx.currentTime + plan.delay, plan.offset, plan.duration);
+      voice.source = source;
+    } catch {
+      // A source that will not start leaves the clip silent rather than
+      // throwing out of the render loop.
+    }
+  }
+
+  private writeGains(t: number): void {
     for (const voice of this.voices.values()) {
-      const { player, clip } = voice;
-      const end = clip.start + clip.duration;
-      const live = t >= clip.start && t <= end;
-
-      if (!live || !playing) {
-        if (player.playing) {
-          try {
-            player.pause();
-          } catch {
-            /* player already torn down */
-          }
-        }
-        if (!live) continue;
-      }
-
+      const { clip } = voice;
       const local = t - clip.start;
-      const speed = clip.speed && clip.speed > 0 ? clip.speed : 1;
-      // A clip played at 2× covers two source seconds per timeline second, so
-      // the position in the FILE runs at `speed`, not at 1.
-      const want = (clip.trimIn ?? 0) + local * speed;
-      try {
-        if (speed !== 1 && player.playbackRate !== speed) {
-          player.setPlaybackRate(speed);
-        }
-        if (Math.abs(player.currentTime - want) > DRIFT_TOLERANCE_SEC) {
-          player.seekTo(want);
-        }
-        if (playing && !player.playing) player.play();
-
-        const gain = clipGainAt(clip, clip.duration > 0 ? local / clip.duration : 0);
-        /*
-         * ANYTHING ABOVE 1 IS INAUDIBLE HERE, AND IS NOT IN THE EXPORT.
-         *
-         * `expo-audio`'s `player.volume` is a 0–1 property and the native
-         * player saturates there, so 150%, 200% and 500% all sound like 100% in
-         * this preview while ffmpeg renders the real boost. Raising the app's
-         * ceiling to 500% (2026-08-01) widened that gap and did not create it:
-         * closing it needs a real gain stage, which means a native audio module
-         * (`react-native-audio-api`'s GainNode or equivalent) and a rewrite of
-         * this file onto it. There is no mixer here to borrow headroom from, and
-         * quietening every OTHER voice to make room would make the preview
-         * quieter than the file, which is the same lie pointed the other way.
-         * The timeline's waveform is the mitigation: `waveformBars` scales the
-         * bars by this exact gain, so a boost you cannot hear is at least one
-         * you can see.
-         */
-        /*
-         * Clamped HERE rather than left to the native player, and the CLAMPED
-         * value is what gets cached. Caching the raw gain would rewrite the
-         * property every frame while a clip sat anywhere above 1 — 500% to
-         * 300% is a change of 2 that lands on the same 1.0 — and every write
-         * crosses into native.
-         */
-        const applied = Math.max(0, Math.min(1, gain));
-        // Only write on a real change: this runs at the preview frame rate.
-        if (Math.abs(applied - voice.gain) > 0.01) {
-          player.volume = applied;
-          voice.gain = applied;
-        }
-      } catch {
-        /* a player disposed underneath us */
+      const p = clip.duration > 0 ? local / clip.duration : 0;
+      /*
+       * NO CLAMP TO 1. This is the whole point of the port: a GainNode's gain
+       * is unbounded, so 200% and 500% are as loud here as ffmpeg renders them.
+       * Outside its own window a clip contributes nothing — the source is not
+       * running, and zero keeps it from bleeding if one is.
+       */
+      const gain = local >= 0 && local <= clip.duration ? clipGainAt(clip, p) : 0;
+      // Only write on a real change: this runs at the preview frame rate.
+      if (Math.abs(gain - voice.lastGain) > 0.005) {
+        voice.gain.gain.value = gain;
+        voice.lastGain = gain;
       }
     }
   }
 
-  /** Stop everything, keeping the players open for the next play. */
-  pause(): void {
-    for (const { player } of this.voices.values()) {
-      try {
-        if (player.playing) player.pause();
-      } catch {
-        /* already gone */
-      }
+  private stopAll(): void {
+    for (const voice of this.voices.values()) this.stopSource(voice);
+  }
+
+  private stopSource(voice: Voice): void {
+    if (!voice.source) return;
+    try {
+      voice.source.stop();
+      voice.source.disconnect();
+    } catch {
+      // Already finished on its own: a source stops itself at the end of the
+      // duration it was given.
     }
+    voice.source = null;
+  }
+
+  /** Stop everything, keeping the decoded buffers for the next play. */
+  pause(): void {
+    this.stopAll();
+    this.playing = false;
   }
 
   /** Tear the whole graph down. */
   dispose(): void {
     for (const voice of this.voices.values()) this.release(voice);
     this.voices.clear();
+    this.playing = false;
+    try {
+      void this.ctx?.close();
+    } catch {
+      /* already closed */
+    }
+    this.ctx = null;
   }
 
   private release(voice: Voice): void {
+    this.stopSource(voice);
     try {
-      voice.player.pause();
-      voice.player.remove();
+      voice.gain.disconnect();
     } catch {
       /* already gone */
     }
