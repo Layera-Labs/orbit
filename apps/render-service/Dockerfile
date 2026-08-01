@@ -56,8 +56,18 @@ COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/packages packages
 COPY --from=build /app/apps/render-service apps/render-service
 
-# Unprivileged, and the image already ships a `node` user. The service writes
-# only to the OS temp dir, which is world-writable.
+# A writable home for a mounted volume, owned by the user the service runs as.
+#
+# The service writes media and renders to the OS temp dir, which is
+# world-writable — fine, but it also dies with the container. A deployment
+# therefore mounts a volume and points TMPDIR at it (see compose.vps.yaml), and
+# a named volume mounted on a path that does NOT exist in the image is created
+# root-owned, which an unprivileged process cannot write to. Creating the
+# directory here first is what makes Docker seed the volume with this
+# ownership instead. Costs nothing when no volume is mounted.
+RUN mkdir -p /data && chown node:node /data
+
+# Unprivileged, and the image already ships a `node` user.
 USER node
 
 EXPOSE 8787
