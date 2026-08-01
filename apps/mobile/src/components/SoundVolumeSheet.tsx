@@ -129,6 +129,8 @@ export function SoundVolumeSheet() {
           min={0}
           max={MAX_VOLUME}
           step={0.05}
+          ticks={0.5}
+          defaultValue={1}
           disabled={muted}
           onChange={applyClipVolume}
         />

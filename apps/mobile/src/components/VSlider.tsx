@@ -27,13 +27,23 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { type LayoutChangeEvent, StyleSheet, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { vela } from '../constants';
-import { defaultStep, quantize } from './sliderValue';
+import { defaultStep, quantize, tickValues, withinDetent } from './sliderValue';
+
+/**
+ * How close the finger has to be to the default mark to be taken as meaning
+ * it. Small on purpose: at 6px the neighbouring steps are still reachable, and
+ * the only thing it buys is that tapping the mark lands on exactly the default
+ * instead of a few percent either side of it.
+ */
+const DETENT_PX = 6;
 
 export function VSlider({
   value,
   min,
   max,
   step,
+  ticks,
+  defaultValue,
   onChange,
   fill = vela.accent,
   disabled = false,
@@ -43,6 +53,18 @@ export function VSlider({
   max: number;
   /** Defaults to 1/200 of the range. Pass one to snap to a coarser grid. */
   step?: number;
+  /**
+   * Draw a mark every `ticks` value units, so the scale is visible rather than
+   * implied. A scale, not a grid: the marks do not have to line up with `step`
+   * and nothing snaps to them.
+   */
+  ticks?: number;
+  /**
+   * The value this control is normally at — 100% on a volume slider. Marked on
+   * the track, and the finger detents onto it, so the mark is something you can
+   * aim at rather than a decoration.
+   */
+  defaultValue?: number;
   onChange: (v: number) => void;
   fill?: string;
   /**
@@ -65,9 +87,9 @@ export function VSlider({
    * `onChange`: a memo keyed on it would be invalidated on every render, which
    * is that bug again with more ceremony.
    */
-  const cfg = useRef({ w, min, max, step, disabled, onChange });
+  const cfg = useRef({ w, min, max, step, defaultValue, disabled, onChange });
   useEffect(() => {
-    cfg.current = { w, min, max, step, disabled, onChange };
+    cfg.current = { w, min, max, step, defaultValue, disabled, onChange };
   });
 
   const pending = useRef<number | null>(null);
@@ -90,12 +112,16 @@ export function VSlider({
       const c = cfg.current;
       if (c.w <= 0 || c.disabled) return;
       const frac = Math.max(0, Math.min(1, x / c.w));
-      const v = quantize(
-        c.min + frac * (c.max - c.min),
-        c.min,
-        c.max,
-        c.step ?? defaultStep(c.min, c.max),
-      );
+      const v =
+        c.defaultValue !== undefined &&
+        withinDetent(x, c.w, c.min, c.max, c.defaultValue, DETENT_PX)
+          ? c.defaultValue
+          : quantize(
+              c.min + frac * (c.max - c.min),
+              c.min,
+              c.max,
+              c.step ?? defaultStep(c.min, c.max),
+            );
       // Immediate, and free when it has not moved a whole step: React bails out
       // of a re-render when the state is identical.
       setDrag(v);
@@ -137,8 +163,10 @@ export function VSlider({
   );
 
   const shown = drag ?? value;
-  const pct = max > min ? Math.max(0, Math.min(1, (shown - min) / (max - min))) : 0;
+  const at = (v: number) => (max > min ? Math.max(0, Math.min(1, (v - min) / (max - min))) : 0);
+  const pct = at(shown);
   const paint = disabled ? vela.lightMuted3 : fill;
+  const marks = ticks ? tickValues(min, max, ticks) : [];
 
   return (
     <GestureDetector gesture={pan}>
@@ -149,6 +177,20 @@ export function VSlider({
         <View style={styles.track}>
           <View style={[styles.fill, { width: `${pct * 100}%`, backgroundColor: paint }]} />
         </View>
+        {/*
+          The scale sits UNDER the track and behind the knob, so it reads as
+          something the control is measured against rather than something drawn
+          on top of it. The default gets a taller, darker mark: it is the one
+          you aim at, and the finger detents onto it.
+        */}
+        {marks.map((v) => (
+          <View key={v} style={[styles.tick, { left: `${at(v) * 100}%` }]} />
+        ))}
+        {defaultValue !== undefined ? (
+          <View
+            style={[styles.tick, styles.home, { left: `${at(defaultValue) * 100}%` }]}
+          />
+        ) : null}
         <View style={[styles.knob, { left: `${pct * 100}%`, borderColor: paint }]} />
       </View>
     </GestureDetector>
@@ -160,6 +202,19 @@ const styles = StyleSheet.create({
   off: { opacity: 0.55 },
   track: { height: 6, borderRadius: 3, backgroundColor: vela.lightBorder, overflow: 'hidden' },
   fill: { position: 'absolute', left: 0, top: 0, bottom: 0, borderRadius: 3 },
+  // Rounded caps, because a square-ended hairline is the cheap way to draw a
+  // scale and it looks it. `top` puts them clear of the 6pt track.
+  tick: {
+    position: 'absolute',
+    top: '50%',
+    marginTop: 7,
+    marginLeft: -1,
+    width: 2,
+    height: 3,
+    borderRadius: 1,
+    backgroundColor: vela.lightMuted3,
+  },
+  home: { height: 6, backgroundColor: vela.lightMuted },
   // White knob with a self-colored (fill) ring + a tight downward shadow.
   knob: {
     position: 'absolute',

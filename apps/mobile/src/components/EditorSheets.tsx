@@ -1420,7 +1420,15 @@ function VolumeSheet() {
         <View style={{ flex: 1 }}>
           {/* 5% steps: the track spans 0–500%, so a finer grid is a value
               nobody can hit deliberately and a write nobody asked for. */}
-          <VSlider value={vol} min={0} max={MAX_VOLUME} step={0.05} onChange={set} />
+          <VSlider
+            value={vol}
+            min={0}
+            max={MAX_VOLUME}
+            step={0.05}
+            ticks={0.5}
+            defaultValue={1}
+            onChange={set}
+          />
         </View>
         <PercentField
           label="Volume"

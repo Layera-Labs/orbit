@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { defaultStep, parsePercent, quantize } from "../sliderValue";
+import {
+  defaultStep,
+  MAX_TICKS,
+  parsePercent,
+  quantize,
+  tickValues,
+  withinDetent,
+} from "../sliderValue";
 import { MAX_VOLUME } from "../../model/audio-fade";
 
 /**
@@ -50,6 +57,54 @@ describe("quantize", () => {
   it("defaults to a grid fine enough to feel continuous", () => {
     expect(defaultStep(0, 1)).toBe(0.005);
     expect(defaultStep(0, MAX_VOLUME)).toBe(0.025);
+  });
+});
+
+describe("tickValues", () => {
+  it("marks both ends when the interval divides the range", () => {
+    /*
+     * The volume scale, and the reason there is an epsilon in there: 5 / 0.5 is
+     * 9.999999999999998 in binary, so a plain floor drops the mark on 500% and
+     * the scale stops one short of the end of its own track.
+     */
+    expect(tickValues(0, MAX_VOLUME, 0.5)).toEqual([
+      0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5,
+    ]);
+  });
+
+  it("stops short rather than overshooting a range it does not divide", () => {
+    expect(tickValues(0, 1, 0.3)).toEqual([0, 0.3, 0.6, 0.9]);
+  });
+
+  it("draws nothing rather than a comb", () => {
+    // Above the cap a scale stops telling you where you are and just adds
+    // texture, so it is dropped entirely instead of being drawn illegibly.
+    expect(tickValues(0, 5, 5 / (MAX_TICKS + 1))).toEqual([]);
+    expect(tickValues(0, 5, 0)).toEqual([]);
+    expect(tickValues(0, 5, -1)).toEqual([]);
+    expect(tickValues(5, 5, 1)).toEqual([]);
+  });
+});
+
+describe("withinDetent", () => {
+  // A 300pt track over 0–500%: 100% sits at 60pt.
+  const near = (x: number) => withinDetent(x, 300, 0, MAX_VOLUME, 1, 6);
+
+  it("catches the finger on the mark", () => {
+    expect(near(60)).toBe(true);
+    expect(near(65)).toBe(true);
+    expect(near(55)).toBe(true);
+  });
+
+  it("leaves the neighbouring steps reachable", () => {
+    // 5% is 3pt here, so the detent must not swallow more than a step or two
+    // either side or a deliberate 90% becomes unreachable.
+    expect(near(67)).toBe(false);
+    expect(near(53)).toBe(false);
+  });
+
+  it("is inert before layout", () => {
+    expect(withinDetent(0, 0, 0, MAX_VOLUME, 1, 6)).toBe(false);
   });
 });
 

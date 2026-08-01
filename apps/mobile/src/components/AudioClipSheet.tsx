@@ -15,12 +15,12 @@
  * alone and handed back to the curve editor rather than flattened.
  */
 import { useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { BottomSheet } from "./BottomSheet";
 import { VIcon } from "./VIcon";
 import { VSlider } from "./VSlider";
 import { PercentField } from "./PercentField";
-import { font, mono, sp, vela } from "../constants";
+import { font, mono, r, sp, vela } from "../constants";
 import { fadesOf, maxFadeFor, MAX_VOLUME, withFades } from "../model/audio-fade";
 import type { AudioTrackClip } from "../model/types";
 import { useEditor } from "../store/editorStore";
@@ -53,6 +53,7 @@ export function AudioClipSheet() {
   const project = useEditor((s) => s.project);
   const trimClip = useEditor((s) => s.trimClip);
   const applyAudioFades = useEditor((s) => s.applyAudioFades);
+  const applyAudioVolumeToAll = useEditor((s) => s.applyAudioVolumeToAll);
   const mediaDurations = useEditor((s) => s.mediaDurations);
 
   const track = project?.tracks?.find((t) => t.id === selected?.trackId);
@@ -84,11 +85,31 @@ export function AudioClipSheet() {
   }
 
   const sourceLen = mediaDurations[clip.src];
+  const trackClips = track?.clips.length ?? 1;
   const maxFade = maxFadeFor(duration);
   const commitFades = (next: NonNullable<typeof fades>) => {
     setFades(next);
     applyAudioFades(selected.trackId, clip.id, next);
   };
+  /*
+   * Names its scope, and confirms first. It reaches every clip on THIS audio
+   * track — the one the selected clip is on — and it moves the LEVEL only, so a
+   * clip with its own fades keeps them.
+   */
+  const applyVolumeToAll = (volume: number) =>
+    Alert.alert(
+      "Apply to all",
+      `Set every clip on this track to ${Math.round(volume * 100)}%. That is ${
+        trackClips
+      } clip${trackClips === 1 ? "" : "s"}. Fades on each clip are kept.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Apply",
+          onPress: () => applyAudioVolumeToAll(selected.trackId, volume),
+        },
+      ],
+    );
   const commitTrim = (nextIn: number, nextDur: number) => {
     setTrimIn(nextIn);
     setDuration(nextDur);
@@ -191,6 +212,8 @@ export function AudioClipSheet() {
               min={0}
               max={MAX_VOLUME}
               step={0.05}
+              ticks={0.5}
+              defaultValue={1}
               onChange={(v) => commitFades({ ...fades, volume: v })}
             />
           </Row>
@@ -212,6 +235,23 @@ export function AudioClipSheet() {
               onChange={(v) => commitFades({ ...fades, fadeOut: v })}
             />
           </Row>
+          <Pressable
+            accessibilityRole="button"
+            style={s.apply}
+            onPress={() => applyVolumeToAll(fades.volume)}
+            disabled={trackClips < 2}
+          >
+            <VIcon
+              name="duplicate"
+              size={17}
+              color={trackClips < 2 ? vela.lightMuted : vela.accent}
+            />
+            <Text style={[s.applyText, trackClips < 2 && s.applyOff]}>
+              {trackClips < 2
+                ? "No other clip on this track"
+                : `Apply this volume to all ${trackClips} clips`}
+            </Text>
+          </Pressable>
         </View>
       ) : (
         // A duck or a hand-drawn ramp. Overwriting it with two fade sliders
@@ -288,6 +328,19 @@ const s = StyleSheet.create({
     backgroundColor: vela.accent,
   },
   row: { flexDirection: "row", alignItems: "center", gap: sp.md },
+  apply: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: sp.sm,
+    marginTop: sp.xs,
+    paddingVertical: 13,
+    borderRadius: r.md,
+    borderCurve: "continuous",
+    backgroundColor: vela.homeBg,
+  },
+  applyText: { color: vela.accent, fontFamily: font.semibold, fontSize: 14 },
+  applyOff: { color: vela.lightMuted3 },
   rowLabel: {
     width: 62,
     color: vela.ink2,

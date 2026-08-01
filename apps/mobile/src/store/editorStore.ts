@@ -426,6 +426,8 @@ interface EditorState {
   setSoundMuted: (trackId: string, clipId: string, muted: boolean) => void;
   /** Put this level and mute on every clip with its own sound on one track. */
   applySoundToAll: (trackId: string, volume: number, muted: boolean) => void;
+  /** Put this level on every clip of one audio track (music, voiceover). */
+  applyAudioVolumeToAll: (trackId: string, volume: number) => void;
   /** Apply / clear a volume envelope on the selected clip (audio or video). */
   applyClipVolumeCurve: (curve: VolumePoint[] | undefined) => void;
   /** Set the project background (color / gradient / image). */
@@ -1635,6 +1637,33 @@ export const useEditor = create<EditorState>((set, get) => ({
    * Sound lane mirrors, and music and voiceover clips have their own controls
    * that this would otherwise overwrite without ever naming them.
    */
+  /*
+   * The music equivalent of `applySoundToAll`, and deliberately a separate
+   * action rather than a flag on it: that one skips anything that is not a
+   * video clip, this one takes every clip on the track. Both go through
+   * `withVolume`, so a clip carrying a fade keeps its shape and has its plateau
+   * moved instead of being flattened to a constant.
+   *
+   * Its scope is ONE track. A project can hold more than one audio track and a
+   * voiceover sits on its own; quietly relevelling a track the user was not
+   * looking at is how a mix gets lost.
+   */
+  applyAudioVolumeToAll: (trackId, volume) =>
+    get().apply((p) => {
+      const track = (p.tracks ?? []).find((t) => t.id === trackId);
+      if (!track || track.kind !== "audio") return p;
+      let np = p;
+      for (const c of track.clips) {
+        const next = withVolume(c, volume);
+        np = ops.setClipVolumeCurve(
+          ops.setClipVolume(np, trackId, c.id, next.volume),
+          trackId,
+          c.id,
+          next.volumeCurve,
+        );
+      }
+      return np;
+    }),
   applySoundToAll: (trackId, volume, muted) =>
     get().apply((p) => {
       const track = (p.tracks ?? []).find((t) => t.id === trackId);

@@ -32,6 +32,45 @@ export function quantize(v: number, min: number, max: number, step: number): num
 }
 
 /**
+ * Above this many marks a scale stops being a scale and becomes a texture — a
+ * comb of hairlines that says nothing about where you are. A slider asked for
+ * more than this draws none.
+ */
+export const MAX_TICKS = 40;
+
+/** The values a slider draws a mark at, every `interval` from `min`. */
+export function tickValues(min: number, max: number, interval: number): number[] {
+  if (!(interval > 0) || max <= min) return [];
+  // The epsilon is what puts the final mark on `max` when the interval divides
+  // the range exactly: 5 / 0.5 comes out as 9.999999999999998 in binary.
+  const n = Math.floor((max - min) / interval + 1e-9);
+  if (n < 1 || n > MAX_TICKS) return [];
+  const out: number[] = [];
+  for (let i = 0; i <= n; i++) out.push(Math.round((min + i * interval) * 1e6) / 1e6);
+  return out;
+}
+
+/**
+ * Is the finger close enough to `target` to be taken as meaning it?
+ *
+ * A detent, not a magnet: the radius is small enough that the neighbouring
+ * steps are still reachable, and it exists so that tapping the mark drawn at
+ * 100% lands on exactly 100% rather than a few percent either side of it.
+ */
+export function withinDetent(
+  x: number,
+  w: number,
+  min: number,
+  max: number,
+  target: number,
+  px: number,
+): boolean {
+  if (w <= 0 || max <= min) return false;
+  const at = ((target - min) / (max - min)) * w;
+  return Math.abs(x - at) <= px;
+}
+
+/**
  * What a typed percentage means, or `null` when it means nothing.
  *
  * Returns a GAIN (1 = 100%), because that is what the model stores. Anything
