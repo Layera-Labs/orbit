@@ -69,6 +69,9 @@ const TIPS: Tip[] = [
   { text: "Your projects sync across devices once you sign in." },
 ];
 
+/** Shared by the tip and the slot that reserves room for two lines of it. */
+const TIP_LINE_HEIGHT = 19;
+
 /** How long each tip stays up. Long enough to read twice, unhurried. */
 const TIP_MS = 6500;
 
@@ -194,7 +197,21 @@ export function ExportOverlay() {
             Rendered at full opacity from the first frame. Nothing here waits on
             an animation to become visible.
           */}
-            <Text style={s.tip}>{tips[tip % tips.length]}</Text>
+            {/*
+            The slot is sized for TWO lines whatever this tip needs, because
+            the tips rotate and they are not all the same length. Sized to the
+            text, a one-line tip followed by a two-line one grew the block by
+            19pt and shoved everything above it up the screen — a progress
+            screen twitching while you wait on it, for no reason but the copy.
+
+            minHeight rather than a fixed height, and no numberOfLines: a tip
+            that somehow needs three (a longer string, or larger accessibility
+            text) still shows in full. It costs a rare small jump instead of
+            silently truncating the sentence.
+          */}
+            <View style={s.tipSlot}>
+              <Text style={s.tip}>{tips[tip % tips.length]}</Text>
+            </View>
           </View>
         </View>
       </SafeAreaView>
@@ -290,11 +307,17 @@ const s = StyleSheet.create({
     fontSize: 14,
     fontFamily: font.medium,
   },
+  tipSlot: {
+    // Two lines of `tip`'s own lineHeight. Stated from the same number the
+    // text uses, so changing one cannot silently stop matching the other.
+    minHeight: TIP_LINE_HEIGHT * 2,
+    marginTop: sp.sm,
+    justifyContent: "center",
+  },
   tip: {
     color: vela.muted,
     fontSize: 13,
-    lineHeight: 19,
+    lineHeight: TIP_LINE_HEIGHT,
     fontFamily: font.regular,
-    marginTop: sp.sm,
   },
 });
