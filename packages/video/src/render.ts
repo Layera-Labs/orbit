@@ -288,6 +288,37 @@ function probeHasAudio(bin: string, file: string, timeoutMs = DEFAULT_PROBE_TIME
   });
 }
 
+/**
+ * ffmpeg's leading banner: the version line, the compiler, the enormous
+ * `configuration:` line and the `lib*` version table.
+ *
+ * Matched only against the START of stderr, so a `configuration:` appearing in
+ * real output later is left alone.
+ */
+const FFMPEG_BANNER = /^(ffmpeg version |\s+built with |\s+configuration:|\s+lib[a-z]+\s+\d+\.)/;
+
+/**
+ * The part of ffmpeg's stderr a human needs, which is never the top of it.
+ *
+ * `stderr.slice(-2000)` alone is not enough. The banner is ~1500 characters, so
+ * on a failure that prints little else the tail still BEGINS with the version
+ * and the configure flags, and any UI that shows the message from the top — an
+ * iOS Alert, say — shows nothing but build trivia while the actual error sits
+ * below the fold with no way to scroll to it. That is exactly how a real export
+ * failure reached a user as three screens of `--enable-libspeex`.
+ *
+ * Strips the leading banner block, then tails what remains. Falls back to the
+ * raw text when that leaves nothing, because a message that says only
+ * "exited with code 1" is worse than build trivia.
+ */
+export function ffmpegErrorTail(stderr: string, max = 2000): string {
+  const lines = stderr.split('\n');
+  let i = 0;
+  while (i < lines.length && FFMPEG_BANNER.test(lines[i])) i++;
+  const body = lines.slice(i).join('\n').trim() || stderr.trim();
+  return body.length > max ? body.slice(-max) : body;
+}
+
 function runFFmpeg(
   bin: string,
   args: string[],
@@ -311,7 +342,7 @@ function runFFmpeg(
       live.delete(proc);
       if (timedOut) reject(new Error(`ffmpeg timed out after ${timeoutMs}ms`));
       else if (code === 0) resolve();
-      else reject(new Error(`ffmpeg exited with code ${code}\n${stderr.slice(-2000)}`));
+      else reject(new Error(`ffmpeg exited with code ${code}\n${ffmpegErrorTail(stderr)}`));
     });
   });
 }

@@ -6,9 +6,52 @@
  * sheet surface when needed. App sheets are light by default; the editor canvas
  * remains dark behind them.
  */
-import { Animated, Modal, Pressable, StyleSheet, View } from "react-native";
+import { useEffect, useState } from "react";
+import {
+  Animated,
+  Keyboard,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  View,
+} from "react-native";
 import { vela } from "../constants";
 import { useSheetMotion } from "./sheetMotion";
+
+/**
+ * How far the keyboard currently covers the screen.
+ *
+ * A sheet is anchored to the bottom, so the keyboard opens straight over
+ * whatever is lowest in it — which is exactly where a text field and its Done
+ * button tend to sit. Padding the container by the keyboard's height lifts the
+ * whole sheet clear of it.
+ *
+ * `will*` on iOS, not `did*`: the will events fire BEFORE the keyboard's
+ * animation, so the sheet travels with it instead of snapping up afterwards.
+ * Android has no will events. `willChangeFrame` looks like the more complete
+ * choice and is not — it also fires while the keyboard is leaving, racing
+ * `willHide` to restore an inset that should be going to zero.
+ */
+function useKeyboardInset(): number {
+  const [inset, setInset] = useState(0);
+  useEffect(() => {
+    const ios = Platform.OS === "ios";
+    const show = Keyboard.addListener(
+      ios ? "keyboardWillShow" : "keyboardDidShow",
+      (e) => setInset(e.endCoordinates?.height ?? 0),
+    );
+    const hide = Keyboard.addListener(
+      ios ? "keyboardWillHide" : "keyboardDidHide",
+      () => setInset(0),
+    );
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  return inset;
+}
 
 export function BottomSheet({
   onClose,
@@ -22,6 +65,7 @@ export function BottomSheet({
   dim?: string;
 }) {
   const { translateY, backdrop, close } = useSheetMotion(onClose);
+  const keyboardInset = useKeyboardInset();
 
   return (
     <Modal
@@ -39,7 +83,7 @@ export function BottomSheet({
           { backgroundColor: dim, opacity: backdrop },
         ]}
       />
-      <View style={styles.fill}>
+      <View style={[styles.fill, { paddingBottom: keyboardInset }]}>
         {/* Tap-outside-to-close sits behind the sheet. */}
         <Pressable style={StyleSheet.absoluteFill} onPress={close} />
         <Animated.View
