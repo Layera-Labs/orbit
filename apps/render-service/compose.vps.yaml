@@ -7,6 +7,13 @@
 # imports workspace packages by source and cannot be built from its own
 # directory alone.
 #
+# BUT THE ENV FILE LIVES NEXT TO THIS FILE, at apps/render-service/.env, not at
+# the repo root. Compose reads `.env` from its PROJECT DIRECTORY, which defaults
+# to the directory holding the compose file — not the directory you ran the
+# command from. A root .env is silently ignored and the stack fails on the first
+# required variable, naming a file that exists and looks correct. Pass
+# `--env-file` if you want it somewhere else.
+#
 # How this differs from `compose.yaml`, which is the reference for what the
 # service NEEDS rather than a deployment:
 #
