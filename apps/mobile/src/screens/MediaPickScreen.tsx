@@ -11,6 +11,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Pressable,
@@ -30,6 +31,7 @@ import {
   type GenRecord,
 } from "../storage/genHistory";
 import { copyIntoMedia, downloadToMedia, videoThumbnail } from "../storage/media";
+import { isPhotoAssetUri, useAssetUri } from "../media/assetUri";
 import {
   isMissingKey,
   searchStock,
@@ -115,6 +117,20 @@ export function MediaPickScreen() {
           ...(resolved.type === "video" ? { trimIn: 0, volume: 1 } : {}),
         } as VisualTrackClip);
         at += duration;
+      }
+      /*
+       * Say so when a pick could not be brought onto disk — most often an
+       * iCloud photo that is not on the device. Dropping it in silence made
+       * the app look like it had simply ignored the tap, which is the worst
+       * of both: no media and no reason.
+       */
+      const dropped = picked.length - clips.length;
+      if (dropped > 0) {
+        Alert.alert(
+          dropped === picked.length ? "Nothing could be added" : "Some items skipped",
+          `${dropped} item${dropped === 1 ? "" : "s"} could not be opened. ` +
+            `Photos stored only in iCloud need to be downloaded to this device first.`,
+        );
       }
       if (!clips.length) return;
 
@@ -229,6 +245,15 @@ async function resolvePick(
        */
       const info = await MediaLibrary.getAssetInfoAsync(item.asset);
       const uri = info.localUri ?? item.asset.uri;
+      /*
+       * No `localUri` means the asset is in iCloud and was not fetched — the
+       * default DOES download, so this is the genuine failure case (offline,
+       * or the download was refused). Falling through with `item.asset.uri`
+       * hands a `ph://` id to `copyIntoMedia`, which cannot open one either,
+       * so the pick failed later and looked like a broken file rather than a
+       * photo that is not on the device.
+       */
+      if (isPhotoAssetUri(uri)) return null;
       const video = item.asset.mediaType === MediaLibrary.MediaType.video;
       return {
         src: copyIntoMedia(uri, video ? "mp4" : "jpg"),
@@ -326,6 +351,7 @@ function DeviceGrid({
       contentContainerStyle={s.grid}
       renderItem={({ item }) => (
         <PickTile
+          assetId={item.id}
           uri={item.uri}
           video={mediaType === "video"}
           duration={item.duration}
@@ -497,6 +523,7 @@ function StockGrid({
 }
 
 function PickTile({
+  assetId,
   uri,
   video,
   duration,
@@ -505,6 +532,8 @@ function PickTile({
   order,
   onPress,
 }: {
+  /** Set for Photos assets, whose `uri` is a `ph://` id `<Image>` cannot load. */
+  assetId?: string;
   uri?: string;
   video?: boolean;
   duration?: number;
@@ -513,6 +542,7 @@ function PickTile({
   order?: number;
   onPress: (additive: boolean) => void;
 }) {
+  const shown = useAssetUri(assetId, uri);
   return (
     <Pressable
       accessibilityRole="button"
@@ -526,8 +556,12 @@ function PickTile({
       delayLongPress={280}
       style={[s.tile, { aspectRatio: ratio ?? 1 }, selected && s.tileOn]}
     >
-      {uri ? (
-        <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      {shown ? (
+        <Image
+          source={{ uri: shown }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+        />
       ) : (
         <View style={s.tileBlank}>
           <VIcon name={video ? "video" : "image"} size={20} color={vela.muted3} />
