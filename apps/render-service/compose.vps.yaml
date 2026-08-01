@@ -31,11 +31,17 @@ services:
     build:
       context: ../..
       dockerfile: apps/render-service/Dockerfile
-    # No published port. Caddy reaches it over the compose network, so the
-    # service is not exposed to the internet except through TLS — binding 8787
-    # on the host would let anyone skip the proxy entirely.
-    expose:
-      - "8787"
+    # Bound to LOOPBACK, not 0.0.0.0. A proxy on this box reaches it; the
+    # internet cannot, so nobody can skip TLS by asking for port 8787 directly.
+    # The `:8787:8787` form without the address prefix would publish it to the
+    # world and, on most setups, punch through ufw as well — docker writes its
+    # own iptables rules ahead of ufw's.
+    #
+    # This is also the seam for an existing web panel (aaPanel, Plesk, cPanel)
+    # or a hand-rolled nginx: leave the caddy profile off and point the panel's
+    # reverse proxy at http://127.0.0.1:8787.
+    ports:
+      - "127.0.0.1:8787:8787"
     environment:
       # REQUIRED — signs every session and guest token, and the service refuses
       # to boot without it under NODE_ENV=production. Generate once:
@@ -98,7 +104,20 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # OPT-IN, because it wants ports 80 and 443 and a box often already has
+  # something on them — aaPanel, Plesk, an existing nginx. Enable it only on a
+  # box with nothing else serving HTTP:
+  #
+  #   docker compose -f apps/render-service/compose.vps.yaml --profile caddy up -d --build
+  #
+  # Otherwise leave it off and point the existing proxy at 127.0.0.1:8787. Two
+  # of its settings are not optional there: a body limit of at least 512 MB
+  # (uploads go to 500 MB) and a proxy read timeout in the thousands of seconds
+  # (an export holds its connection for as long as ffmpeg runs, and nginx's
+  # 60-second default kills a 4K render at the finish line). See
+  # docs/guide/deploying.md.
   caddy:
+    profiles: ["caddy"]
     image: caddy:2-alpine
     ports:
       - "80:80"
