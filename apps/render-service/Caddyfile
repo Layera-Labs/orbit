@@ -1,0 +1,34 @@
+# TLS and reverse proxy for a single-box deployment. Used by compose.vps.yaml.
+#
+# Caddy obtains and renews the certificate itself, so there is no certbot step
+# and no renewal cron. It needs ports 80 and 443 reachable from the internet and
+# ORBIT_DOMAIN's A record already pointing at this box — the ACME challenge
+# fails otherwise, and it fails at startup rather than later.
+{
+	email {$ORBIT_ACME_EMAIL}
+}
+
+{$ORBIT_DOMAIN} {
+	# An export holds its connection open for as long as ffmpeg runs, and a 4K
+	# render is minutes. Caddy applies NO timeout to a proxied response by
+	# default, which is exactly what this needs — do not "add sane timeouts"
+	# here later without checking against a long render, because a short one
+	# kills the request at the finish line, after all the work is done.
+	reverse_proxy render:8787
+
+	# Uploads go up to 500 MB (ORBIT_MAX_UPLOAD_BYTES). Caddy does not cap
+	# request bodies by default; this is the explicit ceiling so a hostile
+	# caller cannot stream forever, and it must not be lower than the
+	# service's own limit or large media fails at the proxy with a 413 the
+	# client cannot explain.
+	request_body {
+		max_size 512MB
+	}
+
+	encode zstd gzip
+
+	log {
+		output stdout
+		format console
+	}
+}

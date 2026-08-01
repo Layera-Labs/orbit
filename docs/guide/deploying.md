@@ -31,6 +31,23 @@ ORBIT_JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toStri
   docker compose -f apps/render-service/compose.yaml up --build
 ```
 
+That compose file is the **reference for what the service needs**, not a
+deployment: no database, no TLS, and its files live in the container's temp dir
+and die with it. For a single VPS (Contabo, Hetzner, DigitalOcean — any box with
+a public IP) use `compose.vps.yaml` instead, which adds Postgres, a volume for
+media and renders, and Caddy for automatic HTTPS:
+
+```bash
+docker compose -f apps/render-service/compose.vps.yaml up -d --build
+```
+
+Two things about it are worth knowing before you change them. The media and
+output directories are **not configurable** — the service writes to the OS temp
+dir — so the volume works by pointing `TMPDIR` at it, and dropping that env var
+silently goes back to losing every render on redeploy. And HTTPS is not
+decoration: iOS App Transport Security blocks plain HTTP, so a device build
+cannot reach an `http://` service at all.
+
 ### The one variable it will not start without
 
 ```
