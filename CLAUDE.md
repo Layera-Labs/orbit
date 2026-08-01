@@ -113,8 +113,14 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   explain the dead ones with an alert. It is positioned from state that already exists —
   scrolling the timeline IS setting the playhead, so the scroll offset is
   `playheadSec * pxPerSec` and the clip's on-screen centre needs no plumbing out of
-  `Timeline`. Vertically it sits **against its own lane** (2026-07-31) — above it, or below
-  it when the lane is the top one and there is nothing above to sit on. It is rendered
+  `Timeline`. Vertically it sits **ABOVE its own lane, always** (2026-08-01). It used to drop
+  below when it could not fit above, which is exactly what happened on the MUSIC
+  lane — the top one, where `laneTop - BAR_H` goes negative against a `RULER_H` of
+  22 — so the bar for a music clip appeared on the text lane and read as belonging
+  to it. Asked for four times now. It is clamped to 0 rather than allowed
+  negative, which would put it over the transport's play and undo buttons; on the
+  top lane that means it overlaps the ruler and the first few pixels of the lane's
+  own strip, which is a deliberate trade against appearing over a different lane. It is rendered
   INSIDE the timeline's vertical scroller, from `selLane` (`RULER_H` plus each lane and its
   `LANE_GAP`), so it travels with the lanes; positioning it from `EditorScreen` would mean
   plumbing that scroll offset back out. It previously cleared the WHOLE timeline, which put
