@@ -102,6 +102,23 @@ export class JobRegistry {
       } catch (err) {
         job.status = "error";
         job.error = err instanceof Error ? err.message : String(err);
+        /*
+         * Log it, for the same reason the synchronous path does: without this
+         * a failed render leaves NO trace on the server. The only record of it
+         * travels to whichever client polls the job, so a user reports "export
+         * failed" and the box has nothing to show — the request log shows the
+         * 202 and a run of healthy 200s from polling, and then simply stops.
+         *
+         * That gap is not theoretical; it is how the async path shipped. The
+         * sync path carries a comment saying an unlogged ffmpeg error is
+         * undebuggable, and the reasoning was never carried across when jobs
+         * were added — so the moment async became the default for both
+         * clients, every real failure became invisible here.
+         */
+        console.error(
+          `[orbit] render job ${job.id} failed:`,
+          err instanceof Error ? (err.stack ?? err.message) : err,
+        );
       } finally {
         job.finishedAt = this.now();
       }
