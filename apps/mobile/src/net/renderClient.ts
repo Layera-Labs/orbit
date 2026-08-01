@@ -12,6 +12,7 @@ import { Directory, File, Paths } from 'expo-file-system';
 import { authHeaders, discardIfGuest } from './session';
 import * as MediaLibrary from 'expo-media-library';
 import type { ExportOutput, VideoProject } from '../model/types';
+import { fileExists } from '../storage/media';
 
 /**
  * localUri → upload token, so re-exports don't re-upload unchanged media.
@@ -93,26 +94,111 @@ function guessType(uri: string): string {
   }
 }
 
-export async function uploadMedia(base: string, localUri: string): Promise<string> {
+/**
+ * No byte has moved for this long, so the upload is dead rather than slow.
+ *
+ * Measured against progress, NOT against total elapsed time, which is the only
+ * way to tell the two apart: a 200 MB video over hotel wifi is minutes of
+ * legitimate work, and any fixed deadline long enough to allow it is far too
+ * long to notice a connection that has actually gone.
+ */
+const UPLOAD_STALL_MS = 45_000;
+
+/**
+ * POST one file, reporting bytes as they go.
+ *
+ * XHR rather than `fetch`, for the one thing fetch cannot do in React Native:
+ * report UPLOAD progress. Without it a large file is indistinguishable from a
+ * hung one — the export sat at "Sending your media 10 of 10" with a frozen bar
+ * and no timeout anywhere in the path, so a dropped connection meant waiting
+ * forever and force-quitting. The progress events feed both the bar and the
+ * stall watchdog.
+ */
+function sendUpload(
+  url: string,
+  headers: Record<string, string>,
+  form: FormData,
+  onBytes?: (sent: number, total: number) => void,
+): Promise<{ status: number; body: string }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    let lastMoved = Date.now();
+    let settled = false;
+    const settle = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearInterval(watch);
+      fn();
+    };
+    const watch = setInterval(() => {
+      if (Date.now() - lastMoved < UPLOAD_STALL_MS) return;
+      settle(() => {
+        try {
+          xhr.abort();
+        } catch {
+          // Aborting an already-dead request is not itself a failure.
+        }
+        reject(new Error('the upload stopped responding — check your connection'));
+      });
+    }, 2000);
+    xhr.upload.onprogress = (e: { loaded: number; total: number; lengthComputable: boolean }) => {
+      lastMoved = Date.now();
+      if (e.lengthComputable) onBytes?.(e.loaded, e.total);
+    };
+    xhr.onload = () => settle(() => resolve({ status: xhr.status, body: xhr.responseText }));
+    xhr.onerror = () =>
+      settle(() => reject(new Error('the upload failed — the connection dropped')));
+    xhr.ontimeout = () => settle(() => reject(new Error('the upload timed out')));
+    xhr.open('POST', url);
+    // Set AFTER open, which is the only point at which they are accepted.
+    // Content-Type is deliberately left alone: the runtime writes the
+    // multipart boundary itself, and stating one strips it.
+    for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
+    xhr.send(form as unknown as Document);
+  });
+}
+
+export async function uploadMedia(
+  base: string,
+  localUri: string,
+  onBytes?: (sent: number, total: number) => void,
+): Promise<string> {
   const cached = uploadCache.get(cacheKey(base, localUri));
   if (cached) return cached;
-  const form = new FormData();
   const name = localUri.split('/').pop() || 'file';
-  form.append('file', { uri: localUri, name, type: guessType(localUri) } as unknown as Blob);
-  const send = async () =>
-    fetch(`${base}/v1/upload`, {
-      method: 'POST',
-      headers: await authHeaders(base),
-      body: form,
-    });
+  /*
+   * Checked before sending, because the failure otherwise happens inside the
+   * request: iOS hands back an empty body for a file that is not there, and
+   * the upload either hangs or posts nothing while the UI counts it as work in
+   * progress. A project can outlive its media — the Photos entry was deleted,
+   * or the app's container was renumbered by a reinstall.
+   */
+  if (!fileExists(localUri)) {
+    throw new Error(`this media is no longer on the device: ${name}`);
+  }
+  const makeForm = () => {
+    const form = new FormData();
+    form.append('file', {
+      uri: localUri,
+      name,
+      type: guessType(localUri),
+    } as unknown as Blob);
+    return form;
+  };
+  const url = `${base}/v1/upload`;
   // Uploading used to need no token at all, which made this a free public file
   // host for anyone who found the URL.
-  let res = await send();
+  let res = await sendUpload(url, await authHeaders(base), makeForm(), onBytes);
   // A stale guest token is not something the user can act on, and there is no
   // account to send them to — take a fresh one and try once.
-  if (res.status === 401 && (await discardIfGuest())) res = await send();
-  const data = (await res.json()) as { id?: string; error?: string };
-  if (!res.ok || !data.id) throw new Error(data.error ?? `upload failed (HTTP ${res.status})`);
+  if (res.status === 401 && (await discardIfGuest())) {
+    res = await sendUpload(url, await authHeaders(base), makeForm(), onBytes);
+  }
+  const data = (JSON.parse(res.body || '{}') ?? {}) as { id?: string; error?: string };
+  const ok = res.status >= 200 && res.status < 300;
+  if (!ok || !data.id) {
+    throw new Error(data.error ?? `upload failed (HTTP ${res.status})`);
+  }
   uploadCache.set(cacheKey(base, localUri), data.id);
   return data.id;
 }
@@ -134,10 +220,29 @@ export async function exportProject(
 
   const attempt = async (): Promise<string> => {
   const tokens = new Map<string, string>();
+  const total = localSrcs.size;
   let i = 0;
   for (const src of localSrcs) {
-    onProgress?.({ stage: 'uploading', current: ++i, total: localSrcs.size });
-    tokens.set(src, await uploadMedia(cleanBase, src));
+    const index = ++i;
+    onProgress?.({ stage: 'uploading', current: index, total });
+    /*
+     * Fraction spans the WHOLE upload stage, not this one file, so a big video
+     * moves the same bar the file count does. Reporting per-file would send it
+     * back to zero on every item; reporting only the count left it frozen for
+     * minutes on a large file, which read as a hang.
+     */
+    tokens.set(
+      src,
+      await uploadMedia(cleanBase, src, (sent, bytes) => {
+        if (!bytes) return;
+        onProgress?.({
+          stage: 'uploading',
+          current: index,
+          total,
+          fraction: (index - 1 + sent / bytes) / total,
+        });
+      }),
+    );
   }
   const swap = (src: string) => (isLocal(src) ? tokens.get(src)! : src);
 

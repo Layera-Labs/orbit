@@ -20,6 +20,10 @@ vi.mock("../session", () => ({
 }));
 vi.mock("expo-file-system", () => ({ Directory: class {}, File: class {}, Paths: {} }));
 vi.mock("expo-media-library", () => ({}));
+// Files are present by default; one test flips this to exercise the check that
+// a project can outlive its media.
+const disk = vi.hoisted(() => ({ present: true }));
+vi.mock("../../storage/media", () => ({ fileExists: () => disk.present }));
 
 const { exportProject } = await import("../renderClient");
 
@@ -52,16 +56,42 @@ beforeEach(() => {
   calls = [];
   staleRenders = 0;
   uploadSeq = 0;
+  disk.present = true;
   vi.stubGlobal("FormData", class { append() {} } as never);
+  /*
+   * Uploads go over XHR, not fetch — that is the only way to get upload
+   * progress in React Native, and progress is what tells a slow upload from a
+   * dead one. So the stub has to be an XHR, not another fetch route.
+   */
+  vi.stubGlobal(
+    "XMLHttpRequest",
+    class {
+      status = 200;
+      responseText = "";
+      upload: { onprogress?: (e: unknown) => void } = {};
+      onload?: () => void;
+      onerror?: () => void;
+      ontimeout?: () => void;
+      open(_method: string, url: string) {
+        calls.push(url);
+      }
+      setRequestHeader() {}
+      abort() {}
+      send() {
+        this.responseText = JSON.stringify({ id: `upload:u_${++uploadSeq}.png` });
+        // Real progress events, so the fraction wiring is actually exercised
+        // rather than merely compiled.
+        setTimeout(() => {
+          for (const loaded of [25, 60, 100]) {
+            this.upload.onprogress?.({ loaded, total: 100, lengthComputable: true });
+          }
+          this.onload?.();
+        }, 0);
+      }
+    } as never,
+  );
   vi.stubGlobal("fetch", async (url: string, init?: { body?: unknown }) => {
     calls.push(url);
-    if (url.endsWith("/v1/upload")) {
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({ id: `upload:u_${++uploadSeq}.png` }),
-      };
-    }
     if (url.endsWith("/v1/render")) {
       const sent = JSON.parse(String(init?.body)) as {
         project: { tracks: { clips: { src: string }[] }[] };
@@ -124,6 +154,69 @@ describe("upload token caching", () => {
     const first = uploads();
     await exportProject("https://two.test", project);
     expect(uploads()).toBe(first + 1);
+  });
+
+  it("reports bytes as they go, so a big file moves the bar", async () => {
+    // Without this the bar showed only the file COUNT, so one large video
+    // froze it for minutes and read as a hang. The fraction spans the whole
+    // stage rather than the single file, or it would restart at zero on each.
+    const seen: number[] = [];
+    await exportProject("https://bytes.test", project, (p) => {
+      if (p.stage === "uploading" && p.fraction !== undefined) seen.push(p.fraction);
+    });
+    expect(seen.length).toBeGreaterThan(0);
+    expect(Math.max(...seen)).toBeLessThanOrEqual(1);
+    // Monotonic: a bar that goes backwards is worse than one that does not move.
+    expect([...seen].sort((a, b) => a - b)).toEqual(seen);
+  });
+
+  it("aborts an upload that stops moving, instead of waiting forever", async () => {
+    /*
+     * The reported symptom: "Sending your media 10 of 10" with a frozen bar
+     * and nothing ever arriving at the server. There was no timeout anywhere
+     * in the path, so the only way out was force-quitting the app.
+     *
+     * The watchdog measures time since the last BYTE, not total elapsed time —
+     * a large upload over a slow link must be left alone.
+     */
+    vi.useFakeTimers();
+    let aborted = false;
+    vi.stubGlobal(
+      "XMLHttpRequest",
+      class {
+        status = 0;
+        responseText = "";
+        upload: { onprogress?: (e: unknown) => void } = {};
+        onload?: () => void;
+        onerror?: () => void;
+        open() {}
+        setRequestHeader() {}
+        abort() {
+          aborted = true;
+        }
+        send() {
+          // Sends nothing, reports nothing, never completes.
+        }
+      } as never,
+    );
+    const failing = exportProject("https://stall.test", project);
+    const settled = expect(failing).rejects.toThrow(/stopped responding/);
+    await vi.advanceTimersByTimeAsync(60_000);
+    await settled;
+    expect(aborted).toBe(true); // the request is actually torn down, not leaked
+    vi.useRealTimers();
+  });
+
+  it("fails with something actionable when the file is gone from the device", async () => {
+    // A project outlives its media: the Photos entry is deleted, or a reinstall
+    // renumbers the container. iOS returns an EMPTY BODY for a missing file, so
+    // without this check the upload posts nothing and succeeds, and the failure
+    // surfaces much later as ffmpeg refusing a zero-byte input.
+    disk.present = false;
+    await expect(exportProject("https://gone.test", project)).rejects.toThrow(
+      /no longer on the device/,
+    );
+    expect(uploads()).toBe(0); // refused before any request went out
   });
 
   it("treats a trailing slash as the same server, not a second one", async () => {
