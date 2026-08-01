@@ -125,7 +125,15 @@ services:
     environment:
       # The domain pointed at this box, and the address Let's Encrypt mails
       # about expiry. Caddy fetches and renews the certificate itself.
-      ORBIT_DOMAIN: ${ORBIT_DOMAIN:?set ORBIT_DOMAIN in .env}
+      #
+      # NOT declared required (`:?`), even though Caddy cannot work without it:
+      # compose interpolates every service in the file regardless of which
+      # profiles are active, so a required variable here would demand a domain
+      # from everyone running WITHOUT this profile — the common case, where an
+      # existing panel owns the certificate and this container never starts.
+      # Enable the profile without setting it and Caddy fails on an empty site
+      # address at startup, which is loud enough.
+      ORBIT_DOMAIN: ${ORBIT_DOMAIN:-}
       ORBIT_ACME_EMAIL: ${ORBIT_ACME_EMAIL:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
