@@ -48,6 +48,45 @@ silently goes back to losing every render on redeploy. And HTTPS is not
 decoration: iOS App Transport Security blocks plain HTTP, so a device build
 cannot reach an `http://` service at all.
 
+### Behind an existing web panel or nginx
+
+Caddy is behind a `caddy` profile and is **off by default**, because a box
+running aaPanel, Plesk, cPanel or a hand-rolled nginx already has ports 80 and
+443 taken. The command above therefore starts only the service and its
+database, with the service on `127.0.0.1:8787` — reachable by a proxy on the
+same box, not from the internet. Point the panel's reverse proxy at it and let
+the panel issue the certificate.
+
+**Two proxy settings are not optional, and both fail in ways that look like a
+broken app rather than a broken proxy:**
+
+| Setting | nginx default | Needs to be | What breaks |
+|---|---|---|---|
+| `client_max_body_size` | 1 MB | ≥ `512m` | Any real upload dies at the proxy with a 413. Uploads go to 500 MB. |
+| `proxy_read_timeout` | 60s | ≥ `3600s` | A render that takes over a minute is killed **after ffmpeg finishes the work**, so the box burns the CPU and the client still sees a failure. |
+
+Also set `proxy_request_buffering off`, or nginx spools the entire upload to its
+own disk before the service sees a byte — doubling the write and the wait on
+every piece of media.
+
+```nginx
+client_max_body_size 512m;
+proxy_request_buffering off;
+proxy_read_timeout 3600s;
+proxy_send_timeout 3600s;
+
+location / {
+    proxy_pass http://127.0.0.1:8787;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Render progress is **polled**, not streamed, so `proxy_buffering` can be left
+alone.
+
 ### The one variable it will not start without
 
 ```
