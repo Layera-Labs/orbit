@@ -33,7 +33,8 @@ import {
 } from './keyframes';
 import { clipRectPx, progressAt, r3, srcTimeAt } from './layout';
 import { isFullSource, normalizeRotation } from './transform';
-import { fadeFactorAt, projectFadeMap } from './transitions';
+import { fadeFactorAt, projectEdgeFadeMap } from './transitions';
+import { resolveTransitions, xfadeMapOf, xfadeStateFor } from './xfade';
 import { elementFadeAt, resolveAnim, slideOffsetAt } from './element-anim';
 import { blendToFFmpeg } from './blend';
 import { backgroundToSVG } from './background-svg';
@@ -133,7 +134,17 @@ function backgroundOp(bg: Background | undefined, W: number, H: number): DrawOp 
 export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
   const { width: W, height: H } = p;
   const ops: DrawOp[] = [backgroundOp(p.background, W, H)];
-  const fades = projectFadeMap(p);
+  const fades = projectEdgeFadeMap(p);
+  /*
+   * Transitions belong to the MAIN track's boundaries. Clips overlap by the
+   * transition duration, so both sides are naturally inside their own `[S,E]`
+   * during the window and both get emitted — which is the whole reason overlap
+   * lives in `start` rather than in a field of its own.
+   */
+  const mainTrack = (p.tracks ?? []).find(
+    (t): t is VisualTrack => t.kind === 'visual',
+  );
+  const xfades = xfadeMapOf(resolveTransitions(mainTrack?.clips ?? []).boundaries);
 
   for (const c of visualClipsOf(p)) {
     const S = c.start;
@@ -162,6 +173,9 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
         ? Math.max(0, c.opacity)
         : 1;
     alpha *= fadeFactorAt(fades.get(c.id), S, E, t);
+    // The transition's own contribution, for whichever side of it this clip is.
+    const xf = xfadeStateFor(xfades.get(c.id), t);
+    if (xf) alpha *= xf.alpha;
     /*
      * The element's own fade multiplies with the transition's, because two
      * chained `fade` filters multiply their alphas and this has to say what the

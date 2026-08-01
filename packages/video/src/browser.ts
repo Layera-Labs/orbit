@@ -130,8 +130,28 @@ export {
   snapAngle,
   SNAP_ANGLES,
 } from './transform';
-export { buildFadeMap, projectFadeMap, fadeFactorAt } from './transitions';
+export { buildEdgeFadeMap, projectEdgeFadeMap, fadeFactorAt } from './transitions';
+export { migrateTransitionOverlap, OVERLAP_SCHEMA } from './migrate-overlap';
 export type { ClipFade } from './transitions';
+export {
+  MAX_OVERLAP_FRAC,
+  resolveTransitions,
+  xfadeMapOf,
+  xfadeName,
+  xfadeProgressAt,
+  requestedOverlap,
+  xfadeStateAt,
+  xfadeStateFor,
+} from './xfade';
+export type {
+  ClipXfades,
+  EdgeFade,
+  ResolvedTransitions,
+  TransitionBoundary,
+  TransitionDowngrade,
+  XfRole,
+  XfState,
+} from './xfade';
 
 // Auto-captions. Pure layout over a transcript the service produced.
 export {

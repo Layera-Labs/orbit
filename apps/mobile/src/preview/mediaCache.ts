@@ -48,8 +48,16 @@ import { ByteLru, LeasePool } from "./mediaPool";
  * app's largest allocation.
  */
 const IMAGE_BUDGET_BYTES = 96 * 1024 * 1024;
-/** Idle decoders to keep. Each holds an open file and native decode buffers. */
-const VIDEO_POOL_MAX = 3;
+/**
+ * Idle decoders to keep. Each holds an open file and native decode buffers.
+ *
+ * Four since transitions became real overlaps: a crossfade mounts TWO base
+ * layers at once, and each takes an exclusive lease, so three left no idle
+ * headroom for a picture-in-picture plus the neighbour being warmed. An
+ * undersized pool is not a soft failure — `LeasePool.release` disposes rather
+ * than keeps once full, so every boundary crossing turns back into a file open.
+ */
+const VIDEO_POOL_MAX = 4;
 
 /* ------------------------------------------------------------------ images */
 
@@ -119,8 +127,26 @@ const videos = new LeasePool<Video>(VIDEO_POOL_MAX, (v) => v.dispose());
 /** Uris with a build already running, so a prefetch cannot stack decoders up. */
 const videoLoads = new Set<string>();
 
-const takeVideo = (uri: string) => videos.take(uri);
-const releaseVideo = (uri: string, v: Video) => videos.release(uri, v);
+/**
+ * Sources currently held by a layer.
+ *
+ * `videos.has` only sees IDLE decoders, so without this a prefetch for a uri
+ * that is on screen right now looks like a miss and opens a SECOND decoder for
+ * the same file. Unreachable while only one base clip was ever mounted;
+ * reachable the moment a transition mounts two and the prefetch reaches for
+ * their neighbours.
+ */
+const leasedUris = new Set<string>();
+
+const takeVideo = (uri: string) => {
+  const v = videos.take(uri);
+  if (v) leasedUris.add(uri);
+  return v;
+};
+const releaseVideo = (uri: string, v: Video) => {
+  leasedUris.delete(uri);
+  videos.release(uri, v);
+};
 
 function buildVideo(src: string) {
   "worklet";
@@ -138,7 +164,8 @@ function stash(v: Video, uri: string) {
  * that eventually wants it starts at a seek instead of at a file open.
  */
 export function prefetchVideo(uri: string | null | undefined) {
-  if (!uri || videoLoads.has(uri) || videos.has(uri)) return;
+  if (!uri || videoLoads.has(uri) || videos.has(uri) || leasedUris.has(uri))
+    return;
   videoLoads.add(uri);
   runOnRuntime(loadRuntime, buildVideo)(uri);
 }
@@ -181,6 +208,7 @@ export function useLeasedVideo(uri: string | null): Video | null {
       return;
     }
     leased.current = { uri: forUri, video: v };
+    leasedUris.add(forUri);
     setVideo(v);
   }, []);
 

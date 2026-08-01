@@ -78,6 +78,8 @@ export interface ComposeDeps {
   playing: boolean;
   /** Whether `ctx.filter` works here; when false, grades are skipped. */
   filterOK: boolean;
+  /** Sources this frame draws twice. Filled in by `renderFrame`. */
+  duplicated?: Set<string>;
 }
 
 /**
@@ -99,8 +101,9 @@ export function renderFrame(
   ctx.filter = 'none';
   ctx.clearRect(0, 0, width, height);
 
+  const frameDeps: ComposeDeps = { ...deps, duplicated: duplicatedSrcs(ops) };
   for (const op of ops) {
-    const source = sourceFor(op, deps);
+    const source = sourceFor(op, frameDeps);
     if (!source) continue;
 
     const dw = Math.max(1, Math.round(op.dst.w));
@@ -300,8 +303,28 @@ function sourceFor(op: DrawOp, deps: ComposeDeps): Decoded | null {
   const url = deps.resolved[op.src] ?? (op.src.startsWith('http') ? op.src : null);
   if (!url) return null;
   const isVideo = op.srcTime != null;
-  deps.pool.acquire(url, isVideo ? 'video' : 'image');
-  return deps.pool.frameAt(url, op.srcTime ?? 0, deps.playing && isVideo, 1);
+  /*
+   * One decoder per FILE, except where this frame draws the same file twice —
+   * which a transition between two halves of a split clip does routinely. Two
+   * layers on one `<video>` would fight over its `currentTime`, so those get a
+   * decoder each, keyed by the clip. An `<img>` has no position to fight over,
+   * so images are always shared.
+   */
+  const key = isVideo && deps.duplicated?.has(op.src) ? `${op.id}|${url}` : url;
+  deps.pool.acquire(key, url, isVideo ? 'video' : 'image');
+  return deps.pool.frameAt(key, op.srcTime ?? 0, deps.playing && isVideo, 1);
+}
+
+/** Sources this frame draws more than once — see `sourceFor`. */
+export function duplicatedSrcs(ops: DrawOp[]): Set<string> {
+  const seen = new Set<string>();
+  const dup = new Set<string>();
+  for (const op of ops) {
+    if (op.srcTime == null || !op.src) continue;
+    if (seen.has(op.src)) dup.add(op.src);
+    else seen.add(op.src);
+  }
+  return dup;
 }
 
 /** `cover` reproduces scale+crop; `stretch` is the identity fill. */

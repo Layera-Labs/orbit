@@ -423,7 +423,11 @@ export type TrackClip = VisualTrackClip | AudioTrackClip;
 
 export interface VideoProject {
   id: ID;
-  schemaVersion: 1 | 2;
+  /**
+   * 1 legacy single-track, 2 `tracks`, 3 transitions as clip OVERLAP
+   * (`migrate-overlap.ts`).
+   */
+  schemaVersion: 1 | 2 | 3;
   /** Output resolution, px (e.g. 1080×1920 for reels). */
   width: number;
   height: number;

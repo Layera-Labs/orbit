@@ -97,6 +97,35 @@ export function usePreview(
     };
   }, []);
 
+  /*
+   * Let go of decoders for clips that no longer exist.
+   *
+   * The pool is keyed by url, and by `clipId|url` for the clips a transition
+   * draws twice — so it can now hold an entry per clip rather than per file,
+   * and something has to bound it. The keep-set is built from the PROJECT, not
+   * from the current frame: pruning to what is on screen would tear down and
+   * rebuild a decoder at every cut.
+   */
+  useEffect(() => {
+    const pool = poolRef.current;
+    if (!pool) return;
+    const keep = new Set<string>();
+    for (const track of project?.tracks ?? [])
+      for (const c of track.clips) {
+        const url = resolvedRef.current[c.src];
+        if (!url) continue;
+        keep.add(url);
+        keep.add(`${c.id}|${url}`);
+      }
+    if (project?.background?.type === 'image') {
+      const url = resolvedRef.current[project.background.src];
+      if (url) keep.add(url);
+    }
+    pool.prune(keep);
+    // `srcKey` rather than the ref: the ref is mutable and would not retrigger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project, srcKey]);
+
   // Keep the audio graph in step with the project's audio clips.
   useEffect(() => {
     const id = setTimeout(() => {

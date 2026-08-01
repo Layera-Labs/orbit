@@ -42,7 +42,8 @@ import {
   normalizeRotation,
   rotatedBoxPx,
 } from "./transform";
-import { buildFadeMap } from "./transitions";
+import { buildEdgeFadeMap } from "./transitions";
+import { resolveTransitions, xfadeMapOf } from "./xfade";
 import {
   animWindows,
   hasFade,
@@ -454,11 +455,24 @@ function buildMultiTrackArgs(
     .flatMap((t) => t.clips);
   const textOverlays = project.overlays.filter((o) => images[o.id]);
 
-  // Transitions (fade-through-black) on the MAIN (first visual) track: a clip's
-  // `transitionIn` fades it in; the previous clip then fades out. clip.id → fade.
-  // Shared with the browser preview via `transitions.ts` — see `frame.ts`.
+  /*
+   * Transitions on the MAIN (first visual) track. Clips OVERLAP by the
+   * transition duration, so a crossfade needs no second picture of its own:
+   * drawing the incoming clip over the outgoing one at alpha `p` is exactly
+   * `p*B + (1-p)*A`, which is what `xfade=transition=fade` computes. So a
+   * `fade` boundary is one `fade=t=in:alpha=1` on the INCOMING clip and
+   * nothing at all on the outgoing one — where it used to be a ramp on each,
+   * through the background, costing twice the duration.
+   *
+   * `resolveTransitions` is the one place that decides what a boundary does;
+   * `frame.ts` reads the same answer, which is what keeps the preview honest.
+   * The families that cannot be expressed as an alpha arrive with the xfade
+   * chain itself.
+   */
   const mainTrack = tracks.find((t): t is VisualTrack => t.kind === "visual");
-  const fadeMap = buildFadeMap(mainTrack?.clips ?? []);
+  const resolved = resolveTransitions(mainTrack?.clips ?? []);
+  const xfades = xfadeMapOf(resolved.boundaries);
+  const fadeMap = buildEdgeFadeMap(mainTrack?.clips ?? []);
 
   // ---- inputs: base(0), visual clips, text overlays, audio clips ----
   const inputs: string[] = [];
@@ -524,6 +538,9 @@ function buildMultiTrackArgs(
         : `setpts=PTS-STARTPTS+${S}/TB,`;
     const grade = filterToFFmpeg(c.filter);
     const fade = fadeMap.get(c.id);
+    // The transition arriving at this clip, if any. Only the incoming side of a
+    // boundary carries a filter; the outgoing side is simply left alone under it.
+    const xfIn = xfades.get(c.id)?.asTo;
     const key = chromaToFFmpeg(c.cutout);
     const kfs = c.keyframes;
     const kfOpacity = hasKeyframes(kfs) && animatesOpacity(kfs!);
@@ -579,7 +596,7 @@ function buildMultiTrackArgs(
       c.magnifier ||
       deg !== 0
         ? "rgba"
-        : fade || hasFade(anim)
+        : fade || xfIn || hasFade(anim)
           ? "yuva420p"
           : "yuv420p";
     /*
@@ -617,6 +634,10 @@ function buildMultiTrackArgs(
     if (fade?.fin) chain += `,fade=t=in:st=${r3(S)}:d=${fade.fin}:alpha=1`;
     if (fade?.fout)
       chain += `,fade=t=out:st=${r3(E - fade.fout)}:d=${fade.fout}:alpha=1`;
+    // The crossfade. `xfIn.at` is this clip's own start, so the ramp begins the
+    // instant it appears and finishes where the clip below it ends.
+    if (xfIn)
+      chain += `,fade=t=in:st=${r3(xfIn.at)}:d=${r3(xfIn.overlap)}:alpha=1`;
     /*
      * The element's own fade, chained AFTER the transition's. Two `fade`
      * filters multiply their alphas, which is exactly what `frameStateAt` does
@@ -933,8 +954,25 @@ function buildMultiTrackArgs(
     const srcDur = c.duration * sp;
     const tempo = atempoChain(sp);
     const tempoPart = tempo ? `${tempo},` : "";
+    /*
+     * Cross-fade the SOUND across a transition, or the picture dissolves while
+     * the audio doubles. `amix` runs with `normalize=0` — it sums — so two
+     * overlapping clips are both at full level for the whole overlap and every
+     * transition arrives with a loudness bump.
+     *
+     * Linear ramps (`afade`'s default `tri`), matching the video's linear
+     * alpha, so the two halves of a transition move together. `adelay` has
+     * already put this stream on absolute timeline time, which is why `st=`
+     * takes the boundary's own second exactly as the video `fade` does.
+     */
+    const xf = xfades.get(c.id);
+    let aCross = "";
+    if (xf?.asTo)
+      aCross += `,afade=t=in:st=${r3(xf.asTo.at)}:d=${r3(xf.asTo.overlap)}`;
+    if (xf?.asFrom)
+      aCross += `,afade=t=out:st=${r3(xf.asFrom.at)}:d=${r3(xf.asFrom.overlap)}`;
     segments.push(
-      `[${vIn[i]}:a]atrim=start=${c.trimIn ?? 0}:duration=${srcDur},asetpts=PTS-STARTPTS,${tempoPart}adelay=${ms}:all=1,${gain(c.volumeCurve, c.volume, c.start, c.duration)}[va${i}]`,
+      `[${vIn[i]}:a]atrim=start=${c.trimIn ?? 0}:duration=${srcDur},asetpts=PTS-STARTPTS,${tempoPart}adelay=${ms}:all=1,${gain(c.volumeCurve, c.volume, c.start, c.duration)}${aCross}[va${i}]`,
     );
     aLabels.push(`[va${i}]`);
   });

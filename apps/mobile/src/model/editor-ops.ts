@@ -27,6 +27,7 @@ import type {
 } from "./types";
 import { isFullSource, normalizeRotation } from "../preview/transform";
 import { MAX_VOLUME } from "./audio-fade";
+import { requestedOverlap } from "../preview/xfade";
 
 export const MIN_CLIP = 0.1;
 
@@ -52,12 +53,42 @@ export function trackEnd(t: Track): number {
   return t.clips.reduce((m, c) => Math.max(m, c.start + c.duration), 0);
 }
 
-/** The clip on `track` occupying absolute time `sec`, if any. */
+/**
+ * Every clip on `track` occupying absolute time `sec`, in array order.
+ *
+ * Up to TWO on a visual track: clips overlap by their transition duration, so
+ * inside a transition the outgoing clip and the incoming one are both live —
+ * which is the whole reason a crossfade can exist at all.
+ */
+export function clipsAtTime(
+  track: Track,
+  sec: number,
+): (VisualTrackClip | AudioTrackClip)[] {
+  return track.clips.filter((c) => sec >= c.start && sec < c.start + c.duration);
+}
+
+/**
+ * The single clip at `sec` — the one you would say you are looking at.
+ *
+ * Inside a transition that is a judgement call, and the answer is whichever
+ * clip is the more visible: the outgoing one until the halfway point of the
+ * overlap, the incoming one after it. Returning the top clip unconditionally
+ * would select something still at zero opacity, and returning the bottom one
+ * would keep selecting a clip that has already faded away.
+ *
+ * Callers that need to draw the transition want `clipsAtTime`; this is for
+ * selection, hit-testing and "which clip does this effect apply to".
+ */
 export function clipAtTime(
   track: Track,
   sec: number,
 ): VisualTrackClip | AudioTrackClip | undefined {
-  return track.clips.find((c) => sec >= c.start && sec < c.start + c.duration);
+  const live = clipsAtTime(track, sec);
+  if (live.length < 2) return live[0];
+  const outgoing = live[0];
+  const incoming = live[live.length - 1];
+  const mid = (incoming.start + outgoing.start + outgoing.duration) / 2;
+  return sec >= mid ? incoming : outgoing;
 }
 
 // ---------------------------------------------------------------------------
@@ -207,6 +238,29 @@ export function addAudioClip(
 }
 
 /**
+ * How much of the timeline a clip actually occupies on its own track.
+ *
+ * NOT its duration. A clip carrying a transition is laid back over the one
+ * before it, so it only adds `duration - overlap` to the track — and a ripple
+ * that shifts by the full duration therefore pushes every later clip too far,
+ * and every OTHER track (music, captions) out of sync with the picture by the
+ * accumulated difference.
+ */
+function timelineCost(
+  clips: (VisualTrackClip | AudioTrackClip)[],
+  clip: VisualTrackClip | AudioTrackClip,
+): number {
+  if (!("type" in clip)) return clip.duration;
+  const sorted = byStart(clips.filter((c) => c.id !== clip.id));
+  let prev: VisualTrackClip | undefined;
+  for (const c of sorted) {
+    if (c.start >= clip.start - 0.001) break;
+    if ("type" in c) prev = c as VisualTrackClip;
+  }
+  return clip.duration - requestedOverlap(prev, clip as VisualTrackClip);
+}
+
+/**
  * Insert a clip and push everything at or after its start later by its length.
  *
  * Plain `addVisualClip` drops the clip wherever it says, which for a duplicate
@@ -219,11 +273,11 @@ export function rippleInsertClip(
   trackId: string,
   clip: VisualTrackClip | AudioTrackClip,
 ): VideoProject {
+  const track = findTrack(p, trackId);
+  const by = timelineCost(track?.clips ?? [], clip);
   const shift = <T extends VisualTrackClip | AudioTrackClip>(cs: T[]): T[] =>
     cs.map((c) =>
-      c.start >= clip.start - 0.001
-        ? { ...c, start: c.start + clip.duration }
-        : c,
+      c.start >= clip.start - 0.001 ? { ...c, start: c.start + by } : c,
     );
   return updateClips(
     p,
@@ -256,16 +310,15 @@ export function rippleDeleteClip(
   const target = track?.clips.find((clip) => clip.id === clipId);
   if (!target) return p;
   const end = target.start + target.duration;
+  // What the clip cost the timeline, not how long it is — see `timelineCost`.
+  const by = timelineCost(track?.clips ?? [], target);
 
   const ripple = <T extends VisualTrackClip | AudioTrackClip>(clips: T[]) =>
     clips
       .filter((clip) => clip.id !== clipId)
       .map((clip) =>
         clip.start >= end - 0.001
-          ? {
-              ...clip,
-              start: Math.max(target.start, clip.start - target.duration),
-            }
+          ? { ...clip, start: Math.max(target.start, clip.start - by) }
           : clip,
       );
 
@@ -362,12 +415,22 @@ export function packVisualTrack(
   const track = findTrack(p, trackId);
   if (!track || track.kind !== "visual" || track.clips.length === 0) return p;
   const sorted = byStart(track.clips);
+  /*
+   * The canonical definition of the overlapped layout. A clip carrying a
+   * transition is laid BACK over the one before it by the transition's
+   * duration, which is what makes a crossfade possible and what makes adding
+   * one shorten the track. Everything else that moves clips in time — the
+   * migration, the ripple ops — places them the same way, through the same
+   * `requestedOverlap`.
+   */
+  const packed: VisualTrackClip[] = [];
   let cursor = sorted[0].start;
-  const packed = sorted.map((c) => {
-    const next = { ...c, start: cursor };
-    cursor += c.duration;
-    return next;
-  });
+  for (const c of sorted) {
+    const prev = packed[packed.length - 1];
+    const start = cursor - requestedOverlap(prev, c);
+    packed.push({ ...c, start });
+    cursor = start + c.duration;
+  }
   // Bail by identity when nothing actually moved — `apply` pushes history and
   // writes to disk on every call.
   if (
@@ -383,6 +446,29 @@ export function packVisualTrack(
     () => packed,
     (cs) => cs,
   );
+}
+
+/**
+ * The span a main clip owns ALONE — its window minus the transitions it shares
+ * with its neighbours.
+ *
+ * Clips overlap now, so a caption sitting inside a transition falls within the
+ * window of BOTH clips and would be grabbed by whichever one you moved. The
+ * exclusive span gives it to neither, which is the only answer that does not
+ * depend on which clip you happened to drag.
+ */
+function exclusiveSpan(
+  track: Track,
+  clip: VisualTrackClip | AudioTrackClip,
+): { start: number; end: number } {
+  const sorted = byStart(track.clips).filter((c) => "type" in c) as VisualTrackClip[];
+  const i = sorted.findIndex((c) => c.id === clip.id);
+  const inOv = i > 0 ? requestedOverlap(sorted[i - 1], sorted[i]) : 0;
+  const outOv = i >= 0 && sorted[i + 1] ? requestedOverlap(sorted[i], sorted[i + 1]) : 0;
+  return {
+    start: clip.start + inOv,
+    end: clip.start + clip.duration - outOv,
+  };
 }
 
 /** Overlays and non-main clips wholly inside `[start, end)`. */
@@ -425,12 +511,8 @@ export function moveMainClipLinked(
   if (!track || !clip) return p;
   const delta = Math.max(0, newStart) - clip.start;
   if (delta === 0) return setClipStart(p, trackId, clipId, newStart);
-  const { overlays, clips } = linkedWithin(
-    p,
-    trackId,
-    clip.start,
-    clip.start + clip.duration,
-  );
+  const span = exclusiveSpan(track, clip);
+  const { overlays, clips } = linkedWithin(p, trackId, span.start, span.end);
   const overlayIds = new Set(overlays.map((o) => o.id));
   const clipKeys = new Set(clips.map((c) => `${c.trackId}:${c.clipId}`));
   const shifted: VideoProject = {
@@ -477,12 +559,8 @@ export function removeMainClipLinked(
   const track = findTrack(p, trackId);
   const clip = track?.clips.find((c) => c.id === clipId);
   if (!track || !clip) return p;
-  const { overlays, clips } = linkedWithin(
-    p,
-    trackId,
-    clip.start,
-    clip.start + clip.duration,
-  );
+  const span = exclusiveSpan(track, clip);
+  const { overlays, clips } = linkedWithin(p, trackId, span.start, span.end);
   let next = removeClip(p, trackId, clipId);
   for (const o of overlays) next = removeOverlay(next, o.id);
   for (const c of clips) next = removeClip(next, c.trackId, c.clipId);
@@ -513,6 +591,15 @@ export function splitClipAt(
       start: c.start + local,
       duration: c.duration - local,
       trimIn: trimIn + local * speed,
+      /*
+       * The tail keeps NO transition. It arrived here through the spread, so
+       * the two halves each claimed the same `transitionIn` — and since a
+       * transition is now an overlap with the clip before it, the tail would
+       * claim to cross-fade with its own head, over an interval that does not
+       * exist. The head keeps it, because the head is what still follows the
+       * clip the transition was set against.
+       */
+      transitionIn: undefined,
     } as C;
     return [first, second];
   };
@@ -818,13 +905,53 @@ export function setClipKeyframes(
   return patchVisualClip(p, trackId, clipId, { keyframes: kfs });
 }
 
+/**
+ * Set (or clear) the transition arriving at a clip, and move the timeline to
+ * match.
+ *
+ * A transition IS an overlap — the clip is laid back over the one before it by
+ * the transition's duration — so writing the field alone would leave the model
+ * claiming a crossfade across an interval where the two clips never meet, and
+ * every renderer would fall back to a ramp through the background.
+ *
+ * Only this clip and the ones AFTER it move, and only on this track: captions
+ * and music were placed against the picture at a chosen moment, and sliding
+ * them would silently retime work the user already did. The picture gets
+ * shorter, which is what adding a transition means. Deliberately not
+ * `packVisualTrack` — packing runs only in Quick mode and would close gaps a
+ * Pro-mode edit put there on purpose.
+ */
 export function setClipTransition(
   p: VideoProject,
   trackId: string,
   clipId: string,
   transitionIn: Transition | undefined,
 ): VideoProject {
-  return patchVisualClip(p, trackId, clipId, { transitionIn });
+  const track = findTrack(p, trackId);
+  if (!track || track.kind !== "visual") return p;
+  const sorted = byStart(track.clips) as VisualTrackClip[];
+  const i = sorted.findIndex((c) => c.id === clipId);
+  if (i < 0) return p;
+  const prev = sorted[i - 1];
+  const before = requestedOverlap(prev, sorted[i]);
+  const after = requestedOverlap(prev, { ...sorted[i], transitionIn });
+  const delta = Math.round((after - before) * 1000) / 1000;
+
+  // The set of clips that move: this one and everything after it in time.
+  const moves = new Set(sorted.slice(i).map((c) => c.id));
+  const r3 = (n: number) => Math.round(n * 1000) / 1000;
+
+  return updateClips(
+    p,
+    trackId,
+    (cs) =>
+      cs.map((c) => {
+        const next = c.id === clipId ? { ...c, transitionIn } : c;
+        if (delta === 0 || !moves.has(c.id)) return next;
+        return { ...next, start: Math.max(0, r3(next.start - delta)) };
+      }),
+    (cs) => cs,
+  );
 }
 
 /** Set volume on a visual (video) OR audio clip — patches whichever lane holds it. */

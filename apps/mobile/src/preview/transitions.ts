@@ -1,24 +1,28 @@
 /**
- * Mirror of `packages/video/src/transitions.ts`.
+ * The fade a boundary falls back to when it cannot overlap.
  *
- * The preview used to compute this inline in `Preview.tsx` — a second copy of
- * the fade maths that happened to agree, with nothing checking that it kept
- * agreeing. It is here instead because `apps/mobile` is outside the pnpm
- * workspace and cannot import `@orbit/video`, so the arrangement everywhere
- * else in this directory applies: duplicate the function, and compare the two
- * by OUTPUT in a test (`__tests__/transitions.test.ts`, which imports the
- * canonical module by relative path).
+ * This module used to BE the transition system: every boundary produced a
+ * fade-out on the outgoing clip and a fade-in on the incoming one, through the
+ * background, and every non-`cut` type collapsed into that because the export
+ * had nothing else on this path. `xfade.ts` now owns the boundary, the clips
+ * overlap, and a transition is a real one.
  *
- * Two things about the export are deliberate and BOTH are reproduced here:
+ * What is left here is the case a crossfade cannot cover: a clip with nothing
+ * before it, and two clips that do not touch. Both really do want a ramp
+ * through the background — there is nothing to cross-fade WITH — so this keeps
+ * doing exactly what it did, for exactly those two cases. `resolveTransitions`
+ * decides which they are; this only turns its answer into windows.
  *
- *  1. Transitions apply only to the MAIN (first visual) track. Clips on higher
- *     tracks never fade.
- *  2. Every non-`cut` type — `slide`, `wipe`, `zoom`, `dissolve` — collapses to
- *     a fade, because the export has no wipe on this path. A preview that drew
- *     a real wipe would look BETTER than the file the user gets, which is the
- *     more damaging direction of drift.
+ * `fadeFactorAt` stays public and unchanged: `elementAnim.ts` delegates an
+ * element's own fade to it so that a clip's entrance and a boundary's fade are
+ * provably the same ramp rather than two that have to be kept in step.
+ *
+ * VENDORED from `packages/video/src/transitions.ts` — mobile installs outside
+ * the pnpm workspace. `__tests__/transitions.test.ts` compares the OUTPUTS of
+ * the two copies; it is what makes the arrangement safe.
  */
-import type { VisualTrackClip } from "../model/types";
+import type { VideoProject, VisualTrack, VisualTrackClip } from '../model/types';
+import { resolveTransitions } from './xfade';
 
 export interface ClipFade {
   /** Fade-in duration in seconds (0 = none). */
@@ -28,25 +32,34 @@ export interface ClipFade {
 }
 
 /**
- * clip id → fade window, for the main track only. A clip's own `transitionIn`
- * fades it in; the NEXT clip's `transitionIn` fades this one out, so the two
- * cross at the boundary.
+ * clip id → fade window, for the boundaries `resolveTransitions` could not
+ * overlap.
+ *
+ * The pair is kept: a clip after a gap fades UP from the background and the one
+ * before it fades DOWN into it, which is what the engine has always emitted and
+ * what the gap actually looks like. A clip with no predecessor gets the fade-in
+ * alone, there being nothing behind it to fade out.
  */
-export function buildFadeMap(clips: VisualTrackClip[]): Map<string, ClipFade> {
+export function buildEdgeFadeMap(clips: VisualTrackClip[]): Map<string, ClipFade> {
   const map = new Map<string, ClipFade>();
-  clips.forEach((c, i) => {
-    const fin =
-      c.transitionIn && c.transitionIn.type !== "cut"
-        ? c.transitionIn.duration
-        : 0;
-    const next = clips[i + 1];
-    const fout =
-      next?.transitionIn && next.transitionIn.type !== "cut"
-        ? next.transitionIn.duration
-        : 0;
-    if (fin || fout) map.set(c.id, { fin, fout });
-  });
+  const put = (id: string, patch: Partial<ClipFade>) => {
+    const cur = map.get(id) ?? { fin: 0, fout: 0 };
+    map.set(id, { ...cur, ...patch });
+  };
+  for (const e of resolveTransitions(clips).edges) {
+    put(e.clipId, { fin: e.duration });
+    const prev = clips[e.index - 1];
+    if (prev) put(prev.id, { fout: e.duration });
+  }
   return map;
+}
+
+/** The main track's edge fades for a whole project (empty when there are no tracks). */
+export function projectEdgeFadeMap(project: VideoProject): Map<string, ClipFade> {
+  const main = (project.tracks ?? []).find(
+    (t): t is VisualTrack => t.kind === 'visual',
+  );
+  return buildEdgeFadeMap(main?.clips ?? []);
 }
 
 /**

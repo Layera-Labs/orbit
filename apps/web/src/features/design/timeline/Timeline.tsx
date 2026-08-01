@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef } from 'react';
+import { Fragment, useCallback, useMemo, useRef } from 'react';
 import type {
   AudioTrack,
   TextOverlay,
@@ -396,28 +396,57 @@ export function Timeline({
                       the only lane that offers them. */}
                   {row.kind === 'visual' &&
                     row.base &&
-                    byStart(row.track.clips).map((clip, i) =>
-                      i === 0 ? null : (
-                        <button
-                          key={`tx_${clip.id}`}
-                          className={styles.transitionBadge}
-                          data-set={!!clip.transitionIn && clip.transitionIn.type !== 'cut'}
-                          style={{ left: Math.round(clip.start * pxPerSec) }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelect(clip.id);
-                            onEditTransition(clip.id);
-                          }}
-                          title={
-                            clip.transitionIn && clip.transitionIn.type !== 'cut'
-                              ? `Fade, ${clip.transitionIn.duration}s`
-                              : 'Add a transition'
-                          }
-                        >
-                          <Icon name="transition" size={13} />
-                        </button>
-                      ),
-                    )}
+                    byStart(row.track.clips).map((clip, i, cs) => {
+                      if (i === 0) return null;
+                      /*
+                       * A transition is an OVERLAP: the incoming clip starts
+                       * before the outgoing one ends, and the two are on screen
+                       * together for exactly that long. The band shows where —
+                       * without it the later clip simply appears to tuck under
+                       * its neighbour — and the badge sits at the MIDDLE of it,
+                       * because on a long transition the clip's start and the
+                       * join the badge stands for are seconds apart.
+                       */
+                      const prev = cs[i - 1];
+                      const overlap = Math.max(
+                        0,
+                        prev.start + prev.duration - clip.start,
+                      );
+                      const set = !!clip.transitionIn && clip.transitionIn.type !== 'cut';
+                      return (
+                        <Fragment key={`tx_${clip.id}`}>
+                          {overlap > 0 && (
+                            <span
+                              className={styles.transitionBand}
+                              aria-hidden
+                              style={{
+                                left: Math.round(clip.start * pxPerSec),
+                                width: Math.round(overlap * pxPerSec),
+                              }}
+                            />
+                          )}
+                          <button
+                            className={styles.transitionBadge}
+                            data-set={set}
+                            style={{
+                              left: Math.round((clip.start + overlap / 2) * pxPerSec),
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSelect(clip.id);
+                              onEditTransition(clip.id);
+                            }}
+                            title={
+                              set
+                                ? `Fade, ${clip.transitionIn!.duration}s`
+                                : 'Add a transition'
+                            }
+                          >
+                            <Icon name="transition" size={13} />
+                          </button>
+                        </Fragment>
+                      );
+                    })}
 
                   {/* Drawn in the drag layer of the lane it is over. */}
                   {drag.preview?.snappedTo != null &&

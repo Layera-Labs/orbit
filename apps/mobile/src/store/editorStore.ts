@@ -10,6 +10,7 @@ import { scheduleSync } from "./syncStore";
 import { DEFAULT_SERVER } from "../constants";
 import { createProject, projectDuration } from "../model/project";
 import * as ops from "../model/editor-ops";
+import { migrateTransitionOverlap } from "../model/migrateOverlap";
 import { MIN_CLIP, newId } from "../model/editor-ops";
 import { withFades, withVolume, type AudioFades } from "../model/audio-fade";
 import { resetCapabilities } from "../net/capabilities";
@@ -695,7 +696,8 @@ export const useEditor = create<EditorState>((set, get) => ({
     flushProjectSave();
     const stored = loadProject(id);
     if (!stored) return;
-    const project = ops.ensureTracks(stored.project); // migrate legacy → tracks
+    // legacy clips → tracks, then butt-joined transitions → real overlaps.
+    const project = migrateTransitionOverlap(ops.ensureTracks(stored.project));
     set({
       projectId: id,
       name: stored.name,
@@ -948,7 +950,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (exporting) return;
     const stored = loadProject(id);
     if (!stored) return;
-    const project = ops.ensureTracks(stored.project);
+    const project = migrateTransitionOverlap(ops.ensureTracks(stored.project));
     const clipCount = (project.tracks ?? []).reduce(
       (n, t) => n + t.clips.length,
       0,

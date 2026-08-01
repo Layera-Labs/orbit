@@ -48,7 +48,8 @@ import {
   useSharedValue,
 } from "react-native-reanimated";
 import { useClipFrame } from "../preview/useClipFrame";
-import { buildFadeMap, fadeFactorAt } from "../preview/transitions";
+import { buildEdgeFadeMap, fadeFactorAt } from "../preview/transitions";
+import { resolveTransitions, xfadeMapOf, xfadeStateFor } from "../preview/xfade";
 import {
   canvasFramePx,
   frameOuterPaint,
@@ -83,7 +84,7 @@ import { previewAudioOf, PreviewAudio } from "../preview/audioGraph";
 import { ensureFontsLoaded, useFontsVersion } from "../text/fonts";
 import { colorMatrix } from "../filters/registry";
 import { mono, ratioLabel } from "../constants";
-import { clipAtTime } from "../model/editor-ops";
+import { clipAtTime, clipsAtTime } from "../model/editor-ops";
 import { projectDuration } from "../model/project";
 import type {
   Background,
@@ -835,30 +836,39 @@ export function Preview({ width, height }: { width: number; height: number }) {
         }
       : c;
 
-  const baseRaw = base
-    ? (clipAtTime(base, lookupT) as VisualTrackClip | undefined)
-    : undefined;
-  const baseActive = baseRaw ? withLive(baseRaw) : undefined;
   const baseClips = base?.clips ?? [];
+  /*
+   * Up to TWO base clips, because main-track clips overlap by their transition
+   * duration — inside a crossfade the outgoing clip and the incoming one are
+   * both live, and drawing both is the whole point.
+   *
+   * Everything below reads the transition from the mirrored `xfade.ts` rather
+   * than computing it here. This file used to carry its own copy of the fade
+   * maths, agreeing with the engine by luck and with nothing checking that it
+   * kept agreeing; `preview/__tests__/xfade.test.ts` is that check now.
+   */
+  const baseLive = base
+    ? (clipsAtTime(base, lookupT) as VisualTrackClip[]).map(withLive)
+    : [];
+  const baseActive = baseLive[baseLive.length - 1];
   const baseIdx = baseActive
     ? baseClips.findIndex((c) => c.id === baseActive.id)
     : -1;
   const nextBaseClip = baseIdx >= 0 ? baseClips[baseIdx + 1] : undefined;
-  /*
-   * The fade the export will apply, from the mirrored `transitions.ts` rather
-   * than computed here. It used to be a second copy of the same maths living in
-   * this file, agreeing with the engine by luck and with nothing checking that
-   * it kept agreeing — `preview/__tests__/transitions.test.ts` is now that
-   * check.
-   */
-  const baseOp = baseActive
-    ? fadeFactorAt(
-        buildFadeMap(baseClips).get(baseActive.id),
-        baseActive.start,
-        baseActive.start + baseActive.duration,
-        playheadSec,
-      )
-    : 1;
+
+  const baseFades = useMemo(() => buildEdgeFadeMap(baseClips), [baseClips]);
+  const baseXfades = useMemo(
+    () => xfadeMapOf(resolveTransitions(baseClips).boundaries),
+    [baseClips],
+  );
+  /** Opacity for one base clip: its edge fade times its transition's. */
+  const baseOpacity = (c: VisualTrackClip) =>
+    fadeFactorAt(
+      baseFades.get(c.id),
+      c.start,
+      c.start + c.duration,
+      playheadSec,
+    ) * (xfadeStateFor(baseXfades.get(c.id), playheadSec)?.alpha ?? 1);
 
   /*
    * Warm the clips either side of the one on screen, so crossing a cut finds
@@ -1170,26 +1180,26 @@ export function Preview({ width, height }: { width: number; height: number }) {
             was centre-cropped in the MP4; and they ignored `rect` entirely, so
             a main-track clip made picture-in-picture still filled the preview.
           */}
-          <Group opacity={baseOp}>
-            {baseActive?.type === "video" ? (
-              <OverlayVideoLayer
-                key={baseActive.id}
-                clip={baseActive}
-                width={width}
-                height={height}
-                isPlaying={isPlaying}
-                playheadSec={playheadSec}
-              />
-            ) : baseActive?.type === "image" ? (
-              <OverlayImageLayer
-                key={baseActive.id}
-                clip={baseActive}
-                width={width}
-                height={height}
-                playheadSec={playheadSec}
-              />
-            ) : null}
-          </Group>
+          {baseLive.map((c) => (
+            <Group key={c.id} opacity={baseOpacity(c)}>
+              {c.type === "video" ? (
+                <OverlayVideoLayer
+                  clip={c}
+                  width={width}
+                  height={height}
+                  isPlaying={isPlaying}
+                  playheadSec={playheadSec}
+                />
+              ) : (
+                <OverlayImageLayer
+                  clip={c}
+                  width={width}
+                  height={height}
+                  playheadSec={playheadSec}
+                />
+              )}
+            </Group>
+          ))}
           {activeOverlays.map(({ clip }) =>
             clip.type === "video" ? (
               <OverlayVideoLayer

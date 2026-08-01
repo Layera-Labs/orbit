@@ -79,6 +79,14 @@ export const GUTTER_W = 48;
 const LANE_GAP = 6;
 const SQUEEZE_H = 30; // compact height for a collapsed multi-lane group
 const HANDLE_W = 16;
+/*
+ * The transition chip. Stated constants because the chip is absolutely
+ * positioned and centres itself against them — the old code half-guessed at 11
+ * for a 26pt box, so every chip on the timeline sat two pixels left of the join
+ * it was pointing at.
+ */
+const TR_CHIP_W = 26;
+const TR_CHIP_H = 22;
 const ADD_TILE_W = 42;
 const GAP_HUD_W = 174;
 const GAP_HUD_BG = "#5b4bff";
@@ -671,33 +679,63 @@ function ClipLane({
                 scrollRef={scrollRef}
               />
             ))}
-      {/* Transition chips between adjacent main-track clips */}
+      {/*
+        Transition chips between adjacent main-track clips, and the band that
+        shows where a transition actually runs.
+
+        A transition is an OVERLAP now: the incoming clip starts before the
+        outgoing one ends, and the two are on screen together for exactly that
+        long. So the chip sits at the middle of the overlap rather than on the
+        clip's start — on a long transition those are seconds apart, and a chip
+        pinned to the start would drift off the join it belongs to.
+      */}
       {row.key === "video"
-        ? row.clips.slice(1).map(({ clip, trackId }) => {
+        ? row.clips.slice(1).map(({ clip, trackId }, i) => {
             const hasT =
               !!clip.transitionIn && clip.transitionIn.type !== "cut";
+            const prev = row.clips[i].clip;
+            const overlap = Math.max(
+              0,
+              prev.start + prev.duration - clip.start,
+            );
+            const mid = clip.start + overlap / 2;
             return (
-              <Pressable
-                key={`tr-${clip.id}`}
-                style={[
-                  styles.trChip,
-                  hasT && styles.trChipOn,
-                  {
-                    left: clip.start * pxPerSec - 11,
-                    top: row.height / 2 - 10,
-                  },
-                ]}
-                onPress={() => {
-                  select({ trackId, clipId: clip.id });
-                  setPanel("transition");
-                }}
-              >
-                <VIcon
-                  name={hasT ? "fx" : "plus"}
-                  size={12}
-                  color={hasT ? vela.onAccent : "#fff"}
-                />
-              </Pressable>
+              <Fragment key={`tr-${clip.id}`}>
+                {overlap > 0 ? (
+                  <View
+                    pointerEvents="none"
+                    style={[
+                      styles.trBand,
+                      {
+                        left: clip.start * pxPerSec,
+                        width: overlap * pxPerSec,
+                        top: 2,
+                        height: row.height - 4,
+                      },
+                    ]}
+                  />
+                ) : null}
+                <Pressable
+                  style={[
+                    styles.trChip,
+                    hasT && styles.trChipOn,
+                    {
+                      left: mid * pxPerSec - TR_CHIP_W / 2,
+                      top: row.height / 2 - TR_CHIP_H / 2,
+                    },
+                  ]}
+                  onPress={() => {
+                    select({ trackId, clipId: clip.id });
+                    setPanel("transition");
+                  }}
+                >
+                  <VIcon
+                    name={hasT ? "fx" : "plus"}
+                    size={12}
+                    color={hasT ? vela.onAccent : "#fff"}
+                  />
+                </Pressable>
+              </Fragment>
             );
           })
         : null}
@@ -1457,10 +1495,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  /*
+   * The overlap itself. Both clips are drawn at their true widths and the later
+   * one sits on top, so without this the transition reads as one clip simply
+   * tucking under another for no visible reason.
+   */
+  trBand: {
+    position: "absolute",
+    borderRadius: 5,
+    borderCurve: "continuous",
+    backgroundColor: "rgba(91,75,255,0.32)",
+    zIndex: 5,
+  },
   trChip: {
     position: "absolute",
-    width: 26,
-    height: 22,
+    width: TR_CHIP_W,
+    height: TR_CHIP_H,
     borderRadius: 7,
     backgroundColor: "rgba(0,0,0,0.6)",
     alignItems: "center",
