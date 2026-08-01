@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { VideoProject, VisualTrackClip } from '@orbit/video/browser';
+import { migrateTransitionOverlap } from '@orbit/video/browser';
 import { Icon } from '@/brand/Icon';
 import { getMedia } from '@/db/media';
 import { setThumbnail } from '@/db/projects';
@@ -81,7 +82,10 @@ export function MotionDesign({
   useEffect(() => {
     const opened = useVideo.getState();
     if (opened.projectId === row.id && opened.project) return;
-    load(row.id, row.name, row.data as VideoProject);
+    // Butt-joined transitions → real overlaps, once, on open. Mobile runs the
+    // same migration on its own load path; two clients reconciling one synced
+    // document by different rules is how edits get lost.
+    load(row.id, row.name, migrateTransitionOverlap(row.data as VideoProject));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.id, load]);
 

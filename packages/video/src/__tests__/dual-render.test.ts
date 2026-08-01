@@ -16,7 +16,8 @@ import { buildFFmpegArgs } from '../ffmpeg';
 import { frameStateAt } from '../frame';
 import { resolveFilter, temperatureGains, temperatureKelvin } from '../filters';
 import { chromaAlphaAt, chromaParams } from '../cutout';
-import { fadeFactorAt, projectFadeMap } from '../transitions';
+import { fadeFactorAt, projectEdgeFadeMap } from '../transitions';
+import { resolveTransitions } from '../xfade';
 import { rotatedBoxPx } from '../transform';
 import { SLIDE_DISTANCE } from '../element-anim';
 import { clipRectPx } from '../layout';
@@ -201,7 +202,7 @@ describe('preview draw list matches the exported filtergraph', () => {
     expect(Number(fin[1])).toBe(6); // clip b starts at 6
     expect(Number(fin[2])).toBe(1);
 
-    const fades = projectFadeMap(project);
+    const fades = projectEdgeFadeMap(project);
     // Midway through b's 1s fade-in the preview must be at half alpha.
     expect(fadeFactorAt(fades.get('b'), 6, 10, 6.5)).toBeCloseTo(0.5, 6);
     expect(opsAt(6.5).find((o) => o.id === 'b')!.alpha).toBeCloseTo(0.5, 6);
@@ -675,5 +676,126 @@ describe('the canvas frame is composited in the right place', () => {
     };
     expect(build(neutral)).toEqual(build(fixture()));
     expect(build(fixture()).join(' ')).not.toContain('[fr]overlay=0:0');
+  });
+});
+
+/**
+ * A boundary the clips actually overlap on — the shape the editor produces now.
+ *
+ * The fixture above is the FALLBACK: its clips are butt-joined, so there is no
+ * instant where both are on screen, and a transition there can only ramp through
+ * the background as it always did. This one is the real thing.
+ */
+describe('an overlapping boundary crossfades instead of dipping to black', () => {
+  function crossfade(overlap = 1, bDur = 4): VideoProject {
+    const base = fixture();
+    const main = base.tracks![0] as VisualTrack;
+    const a = main.clips[0];
+    const b = main.clips[1];
+    return {
+      ...base,
+      overlays: [],
+      tracks: [
+        {
+          ...main,
+          clips: [
+            a,
+            {
+              ...b,
+              start: a.start + a.duration - overlap,
+              duration: bDur,
+              transitionIn: { type: 'fade', duration: overlap },
+            },
+          ],
+        },
+        base.tracks![1],
+      ],
+    };
+  }
+
+  const graphOf = (p: VideoProject) => {
+    const a = buildFFmpegArgs(p, {
+      outputPath: '/tmp/out.mp4',
+      baseImage: '/tmp/bg.png',
+      hasAudio: () => false,
+    });
+    return a[a.indexOf('-filter_complex') + 1];
+  };
+
+  it('ramps the INCOMING clip up over the overlap', () => {
+    const g = graphOf(crossfade());
+    const seg = g.split(';').find((s) => s.endsWith('[v1]'))!;
+    const fin = seg.match(/fade=t=in:st=([\d.]+):d=([\d.]+):alpha=1/)!;
+    // b now starts at 5, one second before a ends.
+    expect(Number(fin[1])).toBe(5);
+    expect(Number(fin[2])).toBe(1);
+  });
+
+  it('leaves the OUTGOING clip alone — it is what the fade reveals', () => {
+    /*
+     * The whole point of the overlap. Drawing b over a at alpha p is
+     * `p*b + (1-p)*a`, which is exactly what `xfade=transition=fade` computes;
+     * fading a out as well would take the picture to the background in the
+     * middle and cost twice the duration, which is what this replaced.
+     */
+    const g = graphOf(crossfade());
+    const seg = g.split(';').find((s) => s.endsWith('[v0]'))!;
+    expect(seg).not.toContain('fade=t=out');
+  });
+
+  it('has both clips live at once, in composite order', () => {
+    const p = crossfade();
+    const ops = frameStateAt(p, 5.5).filter((o) => o.kind === 'clip');
+    const ids = ops.map((o) => o.id);
+    expect(ids).toContain('a');
+    expect(ids).toContain('b');
+    expect(ids.indexOf('a')).toBeLessThan(ids.indexOf('b'));
+  });
+
+  it('agrees with the graph on the alpha of each side', () => {
+    const p = crossfade();
+    const at = (t: number, id: string) =>
+      frameStateAt(p, t).find((o) => o.id === id)!.alpha;
+    expect(at(5.5, 'b')).toBeCloseTo(0.5, 6);
+    expect(at(5.5, 'a')).toBe(1);
+    expect(at(5, 'b')).toBeCloseTo(0, 6);
+    expect(at(6, 'b')).toBeCloseTo(1, 6);
+  });
+
+  it('gates each clip on the window the export overlays it in', () => {
+    const g = graphOf(crossfade());
+    expect(g).toContain("enable='between(t,0,6)'");
+    expect(g).toContain("enable='between(t,5,9)'");
+  });
+
+  it('reports one boundary, and its overlap is the geometry', () => {
+    const main = crossfade(1.5).tracks![0] as VisualTrack;
+    const r = resolveTransitions(main.clips);
+    expect(r.edges).toEqual([]);
+    expect(r.boundaries).toHaveLength(1);
+    expect(r.boundaries[0]).toMatchObject({
+      prevId: 'a',
+      nextId: 'b',
+      name: 'fade',
+      overlap: 1.5,
+      at: 4.5,
+    });
+  });
+
+  it('clamps an overlap that would swallow half a clip', () => {
+    // b is 2s long, so no more than 1s of it may be spent transitioning — past
+    // that it would never once be seen whole.
+    const main = crossfade(1.6, 2).tracks![0] as VisualTrack;
+    const r = resolveTransitions(main.clips);
+    expect(r.boundaries[0].overlap).toBe(1);
+  });
+
+  it('falls back to a background ramp when the clips only touch', () => {
+    const main = fixture().tracks![0] as VisualTrack;
+    const r = resolveTransitions(main.clips);
+    expect(r.boundaries).toEqual([]);
+    expect(r.edges).toEqual([
+      { index: 1, clipId: 'b', duration: 1, reason: 'no-overlap' },
+    ]);
   });
 });

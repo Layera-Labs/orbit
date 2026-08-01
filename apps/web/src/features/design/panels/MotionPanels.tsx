@@ -12,7 +12,13 @@ import { ColourRow, SwatchGrid } from '@/brand/Colour';
 import { gradeIsExact } from '@/video/engine/grade';
 import { cutoutIsSupported } from '@/video/engine/cutout';
 import { newId } from '@/db/idb';
-import { addOverlay, nextOverlayLayer, patchClip, useVideo } from '@/store/videoStore';
+import {
+  addOverlay,
+  nextOverlayLayer,
+  patchClip,
+  setTransition,
+  useVideo,
+} from '@/store/videoStore';
 import { CaptionsSection } from './Captions';
 import styles from './Panels.module.css';
 
@@ -487,7 +493,7 @@ export function TransitionsPanel({ clip }: { clip: VisualTrackClip | null }) {
             className={styles.preset}
             data-on={!isFade}
             aria-pressed={!isFade}
-            onClick={() => apply((p) => patchClip(p, clip.id, { transitionIn: undefined }))}
+            onClick={() => apply((p) => setTransition(p, clip.id, undefined))}
           >
             <span className={styles.presetSwatch} />
             Cut
@@ -498,8 +504,9 @@ export function TransitionsPanel({ clip }: { clip: VisualTrackClip | null }) {
             aria-pressed={isFade}
             onClick={() =>
               apply((p) =>
-                patchClip(p, clip.id, {
-                  transitionIn: { type: 'fade', duration: current?.duration ?? 0.5 },
+                setTransition(p, clip.id, {
+                  type: 'fade',
+                  duration: current?.duration ?? 0.5,
                 }),
               )
             }
@@ -524,9 +531,7 @@ export function TransitionsPanel({ clip }: { clip: VisualTrackClip | null }) {
                 data-on={Math.abs((current?.duration ?? 0) - d) < 0.01}
                 aria-pressed={Math.abs((current?.duration ?? 0) - d) < 0.01}
                 onClick={() =>
-                  apply((p) =>
-                    patchClip(p, clip.id, { transitionIn: { type: 'fade', duration: d } }),
-                  )
+                  apply((p) => setTransition(p, clip.id, { type: 'fade', duration: d }))
                 }
               >
                 {d}s
@@ -538,7 +543,8 @@ export function TransitionsPanel({ clip }: { clip: VisualTrackClip | null }) {
 
       <p className={styles.note}>
         Transitions apply to the base track only, and render as a fade in both the preview
-        and the exported file.
+        and the exported file. A transition overlaps the two clips, so adding one makes
+        the base track shorter — music and captions stay where they are.
       </p>
     </div>
   );

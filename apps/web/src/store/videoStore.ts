@@ -11,6 +11,7 @@
 import { create } from 'zustand';
 import {
   projectDuration,
+  requestedOverlap,
   type AudioTrack,
   type Rect,
   type TextOverlay,
@@ -431,6 +432,24 @@ export function rippleDeleteClip(p: VideoProject, id: string): VideoProject {
   if (!found) return p;
   const { clip } = found;
   const end = clip.start + clip.duration;
+  /*
+   * By the clip's NET cost, not its duration. A clip carrying a transition is
+   * laid back over the one before it, so it only occupies `duration - overlap`
+   * of the track — rippling by the full duration would pull everything after it
+   * too far left and leave the picture ahead of the captions and the music by
+   * the accumulated difference.
+   */
+  const sorted = [...found.track.clips].sort((a, b) => a.start - b.start);
+  const i = sorted.findIndex((c) => c.id === id);
+  const by = r3(
+    clip.duration -
+      (found.track.kind === 'visual'
+        ? requestedOverlap(
+            sorted[i - 1] as VisualTrackClip | undefined,
+            clip as VisualTrackClip,
+          )
+        : 0),
+  );
   return {
     ...p,
     tracks: (p.tracks ?? []).map((t) => {
@@ -439,9 +458,54 @@ export function rippleDeleteClip(p: VideoProject, id: string): VideoProject {
         .filter((c) => c.id !== id)
         .map((c) =>
           c.start >= end - 0.001
-            ? { ...c, start: Math.max(clip.start, r3(c.start - clip.duration)) }
+            ? { ...c, start: Math.max(clip.start, r3(c.start - by)) }
             : c,
         );
+      return { ...t, clips } as typeof t;
+    }),
+  };
+}
+
+/**
+ * Set (or clear) the transition arriving at a clip, and move the timeline to
+ * match.
+ *
+ * A transition IS an overlap — the clip is laid back over the one before it by
+ * the transition's duration — so writing the field alone would leave the model
+ * claiming a crossfade across an interval where the two clips never meet, and
+ * every renderer would fall back to a ramp through the background.
+ *
+ * Only this clip and the ones after it move, and only on this track: captions
+ * and music were placed against the picture at a chosen moment. Mirrors
+ * `setClipTransition` in `apps/mobile/src/model/editor-ops.ts`; two clients
+ * reconciling one synced document by different rules is how edits get lost.
+ */
+export function setTransition(
+  p: VideoProject,
+  id: string,
+  transitionIn: VisualTrackClip['transitionIn'],
+): VideoProject {
+  const found = findClip(p, id);
+  if (!found || found.track.kind !== 'visual') return p;
+  const sorted = byStart(found.track.clips) as VisualTrackClip[];
+  const i = sorted.findIndex((c) => c.id === id);
+  if (i < 0) return p;
+  const prev = sorted[i - 1];
+  const delta = r3(
+    requestedOverlap(prev, { ...sorted[i], transitionIn }) -
+      requestedOverlap(prev, sorted[i]),
+  );
+  const moves = new Set(sorted.slice(i).map((c) => c.id));
+
+  return {
+    ...p,
+    tracks: (p.tracks ?? []).map((t) => {
+      if (t.id !== found.track.id) return t;
+      const clips = (t.clips as VisualTrackClip[]).map((c) => {
+        const next = c.id === id ? { ...c, transitionIn } : c;
+        if (delta === 0 || !moves.has(c.id)) return next;
+        return { ...next, start: Math.max(0, r3(next.start - delta)) };
+      });
       return { ...t, clips } as typeof t;
     }),
   };

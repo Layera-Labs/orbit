@@ -1,5 +1,12 @@
 /**
- * Media pool: one decoder element per source, shared across frames.
+ * Media pool: one decoder element per KEY, shared across frames.
+ *
+ * The key is normally the url, so every clip cut from one file shares a
+ * decoder. It stops being the url when two clips of the SAME file are on screen
+ * at once — which a transition makes routine, since splitting a clip and
+ * putting a crossfade on the join is the most ordinary edit there is. Two
+ * layers sharing one `<video>` would fight over its `currentTime` and one side
+ * of the transition would freeze or flicker.
  *
  * Two playback regimes, because they need opposite things:
  *  - PLAYING: let the element run at `playbackRate` and only correct when it
@@ -33,9 +40,12 @@ export class MediaPool {
     this.onReady = onReady;
   }
 
-  /** Ensure a decoder exists for `url`. `kind` picks the element type. */
-  acquire(url: string, kind: 'video' | 'image'): Entry {
-    const found = this.entries.get(url);
+  /**
+   * Ensure a decoder exists under `key`, loading `url` into it. `kind` picks
+   * the element type.
+   */
+  acquire(key: string, url: string, kind: 'video' | 'image'): Entry {
+    const found = this.entries.get(key);
     if (found) return found;
 
     if (kind === 'image') {
@@ -49,7 +59,7 @@ export class MediaPool {
         this.onReady?.();
       };
       img.src = url;
-      this.entries.set(url, entry);
+      this.entries.set(key, entry);
       return entry;
     }
 
@@ -69,29 +79,30 @@ export class MediaPool {
       if (entry.pending != null) {
         const next = entry.pending;
         entry.pending = null;
-        this.seekTo(url, next);
+        this.seekTo(key, next);
       } else {
         this.onReady?.();
       }
     };
     video.src = url;
-    this.entries.set(url, entry);
+    this.entries.set(key, entry);
     return entry;
   }
 
-  private seekTo(url: string, t: number): void {
-    const entry = this.entries.get(url);
+  private seekTo(key: string, t: number): void {
+    const entry = this.entries.get(key);
     if (!entry || !(entry.el instanceof HTMLVideoElement)) return;
     entry.seeking = true;
     entry.el.currentTime = t;
   }
 
   /**
-   * Put `url` at source time `t`. `playing` picks the regime described above.
-   * Returns the element to draw, or null while it is not yet decodable.
+   * Put the decoder under `key` at source time `t`. `playing` picks the regime
+   * described above. Returns the element to draw, or null while it is not yet
+   * decodable.
    */
-  frameAt(url: string, t: number, playing: boolean, rate: number): Decoded | null {
-    const entry = this.entries.get(url);
+  frameAt(key: string, t: number, playing: boolean, rate: number): Decoded | null {
+    const entry = this.entries.get(key);
     if (!entry || !entry.ready) return null;
     const el = entry.el;
     if (!(el instanceof HTMLVideoElement)) return el;
@@ -99,13 +110,13 @@ export class MediaPool {
     if (playing) {
       if (el.paused) void el.play().catch(() => undefined);
       if (Math.abs(el.playbackRate - rate) > 0.01) el.playbackRate = rate;
-      if (Math.abs(el.currentTime - t) > DRIFT_TOLERANCE && !entry.seeking) this.seekTo(url, t);
+      if (Math.abs(el.currentTime - t) > DRIFT_TOLERANCE && !entry.seeking) this.seekTo(key, t);
     } else {
       if (!el.paused) el.pause();
       if (Math.abs(el.currentTime - t) > 0.001) {
         // Coalesce: keep only the newest target while a seek is in flight.
         if (entry.seeking) entry.pending = t;
-        else this.seekTo(url, t);
+        else this.seekTo(key, t);
       }
     }
     return el;
@@ -120,14 +131,14 @@ export class MediaPool {
 
   /** Drop everything not in `keep`, so a deleted clip stops holding a decoder. */
   prune(keep: Set<string>): void {
-    for (const [url, entry] of this.entries) {
-      if (keep.has(url)) continue;
+    for (const [key, entry] of this.entries) {
+      if (keep.has(key)) continue;
       if (entry.el instanceof HTMLVideoElement) {
         entry.el.pause();
         entry.el.removeAttribute('src');
         entry.el.load();
       }
-      this.entries.delete(url);
+      this.entries.delete(key);
     }
   }
 
