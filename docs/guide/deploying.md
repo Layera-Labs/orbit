@@ -41,6 +41,12 @@ media and renders, and Caddy for automatic HTTPS:
 docker compose -f apps/render-service/compose.vps.yaml up -d --build
 ```
 
+Its variables go in **`apps/render-service/.env`**, next to the compose file —
+*not* the repo root, even though that is where you run the command. Compose
+reads `.env` from its project directory, which defaults to wherever the compose
+file lives. A root `.env` is silently ignored, and the failure names a variable
+you can plainly see set in a file you are looking at.
+
 Two things about it are worth knowing before you change them. The media and
 output directories are **not configurable** — the service writes to the OS temp
 dir — so the volume works by pointing `TMPDIR` at it, and dropping that env var
