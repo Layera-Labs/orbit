@@ -669,6 +669,50 @@ export function createServer(): Express {
     );
   }
 
+  /** Every `upload:` token in a project, deduped. */
+  function uploadNames(project: VideoProject): Set<string> {
+    const names = new Set<string>();
+    for (const src of collectClientSrcs(project)) {
+      const m = typeof src === "string" && /^upload:([A-Za-z0-9._-]+)$/.exec(src);
+      if (m) names.add(m[1]);
+    }
+    return names;
+  }
+
+  /**
+   * Which of a project's upload tokens this server cannot honour.
+   *
+   * The media dir is a CACHE with a byte budget, so a token is not a promise —
+   * eviction, a redeploy onto a fresh volume, or simply pointing the app at a
+   * different server all make one dangle. Clients cache tokens to avoid
+   * re-uploading unchanged media, which is right, but it means a client can be
+   * confidently wrong about what the server holds.
+   *
+   * Left to ffmpeg, that surfaces as "No such file or directory" from a
+   * half-built filtergraph: an encode has already been queued, a render slot
+   * taken, and the client is handed a message it cannot act on — so it retries
+   * with the same dead tokens, forever. Answering BEFORE the encode, and
+   * naming exactly which tokens are gone, is what lets the client re-upload
+   * precisely those and get on with it.
+   *
+   * Runs `ensureLocal` first: with a bucket behind the cache the file is
+   * usually restorable, and "missing" should mean genuinely unrecoverable.
+   */
+  async function missingUploads(project: VideoProject): Promise<string[]> {
+    await ensureLocal(project);
+    const missing: string[] = [];
+    await Promise.all(
+      [...uploadNames(project)].map(async (name) => {
+        const there = await statAsync(resolveSrc(`upload:${name}`)).then(
+          () => true,
+          () => false,
+        );
+        if (!there) missing.push(`upload:${name}`);
+      }),
+    );
+    return missing.sort();
+  }
+
   async function render(
     project: VideoProject,
     output?: ExportOutput,
@@ -1014,6 +1058,26 @@ export function createServer(): Express {
        */
       const account = await accountOf(req, res);
       if (!account) return;
+
+      /*
+       * Refuse a project whose media this server does not have, BEFORE taking
+       * a render slot or charging for one. 409 rather than 400: the request is
+       * well-formed and was valid when the client cached those tokens — the
+       * server's copy simply expired underneath it, which is a conflict of
+       * state, and it is fixable by re-uploading.
+       */
+      const missing = await missingUploads(project);
+      if (missing.length > 0) {
+        res.status(409).json({
+          code: "missing_uploads",
+          missing,
+          error:
+            `this server no longer has ${missing.length} uploaded file(s) — ` +
+            `re-upload and render again`,
+        });
+        return;
+      }
+
       if (RENDER_COST > 0) {
         if (!(await ledger.canAfford(account, RENDER_COST))) {
           res.status(402).json({

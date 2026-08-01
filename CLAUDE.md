@@ -161,6 +161,16 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   `POST /v1/render` → download MP4 → save to Photos. The server's `resolveSrc` only maps tokens
   to files in its media dir and rejects non-token/non-URL srcs (clients can't point ffmpeg
   at arbitrary paths).
+- **An `upload:` token is NOT durable, and both ends now say so** (2026-08-01). The media dir is
+  a cache with a byte budget, so eviction, a redeploy onto a fresh volume or simply changing the
+  render server all leave a client holding tokens that name nothing. `/v1/render` checks every
+  token BEFORE taking a render slot and answers **409 `{code:'missing_uploads', missing:[…]}`**
+  — after `ensureLocal`, so with a bucket behind the cache "missing" means genuinely
+  unrecoverable. Left to ffmpeg this arrived as `No such file or directory` out of a half-built
+  filtergraph, which a client cannot act on. Mobile's `uploadCache` is keyed by **server AND
+  file** (it was file only, so dev-Mac tokens got sent to production) and `exportProject` retries
+  **exactly once** on that 409, having forgotten the named tokens, so the second pass re-uploads
+  only what went missing. One retry, because a second failure is real and must surface.
 - **The H.264 level is capped at 5.2, and that is what makes an export saveable** (2026-07-31,
   measured against ffmpeg 8.1.2). Left alone x264 picks whatever level its VBV needs, and
   **`bufsize` is the knob that drives it, not the resolution**: 2160×3840 at `-b:v 160M

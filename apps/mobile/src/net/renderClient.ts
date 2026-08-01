@@ -13,8 +13,43 @@ import { authHeaders, discardIfGuest } from './session';
 import * as MediaLibrary from 'expo-media-library';
 import type { ExportOutput, VideoProject } from '../model/types';
 
-/** localUri → upload token, so re-exports don't re-upload unchanged media. */
+/**
+ * localUri → upload token, so re-exports don't re-upload unchanged media.
+ *
+ * Keyed by SERVER as well as by file. A token names a file in one server's
+ * media dir and means nothing anywhere else, so sharing this map across
+ * servers sent tokens minted against a dev Mac to a production box, which
+ * could only ever fail. Changing the render server in Settings now starts with
+ * a clean slate instead.
+ */
 const uploadCache = new Map<string, string>();
+
+/** Trailing slashes are normalised away, so one server is never two keys. */
+const serverKey = (base: string) => base.replace(/\/+$/, "");
+const cacheKey = (base: string, localUri: string) =>
+  `${serverKey(base)}\n${localUri}`;
+
+/**
+ * Drop tokens the server has told us it no longer holds.
+ *
+ * The media dir is a cache with a byte budget, so a token is not durable —
+ * eviction, a redeploy, a fresh volume. Without this the map kept handing back
+ * the same dead token for the life of the process, so every export failed
+ * identically and the only way out was restarting the app.
+ */
+/**
+ * The server has media we referenced but no longer holds. Recoverable by
+ * re-uploading, so it is its own type rather than a string match on a message.
+ */
+class StaleUploads extends Error {}
+
+function forgetUploads(base: string, tokens: readonly string[]): void {
+  const dead = new Set(tokens);
+  const prefix = `${serverKey(base)}\n`;
+  for (const [key, token] of uploadCache) {
+    if (dead.has(token) && key.startsWith(prefix)) uploadCache.delete(key);
+  }
+}
 
 export interface ExportProgress {
   stage: 'uploading' | 'rendering' | 'downloading' | 'saving';
@@ -59,7 +94,7 @@ function guessType(uri: string): string {
 }
 
 export async function uploadMedia(base: string, localUri: string): Promise<string> {
-  const cached = uploadCache.get(localUri);
+  const cached = uploadCache.get(cacheKey(base, localUri));
   if (cached) return cached;
   const form = new FormData();
   const name = localUri.split('/').pop() || 'file';
@@ -78,7 +113,7 @@ export async function uploadMedia(base: string, localUri: string): Promise<strin
   if (res.status === 401 && (await discardIfGuest())) res = await send();
   const data = (await res.json()) as { id?: string; error?: string };
   if (!res.ok || !data.id) throw new Error(data.error ?? `upload failed (HTTP ${res.status})`);
-  uploadCache.set(localUri, data.id);
+  uploadCache.set(cacheKey(base, localUri), data.id);
   return data.id;
 }
 
@@ -97,6 +132,7 @@ export async function exportProject(
   for (const a of project.audio) if (isLocal(a.src)) localSrcs.add(a.src);
   if (project.background?.type === 'image' && isLocal(project.background.src)) localSrcs.add(project.background.src);
 
+  const attempt = async (): Promise<string> => {
   const tokens = new Map<string, string>();
   let i = 0;
   for (const src of localSrcs) {
@@ -126,13 +162,43 @@ export async function exportProject(
     // dozing, a handover, and every proxy between here and the box.
     body: JSON.stringify({ project: resolved, output, async: true }),
   });
-  const data = (await res.json()) as { id?: string; url?: string; error?: string };
+  const data = (await res.json()) as {
+    id?: string;
+    url?: string;
+    error?: string;
+    code?: string;
+    missing?: string[];
+  };
+  /*
+   * The server holds none of these files any more — it says so before encoding
+   * anything, and names them. Forget those tokens and let the caller try once
+   * more; the upload loop above will mint fresh ones for exactly the media
+   * that went missing and reuse the rest.
+   */
+  if (res.status === 409 && data.code === 'missing_uploads') {
+    forgetUploads(cleanBase, data.missing ?? []);
+    throw new StaleUploads(data.error ?? 'uploaded media expired on the server');
+  }
   if (!res.ok) throw new Error(data.error ?? `render failed (HTTP ${res.status})`);
   // A server from before the job API answers with the url outright.
   const url = data.id ? await awaitJob(cleanBase, data.id, onProgress) : data.url;
   if (!url) throw new Error('render returned no url');
   // Absolute once output storage is a bucket; still relative on local disk.
   return /^https?:\/\//.test(url) ? url : `${cleanBase}${url}`;
+  };
+
+  try {
+    return await attempt();
+  } catch (err) {
+    /*
+     * Exactly one retry, and only for this. The tokens are gone from the cache
+     * now, so the second pass re-uploads rather than repeating itself — which
+     * also means a second failure is a real one and must surface. Retrying
+     * anything else here would re-upload every file on any transient error.
+     */
+    if (!(err instanceof StaleUploads)) throw err;
+    return await attempt();
+  }
 }
 
 /**
