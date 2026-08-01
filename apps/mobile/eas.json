@@ -19,12 +19,14 @@
       "distribution": "internal",
       "channel": "preview",
       "ios": { "simulator": false },
-      "android": { "buildType": "apk" }
+      "android": { "buildType": "apk" },
+      "env": { "ORBIT_SERVER_URL": "https://orbit-api.layeraos.com" }
     },
     "production": {
       "distribution": "store",
       "channel": "production",
-      "autoIncrement": true
+      "autoIncrement": true,
+      "env": { "ORBIT_SERVER_URL": "https://orbit-api.layeraos.com" }
     }
   },
   "submit": {

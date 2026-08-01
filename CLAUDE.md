@@ -375,7 +375,14 @@ Editor panels are in `EditorSheets.tsx` plus dedicated sheets (`MosaicSheet`,
   `app.json` silently does nothing until you `rm -rf ios`. That is how a device build came
   out under the pre-2026-07-27 identity long after the rename.
 - **Server URL** resolves in `constants.ts` as `extra.serverUrl` → Expo's dev `hostUri` →
-  `localhost:8787`. A dev build on a physical device therefore reaches your Mac
+  `localhost:8787`, and `extra.serverUrl` now comes from **`app.config.js`**, not
+  `app.json` (2026-08-01). `app.json` stays canonical for everything else — the wrapper
+  spreads it and computes that one field from `process.env.ORBIT_SERVER_URL`, which
+  `eas.json` sets on `preview` and `production` only. **Both development profiles leave
+  it EMPTY on purpose**: empty falls through to `hostUri`, which is the whole reason a
+  dev build on a device finds your Mac by itself. Setting it there would point every
+  debug export at the deployed box and burn its single render slot. Test against
+  production with a `preview` build, which needs no Metro at all. A dev build on a physical device therefore reaches your Mac
   automatically. Note `hostUri` reflects HOW the dev client connected: launch the
   simulator against `localhost` and it resolves to `127.0.0.1`, which is correct but does
   NOT exercise the device path — relaunch against the LAN IP to test that.
