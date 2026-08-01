@@ -139,9 +139,18 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   which moves a recognised fade's plateau, SCALES a hand-drawn curve (flattening someone's
   duck to obey a slider would destroy work to honour it), and drops a curve that is silent
   throughout. Measured after the fix against ffmpeg 8.1.2: a faded clip at 200% renders
-  **+6.00 dB** over the same clip at 100%. `setClipVolumeCurve` clamps points to 0..2 like
+  **+6.00 dB** over the same clip at 100%. `setClipVolumeCurve` clamps points to the same ceiling as
   `setClipVolume` — unclamped, a curve point was the one way to store a gain the UI could
-  neither show nor undo. The ceiling is 2 everywhere; there has never been a 1000.
+  neither show nor undo. **`MAX_VOLUME` (`model/audio-fade.ts`) is that ceiling and the
+  ONLY place it is written**: both ops, all three volume sliders and the waveform's scale
+  read it. It is **5 (500%) since 2026-08-01**, up from 2, because quiet source material
+  needs more than +6 dB. ffmpeg's `volume` multiplies and lets the result hard-clip, which
+  is the honest behaviour and means the top of the range is a tool for quiet audio.
+  The waveform's height scale became a **square root** in the same change: linear at a
+  ceiling of 5 would put unity at a fifth of the lane and draw ordinary audio — nearly all
+  audio — as a stripe along the bottom. Sqrt keeps unity at ~45%, puts 2x at ~63%, and
+  still lets 5x reach the top; it also lifts very small gains, so a fade's last bar no
+  longer lands on `FLOOR_H`.
 - **Mute is a flag, and the Sound lane is now a control.** `clip.muted` is what both
   previews and the export read; muting used to write `volume: 0` and unmute used to
   write 1, so a clip you had at 40% came back at 100% with the number gone.
