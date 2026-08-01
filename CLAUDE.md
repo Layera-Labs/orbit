@@ -160,18 +160,25 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   sound; music and voiceover keep their own controls). NOTE: an RN `Switch` does not
   respond to `simctl`-injected taps, so verify a toggle by driving the store from a
   `TEMP-VERIFY` hook and screenshotting the result, not by tapping it.
-- **Above 100% is inaudible in the mobile preview and real in the export.** `expo-audio`'s
-  `player.volume` is a 0–1 property and the native player saturates, so 150% and 200% both
-  sound like 100%. A gain node needs a native module, and quietening every other voice to
-  make headroom would just move the lie. The timeline waveform is the mitigation:
-  `components/waveformBars.ts` scales the bars by that same `clipGainAt`, so a boost you
-  cannot hear is one you can see — and a fade in ramps the bars up, a fade out ramps them
-  down. The per-bar AMPLITUDE is synthetic (nothing installed can decode PCM; `expo-audio`
-  is playback only), but it is now sampled from a field indexed on SOURCE time, so trimming
-  slides a window instead of re-rolling the shape, and the seed is the `src`, so two clips
-  of one song draw the same waveform. Unity deliberately lands at half the lane so 200% has
-  somewhere to go. Real peaks would need a `/v1/peaks` endpoint — `apps/web`'s
-  `timeline/waveform.ts` (WebAudio + IndexedDB) is the shape to copy if it is ever built.
+- **The preview's audio is a real Web Audio graph, for gain above 1** (2026-08-01).
+  It used to be `expo-audio`, whose `player.volume` is a **0–1 property that saturates
+  in the native player** — so a clip at 200% (or 500%, once `MAX_VOLUME` moved) sounded
+  exactly like 100% here while ffmpeg rendered the real boost. `react-native-audio-api`
+  gives a `GainNode` whose `gain` is unbounded, so `audioGraph.ts` no longer clamps.
+  **It is a native module: `app.json` registers its config plugin and a rebuild is
+  required.**
+  The swap forced a different shape and this is the part to understand before touching
+  it. An `expo-audio` player can SEEK, so the old graph held one open per clip and
+  re-positioned it every tick. A Web Audio `AudioBufferSourceNode` **cannot** — it is
+  one-shot, started once with an offset and a duration and immovable after. So the graph
+  **ARMS**: on play, and again whenever the playhead jumps further than
+  `REARM_TOLERANCE_SEC` (0.25s) from where the running sources would have carried it.
+  That tolerance is deliberately generous — re-arming stops and recreates every source,
+  which clicks, so frame jitter must never trigger it. The arithmetic lives in
+  `preview/audioSchedule.ts` and is unit-tested there, because nothing about the graph
+  itself can be tested off-device. Decoded buffers are cached by uri across voices AND
+  mounts; a decode failure caches as `null` so it is not retried every sync.
+  `expo-audio` is still used elsewhere (recording), so it stays installed.
 - **Export**: upload local media → `POST /v1/upload` (`upload:<id>` token) → resolved project →
   `POST /v1/render` → download MP4 → save to Photos. The server's `resolveSrc` only maps tokens
   to files in its media dir and rejects non-token/non-URL srcs (clients can't point ffmpeg
