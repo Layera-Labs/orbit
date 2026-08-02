@@ -385,6 +385,13 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   output pixel names its own source and a translate, a scale and a clip are directly
   readable; flat colours cannot tell `slideleft` from `revealleft` at all. It writes
   `fixtures/xfade-probe.json`, which an always-on test asserts against with no ffmpeg.
+  **The fixture is a claim about ONE ffmpeg**, and the render server does not run that
+  one: its image installs Debian's, so `node:20-bookworm-slim` gives **5.1**, by
+  construction and not by neglect. `packages/video/scripts/xfade-verify.mjs` is the
+  answer — dependency-free, runs inside the service's own container, re-measures the bare
+  filter and diffs it against the fixture. Run it after any base-image change:
+  `docker compose -f apps/render-service/compose.vps.yaml exec render node
+  packages/video/scripts/xfade-verify.mjs`.
   Recorded there: the real filtergraph agrees with the bare filter to a **mean under 4**
   everywhere, with a **max of ~108 on the sliding families** — that is what compositing a
   hard edge in 4:2:0 costs on the one boundary column, the same price every other layer
