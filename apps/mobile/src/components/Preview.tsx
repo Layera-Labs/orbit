@@ -886,6 +886,10 @@ export function Preview({ width, height }: { width: number; height: number }) {
           playheadSec,
         ) * (xf?.alpha ?? 1),
       clip: xf?.clip,
+      travel:
+        xf?.dx || xf?.dy
+          ? [{ translateX: xf.dx ?? 0 }, { translateY: xf.dy ?? 0 }]
+          : undefined,
     };
   };
 
@@ -1218,22 +1222,31 @@ export function Preview({ width, height }: { width: number; height: number }) {
                   : undefined
               }
             >
-              {c.type === "video" ? (
-                <OverlayVideoLayer
-                  clip={c}
-                  width={width}
-                  height={height}
-                  isPlaying={isPlaying}
-                  playheadSec={playheadSec}
-                />
-              ) : (
-                <OverlayImageLayer
-                  clip={c}
-                  width={width}
-                  height={height}
-                  playheadSec={playheadSec}
-                />
-              )}
+              {/*
+                * The travel goes on an INNER group, inside the clip. The clip
+                * is the canvas region this side of the transition owns and the
+                * translate is the picture moving within it; one group carrying
+                * both would drag the window along with the picture, which reads
+                * as a cut rather than a slide.
+                */}
+              <Group transform={xf.travel}>
+                {c.type === "video" ? (
+                  <OverlayVideoLayer
+                    clip={c}
+                    width={width}
+                    height={height}
+                    isPlaying={isPlaying}
+                    playheadSec={playheadSec}
+                  />
+                ) : (
+                  <OverlayImageLayer
+                    clip={c}
+                    width={width}
+                    height={height}
+                    playheadSec={playheadSec}
+                  />
+                )}
+              </Group>
             </Group>
             );
           })}

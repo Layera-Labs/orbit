@@ -74,6 +74,14 @@ const TRACKS: VisualTrackClip[][] = [
     clip("c", 6, 4, { type: "wipeup", duration: 1 }),
     clip("d", 9, 4, { type: "wipedown", duration: 1 }),
   ],
+  // The sliding families: both pictures move, only the incoming one, only the
+  // outgoing one. Three different answers from one shared function.
+  [
+    clip("a", 0, 4),
+    clip("b", 3, 4, { type: "slideleft", duration: 1 }),
+    clip("c", 6, 4, { type: "coverup", duration: 1 }),
+    clip("d", 9, 4, { type: "revealright", duration: 1 }),
+  ],
   // A fade in the middle of two geometric boundaries: two runs, not one.
   [
     clip("a", 0, 4),

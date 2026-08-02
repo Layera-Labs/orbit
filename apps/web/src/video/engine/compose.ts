@@ -183,12 +183,21 @@ export function renderFrame(
      * exactly what the export does when it composites the run from two
      * full-canvas frames.
      */
-    const xfClip = op.xf?.clip;
-    if (xfClip) {
+    const xf = op.xf;
+    if (xf) {
       ctx.save();
-      ctx.beginPath();
-      ctx.rect(xfClip.x, xfClip.y, xfClip.w, xfClip.h);
-      ctx.clip();
+      if (xf.clip) {
+        ctx.beginPath();
+        ctx.rect(xf.clip.x, xf.clip.y, xf.clip.w, xf.clip.h);
+        ctx.clip();
+      }
+      /*
+       * Translate AFTER clipping, never before: the region is in canvas
+       * coordinates and the travel is the picture moving inside it. Swap the
+       * two and a slide drags its own window along with it, which looks like a
+       * cut rather than a slide.
+       */
+      if (xf.dx || xf.dy) ctx.translate(xf.dx ?? 0, xf.dy ?? 0);
     }
     if (op.rotation) {
       /*
@@ -210,7 +219,7 @@ export function renderFrame(
     } else {
       ctx.drawImage(patch, Math.round(op.dst.x), Math.round(op.dst.y), dw, dh);
     }
-    if (xfClip) ctx.restore();
+    if (xf) ctx.restore();
   }
 
   ctx.globalAlpha = 1;

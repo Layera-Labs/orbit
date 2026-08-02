@@ -393,22 +393,43 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   its own already-resolved geometry (`op.xf`), so no compositor ever needs to know about
   the other clip. The transition's ALPHA is folded into `op.alpha` rather than duplicated,
   so the presence of `op.xf` is itself the answer to "does anything special happen here" —
-  a fade arrives with no `xf` at all. **Wipe×4 has landed** (2026-08-02): `clip` is a
-  rectangle in the units of whatever canvas `xfadeStateAt` was handed, so `frameStateAt`
-  resolves it in PROJECT pixels and the Skia preview in its own on-screen size, and each
-  surface's edge lands on a real pixel. Web applies it on the OUTER context around the
+  a fade arrives with no `xf` at all. **Wipe×4, Slide×4, Push×4 and Reveal×4 have landed**
+  (2026-08-02) — sixteen variants verified against ffmpeg pixel for pixel, because none of
+  them resamples and so none has a tolerance to hide in. `clip` is a rectangle in the units
+  of whatever canvas `xfadeStateAt` was handed, so `frameStateAt` resolves it in PROJECT
+  pixels and the Skia preview in its own on-screen size, and each surface's edge lands on a
+  real pixel. `dx`/`dy` are a whole-CANVAS travel, not a nudge to the clip's box — the
+  export slides the padded full-canvas frame, so a picture-in-picture travels as far as a
+  full-frame clip does. **Translate after clipping, never before**: the region is the part
+  of the canvas this side owns and the travel is the picture moving inside it; one
+  transform carrying both drags the window along and reads as a cut. Web applies it on the OUTER context around the
   blit and mobile on the outer `<Group>` — the seam rotation already uses — because a wipe
   cuts the FRAME, not the clip: a picture-in-picture straddling the split is half gone,
   which is what the export does. **Both sides are clipped**, not just the incoming one, or
   the outgoing clip fills the holes a masked or picture-in-picture incoming clip leaves.
-  Three measured details: `z` is an integer truncation and one clip sits on `<= z`, so the
-  low region is `z + 1` wide (taking that from memory puts the edge one pixel out for the
-  whole transition); the window is half-open, so at `p = 1` the outgoing side is gone
-  rather than keeping the boundary column for a frame; and the four wipes are two rules
-  (`p * L` with the incoming clip low, `(1 - p) * L` with the outgoing one low) on two
-  axes. The remaining families still preview as a cut while the export really renders
-  them — a preview running BEHIND the file, which is the tolerable direction, and
-  unreachable from the UI since the picker offers Cut and Fade.
+  Four measured details: `z` is an integer truncation and a WIPE keeps the outgoing clip on
+  `<= z` while the sliding families keep it on `< z` — **the two split one pixel apart**,
+  which is exactly the sort of thing the probe exists to settle and memory gets wrong; the
+  window is half-open, so at `p = 1` the outgoing side is gone rather than keeping the
+  boundary column for a frame; each set is two rules on two axes rather than four cases
+  (`p * L` with the incoming clip low, `(1 - p) * L` with the outgoing one low); and slide,
+  push and reveal share one region split and differ only in which picture travels, so they
+  are one function with three answers. Reveal's region is what makes it work — the incoming
+  clip holds still and its clip is what keeps the outgoing one visible ON TOP, since the
+  compositor always draws the incoming one over.
+  One deliberate non-reproduction: at `p = 0` ffmpeg's guard on the shifted index is `> 0`
+  rather than `>= 0`, so the leading row or column takes a wrapped value for one frame in
+  the variants where the outgoing clip travels. `xfade-probe.test.ts` names and skips it
+  rather than porting a modulo wrap whose only effect is that stray line.
+  **Sixteen of thirty-five families are still export-only** and preview as a cut — a
+  preview running BEHIND the file, the tolerable direction, and unreachable from a picker
+  that offers Cut and Fade. What was measured about them, so it is not re-derived:
+  `fadeblack` is `A*(1-p)*smoothstep(0.8,1,1-p) + B*p*smoothstep(0,0.8,p)` with a `floor`
+  to 8 bits (asymmetric, and it needs an answer about what the run's ALPHA does through the
+  dip before a third full-frame op can be right); `squeeze*` scales and therefore RESAMPLES,
+  so it needs a recorded tolerance like the grade rather than an exact rule; `zoomin` is a
+  scale AND a blend that only starts near `p = 0.53`; `circle*`, `vert*`, `horz*`, `diag*`
+  and `radial` want gradient masks; `pixelize` and `hblur` are resampling filters.
 - **BYOK stock media**: Orbit is a developer/SDK product, so Unsplash/Pexels use
   **bring-your-own-key**, stored in the OS keychain via `expo-secure-store`, never in the
   bundle and never sent to Orbit's server. `src/content/{keys,stock}.ts`, `KeysSheet`.

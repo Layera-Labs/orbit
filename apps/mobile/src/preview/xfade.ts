@@ -454,6 +454,16 @@ export interface XfState {
    * fills those holes with it instead.
    */
   clip?: { x: number; y: number; w: number; h: number };
+  /**
+   * Translation applied to this side's picture, in the same units as `clip`.
+   *
+   * A whole-CANVAS translation, not a nudge to the clip's box: the export
+   * slides the transparent-padded full-canvas frame, so a picture-in-picture
+   * travels the same distance as a full-frame clip and leaves background
+   * behind it either way.
+   */
+  dx?: number;
+  dy?: number;
 }
 
 /**
@@ -470,6 +480,77 @@ const WIPES: Record<string, { axis: 'x' | 'y'; forward: boolean }> = {
   wiperight: { axis: 'x', forward: true },
   wipedown: { axis: 'y', forward: true },
 };
+
+/**
+ * The sliding families: which axis, which way, and which clip actually moves.
+ *
+ * Twelve variants, three behaviours, one function. `slide` moves both pictures;
+ * `cover` (which ffmpeg spells that way and every editor calls a push) moves
+ * only the incoming one over a stationary outgoing one; `reveal` is its mirror,
+ * moving only the outgoing one off a stationary incoming one. `neg` is the
+ * direction of travel: left and up move toward the origin.
+ */
+const SLIDES: Record<
+  string,
+  { axis: 'x' | 'y'; neg: boolean; from: boolean; to: boolean }
+> = {
+  slideleft: { axis: 'x', neg: true, from: true, to: true },
+  slideright: { axis: 'x', neg: false, from: true, to: true },
+  slideup: { axis: 'y', neg: true, from: true, to: true },
+  slidedown: { axis: 'y', neg: false, from: true, to: true },
+  coverleft: { axis: 'x', neg: true, from: false, to: true },
+  coverright: { axis: 'x', neg: false, from: false, to: true },
+  coverup: { axis: 'y', neg: true, from: false, to: true },
+  coverdown: { axis: 'y', neg: false, from: false, to: true },
+  revealleft: { axis: 'x', neg: true, from: true, to: false },
+  revealright: { axis: 'x', neg: false, from: true, to: false },
+  revealup: { axis: 'y', neg: true, from: true, to: false },
+  revealdown: { axis: 'y', neg: false, from: true, to: false },
+};
+
+/**
+ * One side of a slide, push or reveal.
+ *
+ * **The split sits one pixel from where a wipe's does**, and that is measured,
+ * not a rounding preference: a wipe keeps the outgoing clip on `<= z` and this
+ * family keeps it on `< z`. Two rules that differ by one column, in filters
+ * that otherwise travel the same distance at the same rate — precisely the kind
+ * of thing the probe exists to settle.
+ *
+ * Both sides carry a region as well as a travel, even where the travel alone
+ * would seem to do it. In the export the run is composited from two padded
+ * full-canvas frames and every pixel takes one side or the other outright; if
+ * the incoming clip is a picture-in-picture, the pixels around it inside its
+ * own region are BACKGROUND, not the outgoing clip that happens to still be
+ * under them.
+ */
+function slideState(
+  cfg: { axis: 'x' | 'y'; neg: boolean; from: boolean; to: boolean },
+  p: number,
+  role: XfRole,
+  W: number,
+  H: number,
+): XfState {
+  if (p >= 1) return role === 'to' ? { alpha: 1 } : { alpha: 0 };
+  const L = cfg.axis === 'x' ? W : H;
+  /** How much of the canvas the outgoing clip still holds. */
+  const z = Math.floor((1 - p) * L);
+  /** How far the travel has got. */
+  const s = L - z;
+  const isFrom = role === 'from';
+  const lo = cfg.neg ? (isFrom ? 0 : z) : isFrom ? s : 0;
+  const hi = cfg.neg ? (isFrom ? z : L) : isFrom ? L : s;
+  const moves = isFrom ? cfg.from : cfg.to;
+  const d = !moves ? 0 : cfg.neg ? (isFrom ? -s : z) : isFrom ? s : -z;
+  return {
+    alpha: 1,
+    clip:
+      cfg.axis === 'x'
+        ? { x: lo, y: 0, w: hi - lo, h: H }
+        : { x: 0, y: lo, w: W, h: hi - lo },
+    ...(cfg.axis === 'x' ? { dx: d } : { dy: d }),
+  };
+}
 
 /**
  * One side of a wipe, as a rectangle.
@@ -580,8 +661,12 @@ export function xfadeStateAt(
    * this one is exact where the colour grade is not.
    */
   if (name === 'fade') return { alpha: role === 'to' ? p : 1 };
-  const wipe = WIPES[name];
-  if (wipe && W > 0 && H > 0) return wipeState(wipe, p, role, W, H);
+  if (W > 0 && H > 0) {
+    const wipe = WIPES[name];
+    if (wipe) return wipeState(wipe, p, role, W, H);
+    const slide = SLIDES[name];
+    if (slide) return slideState(slide, p, role, W, H);
+  }
   /*
    * The families that have not landed yet, plus any wipe asked for without a
    * canvas to resolve against. Alpha 1 on both sides means the previews show
