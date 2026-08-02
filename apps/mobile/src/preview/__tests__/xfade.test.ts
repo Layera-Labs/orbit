@@ -66,6 +66,14 @@ const TRACKS: VisualTrackClip[][] = [
     clip("b", 3, 4, { type: "wipeleft", duration: 1 }),
     clip("c", 6, 4, { type: "slideup", duration: 1 }),
   ],
+  // The other three wipe directions, so both axes and both split rules are
+  // compared and not just the one the shared fixture happens to lead with.
+  [
+    clip("a", 0, 4),
+    clip("b", 3, 4, { type: "wiperight", duration: 1 }),
+    clip("c", 6, 4, { type: "wipeup", duration: 1 }),
+    clip("d", 9, 4, { type: "wipedown", duration: 1 }),
+  ],
   // A fade in the middle of two geometric boundaries: two runs, not one.
   [
     clip("a", 0, 4),
@@ -97,8 +105,10 @@ describe("mobile mirrors packages/video", () => {
         // reimplementation drifts.
         for (let i = -8; i <= 48; i++) {
           const t = c.start + (i / 40) * c.duration;
-          expect(xfadeStateFor(mine.get(c.id), t)).toEqual(
-            s.xfadeStateFor(theirs.get(c.id), t),
+          // With a canvas, so the geometric families are compared as
+          // GEOMETRY and not just as an alpha the wipes do not use.
+          expect(xfadeStateFor(mine.get(c.id), t, 1080, 1920)).toEqual(
+            s.xfadeStateFor(theirs.get(c.id), t, 1080, 1920),
           );
         }
       }

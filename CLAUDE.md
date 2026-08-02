@@ -389,9 +389,26 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   everywhere, with a **max of ~108 on the sliding families** — that is what compositing a
   hard edge in 4:2:0 costs on the one boundary column, the same price every other layer
   in this engine already pays, and it is why the assertion is on the mean.
-  **The previews are knowingly BEHIND the export**: `xfadeStateAt` carries alpha only, so
-  a geometric family previews as a cut. Unreachable from the UI — the picker offers Cut
-  and Fade — and the geometry lands next, written against the fixture.
+  **`XfState` is the preview's half**, and it is per-SIDE: each clip's `DrawOp` carries
+  its own already-resolved geometry (`op.xf`), so no compositor ever needs to know about
+  the other clip. The transition's ALPHA is folded into `op.alpha` rather than duplicated,
+  so the presence of `op.xf` is itself the answer to "does anything special happen here" —
+  a fade arrives with no `xf` at all. **Wipe×4 has landed** (2026-08-02): `clip` is a
+  rectangle in the units of whatever canvas `xfadeStateAt` was handed, so `frameStateAt`
+  resolves it in PROJECT pixels and the Skia preview in its own on-screen size, and each
+  surface's edge lands on a real pixel. Web applies it on the OUTER context around the
+  blit and mobile on the outer `<Group>` — the seam rotation already uses — because a wipe
+  cuts the FRAME, not the clip: a picture-in-picture straddling the split is half gone,
+  which is what the export does. **Both sides are clipped**, not just the incoming one, or
+  the outgoing clip fills the holes a masked or picture-in-picture incoming clip leaves.
+  Three measured details: `z` is an integer truncation and one clip sits on `<= z`, so the
+  low region is `z + 1` wide (taking that from memory puts the edge one pixel out for the
+  whole transition); the window is half-open, so at `p = 1` the outgoing side is gone
+  rather than keeping the boundary column for a frame; and the four wipes are two rules
+  (`p * L` with the incoming clip low, `(1 - p) * L` with the outgoing one low) on two
+  axes. The remaining families still preview as a cut while the export really renders
+  them — a preview running BEHIND the file, which is the tolerable direction, and
+  unreachable from the UI since the picker offers Cut and Fade.
 - **BYOK stock media**: Orbit is a developer/SDK product, so Unsplash/Pexels use
   **bring-your-own-key**, stored in the OS keychain via `expo-secure-store`, never in the
   bundle and never sent to Orbit's server. `src/content/{keys,stock}.ts`, `KeysSheet`.

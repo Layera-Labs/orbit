@@ -37,7 +37,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { buildFFmpegArgs } from '../ffmpeg';
 import type { VideoProject } from '../types';
-import { TRANSITIONS, xfadeStateAt } from '../xfade';
+import { TRANSITIONS, xfadeStateAt, type XfState } from '../xfade';
 import {
   FIXTURE_PATH,
   PROBE,
@@ -318,6 +318,67 @@ describe('the probe fixture', () => {
     // A linear blend is space-independent, so ffmpeg's mix and a compositor's
     // `globalAlpha` differ only by where each rounds. Measured: 1/255.
     expect(worst).toBeLessThanOrEqual(1);
+  });
+
+  it('puts a wipe edge exactly where ffmpeg put it', () => {
+    /*
+     * The reason this stage does Wipe and nothing else: it is a HARD edge, so
+     * there is no tolerance to hide behind — the model either names the same
+     * pixel column ffmpeg did or it does not.
+     *
+     * The check is the compositing rule itself. The incoming clip is drawn over
+     * the outgoing one, so a pixel shows the incoming clip exactly when it
+     * falls inside that side's `clip` rect. If the two rects also tile the
+     * canvas with no overlap and no gap, the outgoing side needs no separate
+     * assertion — which is asserted, because a rect pair that overlaps would
+     * pass the first check while double-drawing along the seam.
+     */
+    const { size, fps, overlapSec, frames } = PROBE;
+    const span = overlapSec * fps;
+    const inside = (r: NonNullable<XfState['clip']>, x: number, y: number) =>
+      x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+
+    for (const name of ['wipeleft', 'wiperight', 'wipeup', 'wipedown']) {
+      const got = Buffer.from(fixture.samples[name], 'base64');
+      frames.forEach((f, fi) => {
+        const p = f / span;
+        const to = xfadeStateAt(name, p, 'to', size, size);
+        const from = xfadeStateAt(name, p, 'from', size, size);
+        // The pair tiles the canvas: every pixel belongs to exactly one side.
+        const area = (r?: XfState['clip']) => (r ? r.w * r.h : size * size);
+        expect([name, f, area(to.clip) + area(from.clip)]).toEqual([
+          name,
+          f,
+          size * size,
+        ]);
+
+        lineOffsets(size).forEach((line, li) => {
+          line.forEach((_, k) => {
+            const mid = size >> 1;
+            const [x, y] = li === 0 ? [k, mid] : li === 1 ? [mid, k] : [k, k];
+            const at = ((fi * 3 + li) * size + k) * 3;
+            const px = [got[at], got[at + 1], got[at + 2]].join();
+            // A is (x*4, y*4, 64); B is (64, x*4, y*4). A wipe blends nothing,
+            // so every sample is exactly one of the two — except where the two
+            // ramps happen to cross, at x = y = 16, where both are (64,64,64)
+            // and the pixel cannot say which clip drew it.
+            const A = [x * 4, y * 4, 64].join();
+            const B = [64, x * 4, y * 4].join();
+            if (A === B) return;
+            const isB = px === B;
+            const isA = px === A;
+            expect([name, f, x, y, isA || isB]).toEqual([name, f, x, y, true]);
+            expect([name, f, x, y, isB]).toEqual([
+              name,
+              f,
+              x,
+              y,
+              !!to.clip && inside(to.clip, x, y),
+            ]);
+          });
+        });
+      });
+    }
   });
 
   it('was measured at the geometry the model still uses', () => {

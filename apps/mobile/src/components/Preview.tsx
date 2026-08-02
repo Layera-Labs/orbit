@@ -861,14 +861,33 @@ export function Preview({ width, height }: { width: number; height: number }) {
     () => xfadeMapOf(resolveTransitions(baseClips).boundaries),
     [baseClips],
   );
-  /** Opacity for one base clip: its edge fade times its transition's. */
-  const baseOpacity = (c: VisualTrackClip) =>
-    fadeFactorAt(
-      baseFades.get(c.id),
-      c.start,
-      c.start + c.duration,
+  /**
+   * One base clip's transition state: how transparent it is, and which part of
+   * the canvas it is allowed to paint.
+   *
+   * The geometry is resolved against the PREVIEW's own size rather than the
+   * project's, which is deliberate — `xfadeStateAt` applies ffmpeg's integer
+   * split rule to whatever canvas it is handed, so a wipe's edge lands on a
+   * real pixel here instead of on a scaled fraction of a 1080-wide one.
+   */
+  const baseXf = (c: VisualTrackClip) => {
+    const xf = xfadeStateFor(
+      baseXfades.get(c.id),
       playheadSec,
-    ) * (xfadeStateFor(baseXfades.get(c.id), playheadSec)?.alpha ?? 1);
+      width,
+      height,
+    );
+    return {
+      opacity:
+        fadeFactorAt(
+          baseFades.get(c.id),
+          c.start,
+          c.start + c.duration,
+          playheadSec,
+        ) * (xf?.alpha ?? 1),
+      clip: xf?.clip,
+    };
+  };
 
   /*
    * Warm the clips either side of the one on screen, so crossing a cut finds
@@ -1180,8 +1199,25 @@ export function Preview({ width, height }: { width: number; height: number }) {
             was centre-cropped in the MP4; and they ignored `rect` entirely, so
             a main-track clip made picture-in-picture still filled the preview.
           */}
-          {baseLive.map((c) => (
-            <Group key={c.id} opacity={baseOpacity(c)}>
+          {baseLive.map((c) => {
+            const xf = baseXf(c);
+            return (
+            /*
+             * The transition's clip goes on the OUTER group, in canvas
+             * coordinates, because a wipe cuts the FRAME and not the clip: a
+             * picture-in-picture straddling the split is half gone, which is
+             * what the export does when it composites the run from two
+             * full-canvas frames.
+             */
+            <Group
+              key={c.id}
+              opacity={xf.opacity}
+              clip={
+                xf.clip
+                  ? rect(xf.clip.x, xf.clip.y, xf.clip.w, xf.clip.h)
+                  : undefined
+              }
+            >
               {c.type === "video" ? (
                 <OverlayVideoLayer
                   clip={c}
@@ -1199,7 +1235,8 @@ export function Preview({ width, height }: { width: number; height: number }) {
                 />
               )}
             </Group>
-          ))}
+            );
+          })}
           {activeOverlays.map(({ clip }) =>
             clip.type === "video" ? (
               <OverlayVideoLayer

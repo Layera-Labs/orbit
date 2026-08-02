@@ -431,11 +431,78 @@ export type XfRole = 'from' | 'to';
  * no compositor ever needs to know about the other clip. That keeps the standing
  * contract that the draw list is executed, not interpreted.
  *
- * Stage 1 carries alpha alone. The geometric fields (`dx`/`dy`/`scale`/`clip`/
- * `ramp`) land with the families that need them.
+ * The remaining geometric fields (`dx`/`dy`/`scale`/`ramp`) land with the
+ * families that need them.
  */
 export interface XfState {
   alpha: number;
+  /**
+   * The region of the CANVAS this side may paint, in the same units as the
+   * `W`/`H` it was resolved against. Absent means the whole canvas.
+   *
+   * Both sides are clipped, not just the incoming one, and that is not
+   * belt-and-braces. In the export the run is composited from two
+   * transparent-padded full-canvas frames, so on the outgoing side of a wipe
+   * the picture is whatever the INCOMING clip covers — and where that clip is
+   * a picture-in-picture, or masked, or keyed, what shows through is the
+   * background. Leave the outgoing clip unclipped underneath and the preview
+   * fills those holes with it instead.
+   */
+  clip?: { x: number; y: number; w: number; h: number };
+}
+
+/**
+ * The four wipes, as the two rules they actually are.
+ *
+ * `forward` says which end the split point travels from: `wiperight` and
+ * `wipedown` compute it as `p * L` and put the INCOMING clip on the low side,
+ * `wipeleft` and `wipeup` compute it as `(1 - p) * L` and put the outgoing one
+ * there. Beyond that they are the same function on a different axis.
+ */
+const WIPES: Record<string, { axis: 'x' | 'y'; forward: boolean }> = {
+  wipeleft: { axis: 'x', forward: false },
+  wipeup: { axis: 'y', forward: false },
+  wiperight: { axis: 'x', forward: true },
+  wipedown: { axis: 'y', forward: true },
+};
+
+/**
+ * One side of a wipe, as a rectangle.
+ *
+ * The split rule is MEASURED, not derived: ffmpeg computes `z` as an integer
+ * truncation and puts one clip on `<= z`, so the boundary column belongs to the
+ * low side and the region below it is `z + 1` wide, not `z`. Reproducing that
+ * off the top of one's head gives an edge one pixel out for the whole
+ * transition, which looks entirely correct until it is diffed against the file.
+ * `xfade-probe.json` is where the rule comes from and what holds it.
+ */
+function wipeState(
+  cfg: { axis: 'x' | 'y'; forward: boolean },
+  p: number,
+  role: XfRole,
+  W: number,
+  H: number,
+): XfState {
+  /*
+   * The window is half-open at the top, so at `p = 1` the transition is over
+   * and the frame is entirely the incoming clip. Without this the outgoing clip
+   * keeps the boundary column for exactly one frame — a one-pixel stripe of the
+   * previous shot, at the one instant nobody would think to look.
+   */
+  if (p >= 1) return role === 'to' ? { alpha: 1 } : { alpha: 0 };
+  const L = cfg.axis === 'x' ? W : H;
+  const z = Math.floor((cfg.forward ? p : 1 - p) * L);
+  const low = cfg.forward ? role === 'to' : role === 'from';
+  const cut = Math.max(0, Math.min(L, z + 1));
+  const lo = low ? 0 : cut;
+  const span = (low ? cut : L) - lo;
+  return {
+    alpha: 1,
+    clip:
+      cfg.axis === 'x'
+        ? { x: lo, y: 0, w: span, h: H }
+        : { x: 0, y: lo, w: W, h: span },
+  };
 }
 
 /** The boundaries a single clip takes part in. At most one of each. */
@@ -471,6 +538,8 @@ export function xfadeMapOf(boundaries: TransitionBoundary[]): Map<string, ClipXf
 export function xfadeStateFor(
   x: ClipXfades | undefined,
   t: number,
+  W = 0,
+  H = 0,
 ): (XfState & { role: XfRole; name: string; p: number }) | undefined {
   if (!x) return undefined;
   const live = (b: TransitionBoundary | undefined) =>
@@ -479,10 +548,24 @@ export function xfadeStateFor(
   if (!b) return undefined;
   const role: XfRole = b === x.asTo ? 'to' : 'from';
   const p = xfadeProgressAt(t, b.at, b.overlap);
-  return { ...xfadeStateAt(b.name, p, role), role, name: b.name, p };
+  return { ...xfadeStateAt(b.name, p, role, W, H), role, name: b.name, p };
 }
 
-export function xfadeStateAt(name: string, p: number, role: XfRole): XfState {
+/**
+ * `W`/`H` are the canvas the geometry is resolved against, and the caller
+ * chooses the units: `frameStateAt` passes PROJECT pixels, because that is what
+ * a `DrawOp` speaks and what the export's filtergraph is measured in; the Skia
+ * preview passes its own on-screen size, so a wipe's edge lands on a real pixel
+ * there rather than on a scaled fraction of one. Same rule, resolved twice, at
+ * each surface's own resolution.
+ */
+export function xfadeStateAt(
+  name: string,
+  p: number,
+  role: XfRole,
+  W = 0,
+  H = 0,
+): XfState {
   /*
    * `fade` is a straight lerp between the two pictures, and the incoming clip is
    * drawn OVER the outgoing one — so `p*B + (1-p)*A` falls out of ordinary
@@ -492,14 +575,15 @@ export function xfadeStateAt(name: string, p: number, role: XfRole): XfState {
    * this one is exact where the colour grade is not.
    */
   if (name === 'fade') return { alpha: role === 'to' ? p : 1 };
+  const wipe = WIPES[name];
+  if (wipe && W > 0 && H > 0) return wipeState(wipe, p, role, W, H);
   /*
-   * Every geometric family lands here for now, and alpha 1 on both sides means
-   * the previews show the incoming clip for the whole overlap — a cut, not a
-   * wipe, while the export really wipes. That is a preview running BEHIND the
-   * file, which is the tolerable direction, and it is unreachable from the UI:
-   * the picker still offers Cut and Fade only, so nothing but a hand-edited
-   * document can select one. The geometry arrives with `XfState`'s remaining
-   * fields, measured against the probe fixture first.
+   * The families that have not landed yet, plus any wipe asked for without a
+   * canvas to resolve against. Alpha 1 on both sides means the previews show
+   * the incoming clip for the whole overlap — a cut, not a wipe, while the
+   * export really wipes. That is a preview running BEHIND the file, which is
+   * the tolerable direction, and it is unreachable from the UI: the picker
+   * offers Cut and Fade only.
    */
   return { alpha: 1 };
 }
