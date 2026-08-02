@@ -277,14 +277,106 @@ export function xfadeHasPreview(type: TransitionType): boolean {
 }
 
 /**
+ * The transition tokens an `ffmpeg -hide_banner -h filter=xfade` listing says
+ * this build accepts.
+ *
+ * Needed because **a token is not a property of ffmpeg, it is a property of the
+ * build in front of you**. `cover*` and `reveal*` — this editor's Push and
+ * Reveal — did not exist before ffmpeg 6.1, and the render service's image
+ * installs Debian bookworm's 5.1. Naming one there does not render something
+ * slightly wrong; the filtergraph fails to BUILD and takes the whole render with
+ * it, several minutes after the user pressed Export.
+ *
+ * Parses the enum CONSTANTS out of the option dump, which is why the integer
+ * column is what the pattern keys on:
+ *
+ *     transition        <int>        ..FV....... set cross fade transition
+ *       fade            0            ..FV....... fade transition
+ *       wipeleft        1            ..FV....... wipe left transition
+ *
+ * A real option carries `<int>`/`<duration>`/`<string>` in that column and a
+ * constant carries a bare number, so `transition` itself and the `duration`,
+ * `offset` and `expr` options fall out without needing to be named — which
+ * matters, because a future ffmpeg may add options here but will keep listing
+ * its constants this way.
+ */
+export function parseXfadeTokens(help: string): string[] {
+  const out = new Set<string>();
+  for (const line of help.split('\n')) {
+    const m = /^\s+([A-Za-z][\w]*)\s+-?\d+\s/.exec(line);
+    // `custom` is an escape hatch taking a per-pixel expression, not a
+    // transition anyone can pick, and counting it would make an ffmpeg that has
+    // it look like it has the family it cannot do.
+    if (m && m[1] !== 'custom') out.add(m[1]);
+  }
+  return [...out];
+}
+
+/**
  * The catalogue, filtered to what a picker may show, with empty families
  * dropped.
+ *
+ * `supported` is the render server's answer from `parseXfadeTokens`. Pass it and
+ * a family whose token that ffmpeg cannot parse disappears from the picker;
+ * pass `undefined` and nothing is subtracted.
+ *
+ * **Unknown means offer it, which is the opposite of the HDR gate, and
+ * deliberately.** HDR is hidden when unprobed because offering it produces a
+ * file whose tags lie — the cost of hiding is one checkbox. Here the editor has
+ * to work with no server at all: a phone on a plane still lays out a project,
+ * and a rule that hid every transition whenever `/health` was unreachable would
+ * do far more damage than the case it prevents. So the client subtracts only
+ * what it has been TOLD is missing, and `renderProject` refuses by name if a
+ * project reaches an ffmpeg that cannot do it anyway. Two lines of defence, and
+ * neither one silently changes what the file contains.
  */
-export function previewableTransitions(): TransitionFamily[] {
+export function previewableTransitions(
+  supported?: readonly string[] | null,
+): TransitionFamily[] {
+  const ok = supported && supported.length ? new Set(supported) : null;
   return TRANSITIONS.map((f) => ({
     ...f,
-    variants: f.variants.filter((v) => xfadeHasPreview(v.type)),
+    variants: f.variants.filter((v) => {
+      if (!xfadeHasPreview(v.type)) return false;
+      if (!ok) return true;
+      const name = xfadeName({ type: v.type, duration: 1 });
+      // A cut names no filter, and a fade is drawn by the compositor rather
+      // than by `xfade` (see `isAlphaOnly`) — neither can be missing from a
+      // build, so neither is ever subtracted.
+      return !name || isAlphaOnly(name) || ok.has(name);
+    }),
   })).filter((f) => f.variants.length > 0);
+}
+
+/**
+ * The `xfade` tokens a project needs that this ffmpeg does not have.
+ *
+ * Distinct in shape from the picker filter above: that one asks "may this be
+ * offered", this one asks "can this project be rendered", and the answer has to
+ * come from the resolved boundaries rather than the catalogue — a project can
+ * carry a transition no current picker offers, because it was authored against
+ * a different build or synced from another device.
+ */
+export function unsupportedTransitions(
+  boundaries: readonly TransitionBoundary[],
+  supported: readonly string[],
+): string[] {
+  if (!supported.length) return [];
+  const ok = new Set(supported);
+  const missing = new Set<string>();
+  for (const b of boundaries) {
+    if (b.name && !isAlphaOnly(b.name) && !ok.has(b.name)) missing.add(b.name);
+  }
+  return [...missing];
+}
+
+/** What to tell someone whose ffmpeg is too old for the transitions they used. */
+export function transitionUnsupportedMessage(missing: readonly string[]): string {
+  return (
+    `This server's ffmpeg cannot do ${missing.join(', ')}. ` +
+    `Push and Reveal need ffmpeg 6.1 or newer; this build is older. ` +
+    `Change those transitions, or run the render service on a newer ffmpeg.`
+  );
 }
 
 /** Whether a clip's compositing forbids joining it into an xfade run. */

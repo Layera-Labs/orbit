@@ -51,6 +51,7 @@ import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   ffmpegSupportsHdr,
+  ffmpegXfadeTokens,
   killLiveRenders,
   renderProject,
   type ExportOutput,
@@ -953,10 +954,21 @@ export function createServer(): Express {
     const hdr = await ffmpegSupportsHdr(
       process.env.FFMPEG_PATH ?? "ffmpeg",
     ).catch(() => false);
+    /*
+     * And which `xfade` transitions it accepts, for the same reason with a
+     * sharper edge: a token this build lacks does not render badly, it fails
+     * the filtergraph BUILD and kills the render. `cover*`/`reveal*` — the
+     * editors' Push and Reveal — arrived in ffmpeg 6.1, and Debian bookworm
+     * (this image's base) ships 5.1, so the gap is live rather than
+     * theoretical. Cached per binary like the HDR probe, so one spawn.
+     */
+    const transitions = await ffmpegXfadeTokens(
+      process.env.FFMPEG_PATH ?? "ffmpeg",
+    ).catch(() => [] as string[]);
     res.json({
       ok: true,
       service: "orbit-render",
-      capabilities: { hdr },
+      capabilities: { hdr, transitions },
       /*
        * Which build is actually answering. Without this, "is the fix
        * deployed?" is unanswerable from outside the box — and during an
