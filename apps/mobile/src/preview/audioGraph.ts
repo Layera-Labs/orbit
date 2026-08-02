@@ -85,6 +85,9 @@ export interface PreviewAudioClip {
 
 /** Decoded files, shared across voices and across mounts. */
 const buffers = new Map<string, Promise<AudioBuffer | null>>();
+/** How many times one uri may fail to decode before we stop trying. */
+const MAX_DECODE_ATTEMPTS = 3;
+const attempts = new Map<string, number>();
 
 interface Voice {
   clip: PreviewAudioClip;
@@ -168,15 +171,45 @@ export class PreviewAudio {
    *
    * Cached by uri across voices AND across mounts, because two clips of one
    * song are the common case and decoding is neither cheap nor free in memory.
-   * A failure caches as `null`: a file that cannot be decoded will not decode
-   * on the next tick either, and retrying it every sync is a busy loop.
+   *
+   * **A failure is NOT cached for the life of the process**, which it used to
+   * be, on the reasoning that a file which will not decode now will not decode
+   * on the next tick either. True of a corrupt file and false of an absent one
+   * — and absent is the case that actually happens, because a stale container
+   * path heals on the next project open. The old behaviour turned one bad
+   * moment into a track that stayed silent until the app was restarted, with
+   * the transport running and the waveform scrolling over it.
+   *
+   * Retrying is cheap here because `sync` is driven by EDITS — the set of
+   * clips, where they sit, what they point at — and not by the tick. The
+   * "retrying every sync is a busy loop" it replaces was a worry about a
+   * frequency this never had. The attempt cap is what bounds the genuinely
+   * corrupt file, which does re-fail every time and would otherwise cost a
+   * decode per edit forever.
    */
   private async load(voice: Voice, uri: string): Promise<void> {
     const ctx = this.ctx;
     if (!ctx) return;
     let pending = buffers.get(uri);
     if (!pending) {
-      pending = ctx.decodeAudioData(uri).catch(() => null);
+      pending = ctx.decodeAudioData(uri).catch((err: unknown) => {
+        const n = (attempts.get(uri) ?? 0) + 1;
+        attempts.set(uri, n);
+        /*
+         * Say something. A silent track with the transport running and the
+         * waveform scrolling over it is the hardest thing in this app to
+         * report, because nothing anywhere admits it happened — which is
+         * exactly how it reached a user before it reached a log.
+         */
+        console.warn(
+          `[orbit] could not decode audio (attempt ${n}): ${uri}`,
+          err instanceof Error ? err.message : err,
+        );
+        // Drop the cached failure so the next edit tries again. Runs AFTER the
+        // `set` below — the catch is async and that line is not.
+        if (n < MAX_DECODE_ATTEMPTS) buffers.delete(uri);
+        return null;
+      });
       buffers.set(uri, pending);
     }
     const buffer = await pending;
