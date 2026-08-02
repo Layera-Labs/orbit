@@ -135,7 +135,12 @@ export { migrateTransitionOverlap, OVERLAP_SCHEMA } from './migrate-overlap';
 export type { ClipFade } from './transitions';
 export {
   MAX_OVERLAP_FRAC,
+  TRANSITIONS,
+  isAlphaOnly,
+  planMainRuns,
+  previewableTransitions,
   resolveTransitions,
+  xfadeHasPreview,
   xfadeMapOf,
   xfadeName,
   xfadeProgressAt,
@@ -146,9 +151,12 @@ export {
 export type {
   ClipXfades,
   EdgeFade,
+  MainRun,
   ResolvedTransitions,
   TransitionBoundary,
   TransitionDowngrade,
+  TransitionFamily,
+  TransitionVariant,
   XfRole,
   XfState,
 } from './xfade';

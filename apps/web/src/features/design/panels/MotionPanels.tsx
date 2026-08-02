@@ -3,7 +3,10 @@
 import { useEffect, useState } from 'react';
 import {
   FILTER_PRESETS,
+  previewableTransitions,
+  resolveTransitions,
   type TextOverlay,
+  type TransitionType,
   type VideoProject,
   type VisualTrackClip,
 } from '@orbit/video/browser';
@@ -20,6 +23,7 @@ import {
   useVideo,
 } from '@/store/videoStore';
 import { CaptionsSection } from './Captions';
+import { TransitionTile } from './TransitionTile';
 import styles from './Panels.module.css';
 
 /* ---------------------------------------------------------------- effects --- */
@@ -462,17 +466,16 @@ function RegionControls({
 const FADE_LENGTHS = [0.25, 0.5, 1, 1.5];
 
 /**
- * Cut and Fade, and nothing else — for now, and deliberately.
+ * The transitions BOTH previews render, which is not all the export renders.
  *
- * `TRANSITIONS` in `@orbit/video` now catalogues fifteen families and the
- * EXPORT renders all of them, as `xfade` runs. The previews do not yet: a
- * geometric family previews as a cut, which is a preview running behind the
- * file. Listing them here would let someone pick a wipe and watch a cut, so the
- * picker stays on the two both surfaces really do until the geometry lands.
- * Transitions apply to the base visual track only.
+ * `previewableTransitions()` reads the same tables `xfadeStateAt` reads, so
+ * this list grows the moment a family lands in the renderer and not a commit
+ * before. The alternative — a hand-kept list of the ones that work — is exactly
+ * how a picker ends up promising a wipe while the canvas shows a cut.
  */
 export function TransitionsPanel({ clip }: { clip: VisualTrackClip | null }) {
   const apply = useVideo((s) => s.apply);
+  const project = useVideo((s) => s.project);
 
   if (!clip)
     return (
@@ -483,45 +486,57 @@ export function TransitionsPanel({ clip }: { clip: VisualTrackClip | null }) {
     );
 
   const current = clip.transitionIn;
-  const isFade = !!current && current.type !== 'cut';
+  const type: TransitionType = current?.type ?? 'cut';
+  const duration = current?.duration ?? 0.5;
+  const families = previewableTransitions();
+
+  /*
+   * Why this boundary is not doing what was asked, in the resolver's own words.
+   * A blended clip's export branch reads the canvas accumulated under it and an
+   * xfade run has no such canvas, so the boundary collapses to a crossfade —
+   * which under overlap costs nothing, but the picker should say so rather than
+   * let someone pick a wipe four times.
+   */
+  const main = project?.tracks?.find((t) => t.kind === 'visual');
+  const downgraded =
+    main && main.kind === 'visual'
+      ? resolveTransitions(main.clips).boundaries.find((b) => b.nextId === clip.id)
+          ?.downgraded
+      : undefined;
+
+  const set = (t: TransitionType, d = duration) =>
+    apply((p) =>
+      setTransition(p, clip.id, t === 'cut' ? undefined : { type: t, duration: d }),
+    );
 
   return (
     <div className={styles.stack}>
-      <div className={styles.group}>
-        <h3 className={styles.groupTitle}>Coming in</h3>
-        <div className={styles.presets}>
-          <button
-            className={styles.preset}
-            data-on={!isFade}
-            aria-pressed={!isFade}
-            onClick={() => apply((p) => setTransition(p, clip.id, undefined))}
+      {families.map((f) => (
+        <div key={f.key} className={styles.group}>
+          <h3 className={styles.groupTitle}>{f.label}</h3>
+          <div
+            className={`${styles.presets} ${
+              f.variants.length === 2 ? styles.presetsPair : ''
+            }`}
           >
-            <span className={styles.presetSwatch} />
-            Cut
-          </button>
-          <button
-            className={styles.preset}
-            data-on={isFade}
-            aria-pressed={isFade}
-            onClick={() =>
-              apply((p) =>
-                setTransition(p, clip.id, {
-                  type: 'fade',
-                  duration: current?.duration ?? 0.5,
-                }),
-              )
-            }
-          >
-            <span
-              className={styles.presetSwatch}
-              style={{ background: 'linear-gradient(90deg, #100f0e, #4a4640)' }}
-            />
-            Fade
-          </button>
+            {f.variants.map((v) => (
+              <button
+                key={v.type}
+                className={styles.preset}
+                data-on={type === v.type}
+                aria-pressed={type === v.type}
+                title={v.label}
+                onClick={() => set(v.type)}
+              >
+                <TransitionTile type={v.type} />
+                {v.dir ?? v.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      ))}
 
-      {isFade && (
+      {type !== 'cut' && (
         <div className={styles.group}>
           <h3 className={styles.groupTitle}>Length</h3>
           <div className={styles.presets}>
@@ -529,11 +544,9 @@ export function TransitionsPanel({ clip }: { clip: VisualTrackClip | null }) {
               <button
                 key={d}
                 className={styles.preset}
-                data-on={Math.abs((current?.duration ?? 0) - d) < 0.01}
-                aria-pressed={Math.abs((current?.duration ?? 0) - d) < 0.01}
-                onClick={() =>
-                  apply((p) => setTransition(p, clip.id, { type: 'fade', duration: d }))
-                }
+                data-on={Math.abs(duration - d) < 0.01}
+                aria-pressed={Math.abs(duration - d) < 0.01}
+                onClick={() => set(type, d)}
               >
                 {d}s
               </button>
@@ -542,10 +555,16 @@ export function TransitionsPanel({ clip }: { clip: VisualTrackClip | null }) {
         </div>
       )}
 
+      {downgraded === 'blend' && (
+        <p className={styles.note}>
+          This clip uses a blend mode, so its transition renders as a crossfade in both
+          the preview and the file.
+        </p>
+      )}
+
       <p className={styles.note}>
-        Transitions apply to the base track only, and render as a fade in both the preview
-        and the exported file. A transition overlaps the two clips, so adding one makes
-        the base track shorter — music and captions stay where they are.
+        Transitions apply to the base track only. One overlaps the two clips, so adding it
+        makes the base track shorter — music and captions stay where they are.
       </p>
     </div>
   );

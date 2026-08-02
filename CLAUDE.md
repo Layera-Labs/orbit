@@ -422,8 +422,20 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   the variants where the outgoing clip travels. `xfade-probe.test.ts` names and skips it
   rather than porting a modulo wrap whose only effect is that stray line.
   **Sixteen of thirty-five families are still export-only** and preview as a cut — a
-  preview running BEHIND the file, the tolerable direction, and unreachable from a picker
-  that offers Cut and Fade. What was measured about them, so it is not re-derived:
+  preview running BEHIND the file, the tolerable direction, and unreachable from the
+  pickers, which are built from `previewableTransitions()`.
+  **The picker's tiles are the transitions themselves**, laid out by `xfadeStateAt` at
+  `p = 0.42` rather than drawn as glyphs — so a tile cannot depict something the renderer
+  does not do, and a family that lands in the renderer gets a correct tile for free.
+  Found on the device rather than on paper: the four directional families split the frame
+  at the SAME place at the same instant, so on flat fills their tiles are identical, and a
+  dot at each picture's centre does not save it either (the arriving picture is still
+  mostly off-frame that early, and its dot with it). A **diagonal corner to corner** is
+  always partly visible wherever its picture sits and reads out both halves at once: wipe
+  is one unbroken line, push restarts at the seam, slide is displaced AND restarts, reveal
+  is displaced on the left and still reaches the far corner. The Cut tile draws no base
+  fill, so the sheet shows through its seam — with one, it was a wipe tile.
+  What was measured about the sixteen, so it is not re-derived:
   `fadeblack` is `A*(1-p)*smoothstep(0.8,1,1-p) + B*p*smoothstep(0,0.8,p)` with a `floor`
   to 8 bits (asymmetric, and it needs an answer about what the run's ALPHA does through the
   dip before a third full-frame op can be right); `squeeze*` scales and therefore RESAMPLES,
@@ -593,9 +605,11 @@ Next 14 App Router. **One editor** over the v2 SDK plus a browser video engine.
 - Stickers are image clips on an overlay track with a normalized `rect`, so they are
   dual-rendered for free. House marks are authored as SVG and **rasterized to PNG before
   storage** — ffmpeg cannot read SVG.
-- The transition **picker** still offers only Cut and Fade, and transitions are on the
-  first visual track only. The engine under it is `xfade` — see the transitions section
-  below.
+- The transition **picker** offers exactly what BOTH previews render — Cut, Fade,
+  Wipe×4, Slide×4, Push×4, Reveal×4 — from `previewableTransitions()`, which reads the
+  same tables `xfadeStateAt` reads, so it grows when the renderer does and not a commit
+  before. Transitions are on the first visual track only. The engine under it is `xfade`
+  — see the transitions section below.
 
 - **Versions are pinned exactly** — `next 14.2.35` / `react 18.3.1`. Every v2 package peers
   React 18 and `react-konva@18.2.x` is the React-18 line; two React copies is a hard crash
