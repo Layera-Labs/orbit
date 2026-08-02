@@ -257,6 +257,17 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   a guest account would detach them from their own credits. `ORBIT_JWT_SECRET` is required
   in production and ephemeral in dev. Render jobs carry their `account`, so
   `GET /v1/render/:id` 404s someone else's job rather than handing over the MP4.
+- **`ensureTracks` used to return early and strand the legacy `audio` array** (fixed
+  2026-08-02). `if (p.tracks?.length) return p` — so a project that had tracks AND a
+  non-empty `project.audio` kept its music somewhere NOTHING reads: `previewAudioOf`
+  walks tracks only, and `buildFFmpegArgs` routes to the multi-track builder the moment
+  `tracks` is defined. Silent in the preview, absent from the export, no lane on the
+  timeline. `adoptLegacyAudio` folds those clips onto the audio track and EMPTIES the
+  array — which the v1 migration itself failed to do, so it copied the music into a
+  track and left the original behind, which is one of the two ways a project reaches
+  that state. The fold is keyed on clip ID for exactly that reason: appending blindly
+  would give every already-migrated project its music twice, at the same moment, summed
+  (`amix` does not normalise).
 - **The audio library heals like the gen library, and it did not used to** (2026-08-02).
   `audioHistory.ts` returned its records verbatim — no rebase, no existence check — one
   file over from `genHistory.ts`, which has both. Two reports came out of that single
