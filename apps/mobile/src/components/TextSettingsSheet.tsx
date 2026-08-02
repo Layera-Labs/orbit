@@ -96,12 +96,25 @@ export function TextSettingsSheet({
 
   return (
     <Modal transparent visible animationType="slide" onRequestClose={close}>
-      <Pressable style={styles.backdrop} onPress={close}>
+      {/*
+        * The `KeyboardAvoidingView` IS the bottom-anchored container, and that
+        * is the whole fix. It used to sit INSIDE the sheet with no flex, while
+        * the sheet was anchored by a `flex-end` backdrop above it — so
+        * `behavior="padding"` had nothing to push: the padding grew inside a
+        * box whose bottom edge was already pinned to the bottom of the screen,
+        * behind the keyboard. The text field was focused and taking input, and
+        * you could not see it.
+        *
+        * Every other sheet in this app already had it this way round
+        * (`InputSheet`, `TtsSheet`, `AuthSheet`, `AiGenerateModal` all give the
+        * KAV `flex: 1`); this one was the odd one out.
+        */}
+      <KeyboardAvoidingView
+        behavior={process.env.EXPO_OS === "ios" ? "padding" : undefined}
+        style={styles.backdrop}
+      >
+        <Pressable style={StyleSheet.absoluteFill} onPress={close} />
         <Pressable style={styles.sheet} onPress={() => {}}>
-          <KeyboardAvoidingView
-            behavior={process.env.EXPO_OS === "ios" ? "padding" : undefined}
-            style={styles.keyboardContent}
-          >
             {/* Header: title + align + bold + done */}
             <View style={styles.header}>
               <Text style={styles.title}>Text</Text>
@@ -242,9 +255,8 @@ export function TextSettingsSheet({
                 />
               )}
             </Animated.View>
-          </KeyboardAvoidingView>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -280,7 +292,6 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 26,
     borderCurve: "continuous",
   },
-  keyboardContent: { width: "100%" },
   header: {
     flexDirection: "row",
     alignItems: "center",

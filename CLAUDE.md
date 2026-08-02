@@ -558,6 +558,16 @@ Editor panels are in `EditorSheets.tsx` plus dedicated sheets (`MosaicSheet`,
   even changes, from the edits to existing files) while leaving the new module out of the
   graph entirely. The check then passes against a bundle that does not contain the thing
   you are checking. Grep the bundle for a distinctive string from the new file to be sure.
+- **A `KeyboardAvoidingView` has to BE the bottom-anchored container, not sit inside
+  one** (2026-08-02). `TextSettingsSheet` had it the other way round — the KAV inside the
+  sheet with `width: '100%'` and no flex, while a `flex-end` backdrop above it pinned the
+  sheet to the bottom of the screen. `behavior="padding"` then had nothing to push:
+  the padding grew inside a box whose bottom edge was already behind the keyboard, and
+  tapping Edit on a text clip focused a field you could not see. Every other sheet
+  already had it right (`InputSheet`, `TtsSheet`, `AuthSheet`, `AiGenerateModal` all give
+  the KAV `flex: 1`), so the shape to copy was already in the tree. Verified with the
+  simulator's SOFTWARE keyboard — a hardware keyboard is connected by default and hides
+  the entire class of bug; `⌘K` in the Simulator app is what toggles it.
 - **RN's `SafeAreaView` OVERWRITES the padding in its own style.** It applies insets by
   writing `padding` onto its native view, so a `paddingHorizontal` declared on the same
   style is silently replaced — and in portrait the left/right insets are ZERO, so the
