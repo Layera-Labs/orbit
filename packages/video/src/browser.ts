@@ -137,6 +137,7 @@ export {
   MAX_OVERLAP_FRAC,
   TRANSITIONS,
   isAlphaOnly,
+  parseXfadeTokens,
   planMainRuns,
   previewableTransitions,
   resolveTransitions,
@@ -145,6 +146,8 @@ export {
   xfadeName,
   xfadeProgressAt,
   requestedOverlap,
+  transitionUnsupportedMessage,
+  unsupportedTransitions,
   xfadeStateAt,
   xfadeStateFor,
 } from './xfade';

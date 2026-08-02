@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   FILTER_PRESETS,
   previewableTransitions,
@@ -10,6 +10,7 @@ import {
   type VideoProject,
   type VisualTrackClip,
 } from '@orbit/video/browser';
+import { serverCapabilities } from '@/net/capabilities';
 import { Icon } from '@/brand/Icon';
 import { ColourRow, SwatchGrid } from '@/brand/Colour';
 import { gradeIsExact } from '@/video/engine/grade';
@@ -476,6 +477,28 @@ const FADE_LENGTHS = [0.25, 0.5, 1, 1.5];
 export function TransitionsPanel({ clip }: { clip: VisualTrackClip | null }) {
   const apply = useVideo((s) => s.apply);
   const project = useVideo((s) => s.project);
+  /*
+   * ...and only what THIS render server's ffmpeg can parse. A transition token
+   * is a property of the build: `cover*`/`reveal*` — Push and Reveal — arrived
+   * in ffmpeg 6.1, and an older one does not render them wrongly, it refuses
+   * to build the filtergraph and takes the export with it. Unknown subtracts
+   * nothing (see `capabilities.ts`), so a dev machine with no service running
+   * still shows the full picker.
+   *
+   * Probed BEFORE the `!clip` early return, or this would be a conditional
+   * hook.
+   */
+  const [tokens, setTokens] = useState<string[]>([]);
+  useEffect(() => {
+    let alive = true;
+    void serverCapabilities().then((caps) => {
+      if (alive) setTokens(caps.transitions);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  const families = useMemo(() => previewableTransitions(tokens), [tokens]);
 
   if (!clip)
     return (
@@ -488,7 +511,6 @@ export function TransitionsPanel({ clip }: { clip: VisualTrackClip | null }) {
   const current = clip.transitionIn;
   const type: TransitionType = current?.type ?? 'cut';
   const duration = current?.duration ?? 0.5;
-  const families = previewableTransitions();
 
   /*
    * Why this boundary is not doing what was asked, in the resolver's own words.

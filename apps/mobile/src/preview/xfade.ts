@@ -284,11 +284,39 @@ export function xfadeHasPreview(type: TransitionType): boolean {
 /**
  * The catalogue, filtered to what a picker may show, with empty families
  * dropped.
+ *
+ * `supported` is the render server's list of `xfade` tokens, from
+ * `/health`'s `capabilities.transitions`. Pass it and a family this server's
+ * ffmpeg cannot parse disappears; pass `undefined` and nothing is subtracted.
+ * It matters because **a token is a property of the BUILD, not of ffmpeg**:
+ * `cover*`/`reveal*` — Push and Reveal — arrived in 6.1, and an ffmpeg without
+ * them does not render them badly, it refuses to build the filtergraph and
+ * kills the whole render.
+ *
+ * **Unknown means offer it, the opposite of the HDR gate, and deliberately.**
+ * HDR hides when unprobed because offering it yields a file whose tags lie, and
+ * the cost of hiding is one checkbox. Here the editor has to work with no
+ * server at all — a phone in aeroplane mode still lays out a project — so
+ * hiding every transition whenever `/health` was unreachable would do far more
+ * damage than the case it prevents. The client subtracts only what it has been
+ * TOLD is missing, and the service refuses by name if such a project reaches it
+ * anyway.
  */
-export function previewableTransitions(): TransitionFamily[] {
+export function previewableTransitions(
+  supported?: readonly string[] | null,
+): TransitionFamily[] {
+  const ok = supported && supported.length ? new Set(supported) : null;
   return TRANSITIONS.map((f) => ({
     ...f,
-    variants: f.variants.filter((v) => xfadeHasPreview(v.type)),
+    variants: f.variants.filter((v) => {
+      if (!xfadeHasPreview(v.type)) return false;
+      if (!ok) return true;
+      const name = xfadeName({ type: v.type, duration: 1 });
+      // A cut names no filter and a fade is drawn by the compositor rather
+      // than by `xfade` (see `isAlphaOnly`), so neither can be missing from a
+      // build and neither is ever subtracted.
+      return !name || isAlphaOnly(name) || ok.has(name);
+    }),
   })).filter((f) => f.variants.length > 0);
 }
 

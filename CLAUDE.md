@@ -505,8 +505,35 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   neither family present) and `n6.1` (both present). The render server's image installs
   Debian bookworm's **5.1.9**, so Push×4 and Reveal×4 — 8 of the 19 the pickers offer — name
   a token that build cannot parse, and the filtergraph fails to BUILD rather than rendering
-  something slightly wrong. Nothing else we emit needs more than 5.1. This is what
-  `xfade-verify.mjs` was written to catch and its `FAIL` branch is exactly this case.
+  something slightly wrong. Nothing else we emit needs more than 5.1. Confirmed on the box
+  with `ffmpeg -h filter=xfade`, which is also the cheapest way to ask: 45 constants ending
+  at `fadeslow` is 5.1, 57 ending at `revealdown` is 6.1+.
+- **So a transition is gated on what the SERVER's ffmpeg has** (2026-08-02), which matters
+  beyond this one box: Orbit is self-hostable, so every deployment brings its own ffmpeg.
+  `/health` reports `capabilities.transitions` from `ffmpegXfadeTokens` (cached per binary,
+  like the HDR probe), both clients cache it per server URL, and the pickers are built from
+  `previewableTransitions(tokens)`. `parseXfadeTokens` keys on the INTEGER column of the
+  option dump, because that is what separates an enum constant from an option — so
+  `duration`, `offset`, `expr` and `transition` itself fall out without being named, and a
+  future ffmpeg can add options without being misread. `custom` is excluded: it takes a
+  per-pixel expression and counting it would make a build look capable of a family it has
+  no code for.
+  **Unknown means OFFER it — the opposite of the HDR gate, deliberately.** HDR hides when
+  unprobed because offering it yields a file whose tags lie and the cost of hiding is one
+  checkbox; here the editor has to work with no server reachable at all, and emptying the
+  picker in aeroplane mode would be worse than the case it guards. So an empty list
+  subtracts NOTHING, on both clients and in both the picker and the service. The second
+  line of defence is `renderProject`, which resolves the main track and REFUSES by name
+  before taking a render slot. Refused rather than substituted: a push is not a slide (a
+  slide moves both pictures), so silently swapping one would hand back a file that does not
+  match the timeline the user watched — the same class of lie as an HDR tag on SDR pixels.
+  `render-transition-gate.test.ts` proves the chain against a shell shim that prints a real
+  5.1 help dump, rather than mocking the probe, because it is the spawn and the parse that
+  have to work; it asserts both directions, since a gate that refused everything would pass
+  the obvious test while breaking every export.
+  This is also what `xfade-verify.mjs` was written to catch and its `FAIL` branch is exactly
+  this case — but note it is COPIED INTO the image at build time, not bind-mounted, so it
+  cannot be run against a deployed container without a rebuild. `-h filter=xfade` can.
   What was measured about the sixteen, so it is not re-derived.
   **Read the C, do not port it from GLSL habit: ffmpeg's own `mix(a, b, t)` is
   `a*t + b*(1-t)`, the REVERSE of GLSL's, and its internal `progress` runs 1 → 0**

@@ -11,6 +11,7 @@ import {
   isAlphaOnly,
   MAX_OVERLAP_FRAC,
   planMainRuns,
+  previewableTransitions,
   resolveTransitions,
   TRANSITIONS,
   xfadeMapOf,
@@ -146,6 +147,33 @@ describe("mobile mirrors packages/video", () => {
     // The picker is built from this. Two clients offering different
     // transitions for the same project is the sync bug, not a cosmetic one.
     expect(TRANSITIONS).toEqual((await shared()).TRANSITIONS);
+  });
+
+  it("subtracts the same families for the same server", async () => {
+    /*
+     * The gate has to agree across clients for the same reason the catalogue
+     * does. A phone that offers Push against an ffmpeg 5.1 server while the
+     * web app hides it means one of them authors a project the other cannot
+     * render — and the failure surfaces at export, on whichever client did not
+     * make the choice.
+     *
+     * The token list here is ffmpeg 5.1's shape: wipes and slides, no
+     * `cover*`/`reveal*`.
+     */
+    const ffmpeg51 = ["fade", "wipeleft", "wiperight", "slideleft", "slideup"];
+    const mine = previewableTransitions(ffmpeg51);
+    expect(mine).toEqual((await shared()).previewableTransitions(ffmpeg51));
+    expect(mine.map((f) => f.key)).not.toContain("push");
+    expect(mine.map((f) => f.key)).not.toContain("reveal");
+  });
+
+  it("subtracts nothing on both when the server is unknown", async () => {
+    // Unknown must not read as "supports nothing" on either client: the
+    // editor has to keep working with no server reachable at all.
+    expect(previewableTransitions([])).toEqual(previewableTransitions());
+    expect(previewableTransitions([])).toEqual(
+      (await shared()).previewableTransitions([]),
+    );
   });
 });
 

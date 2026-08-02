@@ -1,7 +1,8 @@
 /**
  * What the render service this app is pointed at can actually do.
  *
- * Only HDR10 so far, and it exists because `zscale` is a compile-time ffmpeg
+ * Two things so far, and both exist because ffmpeg is not one program. `zscale`
+ * is a compile-time ffmpeg
  * option that plenty of ordinary builds (Homebrew's included) ship without. The
  * server refuses an HDR export it cannot honour — correctly, because the
  * alternative is a file whose tags lie about its contents — but a toggle that
@@ -17,9 +18,21 @@
 export interface ServerCapabilities {
   /** ffmpeg has `zscale`, so HDR10 output is possible. */
   hdr: boolean;
+  /**
+   * The `xfade` transition tokens this build accepts, or empty for "unknown".
+   *
+   * NOT gated the way `hdr` is, and the difference is the point. An unknown
+   * HDR answer hides the toggle, because the cost of hiding is a checkbox. An
+   * unknown transition list subtracts NOTHING, because the editor has to work
+   * with no server reachable at all and a rule that emptied the picker in
+   * aeroplane mode would be worse than the bug it prevents. Empty therefore
+   * reads as "do not subtract" in `previewableTransitions`, and the service
+   * refuses by name if such a project reaches it anyway.
+   */
+  transitions: string[];
 }
 
-const NONE: ServerCapabilities = { hdr: false };
+const NONE: ServerCapabilities = { hdr: false, transitions: [] };
 
 /** Per base URL: the answer is a property of that install, not of this session. */
 const cache = new Map<string, Promise<ServerCapabilities>>();
@@ -40,10 +53,17 @@ export function serverCapabilities(
       const body = (await res.json()) as {
         capabilities?: Partial<ServerCapabilities>;
       };
-      return { hdr: !!body.capabilities?.hdr };
+      const t = body.capabilities?.transitions;
+      return {
+        hdr: !!body.capabilities?.hdr,
+        // An older server predates the field entirely; that is "unknown", not
+        // "supports nothing", so it must land on the empty array rather than
+        // on a list that would subtract every family.
+        transitions: Array.isArray(t) ? t.filter((x) => typeof x === 'string') : [],
+      };
     } catch {
-      // A server that was merely unreachable might well support HDR, so do not
-      // remember this answer — the next export sheet asks again.
+      // A server that was merely unreachable might well support all of this,
+      // so do not remember the answer — the next sheet asks again.
       cache.delete(key);
       return NONE;
     }

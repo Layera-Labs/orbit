@@ -5,7 +5,7 @@
  * says — the "soon" placeholders are gone, because a picker that answers a tap
  * with an apology is worse than one that offers less.
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -1285,7 +1285,32 @@ function TransitionSheet() {
   const close = () => setPanel(null);
   const [dur, setDur] = useState(current?.duration ?? 0.5);
   const type: TransitionType = current?.type ?? "cut";
-  const families = previewableTransitions();
+  /*
+   * ...and only what THIS render server's ffmpeg can parse.
+   *
+   * A transition token is a property of the build, not of ffmpeg: `cover*` and
+   * `reveal*` — Push and Reveal — arrived in 6.1, and an older build does not
+   * render them wrongly, it refuses to build the filtergraph and takes the
+   * whole export with it, minutes after the button was pressed. So the picker
+   * subtracts what `/health` says is missing.
+   *
+   * Unknown subtracts NOTHING (the probe fails to an empty list), because the
+   * editor has to work with no server reachable — emptying this sheet in
+   * aeroplane mode would be worse than the case it guards. `renderProject`
+   * refuses by name if such a project reaches an ffmpeg without it.
+   */
+  const serverUrl = useEditor((s) => s.serverUrl);
+  const [tokens, setTokens] = useState<string[]>([]);
+  useEffect(() => {
+    let alive = true;
+    void serverCapabilities(serverUrl).then((caps) => {
+      if (alive) setTokens(caps.transitions);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [serverUrl]);
+  const families = useMemo(() => previewableTransitions(tokens), [tokens]);
 
   /*
    * Why this boundary is not rendering what was asked for, in the words the

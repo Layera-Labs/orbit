@@ -9,7 +9,13 @@ import { overlayToSVG } from './overlay-svg';
 import { rasterizeSVG } from './raster';
 import { fontFilesFor } from './google-fonts';
 import { HDR_UNSUPPORTED_MESSAGE, supportsHdr } from './hdr';
-import type { VideoProject } from './types';
+import {
+  parseXfadeTokens,
+  resolveTransitions,
+  transitionUnsupportedMessage,
+  unsupportedTransitions,
+} from './xfade';
+import type { VideoProject, VisualTrackClip } from './types';
 
 export interface RenderOptions extends Omit<BuildFFmpegOptions, 'overlayImages' | 'hasAudio'> {
   /** ffmpeg binary path (default: `ffmpeg` on PATH). Production ships its own. */
@@ -136,6 +142,65 @@ export function ffmpegSupportsHdr(bin: string): Promise<boolean> {
 }
 
 /**
+ * Which `xfade` transitions this ffmpeg accepts, cached per binary.
+ *
+ * Same shape and same discipline as `ffmpegSupportsHdr` — a completed probe is
+ * a property of the install and is remembered; a probe that timed out because
+ * the box was wedged is not, since caching that would disable every geometric
+ * transition for the life of the service.
+ *
+ * It asks `-h filter=xfade` rather than `-filters`, because `xfade` being
+ * PRESENT says nothing: it has shipped since 4.3 and has gained transitions
+ * since. What varies, and what breaks a render, is the enum inside it.
+ */
+const xfadeTokens = new Map<string, Promise<string[]>>();
+
+export function ffmpegXfadeTokens(bin: string): Promise<string[]> {
+  const cached = xfadeTokens.get(bin);
+  if (cached) return cached;
+  const probe = new Promise<string[]>((resolve) => {
+    let settled = false;
+    const done = (value: string[], remember: boolean) => {
+      if (settled) return;
+      settled = true;
+      if (!remember) xfadeTokens.delete(bin);
+      resolve(value);
+    };
+    let proc: ReturnType<typeof spawn>;
+    try {
+      proc = spawn(bin, ['-hide_banner', '-h', 'filter=xfade'], {
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+    } catch {
+      done([], true); // no such binary — not transient
+      return;
+    }
+    let out = '';
+    const cancel = killAfter(proc, 10_000, () => done([], false));
+    proc.stdout?.on('data', (d: Buffer) => {
+      out += String(d);
+    });
+    proc.on('error', () => {
+      cancel();
+      done([], true);
+    });
+    proc.on('close', () => {
+      cancel();
+      /*
+       * An empty parse is treated as UNKNOWN, not as "supports nothing" — a
+       * build with no xfade at all, or a help format we cannot read, must not
+       * make every export refuse itself. Both readers take the empty array to
+       * mean "do not subtract anything", which keeps a parser failure to a
+       * missing safety net rather than an outage.
+       */
+      done(parseXfadeTokens(out), true);
+    });
+  });
+  xfadeTokens.set(bin, probe);
+  return probe;
+}
+
+/**
  * Render a project to `opts.outputPath`: rasterize each text overlay to a PNG,
  * then spawn ffmpeg to composite + encode. Resolves with the output path.
  */
@@ -148,6 +213,32 @@ export async function renderProject(project: VideoProject, opts: RenderOptions):
    */
   if (opts.output?.hdr && !(await ffmpegSupportsHdr(opts.ffmpegPath ?? 'ffmpeg'))) {
     throw new Error(HDR_UNSUPPORTED_MESSAGE);
+  }
+  /*
+   * And refuse a transition this ffmpeg has never heard of, for the same
+   * reason and one step earlier.
+   *
+   * Left alone this does not degrade, it detonates: an unknown `transition=`
+   * token fails to PARSE, so ffmpeg rejects the entire filtergraph and the
+   * error names an option rather than the clip or the effect that caused it.
+   * The client cannot act on that, and the user finds out minutes into an
+   * export. `cover*`/`reveal*` — Push and Reveal — are the live case: they
+   * arrived in ffmpeg 6.1 and the service image ships Debian's 5.1.
+   *
+   * Refused rather than substituted. A push is not a slide (a slide moves both
+   * pictures), so quietly swapping one would hand back a file that does not
+   * match the timeline the user was watching — the same class of lie as an HDR
+   * tag on SDR pixels.
+   */
+  {
+    const mainTrack = project.tracks?.find((t) => t.kind === 'visual');
+    if (mainTrack?.clips?.length) {
+      const missing = unsupportedTransitions(
+        resolveTransitions(mainTrack.clips as VisualTrackClip[]).boundaries,
+        await ffmpegXfadeTokens(opts.ffmpegPath ?? 'ffmpeg'),
+      );
+      if (missing.length) throw new Error(transitionUnsupportedMessage(missing));
+    }
   }
   const dir = await mkdtemp(join(tmpdir(), 'orbit-video-'));
   try {
