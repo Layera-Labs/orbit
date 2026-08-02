@@ -500,10 +500,28 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   is one unbroken line, push restarts at the seam, slide is displaced AND restarts, reveal
   is displaced on the left and still reaches the far corner. The Cut tile draws no base
   fill, so the sheet shows through its seam — with one, it was a wipe tile.
-  What was measured about the sixteen, so it is not re-derived:
-  `fadeblack` is `A*(1-p)*smoothstep(0.8,1,1-p) + B*p*smoothstep(0,0.8,p)` with a `floor`
-  to 8 bits (asymmetric, and it needs an answer about what the run's ALPHA does through the
-  dip before a third full-frame op can be right); `squeeze*` scales and therefore RESAMPLES,
+  **`cover*` and `reveal*` do not exist before ffmpeg 6.1** — checked against the enum and
+  the `AV_OPT_TYPE_CONST` table in `libavfilter/vf_xfade.c` at `n5.1.4`/`n5.1.6` (45 tokens,
+  neither family present) and `n6.1` (both present). The render server's image installs
+  Debian bookworm's **5.1.9**, so Push×4 and Reveal×4 — 8 of the 19 the pickers offer — name
+  a token that build cannot parse, and the filtergraph fails to BUILD rather than rendering
+  something slightly wrong. Nothing else we emit needs more than 5.1. This is what
+  `xfade-verify.mjs` was written to catch and its `FAIL` branch is exactly this case.
+  What was measured about the sixteen, so it is not re-derived.
+  **Read the C, do not port it from GLSL habit: ffmpeg's own `mix(a, b, t)` is
+  `a*t + b*(1-t)`, the REVERSE of GLSL's, and its internal `progress` runs 1 → 0**
+  (`progress = 1 - (pts - first - offset)/duration`, `vf_xfade.c:1932`), so `P = 1 - p`.
+  Get either backwards and every formula below silently inverts.
+  `fadeblack` is a NESTED mix, not a sum —
+  `mix(mix(A, bg, ss(0.8, 1, P)), mix(bg, B, ss(0.2, 1, P)), P)` with
+  `ss = smoothstep` — which is asymmetric (at `p = 0.5` it is already 34% B against 66%
+  black), and it needs an answer about what the run's ALPHA does through the dip before a
+  third full-frame op can be right. An earlier note here recorded a two-term sum for it,
+  guessed from probe output; it is wrong, and the C is the answer.
+  `circleopen` is `smoothstep(0, 1, hypot(x - w/2, y - h/2)/hypot(w/2, h/2) + (P - 0.5)*3)`
+  — note the **integer** `w/2` (a half-pixel offset on odd dimensions) and the 3× ramp,
+  which means it is over by `p ≈ 0.83` and has not started before `p ≈ 0.17`.
+  `squeeze*` scales and therefore RESAMPLES,
   so it needs a recorded tolerance like the grade rather than an exact rule; `zoomin` is a
   scale AND a blend that only starts near `p = 0.53`; `circle*`, `vert*`, `horz*`, `diag*`
   and `radial` want gradient masks; `pixelize` and `hblur` are resampling filters.
