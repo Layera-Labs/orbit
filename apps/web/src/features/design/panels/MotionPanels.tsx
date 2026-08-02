@@ -462,13 +462,14 @@ function RegionControls({
 const FADE_LENGTHS = [0.25, 0.5, 1, 1.5];
 
 /**
- * Cut and Fade, and nothing else — deliberately.
+ * Cut and Fade, and nothing else — for now, and deliberately.
  *
- * `TransitionType` also has dissolve, slide, wipe and zoom, but
- * `buildMultiTrackArgs` collapses every non-cut type to a fade through black,
- * and `frameStateAt` reproduces that collapse so the preview can never be better
- * than the export. Offering "Slide" here would name something neither surface
- * does. It applies only to the base visual track, for the same reason.
+ * `TRANSITIONS` in `@orbit/video` now catalogues fifteen families and the
+ * EXPORT renders all of them, as `xfade` runs. The previews do not yet: a
+ * geometric family previews as a cut, which is a preview running behind the
+ * file. Listing them here would let someone pick a wipe and watch a cut, so the
+ * picker stays on the two both surfaces really do until the geometry lands.
+ * Transitions apply to the base visual track only.
  */
 export function TransitionsPanel({ clip }: { clip: VisualTrackClip | null }) {
   const apply = useVideo((s) => s.apply);

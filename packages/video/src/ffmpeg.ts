@@ -15,6 +15,7 @@ import {
   type ExportOutput,
   type VideoProject,
   type VisualTrack,
+  type VisualTrackClip,
 } from "./types";
 import { projectDuration, transitionDuration } from "./project";
 import { atempoChain, filterToFFmpeg } from "./filters";
@@ -43,7 +44,13 @@ import {
   rotatedBoxPx,
 } from "./transform";
 import { buildEdgeFadeMap } from "./transitions";
-import { resolveTransitions, xfadeMapOf } from "./xfade";
+import {
+  isAlphaOnly,
+  type MainRun,
+  planMainRuns,
+  resolveTransitions,
+  xfadeMapOf,
+} from "./xfade";
 import {
   animWindows,
   hasFade,
@@ -428,6 +435,27 @@ export function buildFFmpegArgs(
 }
 
 /**
+ * One prepared clip stream (`[v{i}]`) and everything needed to place it.
+ *
+ * `S`/`E` are in whatever time base the layer was built in: absolute timeline
+ * seconds on the ordinary path, clip-local seconds inside an xfade run.
+ */
+interface ClipLayer {
+  label: string;
+  /** `overlay` x, already carrying the rotation anchor, keyframes and slide. */
+  ox: string;
+  oy: string;
+  /** The clip box's origin and size after rotation, for the blend branch. */
+  px: number;
+  py: number;
+  ow: number;
+  oh: number;
+  blendMode: string | null;
+  S: number;
+  E: number;
+}
+
+/**
  * Multi-track (v2) compositor. Stacks visual tracks bottom→top: each clip is
  * trimmed, scaled to its normalized `rect`, time-shifted to its absolute
  * `start` (setpts) and overlaid (gated by `enable`) onto a background base.
@@ -517,14 +545,31 @@ function buildMultiTrackArgs(
 
   // ---- composite visual clips over the base (bottom→top) ----
   let prev = "[base]";
-  visualClips.forEach((c, i) => {
+
+  /**
+   * Build one clip's stream, from its input through to `[v{i}]` — trim, grade,
+   * effects, fades and rotation — and report what the caller needs to place it.
+   *
+   * `T0` is the timeline second the clip's first frame lands on, and it is the
+   * only reason this is a function rather than the loop body it used to be. On
+   * the ordinary path it is `c.start` and every expression below is exactly
+   * what it always was, byte for byte. Inside an xfade run it is `0`: `xfade`
+   * composites its two inputs in their own clip-local time, and the finished
+   * run is shifted onto the timeline once, afterwards. Threading it beats
+   * reading `c.start` in nine places, which is how the two paths would drift.
+   */
+  const emitClipLayer = (
+    c: VisualTrackClip,
+    i: number,
+    T0: number,
+  ): ClipLayer => {
     const R = c.rect ?? FULL_FRAME;
     const rw = even(R.w * W);
     const rh = even(R.h * H);
     const rx = Math.round(R.x * W);
     const ry = Math.round(R.y * H);
-    const S = c.start;
-    const E = c.start + c.duration;
+    const S = T0;
+    const E = T0 + c.duration;
     const sp = c.speed && c.speed > 0 ? c.speed : 1;
     // speed: consume `duration*sp` source seconds, then setpts divides by sp.
     const srcDur = c.duration * sp;
@@ -540,7 +585,18 @@ function buildMultiTrackArgs(
     const fade = fadeMap.get(c.id);
     // The transition arriving at this clip, if any. Only the incoming side of a
     // boundary carries a filter; the outgoing side is simply left alone under it.
-    const xfIn = xfades.get(c.id)?.asTo;
+    /*
+     * The transition arriving at this clip, but only when it is one this clip
+     * can carry ON ITS OWN alpha — a `fade`, and nothing else. Every geometric
+     * family is performed by the `xfade` filter that joins the run, and ramping
+     * the incoming clip's alpha as well would hand `xfade` a half-transparent
+     * picture to wipe: measured at 252/255 away from the transition asked for,
+     * on every geometric family at once.
+     */
+    const xfIn = (() => {
+      const b = xfades.get(c.id)?.asTo;
+      return b && isAlphaOnly(b.name) ? b : undefined;
+    })();
     const key = chromaToFFmpeg(c.cutout);
     const kfs = c.keyframes;
     const kfOpacity = hasKeyframes(kfs) && animatesOpacity(kfs!);
@@ -634,10 +690,10 @@ function buildMultiTrackArgs(
     if (fade?.fin) chain += `,fade=t=in:st=${r3(S)}:d=${fade.fin}:alpha=1`;
     if (fade?.fout)
       chain += `,fade=t=out:st=${r3(E - fade.fout)}:d=${fade.fout}:alpha=1`;
-    // The crossfade. `xfIn.at` is this clip's own start, so the ramp begins the
-    // instant it appears and finishes where the clip below it ends.
-    if (xfIn)
-      chain += `,fade=t=in:st=${r3(xfIn.at)}:d=${r3(xfIn.overlap)}:alpha=1`;
+    // The crossfade. A boundary begins at the incoming clip's own start, so the
+    // ramp opens the instant it appears and closes where the clip below it
+    // ends — `S`, in whichever time base this layer is being built in.
+    if (xfIn) chain += `,fade=t=in:st=${r3(S)}:d=${r3(xfIn.overlap)}:alpha=1`;
     /*
      * The element's own fade, chained AFTER the transition's. Two `fade`
      * filters multiply their alphas, which is exactly what `frameStateAt` does
@@ -749,7 +805,58 @@ function buildMultiTrackArgs(
      */
     const px = rx - dx;
     const py = ry - dy;
-    const blendMode = blendToFFmpeg(c.blend);
+    /*
+     * A slide is a DELTA, so it composes with whatever already placed the
+     * clip — a static rect or a keyframed position — instead of replacing it.
+     * `slideExpr` returns the literal `'0'` when this axis does not move, and
+     * the `!== '0'` check is what keeps the graph byte-identical for a clip
+     * with no animation.
+     */
+    const sx = slideExpr(anim, S, E, W, H, "x");
+    const sy = slideExpr(anim, S, E, W, H, "y");
+    const place = (
+      base: string,
+      kfExpr: string | null,
+      anchor: number,
+      slide: string,
+    ) => {
+      const parts: string[] = [];
+      if (kfExpr) parts.push(anchor ? `(${kfExpr})-${anchor}` : kfExpr);
+      else parts.push(String(base));
+      if (slide !== "0") parts.push(`(${slide})`);
+      return parts.length === 1 && !kfExpr ? `${base}` : `'${parts.join("+")}'`;
+    };
+    return {
+      label: `[v${i}]`,
+      ox: place(
+        `${px}`,
+        kfPosition ? keyframeExpr(kfs!, "x", S, c.duration, "t", W) : null,
+        dx,
+        sx,
+      ),
+      oy: place(
+        `${py}`,
+        kfPosition ? keyframeExpr(kfs!, "y", S, c.duration, "t", H) : null,
+        dy,
+        sy,
+      ),
+      px,
+      py,
+      ow,
+      oh,
+      blendMode: blendToFFmpeg(c.blend) || null,
+      S,
+      E,
+    };
+  };
+
+  /**
+   * Composite one prepared clip onto everything below it, at its place on the
+   * timeline. The ordinary path; a clip inside an xfade run is placed by
+   * `emitRun` instead, as part of the run.
+   */
+  const placeClip = (i: number, L: ClipLayer) => {
+    const { S, E, px, py, ow, oh, blendMode } = L;
     if (blendMode) {
       /*
        * Blend the clip with the base region under its box, then overlay the
@@ -792,46 +899,107 @@ function buildMultiTrackArgs(
         segments.push(`${prev}null[c${i}]`);
       }
     } else {
-      /*
-       * A slide is a DELTA, so it composes with whatever already placed the
-       * clip — a static rect or a keyframed position — instead of replacing it.
-       * `slideExpr` returns the literal `'0'` when this axis does not move, and
-       * the `!== '0'` check is what keeps the graph byte-identical for a clip
-       * with no animation.
-       */
-      const sx = slideExpr(anim, S, E, W, H, "x");
-      const sy = slideExpr(anim, S, E, W, H, "y");
-      const place = (
-        base: string,
-        kfExpr: string | null,
-        anchor: number,
-        slide: string,
-      ) => {
-        const parts: string[] = [];
-        if (kfExpr) parts.push(anchor ? `(${kfExpr})-${anchor}` : kfExpr);
-        else parts.push(String(base));
-        if (slide !== "0") parts.push(`(${slide})`);
-        return parts.length === 1 && !kfExpr
-          ? `${base}`
-          : `'${parts.join("+")}'`;
-      };
-      const ox = place(
-        `${px}`,
-        kfPosition ? keyframeExpr(kfs!, "x", S, c.duration, "t", W) : null,
-        dx,
-        sx,
-      );
-      const oy = place(
-        `${py}`,
-        kfPosition ? keyframeExpr(kfs!, "y", S, c.duration, "t", H) : null,
-        dy,
-        sy,
-      );
       segments.push(
-        `${prev}[v${i}]overlay=${ox}:${oy}:enable='between(t,${S},${E})':eof_action=pass[c${i}]`,
+        `${prev}[v${i}]overlay=${L.ox}:${L.oy}:enable='between(t,${S},${E})':eof_action=pass[c${i}]`,
       );
     }
     prev = `[c${i}]`;
+  };
+
+  /**
+   * Composite one xfade run: several main-track clips joined by geometric
+   * transitions, built as one stream and overlaid onto the canvas once.
+   *
+   * Three things here are load-bearing and each looks nearly right when wrong.
+   *
+   * **The transparent pad.** `xfade` demands two streams of identical size, and
+   * a clip is only as big as its `rect`. So each one is composited onto a
+   * full-canvas transparent frame FIRST, which also carries a rotated clip
+   * whose grown box hangs off an edge, a keyframed or slid position (`ox`/`oy`
+   * stay time-varying expressions, now clip-local), a mask and a chroma key.
+   * `pad=` would be cheaper and rejects the negative offsets all of those
+   * produce.
+   *
+   * **rgba, not `yuva444p`.** Left alone ffmpeg silently inserts a 420→444
+   * chroma resample before `xfade`; stating a format puts the conversion in the
+   * graph where the dual-render test can see it. rgba over yuva444p because the
+   * blending families (`fade`, `circleopen`, `fadeblack`) then mix in exactly
+   * the space both previews mix in — a canvas `globalAlpha` and a Skia opacity
+   * are RGB — so the agreement is by construction rather than by a measured
+   * YUV↔RGB tolerance.
+   *
+   * **`offset` comes from the timeline, not from an accumulator.** It is the
+   * incoming clip's own start, relative to the run's, which is precisely what
+   * `frameStateAt` uses. The obvious alternative — summing `dur - overlap` as
+   * you go — is equal only while the resolver's clamp does not bite, and
+   * diverges silently when it does.
+   */
+  const emitRun = (run: MainRun) => {
+    const first = run.clipIdx[0];
+    const clips = run.clipIdx.map((i) => visualClips[i]);
+    const runStart = clips[0].start;
+    const runEnd = Math.max(...clips.map((c) => c.start + c.duration));
+    let acc = "";
+    clips.forEach((c, k) => {
+      const i = run.clipIdx[k];
+      const L = emitClipLayer(c, i, 0);
+      segments.push(
+        `color=c=black@0:s=${W}x${H}:r=${fps}:d=${r3(c.duration)},format=rgba[xp${i}]`,
+      );
+      /*
+       * No `shortest`. The pad is the MAIN input and runs exactly the clip's
+       * length, so the padded stream is that length whatever the media does —
+       * a source that runs out early leaves transparent frames behind it,
+       * exactly as it leaves the canvas alone on the ordinary path. With
+       * `shortest` it would end the pad too, and every `offset` after it in the
+       * run addresses a stream that is no longer as long as the timeline says.
+       */
+      segments.push(
+        `[xp${i}]${L.label}overlay=${L.ox}:${L.oy}:eof_action=pass,format=rgba[xc${i}]`,
+      );
+      if (k === 0) {
+        acc = `[xc${i}]`;
+        return;
+      }
+      const b = run.joins[k - 1];
+      segments.push(
+        `${acc}[xc${i}]xfade=transition=${b.name}:duration=${r3(b.overlap)}:offset=${r3(c.start - runStart)}[xj${i}]`,
+      );
+      acc = `[xj${i}]`;
+    });
+    segments.push(
+      `${acc}setpts=PTS-STARTPTS+${r3(runStart)}/TB,format=yuva420p[xr${first}]`,
+    );
+    segments.push(
+      `${prev}[xr${first}]overlay=0:0:enable='between(t,${r3(runStart)},${r3(runEnd)})':eof_action=pass[c${first}]`,
+    );
+    prev = `[c${first}]`;
+  };
+
+  /*
+   * Runs are indexed against the MAIN track, and `visualClips` puts that
+   * track's clips first — it flat-maps the visual tracks in order and the main
+   * track is the first of them — so a run's indices address `visualClips`
+   * unchanged. Asserted below rather than assumed, because being wrong here
+   * silently composites some other track's clip into the transition.
+   */
+  const runs = planMainRuns(mainTrack?.clips ?? [], resolved.boundaries);
+  const runOf = new Map<number, MainRun>();
+  for (const r of runs)
+    for (const i of r.clipIdx) {
+      if (visualClips[i] !== mainTrack!.clips[i])
+        throw new Error("main-track clips are not first in the visual order");
+      runOf.set(i, r);
+    }
+
+  visualClips.forEach((c, i) => {
+    const run = runOf.get(i);
+    if (run) {
+      // Every clip in a run is emitted together, at the first one's turn.
+      if (run.clipIdx[0] === i) emitRun(run);
+      return;
+    }
+    placeClip(i, emitClipLayer(c, i, c.start));
   });
 
   // ---- text overlays on top ----

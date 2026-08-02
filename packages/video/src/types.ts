@@ -176,9 +176,56 @@ export interface ElementAnim {
   distance?: number;
 }
 
+/**
+ * A transition between two consecutive clips.
+ *
+ * **The names are ffmpeg `xfade` tokens verbatim**, not a house vocabulary that
+ * has to be translated. A translation table is one more thing that can drift
+ * from what the export emits, and the UI is where a friendly label belongs —
+ * `TRANSITIONS` in `xfade.ts` maps `coverleft` to "Push ←" for the picker.
+ *
+ * The four legacy names at the end predate this and are still in stored
+ * documents. `xfadeName` folds each onto its modern equivalent; nothing writes
+ * them any more.
+ */
 export type TransitionType =
   | "cut"
   | "fade"
+  | "fadeblack"
+  | "fadewhite"
+  | "wipeleft"
+  | "wiperight"
+  | "wipeup"
+  | "wipedown"
+  | "slideleft"
+  | "slideright"
+  | "slideup"
+  | "slidedown"
+  | "coverleft"
+  | "coverright"
+  | "coverup"
+  | "coverdown"
+  | "revealleft"
+  | "revealright"
+  | "revealup"
+  | "revealdown"
+  | "circleopen"
+  | "circleclose"
+  | "vertopen"
+  | "vertclose"
+  | "horzopen"
+  | "horzclose"
+  | "diagtl"
+  | "diagtr"
+  | "diagbl"
+  | "diagbr"
+  | "squeezeh"
+  | "squeezev"
+  | "zoomin"
+  | "pixelize"
+  | "radial"
+  | "hblur"
+  // Legacy, read-only. See above.
   | "dissolve"
   | "slide"
   | "wipe"

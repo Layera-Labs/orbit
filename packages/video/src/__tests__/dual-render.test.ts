@@ -799,3 +799,180 @@ describe('an overlapping boundary crossfades instead of dipping to black', () =>
     ]);
   });
 });
+
+describe('a geometric transition is built as one xfade run', () => {
+  /**
+   * `n` main-track clips, each 4s, joined by the given transitions. `types[k]`
+   * is what arrives at clip `k + 1`; `undefined` is a plain cut, which leaves
+   * the clips butt-joined.
+   */
+  function chain(types: (string | undefined)[], overlap = 1): VideoProject {
+    const base = fixture();
+    const main = base.tracks![0] as VisualTrack;
+    const src = main.clips[0];
+    const clips: VisualTrackClip[] = [];
+    let cursor = 0;
+    types.forEach((type, k) => {
+      const ov = type ? overlap : 0;
+      if (k === 0) {
+        clips.push({ ...src, id: 'c0', src: 'c0.mp4', start: 0, duration: 4 });
+        cursor = 4;
+      }
+      const start = cursor - ov;
+      clips.push({
+        ...src,
+        id: `c${k + 1}`,
+        src: `c${k + 1}.mp4`,
+        start,
+        duration: 4,
+        ...(type ? { transitionIn: { type, duration: overlap } as never } : {}),
+      });
+      cursor = start + 4;
+    });
+    return {
+      ...base,
+      overlays: [],
+      tracks: [{ ...main, clips }],
+    };
+  }
+
+  const graphOf = (p: VideoProject) => {
+    const a = buildFFmpegArgs(p, {
+      outputPath: '/tmp/out.mp4',
+      baseImage: '/tmp/bg.png',
+      hasAudio: () => false,
+    });
+    return a[a.indexOf('-filter_complex') + 1];
+  };
+  /** Every `xfade=` in the graph, as `[name, duration, offset]`. */
+  const xfadesIn = (g: string) =>
+    [...g.matchAll(/xfade=transition=(\w+):duration=([\d.]+):offset=([\d.]+)/g)].map(
+      (m) => [m[1], Number(m[2]), Number(m[3])] as const,
+    );
+
+  it('emits the token, the overlap and the offset the timeline implies', () => {
+    const p = chain(['wipeleft']);
+    // c1 starts at 3, the run starts at 0, so the transition begins 3s in.
+    expect(xfadesIn(graphOf(p))).toEqual([['wipeleft', 1, 3]]);
+    const main = (p.tracks![0] as VisualTrack).clips;
+    expect(main.map((c) => c.start)).toEqual([0, 3]);
+  });
+
+  it('takes the offset from the clip, not from an accumulator', () => {
+    /*
+     * The two agree only while the resolver's clamp does not bite. Here it
+     * does — a 3s transition onto a 4s clip is cut to 2 — and an accumulator
+     * would put the transition at `4 - 2 = 2s` while the clip, and therefore
+     * `frameStateAt`, has it at 1.
+     */
+    const p = chain(['wipeleft'], 3);
+    const main = (p.tracks![0] as VisualTrack).clips;
+    expect(main[1].start).toBe(1);
+    expect(xfadesIn(graphOf(p))).toEqual([['wipeleft', 2, 1]]);
+  });
+
+  it('chains a whole run through one filtergraph branch', () => {
+    const g = graphOf(chain(['wipeleft', 'slideup', 'circleopen']));
+    expect(xfadesIn(g)).toEqual([
+      ['wipeleft', 1, 3],
+      ['slideup', 1, 6],
+      ['circleopen', 1, 9],
+    ]);
+    // One run means one composite onto the canvas, not four.
+    expect(g.match(/\[xr\d+\]overlay=0:0/g)).toHaveLength(1);
+  });
+
+  it('does not ramp the incoming clip as well as wiping it', () => {
+    /*
+     * Both at once hands `xfade` a half-transparent picture to work on. It
+     * measured 252/255 away from the transition asked for, on every geometric
+     * family at once, and it looked entirely plausible in the graph.
+     */
+    const g = graphOf(chain(['wipeleft']));
+    expect(g.split(';').find((s) => s.endsWith('[v1]'))).not.toContain('fade=t=in');
+  });
+
+  it('pads each clip to the canvas before joining them', () => {
+    // `xfade` demands two streams of identical size, and a clip is only as big
+    // as its rect. rgba, so the blending families mix where the previews mix.
+    const g = graphOf(chain(['wipeleft']));
+    expect(g).toContain('color=c=black@0:s=1080x1920:r=30:d=4,format=rgba[xp0]');
+    expect(g).toContain('[xp0][v0]overlay=0:0:eof_action=pass,format=rgba[xc0]');
+  });
+
+  it('anchors the finished run once, onto the timeline', () => {
+    const p = chain([undefined, 'wipeleft']);
+    const main = (p.tracks![0] as VisualTrack).clips;
+    // c0 0-4, c1 4-8, c2 laid back to 7. The run is c1+c2 only.
+    expect(main.map((c) => c.start)).toEqual([0, 4, 7]);
+    const g = graphOf(p);
+    expect(xfadesIn(g)).toEqual([['wipeleft', 1, 3]]);
+    expect(g).toContain('setpts=PTS-STARTPTS+4/TB,format=yuva420p[xr1]');
+    expect(g).toContain("[xr1]overlay=0:0:enable='between(t,4,11)'");
+  });
+
+  it('leaves a fade off the run entirely', () => {
+    /*
+     * With the clips already overlapping, drawing b over a at alpha p IS
+     * `xfade=fade`. Keeping it on the per-clip path is what makes every
+     * project that predates the geometric families emit the graph it always
+     * did — this file's other 40-odd assertions are that guarantee.
+     */
+    const g = graphOf(chain(['fade']));
+    expect(xfadesIn(g)).toEqual([]);
+    expect(g.split(';').find((s) => s.endsWith('[v1]'))).toContain('fade=t=in');
+  });
+
+  it('breaks the run at a cut and starts a new one after it', () => {
+    const g = graphOf(chain(['wipeleft', undefined, 'wipeleft']));
+    expect(xfadesIn(g)).toEqual([
+      ['wipeleft', 1, 3],
+      ['wipeleft', 1, 3],
+    ]);
+    // Two runs, so two composites: the second lands over the first.
+    expect(g.match(/\[xr\d+\]overlay=0:0/g)).toHaveLength(2);
+  });
+
+  it('agrees with the preview on when each clip is on screen', () => {
+    /*
+     * The run is one layer to ffmpeg and two clips to `frameStateAt`, so the
+     * one thing they must not disagree about is the window. Sampled either
+     * side of the transition and in the middle of it.
+     */
+    const p = chain(['wipeleft']);
+    const live = (t: number) =>
+      frameStateAt(p, t)
+        .filter((o) => o.kind === 'clip')
+        .map((o) => o.id);
+    expect(live(2)).toEqual(['c0']);
+    expect(live(3.5)).toEqual(['c0', 'c1']);
+    expect(live(5)).toEqual(['c1']);
+    const g = graphOf(p);
+    expect(g).toContain("enable='between(t,0,7)'"); // the run, end to end
+  });
+
+  it('keeps a blended clip out of the run, and its transition', () => {
+    /*
+     * A blended clip's export branch reads the canvas accumulated UNDER it,
+     * and inside a run there is no such canvas — the run is composited as one
+     * unit. The resolver downgrades the boundary to a fade rather than
+     * dropping it, which with overlap costs nothing.
+     */
+    const p = chain(['wipeleft']);
+    const main = p.tracks![0] as VisualTrack;
+    const blended: VideoProject = {
+      ...p,
+      tracks: [
+        {
+          ...main,
+          clips: [main.clips[0], { ...main.clips[1], blend: 'screen' } as never],
+        },
+      ],
+    };
+    const r = resolveTransitions((blended.tracks![0] as VisualTrack).clips);
+    expect(r.boundaries[0]).toMatchObject({ name: 'fade', downgraded: 'blend' });
+    const g = graphOf(blended);
+    expect(xfadesIn(g)).toEqual([]);
+    expect(g).toContain('blend=all_mode=screen');
+  });
+});
