@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   addTitleCard,
+  ensureTracks,
   addVisualClip,
   moveMainClipLinked,
   packVisualTrack,
@@ -574,5 +575,109 @@ describe("volume ceilings agree", () => {
       (setClipVolume(project, "main", "image-1", 99).tracks![0]
         .clips[0] as VisualTrackClip).volume,
     ).toBe(MAX_VOLUME);
+  });
+});
+
+describe("ensureTracks and the legacy audio array", () => {
+  /*
+   * Music stranded in `project.audio` on a project that already has tracks is
+   * read by NOTHING — `previewAudioOf` walks tracks only, and
+   * `buildFFmpegArgs` routes to the multi-track builder the moment `tracks` is
+   * defined. So it is silent in the preview, absent from the export, and has no
+   * lane on the timeline: the quietest kind of data loss there is.
+   */
+  const music = (id: string, start = 0) => ({
+    id,
+    src: `${id}.mp3`,
+    start,
+    duration: 4,
+  });
+  const withTracks = (audio: ReturnType<typeof music>[]) =>
+    ({
+      id: "p",
+      schemaVersion: 2,
+      width: 1080,
+      height: 1920,
+      fps: 30,
+      background: { type: "color", color: "#000" },
+      clips: [],
+      overlays: [],
+      audio,
+      tracks: [
+        {
+          id: "m",
+          kind: "visual",
+          clips: [
+            { id: "a", type: "video", src: "a.mp4", start: 0, duration: 6 },
+          ],
+        },
+      ],
+    }) as never as VideoProject;
+
+  const audioClips = (p: VideoProject) =>
+    (p.tracks ?? [])
+      .filter((t) => t.kind === "audio")
+      .flatMap((t) => (t as { clips: { id: string }[] }).clips.map((c) => c.id));
+
+  it("adopts music that no renderer would have read", () => {
+    const p = ensureTracks(withTracks([music("m1")]));
+    expect(audioClips(p)).toEqual(["m1"]);
+    expect(p.audio).toEqual([]);
+  });
+
+  it("does not add it twice when a track already has it", () => {
+    /*
+     * The earlier migration COPIED `audio` into a track and left the array
+     * populated, so plenty of projects carry both. Appending blindly would
+     * give those the same music twice, at the same moment, summed — `amix`
+     * does not normalise.
+     */
+    const base = withTracks([music("m1")]);
+    const p = ensureTracks({
+      ...base,
+      tracks: [
+        ...(base.tracks ?? []),
+        { id: "aud", kind: "audio", clips: [music("m1")] },
+      ],
+    } as never as VideoProject);
+    expect(audioClips(p)).toEqual(["m1"]);
+    expect(p.audio).toEqual([]);
+  });
+
+  it("puts an orphan on the existing audio track rather than a new one", () => {
+    const base = withTracks([music("m1"), music("m2", 4)]);
+    const p = ensureTracks({
+      ...base,
+      tracks: [
+        ...(base.tracks ?? []),
+        { id: "aud", kind: "audio", clips: [music("m1")] },
+      ],
+    } as never as VideoProject);
+    expect((p.tracks ?? []).filter((t) => t.kind === "audio")).toHaveLength(1);
+    expect(audioClips(p)).toEqual(["m1", "m2"]);
+  });
+
+  it("empties the array when it migrates a v1 project, so this cannot recur", () => {
+    const v1 = {
+      id: "p",
+      schemaVersion: 1,
+      width: 1080,
+      height: 1920,
+      fps: 30,
+      background: { type: "color", color: "#000" },
+      clips: [{ id: "a", type: "video", src: "a.mp4", duration: 6 }],
+      overlays: [],
+      audio: [music("m1")],
+    } as never as VideoProject;
+    const p = ensureTracks(v1);
+    expect(audioClips(p)).toEqual(["m1"]);
+    expect(p.audio).toEqual([]);
+    // And running it again is a no-op rather than a second copy.
+    expect(audioClips(ensureTracks(p))).toEqual(["m1"]);
+  });
+
+  it("leaves a project with no legacy audio exactly as it was", () => {
+    const p = withTracks([]);
+    expect(ensureTracks(p)).toBe(p);
   });
 });

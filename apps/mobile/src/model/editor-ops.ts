@@ -6,6 +6,7 @@
  * placement. Audio tracks mix. Every function returns a NEW project.
  */
 import type {
+  AudioTrack,
   AudioTrackClip,
   BlendMode,
   ChromaKey,
@@ -23,6 +24,7 @@ import type {
   Track,
   Transition,
   VideoProject,
+  VisualTrack,
   VisualTrackClip,
 } from "./types";
 import { isFullSource, normalizeRotation } from "../preview/transform";
@@ -97,7 +99,7 @@ export function clipAtTime(
 
 /** Ensure a project has a v2 `tracks` array, migrating legacy clips/audio. */
 export function ensureTracks(p: VideoProject): VideoProject {
-  if (p.tracks && p.tracks.length) return p;
+  if (p.tracks && p.tracks.length) return adoptLegacyAudio(p);
   let acc = 0;
   const visual: VisualTrackClip[] = (p.clips ?? []).map((c) => {
     const start = acc;
@@ -133,7 +135,69 @@ export function ensureTracks(p: VideoProject): VideoProject {
       })),
     });
   }
-  return { ...p, schemaVersion: 2, tracks };
+  /*
+   * `audio` is EMPTIED, not left behind. Copying it into a track and keeping
+   * the array meant a project had its music in two places, and only one of them
+   * is read — which is the whole reason `adoptLegacyAudio` has to exist.
+   */
+  return { ...p, schemaVersion: 2, tracks, audio: [] };
+}
+
+/**
+ * Music stranded in the legacy `audio` array of a project that already has
+ * tracks.
+ *
+ * Nothing reads it. `previewAudioOf` walks `tracks` only, and
+ * `buildFFmpegArgs` routes to the multi-track builder the moment `tracks` is
+ * defined — so a clip left here is silent in the preview AND absent from the
+ * export, with the timeline showing no lane for it either. It is the quietest
+ * kind of data loss there is.
+ *
+ * Two ways a project gets into that state, and this handles both: it was
+ * written before `ensureTracks` existed and something added tracks around the
+ * legacy array, or `ensureTracks` itself migrated the audio into a track and
+ * did NOT clear the array afterwards, which it used to do.
+ *
+ * Which is why the fold is keyed on clip ID rather than just appending. The old
+ * migration copied `a.id` through verbatim, so an entry already represented on
+ * a track is recognisable — and appending blindly would give those projects the
+ * same music twice, at the same moment, summed.
+ */
+function adoptLegacyAudio(p: VideoProject): VideoProject {
+  if (!p.audio?.length) return p;
+  const tracks = p.tracks ?? [];
+  const known = new Set(
+    tracks
+      .filter((t): t is AudioTrack => t.kind === "audio")
+      .flatMap((t) => t.clips.map((c) => c.id)),
+  );
+  const orphans = p.audio.filter((a) => !known.has(a.id));
+  if (!orphans.length) return { ...p, audio: [] };
+
+  const end = Math.max(
+    0,
+    ...tracks
+      .filter((t): t is VisualTrack => t.kind === "visual")
+      .flatMap((t) => t.clips.map((c) => c.start + c.duration)),
+  );
+  const clips: AudioTrackClip[] = orphans.map((a) => ({
+    id: a.id,
+    src: a.src,
+    start: a.start ?? 0,
+    duration: a.duration ?? Math.max(MIN_CLIP, end - (a.start ?? 0)),
+    trimIn: a.trimIn,
+    volume: a.volume,
+  }));
+  const existing = tracks.find((t): t is AudioTrack => t.kind === "audio");
+  return {
+    ...p,
+    audio: [],
+    tracks: existing
+      ? tracks.map((t) =>
+          t === existing ? { ...existing, clips: [...existing.clips, ...clips] } : t,
+        )
+      : [...tracks, { id: newId("trk"), kind: "audio", name: "Audio", clips }],
+  };
 }
 
 /** A fresh project with one empty visual (main) track. */
