@@ -972,6 +972,44 @@ describe('a geometric transition is built as one xfade run', () => {
     expect(to.xf!.clip).toEqual({ x: z + 1, y: 0, w: W - z - 1, h: p.height });
   });
 
+  it('gives the preview the travel and the region a slide needs', () => {
+    /*
+     * Slide, push and reveal are one function with three answers, and this is
+     * where the three are told apart: slide moves both pictures, push moves
+     * only the incoming one, reveal only the outgoing one. All three split the
+     * canvas at the same place, which is a pixel from where a WIPE splits it —
+     * measured, and the reason these families waited for the probe.
+     */
+    const W = 1080;
+    const at = (type: string, t: number) =>
+      frameStateAt(chain([type]), t)
+        .filter((o) => o.kind === 'clip')
+        .map((o) => o.xf);
+    // The boundary runs 3 → 4; at 3.4 the travel is 2/5 of the way across.
+    const z = Math.floor(0.6 * W); // 648
+    const s = W - z; // 432
+
+    expect(at('slideleft', 3.4)).toEqual([
+      { clip: { x: 0, y: 0, w: z, h: 1920 }, dx: -s },
+      { clip: { x: z, y: 0, w: s, h: 1920 }, dx: z },
+    ]);
+    // Push: the outgoing clip holds still and is uncovered from the edge.
+    expect(at('coverleft', 3.4)).toEqual([
+      { clip: { x: 0, y: 0, w: z, h: 1920 } },
+      { clip: { x: z, y: 0, w: s, h: 1920 }, dx: z },
+    ]);
+    // Reveal: the incoming clip holds still, and its REGION is what keeps the
+    // outgoing one visible on top of it — the compositor draws it over.
+    expect(at('revealleft', 3.4)).toEqual([
+      { clip: { x: 0, y: 0, w: z, h: 1920 }, dx: -s },
+      { clip: { x: z, y: 0, w: s, h: 1920 } },
+    ]);
+    // The graph still says the same thing about when it happens.
+    expect(xfadesIn(graphOf(chain(['revealleft'])))).toEqual([
+      ['revealleft', 1, 3],
+    ]);
+  });
+
   it('hands a fade no geometry at all', () => {
     // The field's presence IS the answer to "does anything special happen
     // here", so a fade must not arrive carrying a full-canvas rect.

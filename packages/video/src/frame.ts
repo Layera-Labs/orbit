@@ -248,7 +248,20 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
       magnifier: c.magnifier,
       rotation: normalizeRotation(c.rotation) || undefined,
       srcRect: isFullSource(c.crop) ? undefined : c.crop,
-      xf: xf?.clip ? { clip: xf.clip } : undefined,
+      /*
+       * Built key by key rather than spread, so an op carries a field only
+       * when the transition actually asks for something — `xf` being absent is
+       * how a compositor knows to take its ordinary path, and an object full
+       * of undefineds would answer that question wrongly.
+       */
+      xf:
+        xf && (xf.clip || xf.dx || xf.dy)
+          ? {
+              ...(xf.clip ? { clip: xf.clip } : {}),
+              ...(xf.dx ? { dx: xf.dx } : {}),
+              ...(xf.dy ? { dy: xf.dy } : {}),
+            }
+          : undefined,
     });
   }
 
