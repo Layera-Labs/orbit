@@ -171,6 +171,25 @@ export function renderFrame(
     ctx.globalAlpha = op.alpha;
     ctx.globalCompositeOperation =
       (blendToCanvas(op.blend) as GlobalCompositeOperation | null) ?? 'source-over';
+    /*
+     * A transition's geometry sits on the OUTER context, around the blit —
+     * the same seam rotation uses, and for the same reason: everything already
+     * composed into the patch (grade, blur, mask, motion, the local effects) is
+     * then confined by it for free.
+     *
+     * It has to be outer rather than a clip inside the patch, because the
+     * region is in CANVAS coordinates. A wipe cuts the frame, not the clip: a
+     * picture-in-picture halfway across the split is half gone, which is
+     * exactly what the export does when it composites the run from two
+     * full-canvas frames.
+     */
+    const xfClip = op.xf?.clip;
+    if (xfClip) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(xfClip.x, xfClip.y, xfClip.w, xfClip.h);
+      ctx.clip();
+    }
     if (op.rotation) {
       /*
        * Rotation is one transform on the BLIT, so everything already composed
@@ -191,6 +210,7 @@ export function renderFrame(
     } else {
       ctx.drawImage(patch, Math.round(op.dst.x), Math.round(op.dst.y), dw, dh);
     }
+    if (xfClip) ctx.restore();
   }
 
   ctx.globalAlpha = 1;

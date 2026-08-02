@@ -951,6 +951,45 @@ describe('a geometric transition is built as one xfade run', () => {
     expect(g).toContain("enable='between(t,0,7)'"); // the run, end to end
   });
 
+  it('gives the preview the same wipe edge the filtergraph will cut on', () => {
+    /*
+     * The two halves of a wipe: the export emits `transition=wipeleft` with an
+     * offset, and `frameStateAt` has to hand the compositors a clip rect whose
+     * edge lands on the pixel ffmpeg's `z = (int)((1-p)*W)` names — the exact
+     * value measured in `xfade-probe.json`. Sampled at a progress where the
+     * truncation actually bites, because at a round fraction an off-by-one is
+     * invisible.
+     */
+    const p = chain(['wipeleft']);
+    expect(xfadesIn(graphOf(p))).toEqual([['wipeleft', 1, 3]]);
+    // The boundary runs 3 → 4. At 3.4 the transition is 2/5 through.
+    const ops = frameStateAt(p, 3.4).filter((o) => o.kind === 'clip');
+    const [from, to] = ops;
+    const W = p.width;
+    const z = Math.floor(0.6 * W); // (1 - 0.4) * 1080 = 648
+    expect(z).toBe(648);
+    expect(from.xf!.clip).toEqual({ x: 0, y: 0, w: z + 1, h: p.height });
+    expect(to.xf!.clip).toEqual({ x: z + 1, y: 0, w: W - z - 1, h: p.height });
+  });
+
+  it('hands a fade no geometry at all', () => {
+    // The field's presence IS the answer to "does anything special happen
+    // here", so a fade must not arrive carrying a full-canvas rect.
+    const ops = frameStateAt(chain(['fade']), 3.5).filter((o) => o.kind === 'clip');
+    expect(ops.map((o) => o.xf)).toEqual([undefined, undefined]);
+  });
+
+  it('closes the wipe at the end of the window, as the file does', () => {
+    /*
+     * The window is half-open — measured. At the closing instant the frame is
+     * already entirely the incoming clip, so the outgoing one must be gone
+     * rather than keeping the boundary column for a frame.
+     */
+    const ops = frameStateAt(chain(['wipeleft']), 4).filter((o) => o.kind === 'clip');
+    expect(ops.find((o) => o.id === 'c0')!.alpha).toBe(0);
+    expect(ops.find((o) => o.id === 'c1')!.xf).toBeUndefined();
+  });
+
   it('keeps a blended clip out of the run, and its transition', () => {
     /*
      * A blended clip's export branch reads the canvas accumulated UNDER it,

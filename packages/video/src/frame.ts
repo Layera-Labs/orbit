@@ -34,7 +34,12 @@ import {
 import { clipRectPx, progressAt, r3, srcTimeAt } from './layout';
 import { isFullSource, normalizeRotation } from './transform';
 import { fadeFactorAt, projectEdgeFadeMap } from './transitions';
-import { resolveTransitions, xfadeMapOf, xfadeStateFor } from './xfade';
+import {
+  resolveTransitions,
+  xfadeMapOf,
+  xfadeStateFor,
+  type XfState,
+} from './xfade';
 import { elementFadeAt, resolveAnim, slideOffsetAt } from './element-anim';
 import { blendToFFmpeg } from './blend';
 import { backgroundToSVG } from './background-svg';
@@ -82,7 +87,22 @@ export interface DrawOp {
    * Resolved against the decoded natural size by `sourceCropPx`.
    */
   srcRect?: SourceRect;
+  /**
+   * This side of a transition, when the clip is inside one.
+   *
+   * Geometry only — the transition's ALPHA is already multiplied into `alpha`,
+   * the same way the edge fade and the element fade are, so a compositor never
+   * has two places to look for how transparent something is.
+   *
+   * Absent when the clip is not in a transition, and also when the transition
+   * has no geometry to apply (a fade), so the presence of the field is itself
+   * the answer to "does anything special happen here".
+   */
+  xf?: XfDraw;
 }
+
+/** A `DrawOp`'s transition geometry: `XfState` minus the alpha it folds away. */
+export type XfDraw = Omit<XfState, 'alpha'>;
 
 /**
  * Visual clips in composite order (bottom → top).
@@ -173,8 +193,14 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
         ? Math.max(0, c.opacity)
         : 1;
     alpha *= fadeFactorAt(fades.get(c.id), S, E, t);
-    // The transition's own contribution, for whichever side of it this clip is.
-    const xf = xfadeStateFor(xfades.get(c.id), t);
+    /*
+     * The transition's own contribution, for whichever side of it this clip
+     * is. Resolved against the PROJECT canvas, because that is the space a
+     * `DrawOp` is expressed in and the space the export's filtergraph is
+     * measured in — the Skia preview resolves the same rule against its own
+     * on-screen size instead.
+     */
+    const xf = xfadeStateFor(xfades.get(c.id), t, W, H);
     if (xf) alpha *= xf.alpha;
     /*
      * The element's own fade multiplies with the transition's, because two
@@ -222,6 +248,7 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
       magnifier: c.magnifier,
       rotation: normalizeRotation(c.rotation) || undefined,
       srcRect: isFullSource(c.crop) ? undefined : c.crop,
+      xf: xf?.clip ? { clip: xf.clip } : undefined,
     });
   }
 
