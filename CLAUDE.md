@@ -108,6 +108,21 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   The body MOVE deliberately still writes live, because `setClipStart` re-packs the track in
   Quick mode and moves neighbours under linkage — deferring that would replace live feedback
   with a snap.
+- **Nothing that moves under a finger writes the store per frame** (2026-08-02). The
+  trim handles were fixed for this long ago; the CLIP MOVE and every preview drag were
+  not, and each one called `apply` on every pointer event — which clones the project,
+  re-renders the preview, the timeline and the editor chrome, and queues a save and a
+  sync. The dragged thing trailed the finger by several frames, so you kept moving to
+  catch it up and pushed a caption off the canvas. All of them now hold the geometry in
+  LOCAL state and write once on release: `Timeline`'s `moveGeom` beside `leftGeom`/
+  `rightGeom`, and `Preview`'s `textAt`/`rectAt`/`effectAt` feeding `liveText` and `live`
+  (which grew `mosaic`/`magnifier` so a dragged region rides there too). One write is
+  also one undo step. The clip move's live neighbour re-packing is the price — Quick mode
+  now settles them once, on release, which is the right side of that trade.
+  **A `simctl` touch path cannot drive the timeline's `bodyPan`** — `blocksExternalGesture`
+  inside the horizontal ScrollView needs real UIKit touch arbitration. Verified by A/B:
+  the OLD handler does not move the clip under the same synthetic path either, so a null
+  result there is the harness and not the code. The preview drags DO respond to it.
 - **`SelectionActionBar` follows the clip.** Its actions branch by track kind + clip type
   (video / image / audio / caption / sticker); it used to show one set for everything and
   explain the dead ones with an alert. It is positioned from state that already exists —
