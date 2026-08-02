@@ -8,8 +8,11 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  isAlphaOnly,
   MAX_OVERLAP_FRAC,
+  planMainRuns,
   resolveTransitions,
+  TRANSITIONS,
   xfadeMapOf,
   xfadeProgressAt,
   xfadeStateFor,
@@ -57,6 +60,19 @@ const TRACKS: VisualTrackClip[][] = [
     clip("b", 3.5, 4, { type: "fade", duration: 0.5 }),
     clip("c", 6.5, 4, { type: "wipe", duration: 1 }),
   ],
+  // A geometric run of three, which is one xfade chain rather than three.
+  [
+    clip("a", 0, 4),
+    clip("b", 3, 4, { type: "wipeleft", duration: 1 }),
+    clip("c", 6, 4, { type: "slideup", duration: 1 }),
+  ],
+  // A fade in the middle of two geometric boundaries: two runs, not one.
+  [
+    clip("a", 0, 4),
+    clip("b", 3, 4, { type: "wipeleft", duration: 1 }),
+    clip("c", 6, 4, { type: "fade", duration: 1 }),
+    clip("d", 9, 4, { type: "coverdown", duration: 1 }),
+  ],
 ];
 
 const shared = () => import("../../../../../packages/video/src/xfade");
@@ -91,6 +107,71 @@ describe("mobile mirrors packages/video", () => {
 
   it("agrees on the same overlap ceiling", async () => {
     expect(MAX_OVERLAP_FRAC).toBe((await shared()).MAX_OVERLAP_FRAC);
+  });
+
+  it("groups the same clips into the same xfade runs", async () => {
+    /*
+     * The export builds a run as one stream; the preview has to composite the
+     * same clips as one group or the two disagree about what is on screen.
+     * Which is why the grouping lives in the shared module and not in
+     * `ffmpeg.ts`, where only one of them could read it.
+     */
+    const s = await shared();
+    for (const clips of TRACKS) {
+      expect(planMainRuns(clips, resolveTransitions(clips).boundaries)).toEqual(
+        s.planMainRuns(clips as never, s.resolveTransitions(clips as never).boundaries),
+      );
+    }
+  });
+
+  it("offers the same catalogue, in the same order", async () => {
+    // The picker is built from this. Two clients offering different
+    // transitions for the same project is the sync bug, not a cosmetic one.
+    expect(TRANSITIONS).toEqual((await shared()).TRANSITIONS);
+  });
+});
+
+describe("planMainRuns", () => {
+  const runs = (cs: VisualTrackClip[]) =>
+    planMainRuns(cs, resolveTransitions(cs).boundaries).map((r) => r.clipIdx);
+
+  it("joins consecutive geometric boundaries into one run", () => {
+    expect(
+      runs([
+        clip("a", 0, 4),
+        clip("b", 3, 4, { type: "wipeleft", duration: 1 }),
+        clip("c", 6, 4, { type: "slideup", duration: 1 }),
+      ]),
+    ).toEqual([[0, 1, 2]]);
+  });
+
+  it("leaves a fade out of every run", () => {
+    // It needs no xfade filter at all, so it stays on the ordinary path.
+    expect(isAlphaOnly("fade")).toBe(true);
+    expect(runs([clip("a", 0, 4), clip("b", 3, 4, { type: "fade", duration: 1 })])).toEqual(
+      [],
+    );
+  });
+
+  it("breaks at a cut, and starts again after it", () => {
+    expect(
+      runs([
+        clip("a", 0, 4),
+        clip("b", 3, 4, { type: "wipeleft", duration: 1 }),
+        clip("c", 7, 4),
+        clip("d", 10, 4, { type: "wipeup", duration: 1 }),
+      ]),
+    ).toEqual([
+      [0, 1],
+      [2, 3],
+    ]);
+  });
+
+  it("breaks where the clips do not overlap", () => {
+    // A gap resolves to an edge fade, which produces no boundary and so no run.
+    expect(
+      runs([clip("a", 0, 4), clip("b", 6, 4, { type: "wipeleft", duration: 1 })]),
+    ).toEqual([]);
   });
 });
 

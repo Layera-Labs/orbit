@@ -344,6 +344,54 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   the blend path crops the base region under a fixed-size box. `TextOverlay.animation`
   is absorbed by `resolveAnim` rather than migrated — stored documents are never
   rewritten, and a legacy `'fade'` still produces a byte-identical graph.
+- **A transition is an OVERLAP, and the export is an `xfade` chain**
+  (`packages/video/src/xfade.ts`, 2026-08-02). A transitioned clip starts `overlap`
+  seconds before the one before it ends, so the project gets **shorter** by the sum of
+  its transitions — the one-time `migrateTransitionOverlap` (`schemaVersion: 3`, mirrored
+  on both clients, run on open) moves the main track and then moves every caption, music
+  cue and PiP by the shift accumulated at ITS OWN start. **Geometry is authoritative for
+  timing, `transitionIn` for intent**: `requestedOverlap` is the only thing that turns a
+  stored duration into a `start`, and `resolveTransitions` reads `prevEnd - nextStart`
+  back out, so a clip dragged after the fact cannot leave the export doing something the
+  timeline does not show. Both clamp to `MAX_OVERLAP_FRAC` (half the shorter clip).
+  The model's `TransitionType` values are **ffmpeg `xfade` tokens verbatim** — no house
+  vocabulary to keep in step — and `TRANSITIONS` is the one catalogue, read by both
+  pickers. `dissolve`/`wind`/`slice`/`distance`/`fadegrays` are deliberately absent: no
+  exact canvas-2D and Skia reproduction, so offering them would break the no-drift rule.
+  Four things measured against ffmpeg 8.1.2, not reasoned about:
+  - **A `fade` needs no `xfade` filter at all.** With the clips overlapping, drawing B
+    over A at alpha `p` IS `p*B + (1-p)*A` — measured at `127 0 127` between red and blue
+    at p=0.5. So `isAlphaOnly` keeps fades on the ordinary per-clip path, `planMainRuns`
+    builds runs only for the geometric families, and every project that predates them
+    emits a **byte-identical** filtergraph. It is also what lets a blended clip keep its
+    transition, since a blend reads the canvas under it and a run has no such canvas.
+  - **The incoming clip must NOT be alpha-ramped inside a run.** `xfade` is doing the
+    work; ramping as well hands it a half-transparent picture. Measured **252/255** away
+    from the transition asked for, on every geometric family at once, from a graph that
+    reads as obviously correct.
+  - **`offset` comes from the clip's own start, never from an accumulator.** Summing
+    `dur - overlap` is equal only while the resolver's clamp does not bite, and diverges
+    silently when it does. Taking it from geometry is also exactly what `frameStateAt`
+    uses.
+  - **A run is padded onto a transparent full-canvas frame, in rgba.** `xfade` demands
+    two streams of identical size and a clip is only as big as its `rect`; `pad=` is
+    cheaper and rejects the negative offsets rotation and keyframes produce. rgba rather
+    than `yuva444p` (which ffmpeg would silently insert anyway) because the blending
+    families then mix in the space both previews mix in. No `shortest` on the pad
+    overlay — the pad is the main input and defines the length, so a source that runs out
+    early cannot shorten the stream every later `offset` addresses.
+  `__tests__/xfade-probe.test.ts` (gated on `ORBIT_FFMPEG_PROBE=1`) probes all 35 tokens
+  with **coordinate-ramp inputs** — A is `(x*4, y*4, 64)`, B is `(64, x*4, y*4)`, so every
+  output pixel names its own source and a translate, a scale and a clip are directly
+  readable; flat colours cannot tell `slideleft` from `revealleft` at all. It writes
+  `fixtures/xfade-probe.json`, which an always-on test asserts against with no ffmpeg.
+  Recorded there: the real filtergraph agrees with the bare filter to a **mean under 4**
+  everywhere, with a **max of ~108 on the sliding families** — that is what compositing a
+  hard edge in 4:2:0 costs on the one boundary column, the same price every other layer
+  in this engine already pays, and it is why the assertion is on the mean.
+  **The previews are knowingly BEHIND the export**: `xfadeStateAt` carries alpha only, so
+  a geometric family previews as a cut. Unreachable from the UI — the picker offers Cut
+  and Fade — and the geometry lands next, written against the fixture.
 - **BYOK stock media**: Orbit is a developer/SDK product, so Unsplash/Pexels use
   **bring-your-own-key**, stored in the OS keychain via `expo-secure-store`, never in the
   bundle and never sent to Orbit's server. `src/content/{keys,stock}.ts`, `KeysSheet`.
@@ -507,9 +555,9 @@ Next 14 App Router. **One editor** over the v2 SDK plus a browser video engine.
 - Stickers are image clips on an overlay track with a normalized `rect`, so they are
   dual-rendered for free. House marks are authored as SVG and **rasterized to PNG before
   storage** — ffmpeg cannot read SVG.
-- Transitions offer **only Cut and Fade**: `buildMultiTrackArgs` applies them to the first
-  visual track only and collapses every other type to a fade, and `frameStateAt` reproduces
-  that collapse so the preview is never better than the export.
+- The transition **picker** still offers only Cut and Fade, and transitions are on the
+  first visual track only. The engine under it is `xfade` — see the transitions section
+  below.
 
 - **Versions are pinned exactly** — `next 14.2.35` / `react 18.3.1`. Every v2 package peers
   React 18 and `react-konva@18.2.x` is the React-18 line; two React copies is a hard crash

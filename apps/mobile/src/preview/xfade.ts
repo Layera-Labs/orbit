@@ -33,7 +33,7 @@
  * the same domain, and `__tests__/xfade.test.ts` compares the OUTPUTS of both
  * copies rather than trusting that.
  */
-import type { Transition, VisualTrackClip } from '../model/types';
+import type { Transition, TransitionType, VisualTrackClip } from '../model/types';
 import { blendToSkia } from './blend';
 
 /**
@@ -96,18 +96,172 @@ export interface ResolvedTransitions {
   edges: EdgeFade[];
 }
 
+/** One selectable transition: a model type plus how the picker should label it. */
+export interface TransitionVariant {
+  type: TransitionType;
+  /** The direction dot in the picker, or `undefined` for a family of one. */
+  dir?: 'left' | 'right' | 'up' | 'down' | 'in' | 'out' | 'h' | 'v' | 'tl' | 'tr' | 'bl' | 'br';
+  label: string;
+}
+
+export interface TransitionFamily {
+  key: string;
+  label: string;
+  variants: TransitionVariant[];
+}
+
+/**
+ * The catalogue, and the ONLY list of what this editor offers.
+ *
+ * Grouped the way VN's Basic tab groups them, because a flat scroll of
+ * thirty-five chips is a list rather than a control: you pick the family first
+ * and the direction second, and the picker is built from exactly this shape.
+ *
+ * Every `type` is an ffmpeg `xfade` token, checked against ffmpeg 8.1.2. The
+ * families ffmpeg also ships and this list deliberately omits — `dissolve`,
+ * `distance`, `fadegrays`, the `*wind` and `*slice` sets — are the ones with no
+ * exact canvas-2D and Skia reproduction. Offering a transition the file has and
+ * the preview does not is the drift this engine refuses, so they are not here.
+ */
+export const TRANSITIONS: TransitionFamily[] = [
+  { key: 'cut', label: 'Cut', variants: [{ type: 'cut', label: 'Cut' }] },
+  { key: 'fade', label: 'Fade', variants: [{ type: 'fade', label: 'Fade' }] },
+  { key: 'black', label: 'Black', variants: [{ type: 'fadeblack', label: 'Black' }] },
+  { key: 'white', label: 'White', variants: [{ type: 'fadewhite', label: 'White' }] },
+  {
+    key: 'wipe',
+    label: 'Wipe',
+    variants: [
+      { type: 'wipeleft', dir: 'left', label: 'Wipe left' },
+      { type: 'wiperight', dir: 'right', label: 'Wipe right' },
+      { type: 'wipeup', dir: 'up', label: 'Wipe up' },
+      { type: 'wipedown', dir: 'down', label: 'Wipe down' },
+    ],
+  },
+  {
+    key: 'slide',
+    label: 'Slide',
+    variants: [
+      { type: 'slideleft', dir: 'left', label: 'Slide left' },
+      { type: 'slideright', dir: 'right', label: 'Slide right' },
+      { type: 'slideup', dir: 'up', label: 'Slide up' },
+      { type: 'slidedown', dir: 'down', label: 'Slide down' },
+    ],
+  },
+  {
+    // ffmpeg calls it `cover`: only the incoming clip moves, over a stationary
+    // outgoing one. Every editor calls that a push.
+    key: 'push',
+    label: 'Push',
+    variants: [
+      { type: 'coverleft', dir: 'left', label: 'Push left' },
+      { type: 'coverright', dir: 'right', label: 'Push right' },
+      { type: 'coverup', dir: 'up', label: 'Push up' },
+      { type: 'coverdown', dir: 'down', label: 'Push down' },
+    ],
+  },
+  {
+    // The mirror image of Push: only the OUTGOING clip moves, sliding off a
+    // stationary incoming one.
+    key: 'reveal',
+    label: 'Reveal',
+    variants: [
+      { type: 'revealleft', dir: 'left', label: 'Reveal left' },
+      { type: 'revealright', dir: 'right', label: 'Reveal right' },
+      { type: 'revealup', dir: 'up', label: 'Reveal up' },
+      { type: 'revealdown', dir: 'down', label: 'Reveal down' },
+    ],
+  },
+  {
+    key: 'circle',
+    label: 'Circle',
+    variants: [
+      { type: 'circleopen', dir: 'out', label: 'Circle open' },
+      { type: 'circleclose', dir: 'in', label: 'Circle close' },
+    ],
+  },
+  {
+    key: 'blinds',
+    label: 'Blinds',
+    variants: [
+      { type: 'vertopen', dir: 'v', label: 'Blinds open' },
+      { type: 'vertclose', dir: 'v', label: 'Blinds close' },
+      { type: 'horzopen', dir: 'h', label: 'Bars open' },
+      { type: 'horzclose', dir: 'h', label: 'Bars close' },
+    ],
+  },
+  {
+    key: 'diagonal',
+    label: 'Diagonal',
+    variants: [
+      { type: 'diagtl', dir: 'tl', label: 'Diagonal ↖' },
+      { type: 'diagtr', dir: 'tr', label: 'Diagonal ↗' },
+      { type: 'diagbl', dir: 'bl', label: 'Diagonal ↙' },
+      { type: 'diagbr', dir: 'br', label: 'Diagonal ↘' },
+    ],
+  },
+  {
+    key: 'squeeze',
+    label: 'Squeeze',
+    variants: [
+      { type: 'squeezeh', dir: 'h', label: 'Squeeze across' },
+      { type: 'squeezev', dir: 'v', label: 'Squeeze down' },
+    ],
+  },
+  { key: 'zoom', label: 'Zoom', variants: [{ type: 'zoomin', label: 'Zoom' }] },
+  { key: 'pixelate', label: 'Pixelate', variants: [{ type: 'pixelize', label: 'Pixelate' }] },
+  { key: 'radial', label: 'Radial', variants: [{ type: 'radial', label: 'Radial' }] },
+  { key: 'blur', label: 'Blur', variants: [{ type: 'hblur', label: 'Blur' }] },
+];
+
+/** Every token the catalogue can produce, for validating stored data. */
+const KNOWN = new Set<string>(
+  TRANSITIONS.flatMap((f) => f.variants.map((v) => v.type)).filter((t) => t !== 'cut'),
+);
+
+/**
+ * The four names that predate the catalogue, folded onto what they meant.
+ *
+ * They were never selectable — the picker has only ever offered Cut and Fade —
+ * but the type allowed them and a hand-edited document may carry one. Each maps
+ * to the plainest member of its family rather than being rejected, so an old
+ * document keeps rendering something recognisable.
+ */
+const LEGACY: Record<string, TransitionType> = {
+  dissolve: 'fade',
+  slide: 'slideleft',
+  wipe: 'wipeleft',
+  zoom: 'zoomin',
+};
+
 /**
  * The `transition=` token for a model transition, or `null` for no transition.
  *
- * **Stage 1 maps every live type to `fade`**, which is exactly what the engine
- * has always done — `buildFadeMap` read only `type !== 'cut'` and threw the rest
- * away. The difference is that the collapse now happens in ONE named place that
- * the picker can also read, instead of being implied by what a fade map chose to
- * ignore. The remaining families land here.
+ * An unrecognised type falls back to `fade` rather than reaching ffmpeg as an
+ * invalid token: `xfade` rejects an unknown `transition=` outright, so a typo in
+ * a synced document would abort the whole render instead of costing one
+ * boundary its effect.
  */
 export function xfadeName(t: Transition | undefined): string | null {
   if (!t || t.type === 'cut' || !(t.duration > 0)) return null;
-  return 'fade';
+  const mapped = LEGACY[t.type] ?? t.type;
+  return KNOWN.has(mapped) ? mapped : 'fade';
+}
+
+/**
+ * Whether a transition is pure alpha, and therefore needs no `xfade` filter at
+ * all.
+ *
+ * The one case is `fade`, and it matters more than it looks: with the clips
+ * already overlapping, drawing the incoming one over the outgoing one at alpha
+ * `p` IS `p*B + (1-p)*A`, which is exactly what `xfade=transition=fade`
+ * computes. So a fade stays on the ordinary per-clip overlay path, and every
+ * project that predates the geometric families emits the filtergraph it always
+ * did — byte for byte. It is also what lets a fade survive on a blended clip,
+ * whose export branch cannot live inside an xfade run.
+ */
+export function isAlphaOnly(name: string): boolean {
+  return name === 'fade';
 }
 
 /** Whether a clip's compositing forbids joining it into an xfade run. */
@@ -208,6 +362,59 @@ export function resolveTransitions(clips: VisualTrackClip[]): ResolvedTransition
 }
 
 /**
+ * A stretch of consecutive main-track clips that has to be built as ONE stream.
+ *
+ * `joins[k]` is the boundary between `clipIdx[k]` and `clipIdx[k + 1]`, so a run
+ * always has one more clip than it has joins.
+ */
+export interface MainRun {
+  /** Indices into the main track's clip array, ascending and contiguous. */
+  clipIdx: number[];
+  joins: TransitionBoundary[];
+}
+
+/**
+ * Group the main track into xfade runs.
+ *
+ * A geometric transition has to see both pictures at once, so the clips either
+ * side of it cannot be composited one after the other onto the canvas — they go
+ * into one `xfade` chain and land as a single layer. A run is the maximal
+ * sequence joined that way.
+ *
+ * **A fade is deliberately never in a run.** It needs no `xfade` filter (see
+ * `isAlphaOnly`), so leaving it on the ordinary per-clip path means every
+ * project that predates the geometric families emits the graph it always did,
+ * a blended clip keeps its transition, and the run machinery is exercised only
+ * by the thing that actually needs it.
+ *
+ * A gap, a cut or a downgrade all end a run simply by not producing a
+ * boundary at the next index — the contiguity check is what enforces it, so
+ * there is no second list of reasons to keep in step with the resolver.
+ */
+export function planMainRuns(
+  clips: VisualTrackClip[],
+  boundaries: TransitionBoundary[],
+): MainRun[] {
+  const runs: MainRun[] = [];
+  let cur: MainRun | null = null;
+  for (const b of boundaries) {
+    if (isAlphaOnly(b.name)) {
+      cur = null;
+      continue;
+    }
+    if (b.index < 1 || b.index >= clips.length) continue;
+    if (cur && cur.clipIdx[cur.clipIdx.length - 1] === b.index - 1) {
+      cur.clipIdx.push(b.index);
+      cur.joins.push(b);
+      continue;
+    }
+    cur = { clipIdx: [b.index - 1, b.index], joins: [b] };
+    runs.push(cur);
+  }
+  return runs;
+}
+
+/**
  * How far through a transition timeline second `t` is, in 0..1.
  *
  * Half-open at the top, which is measured rather than assumed: rendering a
@@ -290,5 +497,14 @@ export function xfadeStateAt(name: string, p: number, role: XfRole): XfState {
    * this one is exact where the colour grade is not.
    */
   if (name === 'fade') return { alpha: role === 'to' ? p : 1 };
+  /*
+   * Every geometric family lands here for now, and alpha 1 on both sides means
+   * the previews show the incoming clip for the whole overlap — a cut, not a
+   * wipe, while the export really wipes. That is a preview running BEHIND the
+   * file, which is the tolerable direction, and it is unreachable from the UI:
+   * the picker still offers Cut and Fade only, so nothing but a hand-edited
+   * document can select one. The geometry arrives with `XfState`'s remaining
+   * fields, measured against the probe fixture first.
+   */
   return { alpha: 1 };
 }
