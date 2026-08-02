@@ -257,6 +257,24 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   a guest account would detach them from their own credits. `ORBIT_JWT_SECRET` is required
   in production and ephemeral in dev. Render jobs carry their `account`, so
   `GET /v1/render/:id` 404s someone else's job rather than handing over the MP4.
+- **The audio library heals like the gen library, and it did not used to** (2026-08-02).
+  `audioHistory.ts` returned its records verbatim — no rebase, no existence check — one
+  file over from `genHistory.ts`, which has both. Two reports came out of that single
+  gap, and neither surfaced where it happened: a stale container path added a SILENT
+  clip (the project's own rebase heals it on the next open, so the track came back after
+  an app restart, which reads as "sometimes it just does not play"), and a file a
+  reinstall had really deleted stayed listed as available until the far end of an export
+  said `this media is no longer on the device: x.wav`. A dead record is DROPPED rather
+  than greyed out: a record is its file, an upload has nothing to re-download, and a row
+  that cannot be used invites the tap that fails four screens later.
+- **A failed audio decode is retried, and is no longer sticky for the life of the
+  process** (2026-08-02). `audioGraph` cached a failure as `null` forever, reasoning that
+  a file which will not decode now will not decode on the next tick. True of a corrupt
+  file, false of an absent one — and absent is the case that happens. Retrying is cheap
+  because `sync` is driven by EDITS, not by the tick; `MAX_DECODE_ATTEMPTS` is what bounds
+  the genuinely corrupt file. It also `console.warn`s now: a silent track with the
+  transport running and the waveform scrolling over it is the hardest thing here to
+  report, because nothing admitted it had happened.
 - **Every absolute `file://` we persist goes stale, and `rebaseMediaUri` is the cure.** iOS
   hands the app a fresh container UUID on every install. `projects.ts` has healed project
   JSON for a long time; `genHistory.ts` did NOT, so the Library and Upload grids pointed at
