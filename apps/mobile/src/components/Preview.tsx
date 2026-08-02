@@ -846,6 +846,12 @@ export function Preview({ width, height }: { width: number; height: number }) {
   const [liveText, setLiveText] = useState<
     { id: string; x: number; y: number } | null
   >(null);
+  /**
+   * Each caption's rendered height in screen pixels, reported by the layer
+   * itself. A ref rather than state: it is read by the drag and must never
+   * cause a render of its own.
+   */
+  const captionH = useRef<Record<string, number>>({});
   const withLive = (c: VisualTrackClip): VisualTrackClip =>
     live && live.clipId === c.id
       ? {
@@ -1091,13 +1097,36 @@ export function Preview({ width, height }: { width: number; height: number }) {
    * finally committed both come from here, so they cannot disagree, and the
    * snapping is applied once rather than being written out twice.
    */
-  const textAt = (from: { x: number; y: number }, dx: number, dy: number) => {
+  const textAt = (
+    id: string,
+    from: { x: number; y: number },
+    dx: number,
+    dy: number,
+  ) => {
+    /*
+     * `y` is the TOP of the caption, not its centre — the layer is positioned
+     * with `top: o.y * height` — so clamping the anchor to 1 let you drag the
+     * text until only its first pixel row was on the canvas and then off it
+     * entirely. The PiP path has always clamped against its box (`1 - r.h`);
+     * a caption has no box in the model, because its height depends on the
+     * font, the string and where it wraps. So it is MEASURED: the rendered
+     * layer reports its height and the drag stops one caption short of the
+     * bottom edge.
+     *
+     * A measurement that has not arrived yet falls back to 0, which is the old
+     * behaviour for exactly one frame rather than a guess that could be wrong
+     * in either direction.
+     */
+    const h = (captionH.current[id] ?? 0) / height;
     // A caption is anchored by a point, so it snaps as a zero-size span.
     const tx = Math.max(0, Math.min(1, from.x + dx / width));
-    const ty = Math.max(0, Math.min(1, from.y + dy / height));
+    const ty = Math.max(0, Math.min(Math.max(0, 1 - h), from.y + dy / height));
     return {
       x: snapSpan({ pos: tx, size: 0 }, targetsFor(snapping, snapOthers.x)),
-      y: snapSpan({ pos: ty, size: 0 }, targetsFor(snapping, snapOthers.y)),
+      y: Math.min(
+        Math.max(0, 1 - h),
+        snapSpan({ pos: ty, size: 0 }, targetsFor(snapping, snapOthers.y)),
+      ),
     };
   };
   const effectAt = (
@@ -1183,7 +1212,10 @@ export function Preview({ width, height }: { width: number; height: number }) {
       }
       const text = dragText.current;
       if (text && sel.trackId === OVERLAY_TRACK) {
-        setLiveText({ id: sel.clipId, ...textAt(text, e.translationX, e.translationY) });
+        setLiveText({
+          id: sel.clipId,
+          ...textAt(sel.clipId, text, e.translationX, e.translationY),
+        });
         return;
       }
       const r = dragRect.current;
@@ -1210,7 +1242,9 @@ export function Preview({ width, height }: { width: number; height: number }) {
       }
       const text = dragText.current;
       if (text && sel.trackId === OVERLAY_TRACK) {
-        updateSelectedOverlay(textAt(text, e.translationX, e.translationY));
+        updateSelectedOverlay(
+          textAt(sel.clipId, text, e.translationX, e.translationY),
+        );
         return;
       }
       const r = dragRect.current;
@@ -1400,10 +1434,21 @@ export function Preview({ width, height }: { width: number; height: number }) {
             const caption = (
               <View
                 key={o.id}
+                onLayout={(e) => {
+                  captionH.current[o.id] = e.nativeEvent.layout.height;
+                }}
                 style={[
                   styles.textOverlay,
                   {
                     top: o.y * height,
+                    // Horizontally the caption is laid out to its own
+                    // alignment and then anchored by `x` — see `anchorDx`.
+                    alignItems:
+                      o.align === "left"
+                        ? "flex-start"
+                        : o.align === "right"
+                          ? "flex-end"
+                          : "center",
                     opacity:
                       (kfOp ? kf!.opacity : (o.opacity ?? 1)) *
                       (kfOp ? 1 : elementFadeAt(anim, o.start, o.end, playheadSec)),
@@ -1422,7 +1467,40 @@ export function Preview({ width, height }: { width: number; height: number }) {
                   },
                 ]}
               >
-                <CaptionText o={o} scale={scale} fontsVersion={fontsVersion} />
+                {/*
+                  * `x` positions the caption, and it did NOT before this.
+                  *
+                  * The layer spans the full width and centred its text, so
+                  * `o.x` moved nothing on screen — while `overlay-svg.ts`
+                  * anchors the text at `width * o.x` and always has. Dragging a
+                  * caption sideways therefore appeared to do nothing and moved
+                  * it in the exported file, and a caption placed off-centre
+                  * anywhere else came back centred here. A preview that
+                  * disagrees with the file about where the words are.
+                  *
+                  * The offset goes on an INNER view rather than the outer one
+                  * because the outer carries the Ken-Burns `transformOrigin`,
+                  * which is expressed in its own box — translate that box and
+                  * the zoom starts pivoting about the wrong point.
+                  */}
+                <View
+                  style={{
+                    transform: [
+                      {
+                        translateX:
+                          (o.x -
+                            (o.align === "left"
+                              ? 0
+                              : o.align === "right"
+                                ? 1
+                                : 0.5)) *
+                          width,
+                      },
+                    ],
+                  }}
+                >
+                  <CaptionText o={o} scale={scale} fontsVersion={fontsVersion} />
+                </View>
               </View>
             );
             if (o.mask) {
@@ -1667,6 +1745,5 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: 0,
     right: 0,
-    alignItems: "center",
   },
 });

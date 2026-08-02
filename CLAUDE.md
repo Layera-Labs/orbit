@@ -108,6 +108,20 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   The body MOVE deliberately still writes live, because `setClipStart` re-packs the track in
   Quick mode and moves neighbours under linkage — deferring that would replace live feedback
   with a snap.
+- **A caption's `x` positions it, and on mobile it did NOT** (fixed 2026-08-02). The
+  preview's caption layer spanned the full width and centred its text, so `o.x` moved
+  nothing on screen — while `overlay-svg.ts` has always anchored the text at
+  `width * o.x`. Dragging a caption sideways therefore appeared to do nothing AND moved
+  it in the exported file, and a caption placed off-centre anywhere else came back
+  centred here. The offset goes on an INNER view, because the outer one carries the
+  Ken-Burns `transformOrigin` expressed in its own box — translate that box and the zoom
+  pivots about the wrong point. Verified on device with three captions at
+  `x = 0.12/0.5/0.88` and the three alignments; each lands on its anchor.
+  **`y` is the caption's TOP**, so it is clamped against the layer's MEASURED height
+  (`onLayout` into a ref): clamping the anchor to 1, as it used to, let you drag the text
+  until only its first pixel row was on the canvas and then off it entirely. A PiP clamps
+  against its `rect`; a caption has no box in the model, since its height depends on the
+  font, the string and where it wraps.
 - **Nothing that moves under a finger writes the store per frame** (2026-08-02). The
   trim handles were fixed for this long ago; the CLIP MOVE and every preview drag were
   not, and each one called `apply` on every pointer event — which clones the project,
