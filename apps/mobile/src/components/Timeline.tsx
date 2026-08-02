@@ -297,18 +297,36 @@ function ClipView({
   // A drag/trim on the clip wins over the timeline ScrollView (so it doesn't
   // scrub); touching empty timeline still scrolls — letting you scroll to the
   // end while a clip stays selected.
+  /** Where a body drag has got to. One function, as with the two trims. */
+  function moveGeom(dx: number) {
+    const s = startRef.current;
+    return {
+      start: Math.max(0, s.start + dx / pxPerSec),
+      trimIn: s.trimIn,
+      duration: s.duration,
+    };
+  }
+  /*
+   * The MOVE commits on release now, like the trims either side of it.
+   *
+   * It used to write the store on every pointer frame, deliberately: in Quick
+   * mode `setClipStart` re-packs the track, so writing live let you watch the
+   * neighbours make room as you dragged. That was the wrong side of the trade
+   * — the clip under the finger lagged several frames behind it, which reads
+   * as the clip refusing to keep up rather than as the neighbours being
+   * helpful. Reported from a device.
+   *
+   * The cost is honest and small: the neighbours now settle once, on release,
+   * instead of shuffling under the drag.
+   */
   const bodyPan = Gesture.Pan()
     .runOnJS(true)
     .blocksExternalGesture(scrollRef as never)
     .activeOffsetX([-6, 6])
     .onBegin(begin)
-    .onUpdate((e) =>
-      setClipStart(
-        trackId,
-        clip.id,
-        startRef.current.start + e.translationX / pxPerSec,
-      ),
-    );
+    .onUpdate((e) => setLive(moveGeom(e.translationX)))
+    .onEnd((e) => setClipStart(trackId, clip.id, moveGeom(e.translationX).start))
+    .onFinalize(() => setLive(null));
   // Both trim geometries live in one function each, so the rectangle under the
   // finger and the value finally committed can never disagree.
   function leftGeom(dx: number) {

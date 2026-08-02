@@ -91,8 +91,22 @@ export function TextSettingsSheet({
   const cycleAlign = () =>
     updateOverlay({ align: ALIGN_ORDER[(ALIGN_ORDER.indexOf(align) + 1) % 3] });
 
+  /*
+   * The other tabs hold a fixed set of controls and get a fixed height, so the
+   * sheet does not resize as you move between them. The TEXT tab does not: its
+   * field grows with what you type, and reserving three lines for a one-line
+   * caption left a slab of empty sheet between the field and the keyboard.
+   * `undefined` lets it size to its content, and the input's own min/max keep
+   * it between one line and a scrollable five.
+   */
   const bodyH =
-    tab === "text" ? 150 : tab === "size" ? 210 : tab === "color" ? 324 : 380;
+    tab === "text"
+      ? undefined
+      : tab === "size"
+        ? 210
+        : tab === "color"
+          ? 324
+          : 380;
 
   return (
     <Modal transparent visible animationType="slide" onRequestClose={close}>
@@ -331,14 +345,17 @@ const styles = StyleSheet.create({
     borderRadius: 1,
     backgroundColor: vela.accent,
   },
-  body: { paddingTop: 12 },
+  body: { paddingTop: 12, paddingBottom: 4 },
   inputRow: { flexDirection: "row", alignItems: "flex-start", gap: 8 },
   input: {
     flex: 1,
     color: vela.ink,
     fontSize: 17,
     fontFamily: font.medium,
-    minHeight: 120,
+    // One line to start, five before it scrolls — enough to see a caption
+    // whole without holding the sheet open over dead space.
+    minHeight: 40,
+    maxHeight: 132,
     textAlignVertical: "top",
   },
   trash: {

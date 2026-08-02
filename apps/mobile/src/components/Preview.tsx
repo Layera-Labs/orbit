@@ -88,6 +88,7 @@ import { clipAtTime, clipsAtTime } from "../model/editor-ops";
 import { projectDuration } from "../model/project";
 import type {
   Background,
+  Rect,
   CanvasFrame,
   TextOverlay,
   VisualTrack,
@@ -824,7 +825,26 @@ export function Preview({ width, height }: { width: number; height: number }) {
    * store is written once, on release.
    */
   const [live, setLive] = useState<
-    (TransformPatch & { clipId: string }) | null
+    | (TransformPatch & {
+        clipId: string;
+        mosaic?: VisualTrackClip["mosaic"];
+        magnifier?: VisualTrackClip["magnifier"];
+      })
+    | null
+  >(null);
+  /*
+   * The dragged CAPTION's position, held here for the same reason as `live`
+   * above: `updateSelectedOverlay` goes through `apply`, which clones the
+   * project, re-renders the preview, the timeline and the editor chrome and
+   * queues a save and a sync. Doing that on every pointer frame made the
+   * caption trail the finger by several frames — so you kept moving to catch
+   * it up and pushed it off the canvas.
+   *
+   * One write on release, which is also one undo step instead of however many
+   * frames the drag took.
+   */
+  const [liveText, setLiveText] = useState<
+    { id: string; x: number; y: number } | null
   >(null);
   const withLive = (c: VisualTrackClip): VisualTrackClip =>
     live && live.clipId === c.id
@@ -833,6 +853,10 @@ export function Preview({ width, height }: { width: number; height: number }) {
           ...(live.rect ? { rect: live.rect } : {}),
           ...(live.rotation != null ? { rotation: live.rotation } : {}),
           ...(live.crop ? { crop: live.crop } : {}),
+          // Dragging the mosaic or the magnifier moves a REGION of the clip, so
+          // it rides here too rather than through `apply` on every frame.
+          ...(live.mosaic ? { mosaic: live.mosaic } : {}),
+          ...(live.magnifier ? { magnifier: live.magnifier } : {}),
         }
       : c;
 
@@ -979,9 +1003,14 @@ export function Preview({ width, height }: { width: number; height: number }) {
       return c ? { clip: withLive(c), trackId: t.id } : null;
     })
     .filter((x): x is { clip: VisualTrackClip; trackId: string } => !!x);
-  const captions = (project?.overlays ?? []).filter(
-    (o) => playheadSec >= o.start && playheadSec <= o.end,
-  );
+  const captions = (project?.overlays ?? [])
+    .filter((o) => playheadSec >= o.start && playheadSec <= o.end)
+    // The one under the finger is drawn from `liveText`, so it keeps up.
+    .map((o) =>
+      liveText && liveText.id === o.id
+        ? { ...o, x: liveText.x, y: liveText.y }
+        : o,
+    );
   const scale = project ? width / project.width : 1;
 
   // Alignment targets from the OTHER objects on canvas — the dragged one is
@@ -1056,6 +1085,57 @@ export function Preview({ width, height }: { width: number; height: number }) {
    * activate first, so they take a ref to it rather than relying on ordering.
    */
   const canvasGesture = useRef<GestureType>(undefined);
+  /*
+   * Where the drag has got to, in ONE function each — the same rule the
+   * timeline's trim handles follow. The frame under the finger and the value
+   * finally committed both come from here, so they cannot disagree, and the
+   * snapping is applied once rather than being written out twice.
+   */
+  const textAt = (from: { x: number; y: number }, dx: number, dy: number) => {
+    // A caption is anchored by a point, so it snaps as a zero-size span.
+    const tx = Math.max(0, Math.min(1, from.x + dx / width));
+    const ty = Math.max(0, Math.min(1, from.y + dy / height));
+    return {
+      x: snapSpan({ pos: tx, size: 0 }, targetsFor(snapping, snapOthers.x)),
+      y: snapSpan({ pos: ty, size: 0 }, targetsFor(snapping, snapOthers.y)),
+    };
+  };
+  const effectAt = (
+    from: NonNullable<typeof dragEffect.current>,
+    dx: number,
+    dy: number,
+  ) => ({
+    ...from.effect,
+    cx: Math.max(
+      from.effect.rx,
+      Math.min(1 - from.effect.rx, from.cx + dx / width),
+    ),
+    cy: Math.max(
+      from.effect.ry,
+      Math.min(1 - from.effect.ry, from.cy + dy / height),
+    ),
+  });
+  const rectAt = (r: Rect, dx: number, dy: number): Rect => {
+    const rawX = Math.max(0, Math.min(1 - r.w, r.x + dx / width));
+    const rawY = Math.max(0, Math.min(1 - r.h, r.y + dy / height));
+    return {
+      ...r,
+      x: Math.max(
+        0,
+        Math.min(
+          1 - r.w,
+          snapSpan({ pos: rawX, size: r.w }, targetsFor(snapping, snapOthers.x)),
+        ),
+      ),
+      y: Math.max(
+        0,
+        Math.min(
+          1 - r.h,
+          snapSpan({ pos: rawY, size: r.h }, targetsFor(snapping, snapOthers.y)),
+        ),
+      ),
+    };
+  };
   const dragPan = Gesture.Pan()
     .runOnJS(true)
     .onBegin(() => {
@@ -1097,66 +1177,48 @@ export function Preview({ width, height }: { width: number; height: number }) {
       if (!sel) return;
       const localEffect = dragEffect.current;
       if (localEffect) {
-        const cx = Math.max(
-          localEffect.effect.rx,
-          Math.min(
-            1 - localEffect.effect.rx,
-            localEffect.cx + e.translationX / width,
-          ),
-        );
-        const cy = Math.max(
-          localEffect.effect.ry,
-          Math.min(
-            1 - localEffect.effect.ry,
-            localEffect.cy + e.translationY / height,
-          ),
-        );
-        if (localEffect.kind === "mosaic")
-          applyClipMosaic({
-            ...(localEffect.effect as NonNullable<VisualTrackClip["mosaic"]>),
-            cx,
-            cy,
-          });
-        else
-          applyClipMagnifier({
-            ...(localEffect.effect as NonNullable<
-              VisualTrackClip["magnifier"]
-            >),
-            cx,
-            cy,
-          });
+        const next = effectAt(localEffect, e.translationX, e.translationY);
+        setLive({ clipId: sel.clipId, [localEffect.kind]: next });
         return;
       }
       const text = dragText.current;
       if (text && sel.trackId === OVERLAY_TRACK) {
-        // A caption is anchored by a point, so it snaps as a zero-size span.
-        const tx = Math.max(0, Math.min(1, text.x + e.translationX / width));
-        const ty = Math.max(0, Math.min(1, text.y + e.translationY / height));
-        updateSelectedOverlay({
-          x: snapSpan({ pos: tx, size: 0 }, targetsFor(snapping, snapOthers.x)),
-          y: snapSpan({ pos: ty, size: 0 }, targetsFor(snapping, snapOthers.y)),
-        });
+        setLiveText({ id: sel.clipId, ...textAt(text, e.translationX, e.translationY) });
         return;
       }
       const r = dragRect.current;
       if (!r) return;
-      const rawX = Math.max(0, Math.min(1 - r.w, r.x + e.translationX / width));
-      const rawY = Math.max(0, Math.min(1 - r.h, r.y + e.translationY / height));
-      const nx = Math.max(
-        0,
-        Math.min(
-          1 - r.w,
-          snapSpan({ pos: rawX, size: r.w }, targetsFor(snapping, snapOthers.x)),
-        ),
-      );
-      const ny = Math.max(
-        0,
-        Math.min(
-          1 - r.h,
-          snapSpan({ pos: rawY, size: r.h }, targetsFor(snapping, snapOthers.y)),
-        ),
-      );
-      setClipRect(sel.trackId, sel.clipId, { ...r, x: nx, y: ny });
+      setLive({ clipId: sel.clipId, rect: rectAt(r, e.translationX, e.translationY) });
+    })
+    /*
+     * One write, on release. `onEnd` runs only on a real finish, so a cancelled
+     * gesture drops back to the stored position rather than committing wherever
+     * the finger happened to be; `onFinalize` runs either way and is what clears
+     * the live value.
+     */
+    .onEnd((e) => {
+      const sel = useEditor.getState().selected;
+      if (!sel) return;
+      const localEffect = dragEffect.current;
+      if (localEffect) {
+        const next = effectAt(localEffect, e.translationX, e.translationY);
+        if (localEffect.kind === "mosaic")
+          applyClipMosaic(next as NonNullable<VisualTrackClip["mosaic"]>);
+        else
+          applyClipMagnifier(next as NonNullable<VisualTrackClip["magnifier"]>);
+        return;
+      }
+      const text = dragText.current;
+      if (text && sel.trackId === OVERLAY_TRACK) {
+        updateSelectedOverlay(textAt(text, e.translationX, e.translationY));
+        return;
+      }
+      const r = dragRect.current;
+      if (r) setClipRect(sel.trackId, sel.clipId, rectAt(r, e.translationX, e.translationY));
+    })
+    .onFinalize(() => {
+      setLiveText(null);
+      setLive(null);
     });
   dragPan.withRef(canvasGesture);
   const tap = Gesture.Tap()
