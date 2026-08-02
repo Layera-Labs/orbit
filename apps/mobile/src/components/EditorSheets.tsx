@@ -28,6 +28,12 @@ import { VIcon, type VIconName } from "./VIcon";
 import { BottomSheet as BaseBottomSheet } from "./BottomSheet";
 import { InputSheet } from "./InputSheet";
 import { VSlider } from "./VSlider";
+import { TransitionTile } from "./TransitionTile";
+import {
+  previewableTransitions,
+  resolveTransitions,
+} from "../preview/xfade";
+import { trackBoundaryCount } from "../model/editor-ops";
 import { PercentField } from "./PercentField";
 import { ColorSheet } from "./ColorSheet";
 import { TextSettingsSheet } from "./TextSettingsSheet";
@@ -1238,32 +1244,34 @@ function ExportSheet() {
 
 // ---- Transition ----------------------------------------------------------
 
-/*
- * Two, and they are the two that are real.
+/**
+ * The transition picker.
  *
- * Dissolve, Slide, Wipe and Zoom used to sit here marked "soon" and answered a
- * tap with an alert. They were never coming: `buildMultiTrackArgs` applies
- * transitions to the FIRST VISUAL TRACK ONLY and collapses every non-fade type
- * to a fade through black, and `frameStateAt` reproduces that collapse on
- * purpose so the preview is never better than the export. Shipping them would
- * mean lying in two places at once — the picker would promise a wipe, the
- * preview would show a fade, and the file would contain a fade.
+ * **Only what BOTH previews render.** `previewableTransitions()` reads the same
+ * tables `xfadeStateAt` reads, so this list grows the moment a family lands in
+ * the renderer and not a commit before. Four types used to sit here marked
+ * "soon" and answered a tap with an alert; the fix was never a better alert, it
+ * was making the engine do them — and the guard against that regressing is that
+ * this list is derived rather than typed out.
  *
- * Web already offers only these two. This is mobile agreeing.
+ * The export renders more families than this. Offering one the preview cannot
+ * draw would mean promising a wipe and showing a cut, which is the drift this
+ * codebase refuses in the direction that actually misleads someone.
  */
-const TRANSITIONS: {
-  key: TransitionType;
-  label: string;
-  icon: VIconName;
-}[] = [
-  { key: "cut", label: "None", icon: "close" },
-  { key: "fade", label: "Fade", icon: "trFade" },
-];
+/**
+ * Sized so two four-variant families sit side by side on a normal phone:
+ * `4*38 + 3*8` is 176, and two of those plus the block gap clears the sheet's
+ * 372pt of content. Bigger tiles push Slide and Push onto separate lines and
+ * the sheet starts scrolling for no gain.
+ */
+const TILE = 38;
 
 function TransitionSheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const setSelectedTransition = useEditor((s) => s.setSelectedTransition);
+  const applyTransitionToAll = useEditor((s) => s.applyTransitionToAll);
   const selected = useEditor((s) => s.selected);
+  const project = useEditor((s) => s.project);
   const current = useEditor((s) => {
     const tr = (s.project?.tracks ?? []).find(
       (t) => t.id === selected?.trackId,
@@ -1277,6 +1285,27 @@ function TransitionSheet() {
   const close = () => setPanel(null);
   const [dur, setDur] = useState(current?.duration ?? 0.5);
   const type: TransitionType = current?.type ?? "cut";
+  const families = previewableTransitions();
+
+  /*
+   * Why this boundary is not rendering what was asked for, in the words the
+   * resolver uses. A blended clip's export branch reads the canvas accumulated
+   * under it and an xfade run has no such canvas, so the boundary collapses to
+   * a crossfade — which with overlap costs nothing, but the picker should say
+   * so rather than let someone pick a wipe four times.
+   */
+  const downgraded = useEditor((s) => {
+    const tr = (s.project?.tracks ?? []).find(
+      (t) => t.id === selected?.trackId,
+    );
+    if (!tr || tr.kind !== "visual") return undefined;
+    return resolveTransitions(tr.clips).boundaries.find(
+      (b) => b.nextId === selected?.clipId,
+    )?.downgraded;
+  });
+
+  const boundaries =
+    project && selected ? trackBoundaryCount(project, selected.trackId) : 0;
 
   const apply = (key: TransitionType) => {
     setSelectedTransition(
@@ -1284,41 +1313,75 @@ function TransitionSheet() {
     );
   };
 
+  /*
+   * Names its scope and its count before it moves anything. It reaches every
+   * boundary on THIS track and each one makes the picture shorter, so it is a
+   * bigger edit than it looks from a single tap.
+   */
+  const applyAll = () =>
+    Alert.alert(
+      "Apply to all",
+      `Put this transition on every cut in the video. That is ${boundaries} ` +
+        `${boundaries === 1 ? "cut" : "cuts"}, and each one makes the video ` +
+        `${dur.toFixed(1)}s shorter.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Apply",
+          onPress: () =>
+            applyTransitionToAll(
+              type === "cut" ? undefined : { type, duration: dur },
+            ),
+        },
+      ],
+    );
+
   return (
-    <BottomSheet onClose={close} style={{ gap: 16 }} dim="#0002">
+    <BottomSheet onClose={close} style={{ gap: 14 }} dim="#0002">
       <View style={s.rowBetween}>
         <Text style={s.sheetTitle}>Transition</Text>
         <Pressable onPress={close} hitSlop={10}>
           <VIcon name="check" size={24} color={vela.accent} />
         </Pressable>
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{ gap: 16, paddingVertical: 2 }}
-      >
-        {TRANSITIONS.map((t) => {
-          const on = type === t.key;
-          return (
-            <Pressable
-              key={t.key}
-              style={s.trItem}
-              onPress={() => apply(t.key)}
-            >
-              <View style={[s.trIcon, on && s.trIconOn]}>
-                <VIcon
-                  name={t.icon}
-                  size={22}
-                  color={on ? vela.accent : "#fff"}
-                />
-              </View>
-              <Text style={[s.trLabel, on && { color: vela.accent }]}>
-                {t.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      {downgraded === "blend" ? (
+        <Text style={s.trNote}>
+          This clip uses a blend mode, so its transition renders as a crossfade.
+        </Text>
+      ) : null}
+      {/*
+        * The families FLOW rather than taking a row each. Cut and Fade have one
+        * variant apiece, so a row each left two thirds of the sheet empty above
+        * a list that then had to scroll — and scrolled to a half-visible row of
+        * tiles sliced by the container's edge. Wrapping puts the small families
+        * beside a large one and fits the whole set with no scrolling at all,
+        * which is the version worth having.
+        */}
+      <View style={s.trWrap}>
+        {families.map((f) => (
+          <View key={f.key} style={{ gap: 7 }}>
+            <Text style={s.trFamily}>{f.label}</Text>
+            <View style={s.trRow}>
+              {f.variants.map((v) => (
+                <Pressable
+                  key={v.type}
+                  accessibilityRole="button"
+                  accessibilityLabel={v.label}
+                  accessibilityState={{ selected: type === v.type }}
+                  onPress={() => apply(v.type)}
+                  hitSlop={4}
+                >
+                  <TransitionTile
+                    type={v.type}
+                    size={TILE}
+                    selected={type === v.type}
+                  />
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        ))}
+      </View>
       {type !== "cut" ? (
         <View style={s.intensityRow}>
           <Text style={s.intensityLabel}>Duration</Text>
@@ -1327,6 +1390,7 @@ function TransitionSheet() {
               value={dur}
               min={0.2}
               max={2}
+              step={0.1}
               onChange={(v) => {
                 const d = Math.round(v * 10) / 10;
                 setDur(d);
@@ -1337,6 +1401,26 @@ function TransitionSheet() {
           <Text style={s.intensityVal}>{dur.toFixed(1)}s</Text>
         </View>
       ) : null}
+      <Pressable
+        accessibilityRole="button"
+        style={s.apply}
+        onPress={applyAll}
+        disabled={boundaries < 2}
+      >
+        <VIcon
+          name="duplicate"
+          size={17}
+          color={boundaries < 2 ? vela.lightMuted : vela.accent}
+        />
+        <Text
+          style={[
+            s.applyLabel,
+            boundaries < 2 && { color: vela.lightMuted },
+          ]}
+        >
+          Apply to all cuts
+        </Text>
+      </Pressable>
     </BottomSheet>
   );
 }
@@ -3498,19 +3582,36 @@ const s = StyleSheet.create({
     textAlign: "right",
   },
 
-  trItem: { width: 62, alignItems: "center", gap: 7 },
-  trIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 14,
-    backgroundColor: vela.lightSurface,
+  /*
+   * The family label is the quiet one and the tiles carry the meaning, so it
+   * gets weight and size rather than the tracked-out caps every small string in
+   * a sheet tends to end up wearing.
+   */
+  trFamily: { color: vela.ink3, fontSize: 12.5, fontFamily: font.medium },
+  trRow: { flexDirection: "row", gap: 8 },
+  trWrap: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    columnGap: 16,
+    rowGap: 14,
+  },
+  trNote: {
+    color: vela.ink3,
+    fontSize: 12.5,
+    lineHeight: 17,
+    fontFamily: font.regular,
+  },
+  apply: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 2,
-    borderColor: "transparent",
+    gap: 8,
+    paddingVertical: 13,
+    borderRadius: 14,
+    borderCurve: "continuous",
+    backgroundColor: "#ffffff0d",
   },
-  trIconOn: { backgroundColor: vela.accentSoft, borderColor: vela.accent },
-  trLabel: { color: vela.ink3, fontSize: 12, fontFamily: font.medium },
+  applyLabel: { color: vela.accent, fontFamily: font.semibold, fontSize: 14 },
 
   chipRow: { flexDirection: "row", gap: 10 },
   /** Dim the per-clip controls when there's nothing to apply them to. */

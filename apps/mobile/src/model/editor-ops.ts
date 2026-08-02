@@ -954,6 +954,41 @@ export function setClipTransition(
   );
 }
 
+/**
+ * Set the same transition on EVERY boundary of one visual track.
+ *
+ * Folded one boundary at a time through `setClipTransition` rather than
+ * written in a single pass, because each one moves the clips after it: the
+ * second boundary has to be measured against the geometry the first one just
+ * produced, or every clip past the second lands short by the accumulated
+ * overlap. Folding is also the only way this cannot disagree with setting them
+ * one at a time by hand, which is the same rule `withVolume` follows.
+ *
+ * The FIRST clip is skipped — it has nothing before it to transition from, and
+ * `resolveTransitions` would report it as an edge fade rather than a boundary.
+ */
+export function setTrackTransitions(
+  p: VideoProject,
+  trackId: string,
+  transitionIn: Transition | undefined,
+): VideoProject {
+  const track = findTrack(p, trackId);
+  if (!track || track.kind !== "visual") return p;
+  const ids = (byStart(track.clips) as VisualTrackClip[]).slice(1).map((c) => c.id);
+  return ids.reduce(
+    (acc, id) => setClipTransition(acc, trackId, id, transitionIn),
+    p,
+  );
+}
+
+/** How many boundaries `setTrackTransitions` would reach on this track. */
+export function trackBoundaryCount(p: VideoProject, trackId: string): number {
+  const track = findTrack(p, trackId);
+  return track && track.kind === "visual"
+    ? Math.max(0, track.clips.length - 1)
+    : 0;
+}
+
 /** Set volume on a visual (video) OR audio clip — patches whichever lane holds it. */
 export function setClipVolume(
   p: VideoProject,

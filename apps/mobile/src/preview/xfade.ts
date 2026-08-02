@@ -264,6 +264,34 @@ export function isAlphaOnly(name: string): boolean {
   return name === 'fade';
 }
 
+/**
+ * Whether BOTH previews render this transition, and therefore whether a picker
+ * may offer it.
+ *
+ * It reads the same tables the renderers read, so a family becomes selectable
+ * at the moment it lands in `xfadeStateAt` and not a commit before. The
+ * alternative — a hand-kept list of "the ones that work" — is how a picker ends
+ * up promising a wipe while the preview shows a cut, which is the exact drift
+ * this engine is built to refuse. `cut` is always offered: it is the absence of
+ * a transition, and nothing has to render it.
+ */
+export function xfadeHasPreview(type: TransitionType): boolean {
+  if (type === 'cut') return true;
+  const name = xfadeName({ type, duration: 1 });
+  return !!name && (isAlphaOnly(name) || !!WIPES[name] || !!SLIDES[name]);
+}
+
+/**
+ * The catalogue, filtered to what a picker may show, with empty families
+ * dropped.
+ */
+export function previewableTransitions(): TransitionFamily[] {
+  return TRANSITIONS.map((f) => ({
+    ...f,
+    variants: f.variants.filter((v) => xfadeHasPreview(v.type)),
+  })).filter((f) => f.variants.length > 0);
+}
+
 /** Whether a clip's compositing forbids joining it into an xfade run. */
 function isBlended(c: VisualTrackClip): boolean {
   return !!blendToSkia(c.blend);

@@ -443,6 +443,8 @@ interface EditorState {
   setSelectedSpeed: (speed: number) => void;
   setSelectedVolume: (volume: number) => void;
   setSelectedTransition: (transition: Transition | undefined) => void;
+  /** Set the same transition on every boundary of the selected clip's track. */
+  applyTransitionToAll: (transition: Transition | undefined) => void;
   moveSelectedLayer: (dir: 1 | -1) => void;
   togglePiP: () => void;
   setRatio: (width: number, height: number) => void;
@@ -1740,6 +1742,11 @@ export const useEditor = create<EditorState>((set, get) => ({
     get().apply((p) =>
       ops.setClipTransition(p, s.trackId, s.clipId, transition),
     );
+  },
+  applyTransitionToAll: (transition) => {
+    const s = get().selected;
+    if (!s || s.trackId === OVERLAY_TRACK) return;
+    get().apply((p) => ops.setTrackTransitions(p, s.trackId, transition));
   },
 
   moveSelectedLayer: (dir) => {
