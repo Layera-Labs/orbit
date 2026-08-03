@@ -192,6 +192,20 @@ export const TRANSITIONS: TransitionFamily[] = [
     ],
   },
   {
+    /*
+     * AUTHORED. A sharp flash through a colour, where `fadeblack`/`fadewhite`
+     * are a slow asymmetric DIP — different enough to be worth both. The veil
+     * is confined to the middle half of the overlap, so the cut lands inside a
+     * bloom rather than under a long wash.
+     */
+    key: 'flash',
+    label: 'Flash',
+    variants: [
+      { type: 'light', label: 'Light' },
+      { type: 'blink', label: 'Blink' },
+    ],
+  },
+  {
     key: 'shake2',
     label: 'Shake 2',
     variants: [
@@ -318,7 +332,7 @@ export function ridesOverlayPath(name: string): boolean {
  * for that file to point ffmpeg at.
  */
 export function isAuthoredTransition(name: string): boolean {
-  return !!SHAKES[name];
+  return !!SHAKES[name] || !!FLASHES[name];
 }
 
 /**
@@ -861,6 +875,52 @@ const SHAKES: Record<
 };
 
 /**
+ * The flash families: which colour the frame blooms through.
+ *
+ * `blink` is black — an eye-blink — and `light` is white. They differ in
+ * nothing else, because what separates a flash from `fadeblack` is the CURVE,
+ * and both share it.
+ */
+const FLASHES: Record<string, string> = {
+  blink: '#000000',
+  light: '#ffffff',
+};
+
+/** The colour a flash blooms through, or `null` when this is not a flash. */
+export function flashColor(name: string): string | null {
+  return FLASHES[name] ?? null;
+}
+
+/** Where the veil starts and stops, as a fraction of the overlap. */
+const FLASH_EDGE = 0.25;
+
+/**
+ * The veil's alpha through a flash: a triangle over the middle half.
+ *
+ * Linear, and deliberately so. The export draws this as a pair of chained
+ * `fade` filters on a colour source, and ffmpeg's `fade` ramps LINEARLY — a
+ * prettier eased curve here would be a curve only the previews had, which is
+ * the drift this engine refuses. Zero at `p <= 0.25` and `p >= 0.75`, so the
+ * frame is untouched at both ends of the overlap.
+ */
+export function flashAlphaAt(p: number): number {
+  const a = 1 - Math.abs(p - 0.5) / FLASH_EDGE;
+  return Math.min(1, Math.max(0, a));
+}
+
+/**
+ * The two `fade` filters that draw the same triangle in the export, as
+ * `[start, duration]` pairs in seconds — in, then out.
+ */
+export function flashFadeWindows(
+  at: number,
+  overlap: number,
+): { inAt: number; outAt: number; ramp: number } {
+  const ramp = overlap * FLASH_EDGE;
+  return { inAt: at + ramp, outAt: at + overlap / 2, ramp };
+}
+
+/**
  * How far the frame is displaced, at progress `p`.
  *
  * `sin(PI*p)` is the ENVELOPE and it is the load-bearing half: it is zero at
@@ -1036,6 +1096,8 @@ export function xfadeMaskAt(m: XfMask, x: number, y: number, W: number, H: numbe
  * leaves A at `(1-t2)(1-t1)`. Setting that equal to `P*s1` gives `t1`.
  */
 export function xfadeVeilAt(name: string, p: number): XfVeil | null {
+  const flash = FLASHES[name];
+  if (flash) return { color: flash, alpha: flashAlphaAt(p) };
   const color = name === 'fadeblack' ? '#000000' : name === 'fadewhite' ? '#ffffff' : null;
   if (!color) return null;
   const P = 1 - p;
@@ -1111,6 +1173,30 @@ const PREVIEWED = new Set<string>([
   ...Object.keys(MASKS),
   ...Object.keys(SQUEEZES),
   ...Object.keys(SHAKES),
+  /*
+   * NOT the flashes yet. Both render, in the export and in both previews, and
+   * the shape is right — but measured against ffmpeg the veil peaks about one
+   * frame later than `flashAlphaAt` says, a **16/255** disagreement at the top
+   * of the ramp that is almost certainly ffmpeg's `fade` discretising its own
+   * ramp per frame. Almost certainly is not measured, and an unexplained
+   * difference between the file and the picture is the one thing this engine
+   * does not ship. They stay out of the pickers until the frame is accounted
+   * for. See `flashFadeWindows`.
+   */
+
+  'fadeblack',
+  'fadewhite',
+  'zoomin',
+  /*
+   * `pixelize` and `hblur` are deliberately absent, and this is the honest half
+   * of the rule rather than a TODO. Both render in the export and both are
+   * drawn by the canvas-2D preview; neither is drawn by Skia yet, so offering
+   * them would put a family in the picker that one of the two previews shows as
+   * a plain cut. `hblur` is the harder of the two by a distance: ffmpeg's is a
+   * FORWARD box filter, so it displaces the picture by half the box as well as
+   * softening it, and a centred gaussian of the same width sits visibly in the
+   * wrong place beside the file.
+   */
   'fadeblack',
   'fadewhite',
   'zoomin',
@@ -1142,6 +1228,7 @@ export function xfadeStateAt(
    * this one is exact where the colour grade is not.
    */
   if (name === 'fade') return { alpha: role === 'to' ? p : 1 };
+  if (FLASHES[name]) return { alpha: role === 'to' ? p : 1 };
   if (SHAKES[name]) {
     /*
      * BOTH sides carry the same displacement, because it is the frame that
