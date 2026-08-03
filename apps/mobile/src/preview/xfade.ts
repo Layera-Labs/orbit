@@ -781,22 +781,6 @@ export function xfadeStateFor(
  * there rather than on a scaled fraction of one. Same rule, resolved twice, at
  * each surface's own resolution.
  */
-/**
- * The families BOTH previews draw, and therefore the ones a picker may offer.
- *
- * A single set rather than a condition per family, because it is the list that
- * has to advance in step with two compositors: the maths for every family below
- * lives in this file already and the export renders all of them, so what gates
- * a name here is whether the canvas-2D AND the Skia preview have landed it. Add
- * a name the moment the second one does, never before — a picker offering
- * something one preview shows as a cut is exactly the drift this engine exists
- * to refuse, and the drift is invisible until someone exports.
- */
-const PREVIEWED = new Set<string>([
-  ...Object.keys(WIPES),
-  ...Object.keys(SLIDES),
-]);
-
 /** ffmpeg's own `smoothstep`, cubic and clamped (`vf_xfade.c:290`). */
 function smoothstep(edge0: number, edge1: number, x: number): number {
   const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
@@ -961,6 +945,37 @@ function squeezeState(
       : { x: ((1 - P) / 2) * W, y: 0, w: P * W, h: H };
   return { alpha: 1, hole };
 }
+
+/**
+ * The families BOTH previews draw, and therefore the ones a picker may offer.
+ *
+ * A single set rather than a condition per family, because it is the list that
+ * has to advance in step with two compositors: the maths for every family below
+ * lives in this file already and the export renders all of them, so what gates
+ * a name here is whether the canvas-2D AND the Skia preview have landed it. Add
+ * a name the moment the second one does, never before — a picker offering
+ * something one preview shows as a cut is exactly the drift this engine exists
+ * to refuse, and the drift is invisible until someone exports.
+ */
+const PREVIEWED = new Set<string>([
+  ...Object.keys(WIPES),
+  ...Object.keys(SLIDES),
+  ...Object.keys(MASKS),
+  ...Object.keys(SQUEEZES),
+  'fadeblack',
+  'fadewhite',
+  'zoomin',
+  /*
+   * `pixelize` and `hblur` are deliberately absent, and this is the honest half
+   * of the rule rather than a TODO. Both render in the export and both are
+   * drawn by the canvas-2D preview; neither is drawn by Skia yet, so offering
+   * them would put a family in the picker that one of the two previews shows as
+   * a plain cut. `hblur` is the harder of the two by a distance: ffmpeg's is a
+   * FORWARD box filter, so it displaces the picture by half the box as well as
+   * softening it, and a centred gaussian of the same width sits visibly in the
+   * wrong place beside the file.
+   */
+]);
 
 export function xfadeStateAt(
   name: string,

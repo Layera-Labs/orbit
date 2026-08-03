@@ -15,6 +15,7 @@ import {
   useMemo,
   useRef,
   useState,
+  Fragment,
   type ReactNode,
 } from "react";
 import { StyleSheet, Text, View, type TextStyle } from "react-native";
@@ -32,9 +33,11 @@ import {
   Image as SkImg,
   ImageShader,
   LinearGradient,
+  Mask,
   Path as SkPath,
   RuntimeShader,
   type SkImage,
+  type Transforms3d,
   DiffRect,
   Shader,
   Skia,
@@ -49,7 +52,13 @@ import {
 } from "react-native-reanimated";
 import { useClipFrame } from "../preview/useClipFrame";
 import { buildEdgeFadeMap, fadeFactorAt } from "../preview/transitions";
-import { resolveTransitions, xfadeMapOf, xfadeStateFor } from "../preview/xfade";
+import {
+  resolveTransitions,
+  xfadeMapOf,
+  xfadeStateFor,
+  xfadeVeilAt,
+  type XfMask,
+} from "../preview/xfade";
 import {
   canvasFramePx,
   frameOuterPaint,
@@ -317,6 +326,72 @@ function effectPathFor(
  * mosaic pattern while ffmpeg pixelated three of them, so censoring a face
  * previewed as a soft blur and exported as hard blocks.
  */
+/**
+ * The transition mask families, as one shader over a described field.
+ *
+ * A direct port of `xfadeMaskAt` in `../preview/xfade`, which is itself a
+ * direct port of `libavfilter/vf_xfade.c` — the JS copy is what the fixture
+ * test holds to ffmpeg, and this is what actually paints. Written as one
+ * uniform-driven effect rather than eleven shaders for the same reason the
+ * shared module describes a field rather than naming a family: a new family
+ * that fits the shape lands in both renderers with no new code in either.
+ *
+ * Two details that silently invert the picture if they are 'tidied':
+ * `floor(W/2)` is ffmpeg's INTEGER division and differs from `W*0.5` by half a
+ * pixel on an odd dimension, and SkSL's two-argument `atan(y, x)` takes the
+ * arguments in the order ffmpeg's `atan2f(x - w/2, y - h/2)` passes them —
+ * which is not the usual one, and rotates where the sweep begins by a quarter
+ * turn if it is swapped.
+ */
+const XF_MASK = Skia.RuntimeEffect.Make(`
+uniform float2 size;
+uniform float field;
+uniform float sgn;
+uniform float bias;
+uniform float2 flip;
+uniform float invert;
+half4 main(float2 xy) {
+  float W = size.x;
+  float H = size.y;
+  float cx = floor(W * 0.5);
+  float cy = floor(H * 0.5);
+  float f = 0.0;
+  if (field < 0.5) {
+    float z = length(float2(cx, cy));
+    f = z > 0.0 ? length(float2(xy.x - cx, xy.y - cy)) / z : 0.0;
+  } else if (field < 1.5) {
+    float w2 = W * 0.5;
+    f = w2 > 0.0 ? abs((xy.x - w2) / w2) : 0.0;
+  } else if (field < 2.5) {
+    float h2 = H * 0.5;
+    f = h2 > 0.0 ? abs((xy.y - h2) / h2) : 0.0;
+  } else if (field < 3.5) {
+    float fx = flip.x > 0.5 ? (W - 1.0 - xy.x) / W : xy.x / W;
+    float fy = flip.y > 0.5 ? (H - 1.0 - xy.y) / H : xy.y / H;
+    f = fx * fy;
+  } else {
+    f = atan(xy.x - cx, xy.y - cy);
+  }
+  float t = clamp(sgn * f + bias, 0.0, 1.0);
+  float a = t * t * (3.0 - 2.0 * t);
+  if (invert > 0.5) a = 1.0 - a;
+  return half4(half(a));
+}`)!;
+
+/** `XfMask.field` in the order the shader's `field` uniform branches on. */
+const MASK_FIELDS = ["radius", "absx", "absy", "prod", "angle"];
+
+function maskUniforms(m: XfMask, width: number, height: number) {
+  return {
+    size: [width, height],
+    field: Math.max(0, MASK_FIELDS.indexOf(m.field)),
+    sgn: m.sign,
+    bias: m.bias,
+    flip: [m.flipX ? 1 : 0, m.flipY ? 1 : 0],
+    invert: m.invert ? 1 : 0,
+  };
+}
+
 const PIXELATE = Skia.RuntimeEffect.Make(`
 uniform shader image;
 uniform float block;
@@ -907,6 +982,16 @@ export function Preview({ width, height }: { width: number; height: number }) {
       width,
       height,
     );
+    /*
+     * Scale and travel ride on ONE transform list, in that order, so a squeeze
+     * that also slid would compose the way a matrix does rather than the way
+     * two nested groups would. Nothing emits both today; writing it as one list
+     * is what keeps that true for free if something ever does.
+     */
+    const t: Transforms3d = [];
+    if (xf?.scale) t.push({ scaleX: xf.scale.x }, { scaleY: xf.scale.y });
+    if (xf?.dx) t.push({ translateX: xf.dx });
+    if (xf?.dy) t.push({ translateY: xf.dy });
     return {
       opacity:
         fadeFactorAt(
@@ -916,10 +1001,16 @@ export function Preview({ width, height }: { width: number; height: number }) {
           playheadSec,
         ) * (xf?.alpha ?? 1),
       clip: xf?.clip,
-      travel:
-        xf?.dx || xf?.dy
-          ? [{ translateX: xf.dx ?? 0 }, { translateY: xf.dy ?? 0 }]
-          : undefined,
+      hole: xf?.hole,
+      mask: xf?.mask,
+      travel: t.length ? t : undefined,
+      /*
+       * The solid a `fadeblack`/`fadewhite` dips through. It is asked for on the
+       * INCOMING side only and drawn immediately beneath that clip, which is
+       * the one position that puts it over the outgoing clip and under the
+       * incoming one.
+       */
+      veil: xf?.role === "to" ? xfadeVeilAt(xf.name, xf.p) : null,
     };
   };
 
@@ -1301,7 +1392,7 @@ export function Preview({ width, height }: { width: number; height: number }) {
           */}
           {baseLive.map((c) => {
             const xf = baseXf(c);
-            return (
+            const body = (
             /*
              * The transition's clip goes on the OUTER group, in canvas
              * coordinates, because a wipe cuts the FRAME and not the clip: a
@@ -1310,13 +1401,22 @@ export function Preview({ width, height }: { width: number; height: number }) {
              * full-canvas frames.
              */
             <Group
-              key={c.id}
               opacity={xf.opacity}
               clip={
                 xf.clip
                   ? rect(xf.clip.x, xf.clip.y, xf.clip.w, xf.clip.h)
-                  : undefined
+                  : xf.hole
+                    ? rect(xf.hole.x, xf.hole.y, xf.hole.w, xf.hole.h)
+                    : undefined
               }
+              /*
+               * A hole is the same rect INVERTED — everything except the band.
+               * It is what lets the squeeze families keep the incoming clip on
+               * top, where every other family puts it, rather than teaching the
+               * compositor to reorder its layers for one transition. `clip` and
+               * `hole` are never both set, so one prop carries both.
+               */
+              invertClip={!!xf.hole}
             >
               {/*
                 * The travel goes on an INNER group, inside the clip. The clip
@@ -1325,7 +1425,10 @@ export function Preview({ width, height }: { width: number; height: number }) {
                 * both would drag the window along with the picture, which reads
                 * as a cut rather than a slide.
                 */}
-              <Group transform={xf.travel}>
+              <Group
+                transform={xf.travel}
+                origin={{ x: width / 2, y: height / 2 }}
+              >
                 {c.type === "video" ? (
                   <OverlayVideoLayer
                     clip={c}
@@ -1344,6 +1447,44 @@ export function Preview({ width, height }: { width: number; height: number }) {
                 )}
               </Group>
             </Group>
+            );
+            return (
+              <Fragment key={c.id}>
+                {/*
+                  * The dip's solid, under the incoming clip and over the
+                  * outgoing one. It fills the whole canvas because that is what
+                  * the export composites — the run is built from two
+                  * full-canvas frames and the colour is mixed across all of it,
+                  * not only where a clip happens to sit.
+                  */}
+                {xf.veil && xf.veil.alpha > 0 ? (
+                  <Group opacity={xf.veil.alpha}>
+                    <Fill color={xf.veil.color} />
+                  </Group>
+                ) : null}
+                {/*
+                  * The soft families mask the INCOMING side only, matching
+                  * `xfadeStateAt`. `mode="alpha"` because the shader returns
+                  * its answer in the alpha channel.
+                  */}
+                {xf.mask ? (
+                  <Mask
+                    mode="alpha"
+                    mask={
+                      <Fill>
+                        <Shader
+                          source={XF_MASK}
+                          uniforms={maskUniforms(xf.mask, width, height)}
+                        />
+                      </Fill>
+                    }
+                  >
+                    {body}
+                  </Mask>
+                ) : (
+                  body
+                )}
+              </Fragment>
             );
           })}
           {activeOverlays.map(({ clip }) =>

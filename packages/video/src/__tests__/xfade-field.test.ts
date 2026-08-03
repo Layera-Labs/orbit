@@ -21,10 +21,18 @@
  *    ramp covers 2.5π, that half-frame reads as a **49/255** error in maths
  *    that is exactly right. Every "mismatch" in the first run was this.
  */
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import fixture from './fixtures/xfade-field.json';
 import { xfadeMaskAt, xfadeStateAt, xfadeVeilAt, xfadeHasPreview } from '../xfade';
 import type { TransitionType } from '../types';
+
+// Read rather than `import`, matching `xfade-fixture-shape.ts`: a JSON import
+// would have to be listed in the package's tsconfig, and the shape is asserted
+// here anyway.
+const fixture: unknown = JSON.parse(
+  readFileSync(join(__dirname, 'fixtures', 'xfade-field.json'), 'utf8'),
+);
 
 const { w: W, h: H, fps, duration, offset, frames, points, samples } = fixture as {
   w: number;
@@ -102,15 +110,21 @@ describe('field transitions reproduce ffmpeg', () => {
     }
   });
 
-  it('does not offer a family neither preview draws yet', () => {
+  it('offers exactly the families BOTH previews draw', () => {
     /*
-     * The maths above is correct and the export renders all of it, but a picker
-     * may only offer what BOTH previews draw. `xfadeHasPreview` is the gate,
-     * and this holds it shut for anything whose Skia half has not landed — the
-     * one way this work could ship a picker that promises more than the file.
+     * The maths above is correct for all seventeen and the export renders all
+     * of them, but a picker may only offer what BOTH previews draw.
+     * `xfadeHasPreview` is that gate, and naming the two exceptions here rather
+     * than letting the set speak for itself is the point: it fails if one is
+     * quietly added before its Skia half lands, AND it fails if the other
+     * fifteen are quietly dropped.
      */
+    const skiaMissing = new Set(['pixelize', 'hblur']);
     for (const name of Object.keys(samples)) {
-      expect(xfadeHasPreview(name as TransitionType)).toBe(false);
+      expect([name, xfadeHasPreview(name as TransitionType)]).toEqual([
+        name,
+        !skiaMissing.has(name),
+      ]);
     }
   });
 });
