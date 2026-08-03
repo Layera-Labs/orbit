@@ -1,5 +1,5 @@
 /**
- * The seventeen families whose transition is a FIELD over the frame, held to
+ * The families whose transition is a FIELD over the frame, held to
  * what ffmpeg actually produced.
  *
  * `xfade-probe.test.ts` covers the families that cut and translate the frame,
@@ -24,7 +24,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { xfadeMaskAt, xfadeStateAt, xfadeVeilAt, xfadeHasPreview } from '../xfade';
+import { isAuthoredTransition, xfadeMaskAt, xfadeStateAt, xfadeVeilAt, xfadeHasPreview } from '../xfade';
 import type { TransitionType } from '../types';
 
 // Read rather than `import`, matching `xfade-fixture-shape.ts`: a JSON import
@@ -81,12 +81,20 @@ describe('field transitions reproduce ffmpeg', () => {
         });
       });
       /*
-       * One byte. Not a tolerance anyone had to negotiate — every family here
-       * came out at 0 or 1 the first time the probe was measured correctly,
-       * because all of them are exact arithmetic on the same two pictures.
-       * Anything above this is a real change in behaviour, not drift.
+       * One byte for an `xfade` family. Not a tolerance anyone had to negotiate
+       * — every one came out at 0 or 1 the first time the probe was measured
+       * correctly, because all of them are exact arithmetic that ffmpeg does
+       * inside a single filter, on the same two pictures.
+       *
+       * Two for an AUTHORED family, and the extra byte is the PATH rather than
+       * the family. Naming no token, they are performed by the clips themselves
+       * on the ordinary overlay path: composited in 4:2:0 through `overlay`,
+       * with the crossfade carried by the per-clip `fade`. That path is already
+       * recorded in CLAUDE.md at ≤2/255 for a plain crossfade, and it is
+       * visible here on the frames where the veil's alpha is exactly zero and
+       * the flash is contributing nothing at all.
        */
-      expect(worst).toBeLessThanOrEqual(1);
+      expect(worst).toBeLessThanOrEqual(isAuthoredTransition(name) ? 2 : 1);
     });
   }
 

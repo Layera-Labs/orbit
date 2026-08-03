@@ -139,7 +139,7 @@ export {
   isAlphaOnly,
   flashAlphaAt,
   flashColor,
-  flashFadeWindows,
+  flashExpr,
   isAuthoredTransition,
   ridesOverlayPath,
   shakeExpr,

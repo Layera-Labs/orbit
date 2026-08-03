@@ -46,7 +46,7 @@ import {
 import { buildEdgeFadeMap } from "./transitions";
 import {
   flashColor,
-  flashFadeWindows,
+  flashExpr,
   ridesOverlayPath,
   shakeExpr,
   type MainRun,
@@ -1029,27 +1029,33 @@ function buildMultiTrackArgs(
    * in, and it is the only one that works: over the clip being left and under
    * the clip arriving.
    *
-   * The colour source is a `color` lavfi input running the WHOLE project, so
-   * its `t` is timeline time and the fades below can be written in absolute
-   * seconds like every other expression here. Its input index comes from
-   * `idx++` at the point of use, which appends it after every clip — inserting
-   * an input earlier would repoint every clip at the wrong file.
+   * The colour source starts at t=0, so its frames land on the same `n/fps`
+   * grid the output does and `overlay`'s frame sync pairs them exactly — which
+   * is why `T` inside the expression is timeline time and can be written in
+   * absolute seconds like every other expression here. It is cut off at the end
+   * of the flash rather than run to the end of the project, since `eof_action`
+   * already passes the main stream through once a secondary ends.
+   *
+   * It is generated 2x2 and scaled up with `flags=neighbor`. The alpha ramp is
+   * a per-pixel `geq` expression, which is far too slow to run over a 4K frame;
+   * on a flat colour the upscale is exact, so the expensive filter runs over
+   * four pixels instead of eight million.
+   *
+   * Its input index comes from `idx++` at the point of use, which appends it
+   * after every clip — inserting an input earlier would repoint every clip at
+   * the wrong file.
    */
   const placeFlash = (c: VisualTrackClip) => {
     const b = xfades.get(c.id)?.asTo;
     if (!b || !flashColor(b.name)) return;
-    const { inAt, outAt, ramp } = flashFadeWindows(b.at, b.overlap);
-    inputs.push("-f", "lavfi", "-t", String(duration), "-i",
-      `color=c=${flashColor(b.name)!.replace('#', '0x')}:s=${W}x${H}:r=${fps}`);
+    inputs.push("-f", "lavfi", "-t", String(r3(b.at + b.overlap)), "-i",
+      `color=c=${flashColor(b.name)!.replace('#', '0x')}:s=2x2:r=${fps}`);
     const fi = idx++;
     const lab = `fl${fi}`;
     segments.push(
       `[${fi}:v]format=rgba,` +
-        // Two chained linear ramps ARE the triangle `flashAlphaAt` samples.
-        // `fade=t=in` holds alpha at 0 before `st` and `t=out` holds it at 0
-        // after, so the source is invisible outside the flash on its own.
-        `fade=t=in:st=${r3(inAt)}:d=${r3(ramp)}:alpha=1,` +
-        `fade=t=out:st=${r3(outAt)}:d=${r3(ramp)}:alpha=1[${lab}]`,
+        `geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='255*${flashExpr(b.at, b.overlap)}',` +
+        `scale=${W}:${H}:flags=neighbor,format=rgba[${lab}]`,
     );
     segments.push(
       `${prev}[${lab}]overlay=0:0:enable='between(t,${r3(b.at)},${r3(b.at + b.overlap)})':eof_action=pass[${lab}o]`,

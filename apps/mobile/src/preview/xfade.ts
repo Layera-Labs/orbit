@@ -897,11 +897,14 @@ const FLASH_EDGE = 0.25;
 /**
  * The veil's alpha through a flash: a triangle over the middle half.
  *
- * Linear, and deliberately so. The export draws this as a pair of chained
- * `fade` filters on a colour source, and ffmpeg's `fade` ramps LINEARLY — a
- * prettier eased curve here would be a curve only the previews had, which is
- * the drift this engine refuses. Zero at `p <= 0.25` and `p >= 0.75`, so the
+ * Linear, and deliberately so — the export samples this same shape per frame,
+ * so an eased curve would have to be eased identically there or it becomes a
+ * curve only the previews have. Zero at `p <= 0.25` and `p >= 0.75`, so the
  * frame is untouched at both ends of the overlap.
+ *
+ * Written twice, as `shakeOffsetAt`/`shakeExpr` are: once here for the previews
+ * and once as an ffmpeg expression in `flashExpr`, with a test asserting the
+ * two agree numerically rather than by inspection.
  */
 export function flashAlphaAt(p: number): number {
   const a = 1 - Math.abs(p - 0.5) / FLASH_EDGE;
@@ -909,15 +912,26 @@ export function flashAlphaAt(p: number): number {
 }
 
 /**
- * The two `fade` filters that draw the same triangle in the export, as
- * `[start, duration]` pairs in seconds — in, then out.
+ * The same triangle as an ffmpeg expression over absolute time, for `geq`.
+ *
+ * **Not `fade`, and that is the whole point of this function.** The obvious
+ * spelling — a pair of chained `fade` filters on the colour source — was tried,
+ * shipped behind a gate, and measured wrong by up to **64/255**. `fade` does
+ * not ramp on the clock: it counts FRAMES. It starts at the first frame at or
+ * after `st` (giving that frame a factor of exactly 0, not the fraction a
+ * continuous ramp would), and steps by `1/round(d*fps)` from there. So the
+ * whole ramp is displaced by however far `st` happens to sit from a frame
+ * boundary — measured against ffmpeg 8.1.2 at `st=0.25:d=0.25` on a 30fps
+ * source, half a frame, which is a quarter of a four-frame ramp.
+ *
+ * An expression has none of that: `T` is the frame's own time, so this is the
+ * function above evaluated at exactly the instant the preview would evaluate
+ * it. Measured back the same way: **1/255**, and the one byte is `geq`
+ * truncating where the sampler rounds.
  */
-export function flashFadeWindows(
-  at: number,
-  overlap: number,
-): { inAt: number; outAt: number; ramp: number } {
-  const ramp = overlap * FLASH_EDGE;
-  return { inAt: at + ramp, outAt: at + overlap / 2, ramp };
+export function flashExpr(at: number, overlap: number): string {
+  const r = (n: number) => Number(n.toFixed(4));
+  return `clip(1-abs((T-${r(at)})/${r(overlap)}-0.5)/${FLASH_EDGE},0,1)`;
 }
 
 /**
@@ -1173,17 +1187,7 @@ const PREVIEWED = new Set<string>([
   ...Object.keys(MASKS),
   ...Object.keys(SQUEEZES),
   ...Object.keys(SHAKES),
-  /*
-   * NOT the flashes yet. Both render, in the export and in both previews, and
-   * the shape is right — but measured against ffmpeg the veil peaks about one
-   * frame later than `flashAlphaAt` says, a **16/255** disagreement at the top
-   * of the ramp that is almost certainly ffmpeg's `fade` discretising its own
-   * ramp per frame. Almost certainly is not measured, and an unexplained
-   * difference between the file and the picture is the one thing this engine
-   * does not ship. They stay out of the pickers until the frame is accounted
-   * for. See `flashFadeWindows`.
-   */
-
+  ...Object.keys(FLASHES),
   'fadeblack',
   'fadewhite',
   'zoomin',
