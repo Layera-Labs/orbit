@@ -148,8 +148,10 @@ export {
   requestedOverlap,
   transitionUnsupportedMessage,
   unsupportedTransitions,
+  xfadeMaskAt,
   xfadeStateAt,
   xfadeStateFor,
+  xfadeVeilAt,
 } from './xfade';
 export type {
   ClipXfades,
@@ -160,8 +162,11 @@ export type {
   TransitionDowngrade,
   TransitionFamily,
   TransitionVariant,
+  XfMask,
+  XfMaskField,
   XfRole,
   XfState,
+  XfVeil,
 } from './xfade';
 
 // Auto-captions. Pure layout over a transcript the service produced.

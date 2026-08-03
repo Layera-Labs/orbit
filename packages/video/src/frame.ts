@@ -38,6 +38,7 @@ import {
   resolveTransitions,
   xfadeMapOf,
   xfadeStateFor,
+  xfadeVeilAt,
   type XfState,
 } from './xfade';
 import { elementFadeAt, resolveAnim, slideOffsetAt } from './element-anim';
@@ -50,7 +51,13 @@ import { overlayToSVG } from './overlay-svg';
 export type Fit = 'cover' | 'stretch';
 
 export interface DrawOp {
-  kind: 'background' | 'clip' | 'overlay' | 'frame';
+  /**
+   * `veil` is the solid a `fadeblack`/`fadewhite` transition dips through. It
+   * is its own kind rather than an overlay because it belongs to NEITHER clip
+   * and has to land between them, and it is drawn from `svg` so a compositor
+   * that already resolves vector ops needs no new branch to paint it.
+   */
+  kind: 'background' | 'clip' | 'overlay' | 'frame' | 'veil';
   /** Clip / overlay id. The background op is always `'background'`. */
   id: string;
   /** Media source, for ops backed by a file (`background` image, `clip`). */
@@ -126,6 +133,31 @@ function visualClipsOf(p: VideoProject): VisualTrackClip[] {
     acc += c.duration;
     return { ...c, start } as VisualTrackClip;
   });
+}
+
+/**
+ * A full-canvas solid, for the dip families.
+ *
+ * The alpha rides on the op rather than on the markup so the SVG is CONSTANT
+ * per colour — compositors cache rasterized vector ops by their markup, and a
+ * per-frame alpha baked into the string would miss that cache on every single
+ * frame of the transition. The colour comes from `xfadeVeilAt` and is one of
+ * two module constants, so there is nothing here to escape.
+ */
+function veilOp(veil: { color: string; alpha: number }, W: number, H: number): DrawOp {
+  return {
+    kind: 'veil',
+    id: `veil:${veil.color}`,
+    svg:
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" ` +
+      `viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="${veil.color}"/></svg>`,
+    dst: { x: 0, y: 0, w: W, h: H },
+    fit: 'stretch',
+    alpha: veil.alpha,
+    blend: 'normal',
+    filter: resolveFilter(undefined),
+    blurSigma: 0,
+  };
 }
 
 function backgroundOp(bg: Background | undefined, W: number, H: number): DrawOp {
@@ -229,6 +261,16 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
         ? { ...base, x: base.x + slide.dx, y: base.y + slide.dy }
         : base;
 
+    /*
+     * The dip's solid goes in HERE, immediately under the incoming clip, which
+     * is the only place it can go: it has to cover the outgoing clip and be
+     * covered by the incoming one, and the ops array is draw order.
+     */
+    if (xf?.role === 'to') {
+      const veil = xfadeVeilAt(xf.name, xf.p);
+      if (veil && veil.alpha > 0) ops.push(veilOp(veil, W, H));
+    }
+
     const filter = resolveFilter(c.filter);
     ops.push({
       kind: 'clip',
@@ -255,11 +297,24 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
        * of undefineds would answer that question wrongly.
        */
       xf:
-        xf && (xf.clip || xf.dx || xf.dy)
+        xf &&
+        (xf.clip ||
+          xf.dx ||
+          xf.dy ||
+          xf.scale ||
+          xf.mask ||
+          xf.hole ||
+          xf.block ||
+          xf.blurX)
           ? {
               ...(xf.clip ? { clip: xf.clip } : {}),
               ...(xf.dx ? { dx: xf.dx } : {}),
               ...(xf.dy ? { dy: xf.dy } : {}),
+              ...(xf.scale ? { scale: xf.scale } : {}),
+              ...(xf.mask ? { mask: xf.mask } : {}),
+              ...(xf.hole ? { hole: xf.hole } : {}),
+              ...(xf.block ? { block: xf.block } : {}),
+              ...(xf.blurX ? { blurX: xf.blurX } : {}),
             }
           : undefined,
     });

@@ -273,7 +273,7 @@ export function isAlphaOnly(name: string): boolean {
 export function xfadeHasPreview(type: TransitionType): boolean {
   if (type === 'cut') return true;
   const name = xfadeName({ type, duration: 1 });
-  return !!name && (isAlphaOnly(name) || !!WIPES[name] || !!SLIDES[name]);
+  return !!name && (isAlphaOnly(name) || PREVIEWED.has(name));
 }
 
 /**
@@ -579,6 +579,86 @@ export interface XfState {
    */
   dx?: number;
   dy?: number;
+  /**
+   * Scale about the CENTRE of the canvas, `1` meaning none.
+   *
+   * A whole-canvas scale for the same reason `dx`/`dy` are a whole-canvas
+   * translation: the export scales the transparent-padded full-canvas frame, so
+   * a picture-in-picture shrinks toward the canvas centre rather than its own.
+   */
+  scale?: { x: number; y: number };
+  /**
+   * A per-pixel alpha mask over this side's picture, sampled with
+   * `xfadeMaskAt`.
+   *
+   * Eleven of ffmpeg's families are one shape — the incoming clip drawn over
+   * the outgoing one through a `smoothstep` of some scalar field — so this is a
+   * described field rather than a family name, and the renderers stay
+   * executors. A new family that fits the shape costs a table entry here and
+   * nothing at all in the two compositors.
+   */
+  mask?: XfMask;
+  /**
+   * Paint everywhere EXCEPT this rect, in the units of `clip`.
+   *
+   * The squeeze families put the outgoing clip on TOP of the incoming one,
+   * which the compositors cannot do — they always draw the incoming clip over
+   * the outgoing. Punching the band out of the incoming side is the same
+   * picture with the layers in the order everything else uses, and both
+   * renderers already have the primitive from the canvas mat (`evenodd` in SVG,
+   * `<DiffRect>` in Skia).
+   */
+  hole?: { x: number; y: number; w: number; h: number };
+  /** Quantize this side to blocks this many canvas units across. */
+  block?: number;
+  /**
+   * Box-blur this side horizontally, this many canvas units wide.
+   *
+   * The width of ffmpeg's box, not a gaussian sigma — see `hblurState` for why
+   * that distinction is the whole difficulty of this one family.
+   */
+  blurX?: number;
+}
+
+/** The scalar field a mask family's `smoothstep` is taken over. */
+export type XfMaskField =
+  /** Distance from the canvas centre, over the half-diagonal. */
+  | 'radius'
+  /** Distance from the vertical centre line, over the half-width. */
+  | 'absx'
+  /** Distance from the horizontal centre line, over the half-height. */
+  | 'absy'
+  /** `x/W * y/H`, with either factor optionally mirrored — picks a corner. */
+  | 'prod'
+  /** `atan2(x - W/2, y - H/2)`, in radians. Note the argument order. */
+  | 'angle';
+
+/**
+ * A per-pixel alpha for the incoming clip: `smoothstep(0, 1, sign*field + bias)`,
+ * optionally inverted.
+ *
+ * Every constant here is lifted from `libavfilter/vf_xfade.c` rather than
+ * matched by eye against probe output, and two details in it are the reason
+ * that mattered. **ffmpeg's `mix(a, b, t)` is `a*t + b*(1-t)`, the REVERSE of
+ * GLSL's**, and **its internal `progress` runs 1 → 0** — so a formula ported
+ * from habit comes out inverted while still looking like a transition, which is
+ * the hardest kind of wrong to notice.
+ */
+export interface XfMask {
+  field: XfMaskField;
+  sign: 1 | -1;
+  bias: number;
+  /** `prod` only: mirror the x and/or y factor. Together they pick the corner. */
+  flipX?: boolean;
+  flipY?: boolean;
+  /** Take `1 - alpha`, which is `circleopen` against `circleclose`. */
+  invert?: boolean;
+}
+
+/** A full-canvas solid drawn BETWEEN the two clips. See `xfadeVeilAt`. */
+export interface XfVeil {
+  color: string;
+  alpha: number;
 }
 
 /**
@@ -760,6 +840,187 @@ export function xfadeStateFor(
  * there rather than on a scaled fraction of one. Same rule, resolved twice, at
  * each surface's own resolution.
  */
+/**
+ * The families BOTH previews draw, and therefore the ones a picker may offer.
+ *
+ * A single set rather than a condition per family, because it is the list that
+ * has to advance in step with two compositors: the maths for every family below
+ * lives in this file already and the export renders all of them, so what gates
+ * a name here is whether the canvas-2D AND the Skia preview have landed it. Add
+ * a name the moment the second one does, never before — a picker offering
+ * something one preview shows as a cut is exactly the drift this engine exists
+ * to refuse, and the drift is invisible until someone exports.
+ */
+const PREVIEWED = new Set<string>([
+  ...Object.keys(WIPES),
+  ...Object.keys(SLIDES),
+]);
+
+/** ffmpeg's own `smoothstep`, cubic and clamped (`vf_xfade.c:290`). */
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * The mask families, as `p ↦ XfMask`.
+ *
+ * `P` is ffmpeg's internal progress and runs the other way — `1 - p` — which is
+ * why every bias below is written in terms of it rather than being pre-flipped.
+ * Keeping the source's own variable makes each line diffable against the C, and
+ * that is worth more here than an expression one step shorter.
+ */
+const MASKS: Record<string, (p: number) => XfMask> = {
+  // `mix(A, B, ss)` — A where the field is large, so the incoming clip arrives
+  // in the CENTRE and grows. The 3x ramp means it is over by p ≈ 0.83 and has
+  // not begun before p ≈ 0.17.
+  circleopen: (p) => ({ field: 'radius', sign: 1, bias: (1 - p - 0.5) * 3, invert: true }),
+  circleclose: (p) => ({ field: 'radius', sign: 1, bias: (p - 0.5) * 3 }),
+  vertopen: (p) => ({ field: 'absx', sign: -1, bias: 2 - (1 - p) * 2 }),
+  vertclose: (p) => ({ field: 'absx', sign: 1, bias: 1 - (1 - p) * 2 }),
+  horzopen: (p) => ({ field: 'absy', sign: -1, bias: 2 - (1 - p) * 2 }),
+  horzclose: (p) => ({ field: 'absy', sign: 1, bias: 1 - (1 - p) * 2 }),
+  diagtl: (p) => ({ field: 'prod', sign: 1, bias: 1 - (1 - p) * 2 }),
+  diagtr: (p) => ({ field: 'prod', sign: 1, bias: 1 - (1 - p) * 2, flipX: true }),
+  diagbl: (p) => ({ field: 'prod', sign: 1, bias: 1 - (1 - p) * 2, flipY: true }),
+  diagbr: (p) => ({
+    field: 'prod',
+    sign: 1,
+    bias: 1 - (1 - p) * 2,
+    flipX: true,
+    flipY: true,
+  }),
+  radial: (p) => ({ field: 'angle', sign: 1, bias: -(1 - p - 0.5) * Math.PI * 2.5 }),
+};
+
+/**
+ * The incoming clip's alpha at one canvas pixel, in `[0, 1]`.
+ *
+ * Callable at fractional coordinates so a renderer can sample a small grid and
+ * scale it up — every one of these fields ramps over a whole unit of its
+ * normalized coordinate, so they are all low-frequency and a coarse grid costs
+ * almost nothing. The exception is `angle`, which is singular at the exact
+ * centre; that is a handful of pixels and a recorded tolerance.
+ *
+ * The integer divisions are ffmpeg's and are reproduced rather than tidied:
+ * `radius` and `angle` take `width / 2` on an `int` (so a half-pixel offset on
+ * an odd dimension) while `absx`/`absy` take `width / 2.0` on a float. The
+ * difference is sub-pixel and invisible, but the fixture compares numbers.
+ */
+export function xfadeMaskAt(m: XfMask, x: number, y: number, W: number, H: number): number {
+  let f: number;
+  switch (m.field) {
+    case 'radius': {
+      const cx = Math.floor(W / 2);
+      const cy = Math.floor(H / 2);
+      const z = Math.hypot(cx, cy);
+      f = z > 0 ? Math.hypot(x - cx, y - cy) / z : 0;
+      break;
+    }
+    case 'absx': {
+      const w2 = W / 2;
+      f = w2 > 0 ? Math.abs((x - w2) / w2) : 0;
+      break;
+    }
+    case 'absy': {
+      const h2 = H / 2;
+      f = h2 > 0 ? Math.abs((y - h2) / h2) : 0;
+      break;
+    }
+    case 'prod': {
+      const fx = m.flipX ? (W - 1 - x) / W : x / W;
+      const fy = m.flipY ? (H - 1 - y) / H : y / H;
+      f = fx * fy;
+      break;
+    }
+    case 'angle':
+      // atan2(dx, dy), NOT the usual atan2(dy, dx) — ffmpeg passes them in this
+      // order, which rotates where the sweep starts by a quarter turn.
+      f = Math.atan2(x - Math.floor(W / 2), y - Math.floor(H / 2));
+      break;
+  }
+  const a = smoothstep(0, 1, m.sign * f + m.bias);
+  return m.invert ? 1 - a : a;
+}
+
+/**
+ * The solid drawn between the two clips, for the families that dip through a
+ * colour.
+ *
+ * `fadeblack` is a NESTED mix, not a sum — the earlier note here recorded a
+ * two-term sum guessed from probe output and it was simply wrong:
+ *
+ *     mix(mix(A, bg, ss(1-phase, 1, P)), mix(bg, B, ss(phase, 1, P)), P)
+ *
+ * with `phase = 0.2`. Expanded, the three weights are `A = P*s1`,
+ * `B = p*(1-s2)` and whatever is left for the background, and they sum to 1.
+ * Note how asymmetric that is: at `p = 0.5` it is already 34% B against 66%
+ * black, nowhere near the halfway point it looks like it should be.
+ *
+ * A compositor draws in layers rather than weighting three sources at once, so
+ * the veil's own alpha is solved backwards from the weights: after A at 1 and
+ * the veil at `t1`, the surface holds `(1-t1)*A + t1*bg`, and B at `t2` on top
+ * leaves A at `(1-t2)(1-t1)`. Setting that equal to `P*s1` gives `t1`.
+ */
+export function xfadeVeilAt(name: string, p: number): XfVeil | null {
+  const color = name === 'fadeblack' ? '#000000' : name === 'fadewhite' ? '#ffffff' : null;
+  if (!color) return null;
+  const P = 1 - p;
+  const wA = P * smoothstep(0.8, 1, P);
+  const wB = p * (1 - smoothstep(0.2, 1, P));
+  // `wB >= 1` is exactly `p = 1`, where A carries no weight at all and any veil
+  // would be painting under an opaque incoming clip.
+  const alpha = wB >= 1 ? 0 : Math.min(1, Math.max(0, 1 - wA / (1 - wB)));
+  return { color, alpha };
+}
+
+/** `squeezeh` squeezes vertically, `squeezev` horizontally — ffmpeg's naming. */
+const SQUEEZES: Record<string, 'x' | 'y'> = { squeezeh: 'y', squeezev: 'x' };
+
+/**
+ * `zoomin`: the outgoing clip magnifies about the centre while the incoming one
+ * fades up over the SECOND half only.
+ *
+ * ffmpeg samples A at `0.5 + (u - 0.5) * zf`, so contracting the sampling
+ * coordinate magnifies the picture by `1/zf` — and `zf` reaches 0 at `p = 0.5`,
+ * which is a magnification of infinity. `MAX_ZOOM` is where that is truncated:
+ * past it every pixel on the canvas is already the same one pixel of A, so a
+ * larger number cannot change what is drawn and a smaller one visibly can.
+ */
+const MAX_ZOOM = 4096;
+
+/**
+ * The squeeze families: the outgoing clip is compressed to a band across the
+ * canvas centre, and the incoming one fills what is left.
+ *
+ * ffmpeg draws A on TOP of B here, which is the one place its layering
+ * disagrees with the compositors'. Rather than teach both of them to reorder,
+ * the band is punched out of B — the same picture, drawn the way everything
+ * else in this engine is drawn.
+ *
+ * ffmpeg resamples with `lrintf`, nearest-neighbour, where both previews
+ * interpolate, so this family carries a recorded tolerance rather than being
+ * exact. It is the same trade the grade makes and for the same reason: matching
+ * a nearest-neighbour resample would mean giving up filtering everywhere else.
+ */
+function squeezeState(
+  axis: 'x' | 'y',
+  p: number,
+  role: XfRole,
+  W: number,
+  H: number,
+): XfState {
+  const P = 1 - p;
+  if (role === 'from') {
+    return { alpha: 1, scale: axis === 'y' ? { x: 1, y: P } : { x: P, y: 1 } };
+  }
+  const hole =
+    axis === 'y'
+      ? { x: 0, y: ((1 - P) / 2) * H, w: W, h: P * H }
+      : { x: ((1 - P) / 2) * W, y: 0, w: P * W, h: H };
+  return { alpha: 1, hole };
+}
+
 export function xfadeStateAt(
   name: string,
   p: number,
@@ -776,11 +1037,59 @@ export function xfadeStateAt(
    * this one is exact where the colour grade is not.
    */
   if (name === 'fade') return { alpha: role === 'to' ? p : 1 };
+  /*
+   * The dip families. The outgoing clip is left alone and the incoming one
+   * carries the weight solved in `xfadeVeilAt`; the solid between them is a
+   * third op, emitted by `frame.ts`, because it belongs to neither side.
+   */
+  if (name === 'fadeblack' || name === 'fadewhite') {
+    if (role === 'from') return { alpha: 1 };
+    const P = 1 - p;
+    return { alpha: p * (1 - smoothstep(0.2, 1, P)) };
+  }
   if (W > 0 && H > 0) {
     const wipe = WIPES[name];
     if (wipe) return wipeState(wipe, p, role, W, H);
     const slide = SLIDES[name];
     if (slide) return slideState(slide, p, role, W, H);
+    const mask = MASKS[name];
+    if (mask) {
+      /*
+       * Only the INCOMING side is masked. ffmpeg blends the two padded
+       * full-canvas frames, so where the incoming clip does not cover the
+       * canvas — a picture-in-picture, a keyed or masked clip — it blends the
+       * outgoing one toward transparency, and drawing over the top the way a
+       * compositor does leaves it alone instead. That divergence is confined to
+       * a main-track clip with its own `rect`, which the geometric families
+       * already refuse for the same underlying reason, and the alternative is
+       * compositing both sides additively into a shared scratch. Exact for a
+       * full-frame clip, which is what the main track carries.
+       */
+      if (role === 'from') return { alpha: 1 };
+      return { alpha: 1, mask: mask(p) };
+    }
+    const axis = SQUEEZES[name];
+    if (axis) return squeezeState(axis, p, role, W, H);
+    if (name === 'zoomin') {
+      const P = 1 - p;
+      if (role === 'to') return { alpha: 1 - smoothstep(0, 0.5, P) };
+      const zf = smoothstep(0.5, 1, P);
+      const s = zf > 1 / MAX_ZOOM ? 1 / zf : MAX_ZOOM;
+      return { alpha: 1, scale: { x: s, y: s } };
+    }
+    if (name === 'pixelize') {
+      // `dist` is quantized to fiftieths by ffmpeg, so the block size STEPS
+      // rather than sliding. Reproducing the quantization matters more than it
+      // looks: the steps are visible, and a smooth ramp reads as a different
+      // effect even where the average error is small.
+      const dist = Math.ceil(Math.min(p, 1 - p) * 50) / 50;
+      const block = (2 * dist * Math.min(W, H)) / 20;
+      return { alpha: role === 'to' ? p : 1, ...(block > 0 ? { block } : {}) };
+    }
+    if (name === 'hblur') {
+      const blurX = 1 + (W / 2) * (Math.min(p, 1 - p) * 2);
+      return { alpha: role === 'to' ? p : 1, blurX };
+    }
   }
   /*
    * The families that have not landed yet, plus any wipe asked for without a
