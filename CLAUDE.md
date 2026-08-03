@@ -448,8 +448,7 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   construction and not by neglect. `packages/video/scripts/xfade-verify.mjs` is the
   answer — dependency-free, runs inside the service's own container, re-measures the bare
   filter and diffs it against the fixture. Run it after any base-image change:
-  `docker compose -f apps/render-service/compose.vps.yaml exec render node
-  packages/video/scripts/xfade-verify.mjs`.
+  `scripts/orbit-render verify`.
   Recorded there: the real filtergraph agrees with the bare filter to a **mean under 4**
   everywhere, with a **max of ~108 on the sliding families** — that is what compositing a
   hard edge in 4:2:0 costs on the one boundary column, the same price every other layer
@@ -883,6 +882,14 @@ pnpm --filter @orbit/studio dev # v2 demo
     Polling, not LISTEN/NOTIFY — a notification is lost if nobody is listening at that
     instant. Tested against a real Postgres; the suite skips without
     `ORBIT_TEST_DATABASE_URL` rather than passing on a stub.
+  - **Operated through `scripts/orbit-render`** — `caps` (what the box's ffmpeg can do,
+    as a verdict rather than a dump), `health`, `deploy` (pull, rebuild, wait, print the
+    build that answered), `verify`, `logs`, `sh`. It resolves the compose file from its
+    OWN path, through symlinks, so it works from anywhere: `docker compose -f
+    apps/render-service/compose.vps.yaml …` is relative and failed twice for exactly that
+    reason. `caps` excludes `custom` from its count for the same reason
+    `parseXfadeTokens` does, so it cannot disagree with `/health` by one. Symlink it into
+    `/usr/local/bin` on the box and the path prefix goes too.
   - **Deployable** — `Dockerfile` + `compose.yaml` (Postgres + MinIO). Built from the repo
     root because it is a pnpm workspace. Note `Dockerfile.dockerignore`: Docker reads
     `<context>/.dockerignore` and the context is the repo root, so a `.dockerignore` inside
