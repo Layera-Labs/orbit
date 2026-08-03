@@ -1,0 +1,153 @@
+#!/bin/sh
+# Operate the deployed render service without retyping a compose invocation.
+#
+# Every command here was, at some point, a long line pasted into a VPS shell —
+# and twice it failed for the same reason: `docker compose -f
+# apps/render-service/compose.vps.yaml` is relative, so it only works from the
+# repo root and says "no such file or directory" everywhere else. So the FIRST
+# thing this does is find the repo from its own location. Where you run it from
+# stops mattering, which is the entire point of it existing.
+#
+# POSIX sh with no dependencies beyond docker: it runs on the box, where there
+# is no pnpm, no node on the host, and no repo tooling installed.
+#
+#   scripts/orbit-render caps      what this server's ffmpeg can actually do
+#   scripts/orbit-render health    the full /health, formatted
+#   scripts/orbit-render deploy    pull, rebuild, restart, wait, confirm
+#   scripts/orbit-render verify    re-measure xfade against the checked-in fixture
+#   scripts/orbit-render logs [n]  recent service logs
+#   scripts/orbit-render sh        a shell inside the container
+#
+# Put it on PATH once and the prefix goes away too:
+#   ln -s /opt/orbit/scripts/orbit-render /usr/local/bin/orbit-render
+
+set -eu
+
+# The repo is wherever this script is, minus `scripts/`. Resolved through any
+# symlink, so the /usr/local/bin link above lands on the real checkout rather
+# than on /usr/local.
+SELF=$0
+while [ -L "$SELF" ]; do
+  LINK=$(readlink "$SELF")
+  case $LINK in
+    /*) SELF=$LINK ;;
+    *) SELF=$(dirname "$SELF")/$LINK ;;
+  esac
+done
+ROOT=$(cd "$(dirname "$SELF")/.." && pwd)
+COMPOSE="$ROOT/apps/render-service/compose.vps.yaml"
+SERVICE=render
+
+[ -f "$COMPOSE" ] || { echo "no compose file at $COMPOSE" >&2; exit 1; }
+
+dc() { docker compose -f "$COMPOSE" "$@"; }
+
+# Fail loudly when there is nothing to talk to. Without this, `set -e` aborts a
+# `VAR=$(dc exec ...)` assignment with no output and exit 1 — a silent failure,
+# which is the exact confusion this script exists to remove. `exec true` is the
+# version-independent way to ask, and it asks the thing we actually need.
+need_container() {
+  dc exec -T "$SERVICE" true 2>/dev/null || {
+    echo "the '$SERVICE' container is not answering." >&2
+    echo "  $0 logs     what it said on the way down" >&2
+    echo "  $0 deploy   rebuild and bring it back" >&2
+    exit 1
+  }
+}
+
+# /health from INSIDE the container, so this needs no published port, no
+# hostname and no TLS — and it is the service answering, not the proxy.
+health_json() {
+  dc exec -T "$SERVICE" node -e '
+    fetch("http://127.0.0.1:" + (process.env.PORT || 8787) + "/health")
+      .then((r) => r.text()).then((t) => process.stdout.write(t))
+      .catch((e) => { console.error(String(e)); process.exit(1); });
+  '
+}
+
+case ${1:-help} in
+
+caps)
+  need_container
+  # Not a dump — a verdict. The question this answers is always "can the app
+  # offer Push and Reveal", and counting 45 lines by eye is how that gets got
+  # wrong. cover*/reveal* arrived in ffmpeg 6.1; Debian bookworm ships 5.1.
+  echo "ffmpeg: $(dc exec -T "$SERVICE" ffmpeg -version 2>/dev/null | head -1 | cut -d' ' -f3)"
+  DUMP=$(dc exec -T "$SERVICE" ffmpeg -hide_banner -h filter=xfade 2>/dev/null)
+  # `custom` is excluded, exactly as `parseXfadeTokens` excludes it — it takes
+  # a per-pixel expression rather than being a family anyone can pick. Counting
+  # it here would make this disagree with /health by one, which is worse than
+  # useless when the two are being compared.
+  N=$(printf '%s\n' "$DUMP" | grep -E '^ +[a-z]+ +-?[0-9]+ ' | grep -cvE '^ +custom ' || true)
+  COVER=$(printf '%s\n' "$DUMP" | grep -cE '^ +(cover|reveal)(left|right|up|down) ' || true)
+  echo "xfade transitions: $N"
+  if [ "$COVER" -eq 8 ]; then
+    echo "Push + Reveal:     yes"
+  else
+    echo "Push + Reveal:     NO — needs ffmpeg 6.1+, this build is older."
+    echo "                   The pickers hide them; a project carrying one is refused."
+  fi
+  printf 'HDR10 (zscale):    '
+  if dc exec -T "$SERVICE" ffmpeg -hide_banner -filters 2>/dev/null | grep -qE '(^| )zscale( |$)'; then
+    echo yes
+  else
+    echo "no — built without libzimg"
+  fi
+  ;;
+
+health)
+  need_container
+  health_json | (python3 -m json.tool 2>/dev/null || cat)
+  ;;
+
+deploy)
+  # Pull, rebuild, restart, then WAIT and say which build answered. Without the
+  # last part "is the fix deployed?" is unanswerable from the outside, which is
+  # the first question during an incident and not the fifth.
+  git -C "$ROOT" pull --ff-only
+  dc up -d --build "$SERVICE"
+  printf 'waiting for /health'
+  i=0
+  while [ "$i" -lt 60 ]; do
+    if OUT=$(health_json 2>/dev/null) && [ -n "$OUT" ]; then
+      echo
+      printf '%s\n' "$OUT" | (python3 -m json.tool 2>/dev/null || cat)
+      exit 0
+    fi
+    printf '.'
+    i=$((i + 1))
+    sleep 2
+  done
+  echo
+  echo "still not answering after 120s — try: $0 logs" >&2
+  exit 1
+  ;;
+
+verify)
+  need_container
+  # Re-measure this ffmpeg's xfade against the fixture the previews are written
+  # against. NOTE the script is COPIED into the image at build time, so a
+  # checkout newer than the running container does not have it — hence the
+  # hint, which is the exact failure this hit the first time it was run.
+  dc exec -T "$SERVICE" node packages/video/scripts/xfade-verify.mjs || {
+    echo "if that said MODULE_NOT_FOUND, the image predates the script: $0 deploy" >&2
+    exit 1
+  }
+  ;;
+
+logs) dc logs --tail "${2:-200}" "$SERVICE" ;;
+sh) need_container; dc exec "$SERVICE" sh ;;
+
+help | --help | -h)
+  # The header comment IS the help, so the two cannot drift. Stops at the first
+  # line that is not a comment rather than at a line number, which a single
+  # edit above would otherwise silently push out of range.
+  awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$SELF"
+  ;;
+
+*)
+  echo "unknown command: $1" >&2
+  echo "try: $0 help" >&2
+  exit 1
+  ;;
+esac
