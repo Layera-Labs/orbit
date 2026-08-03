@@ -277,7 +277,14 @@ export function renderFrame(
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.globalAlpha = op.alpha;
       ctx.globalCompositeOperation = blend;
-      ctx.filter = 'none';
+      /*
+       * The authored blur rides the composite rather than getting its own pass
+       * over the field: `ctx.filter` applies to the draw, so one `drawImage`
+       * both blurs and lays it down. `blur(Npx)` takes a standard deviation, the
+       * same number `gblur=sigma=` and Skia's `Blur` take, so the three agree
+       * without a conversion.
+       */
+      ctx.filter = xf.blur ? `blur(${xf.blur}px)` : 'none';
       ctx.drawImage(field, 0, 0);
     }
   }

@@ -48,6 +48,7 @@ import {
   flashColor,
   flashExpr,
   ridesOverlayPath,
+  blurCommands,
   shakeExpr,
   zoomExpr,
   type MainRun,
@@ -633,6 +634,32 @@ function buildMultiTrackArgs(
      * side that is not transitioning contributes nothing, and the resolver's
      * half-clip clamp means the two windows can never overlap anyway.
      */
+    /*
+     * The authored blur, as `sendcmd` commands — one per output frame of the
+     * transition, from either side of the clip.
+     *
+     * `gblur`'s sigma is a plain option: settable at runtime, but not an
+     * expression, so unlike every other animated thing here it cannot be
+     * written as a function of `t`. Commands are the only lever, and
+     * `blurCommands` stamps each one half a frame early for the reason it
+     * explains at length.
+     *
+     * The filter instance is NAMED. `sendcmd`'s target matches a filter's type
+     * unless you give it one, and a clip carrying its own `c.blur` has a second
+     * `gblur` in this same chain — an untargeted command would drive both, so a
+     * clip the user had blurred would snap to the transition's sigma and back.
+     */
+    const blurCmds = (() => {
+      const x = xfades.get(c.id);
+      return ([['asTo'], ['asFrom']] as const).flatMap(([k]) => {
+        const b = x?.[k];
+        return b
+          ? blurCommands(b.name, T0 + (b.at - c.start), b.overlap, fps, W, H).map(
+              (cmd) => ({ ...cmd, at: T0 + (b.at - c.start), overlap: b.overlap }),
+            )
+          : [];
+      });
+    })();
     const zoom = (() => {
       const x = xfades.get(c.id);
       const parts = ([['asTo', 'to'], ['asFrom', 'from']] as const)
@@ -713,6 +740,19 @@ function buildMultiTrackArgs(
     let chain = `${prep}${srcCrop}${grade}scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1,fps=${fps},format=${fmt}`;
     if (key) chain += `,${key}`;
     if (c.blur && c.blur > 0) chain += `,gblur=sigma=${r3(c.blur * 20)}`;
+    if (blurCmds.length) {
+      // Gated to the transition's own window: at sigma 0 `gblur` still runs a
+      // pass over every frame of the clip, and this one is only ever wanted for
+      // the fraction of a second the two clips overlap. `+` rather than `or`
+      // because the windows are disjoint and any non-zero value enables.
+      const on = [...new Set(blurCmds.map((c2) => `${r3(c2.at)},${r3(c2.at + c2.overlap)}`))]
+        .map((w) => `between(t,${w})`)
+        .join("+");
+      const cmds = blurCmds
+        .map((c2) => `${r3(c2.t)} gblur@xf${i} sigma ${r3(c2.sigma)}`)
+        .join(";");
+      chain += `,sendcmd=c='${cmds}',gblur@xf${i}=sigma=0:enable='${on}'`;
+    }
     if (hasMotion(c.motion)) {
       // zoompan re-times to a 0-based PTS, so re-anchor the clip's timeline start.
       const zp = motionToZoompan(

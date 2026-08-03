@@ -18,28 +18,6 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { previewableTransitions } from '@orbit/video/browser';
 import { TransitionTile } from '../TransitionTile';
 
-/**
- * The families that legitimately still collide, and why.
- *
- * Their effect is entirely a soft alpha `mask` — a field sampled per pixel —
- * which the tile does not draw yet, so all eleven fall back to the cross-fade
- * underneath and are identical to each other. Named rather than tolerated: this
- * fails if a twelfth quietly joins them, and it fails again when the masks land
- * and the list needs to shrink.
- */
-const KNOWN_IDENTICAL = [
-  'circleclose',
-  'circleopen',
-  'diagbl',
-  'diagbr',
-  'diagtl',
-  'diagtr',
-  'horzclose',
-  'horzopen',
-  'radial',
-  'vertclose',
-  'vertopen',
-].sort();
 
 describe('the transition picker', () => {
   it('draws a distinct tile for every family it offers', () => {
@@ -59,9 +37,17 @@ describe('the transition picker', () => {
       byMarkup.set(html, [...(byMarkup.get(html) ?? []), t]);
     }
 
+    /*
+     * No exceptions, and stated as a bare empty array on purpose. The first
+     * version of this listed the eleven mask families as known-identical and
+     * compared against that list only when the list was non-empty — which made
+     * it pass whether they collided or not, and it did pass in the run that was
+     * meant to prove they had stopped. An allowance that can satisfy itself is
+     * worse than no test.
+     */
     const collisions = [...byMarkup.values()]
       .filter((g) => g.length > 1)
       .map((g) => g.sort());
-    expect(collisions).toEqual(collisions.length ? [KNOWN_IDENTICAL] : []);
+    expect(collisions).toEqual([]);
   });
 });
