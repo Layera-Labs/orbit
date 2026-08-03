@@ -654,6 +654,28 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   the slop version of exactly this instinct, a gradient *inside* the mark is the
   premium one. It rides whether or not the tab is selected, because that IS the
   highlight; on selection only it would just be a second selected-state.
+  **The light travels** (`src/components/aiShimmer.ts`): the gradient's AXIS slides
+  across the glyph, 0→1→0 on a 2.4s reversing loop, and the label's colour rides the
+  same shared value. Chosen because the mark is fully painted at every frame — the one
+  motion rule this repo treats as absolute is that content is never gated on an
+  animation running, and a sweep across an already-drawn mark cannot break it even if
+  the loop never starts. The alternatives are all named slop: a pulsing glow behind the
+  tile is the stock AI badge (a glow AND a box lighting up from inside), a scale is the
+  hover-boop in another costume, and a spin turns the gradient WITH the glyph so
+  nothing actually shimmers. **One shared value passed to both**, not a loop in each —
+  two `withRepeat`s drift apart and the whole effect is a single light crossing the
+  icon and the word together. `useReducedMotion` parks it at `0.5`, which is mid-sweep
+  and so the good-looking static frame rather than whichever end the loop started from.
+  The label's range is deliberately NOT the gradient's two ends while inactive: a rail
+  is a legend, and a permanently indigo-to-amber word reads as selected at all times, so
+  it travels grey → faint cool tint instead (measured mean ink `(150,144,200)` →
+  `(153,158,173)`), and only takes the full ramp when the tab really is selected.
+  **Sweep amplitude is measured, not chosen.** A gradient pads past its ends, so once
+  the axis slides far enough the glyph sits beyond a stop and goes flat: at ±0.75 of the
+  viewBox it was solid amber and solid indigo for most of the cycle. Shipped at ±0.4 —
+  two-tone through the middle, near-solid tints at the ends, so the mark breathes
+  indigo → mauve → amber. ±0.2 keeps a ramp on it at all times and was rejected: the
+  boundary barely moves and the motion stops being legible at 18pt.
   `VIcon` uses `gradientUnits="userSpaceOnUse"` over the viewBox — the default
   `objectBoundingBox` resolves per SHAPE, so a mark drawn as three paths runs the full
   ramp three times instead of once across the glyph — and derives its gradient id from
