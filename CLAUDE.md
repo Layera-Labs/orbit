@@ -638,6 +638,31 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   so it needs a recorded tolerance like the grade rather than an exact rule; `zoomin` is a
   scale AND a blend that only starts near `p = 0.53`; `circle*`, `vert*`, `horz*`, `diag*`
   and `radial` want gradient masks; `pixelize` and `hblur` are resampling filters.
+- **Every drawer rail is Upload · Stock · AI · … · Library** (2026-08-03). The media
+  drawer led with AI and therefore also OPENED on it, so the first thing offered for
+  "add an image" was "generate one", ahead of the two ways of getting a picture that
+  already exists. The default moves with the order in both drawers — a rail that opens
+  on its third item reads as one you have already been clicking. The audio drawer keeps
+  its three audio-only sources (Music · Record · Sound FX) between AI and Library, so
+  the four entries the two rails SHARE are never ordered differently; that is how
+  muscle memory built in one sheet misfires in the other.
+  **The AI mark carries a gradient and nothing else does** — `AI_GRADIENT`, brand
+  indigo into a warm amber, via `VIcon`'s `gradient` prop. Deliberately not
+  indigo-into-purple: that pairing is the most recognisable machine-made colour move
+  there is, which makes it the worst possible choice for the button that says "made by
+  a machine". It is on the GLYPH, never behind it — a gradient tile, chip or glow is
+  the slop version of exactly this instinct, a gradient *inside* the mark is the
+  premium one. It rides whether or not the tab is selected, because that IS the
+  highlight; on selection only it would just be a second selected-state.
+  `VIcon` uses `gradientUnits="userSpaceOnUse"` over the viewBox — the default
+  `objectBoundingBox` resolves per SHAPE, so a mark drawn as three paths runs the full
+  ramp three times instead of once across the glyph — and derives its gradient id from
+  `useId()` with non-alphanumerics stripped, since React hands back `:r7:` and
+  `url(#:r7:)` resolves nowhere.
+  Audio's Stock tab also changed glyph: `gutterAudio` is the same note as Music's, and
+  with Stock at 2 and Music at 4 the two sat in one glance wearing the same mark. A
+  rail is a legend, and two entries drawing the same thing is the one thing it may not
+  do.
 - **BYOK stock media**: Orbit is a developer/SDK product, so Unsplash/Pexels use
   **bring-your-own-key**, stored in the OS keychain via `expo-secure-store`, never in the
   bundle and never sent to Orbit's server. `src/content/{keys,stock}.ts`, `KeysSheet`.
