@@ -6,6 +6,8 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev --concurrency=13",
+    "device": "sh scripts/orbit-ios",
+    "render": "sh scripts/orbit-render",
     "lint": "turbo run lint",
     "test": "turbo run test && pnpm test:mobile",
     "//test:mobile": "apps/mobile is outside the pnpm workspace, so turbo never sees it. Globs all of src so a test added outside src/model still runs.",

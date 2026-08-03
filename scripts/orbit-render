@@ -18,7 +18,8 @@
 #   scripts/orbit-render logs [n]  recent service logs
 #   scripts/orbit-render sh        a shell inside the container
 #
-# Put it on PATH once and the prefix goes away too:
+# Put it on PATH once and the prefix goes away too. On the VPS you are root and
+# /usr/local/bin is writable; on a Mac it is not, so use ~/.local/bin there:
 #   ln -s /opt/orbit/scripts/orbit-render /usr/local/bin/orbit-render
 
 set -eu
