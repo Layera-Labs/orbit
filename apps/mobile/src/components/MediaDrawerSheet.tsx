@@ -42,6 +42,8 @@ import {
   type StockKind,
 } from "../content/stock";
 import type { StockProvider } from "../content/keys";
+import { isCcRateLimited, searchCc, type CcItem } from "../content/openverse";
+import { CC_RATE_LIMIT_MESSAGE } from "../content/useCcSearch";
 import { BottomSheet } from "./BottomSheet";
 import { VIcon, type VIconName } from "./VIcon";
 
@@ -60,7 +62,8 @@ type UploadItem = {
 
 type DrawerSelection =
   | { type: "record"; id: string; record: GenRecord }
-  | { type: "stock"; id: string; item: StockItem };
+  | { type: "stock"; id: string; item: StockItem }
+  | { type: "cc"; id: string; item: CcItem };
 
 /** What every media grid needs in order to take part in selection. */
 interface PickProps {
@@ -269,6 +272,11 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
 
   /** Bring one picked item onto the timeline, fetching it first if it is remote. */
   const addOne = async (item: DrawerSelection) => {
+    if (item.type === "cc") {
+      // CC0 is photographs only — Openverse indexes no video.
+      addClip(await downloadToMedia(item.item.url, "jpg"), "image");
+      return;
+    }
     if (item.type === "stock") {
       void triggerUnsplashDownload(item.item);
       const src = await downloadToMedia(
@@ -782,6 +790,25 @@ function LibraryPanel({
   );
 }
 
+/** Which shelf the Stock panel is looking at. `free` needs no key and leads. */
+type StockSource = "free" | StockProvider;
+
+const STOCK_SOURCES: { key: StockSource; label: string }[] = [
+  { key: "free", label: "Free" },
+  { key: "pexels", label: "Pexels" },
+  { key: "unsplash", label: "Unsplash" },
+];
+
+/**
+ * Stock media: CC0 by default, the keyed providers if you have a key.
+ *
+ * This panel is what "add image" from the timeline opens, and it was Pexels and
+ * Unsplash only — both behind an API key almost nobody registers for. So the
+ * most-reached Stock surface in the app showed "Find the right shot" over an
+ * empty grid, forever, with no indication that a key was the missing piece.
+ * `free` is Openverse filtered to `license=cc0` (`content/openverse.ts`), which
+ * answers anonymously and seeds its own first page.
+ */
 function StockPanel({
   ratio,
   ratioText,
@@ -792,34 +819,68 @@ function StockPanel({
   ratioText: string;
   onOpenKeys: () => void;
 }) {
-  const [provider, setProvider] = useState<StockProvider>("pexels");
+  const [provider, setProvider] = useState<StockSource>("free");
   const [kind, setKind] = useState<StockKind>("image");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StockItem[]>([]);
+  const [free, setFree] = useState<CcItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [missingKey, setMissingKey] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const requestId = useRef(0);
-  const effectiveKind: StockKind = provider === "unsplash" ? "image" : kind;
+  /*
+   * Unsplash has no video API and Openverse indexes no video at all, so only
+   * Pexels can answer the Videos chip.
+   */
+  const effectiveKind: StockKind = provider === "pexels" ? kind : "image";
 
-  const runSearch = async () => {
-    if (!query.trim()) return;
+  const runSearch = async (from: StockSource, q: string) => {
     const id = ++requestId.current;
     setLoading(true);
     setMissingKey(false);
     setError(null);
     try {
-      const next = await searchStock(provider, query.trim(), effectiveKind);
-      if (id === requestId.current) setResults(next);
+      if (from === "free") {
+        const next = await searchCc("image", q);
+        if (id === requestId.current) setFree(next);
+      } else {
+        if (!q.trim()) return;
+        const next = await searchStock(from, q.trim(), effectiveKind);
+        if (id === requestId.current) setResults(next);
+      }
     } catch (err) {
       if (id !== requestId.current) return;
       setResults([]);
+      setFree([]);
       if (isMissingKey(err)) setMissingKey(true);
+      else if (isCcRateLimited(err)) setError(CC_RATE_LIMIT_MESSAGE);
       else setError(err instanceof Error ? err.message : String(err));
     } finally {
       if (id === requestId.current) setLoading(false);
     }
   };
+
+  /*
+   * The free shelf fills itself on arrival — `searchCc` falls back to a seed
+   * query when nothing is typed, so this panel has photographs in it the first
+   * time it is opened. It is what "Find the right shot" used to stand in for:
+   * an empty state on a tab that could not show anything until the user had
+   * gone and registered for an API key.
+   */
+  useEffect(() => {
+    if (provider === "free") void runSearch("free", query);
+    // Re-running on `query` would search on every keystroke; it is submitted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [provider]);
+
+  /*
+   * Only the two remote shelves, so a tile can read `item` off either without
+   * narrowing — an AI record never reaches this grid.
+   */
+  const shown: Extract<DrawerSelection, { type: "cc" | "stock" }>[] =
+    provider === "free"
+      ? free.map((item) => ({ type: "cc" as const, id: item.id, item }))
+      : results.map((item) => ({ type: "stock" as const, id: item.id, item }));
 
   return (
     <View style={styles.panelFill}>
@@ -829,13 +890,12 @@ function StockPanel({
           {(["image", "video"] as StockKind[]).map((item) => (
             <Pressable
               key={item}
-              disabled={provider === "unsplash" && item === "video"}
+              disabled={provider !== "pexels" && item === "video"}
               onPress={() => setKind(item)}
               style={[
                 styles.filterChip,
                 effectiveKind === item && styles.filterChipOn,
-                provider === "unsplash" &&
-                  item === "video" && { opacity: 0.35 },
+                provider !== "pexels" && item === "video" && { opacity: 0.35 },
               ]}
             >
               <Text
@@ -852,15 +912,15 @@ function StockPanel({
         <Text style={styles.ratioMeta}>{ratioText} crop</Text>
       </View>
       <View style={styles.stockProviderRow}>
-        {(["pexels", "unsplash"] as StockProvider[]).map((item) => (
-          <Pressable key={item} onPress={() => setProvider(item)}>
+        {STOCK_SOURCES.map((src) => (
+          <Pressable key={src.key} onPress={() => setProvider(src.key)}>
             <Text
               style={[
                 styles.providerText,
-                provider === item && styles.providerTextOn,
+                provider === src.key && styles.providerTextOn,
               ]}
             >
-              {item === "pexels" ? "Pexels" : "Unsplash"}
+              {src.label}
             </Text>
           </Pressable>
         ))}
@@ -870,16 +930,18 @@ function StockPanel({
         <TextInput
           value={query}
           onChangeText={setQuery}
-          onSubmitEditing={runSearch}
+          onSubmitEditing={() => void runSearch(provider, query)}
           returnKeyType="search"
-          placeholder="Search photos and videos"
+          placeholder={
+            provider === "free" ? "Search free photos" : "Search photos and videos"
+          }
           placeholderTextColor={vela.lightMuted3}
           style={styles.searchInput}
         />
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Search stock media"
-          onPress={runSearch}
+          onPress={() => void runSearch(provider, query)}
           style={styles.searchButton}
         >
           <VIcon name="search" size={15} color="#fff" />
@@ -893,7 +955,7 @@ function StockPanel({
               Connect {provider === "pexels" ? "Pexels" : "Unsplash"}
             </Text>
             <Text style={styles.keyDetail}>
-              Add your API key to search stock media.
+              Add your API key, or use Free — it needs none.
             </Text>
           </View>
           <VIcon name="chevronRight" size={16} color={vela.lightMuted} />
@@ -915,15 +977,15 @@ function StockPanel({
               />
             ))}
           </View>
-        ) : results.length > 0 ? (
+        ) : shown.length > 0 ? (
           <View style={styles.previewGrid}>
-            {results.map((item) => (
+            {shown.map((entry) => (
               <MediaTile
-                key={item.id}
-                source={{ uri: item.thumb }}
-                video={item.kind === "video"}
+                key={entry.id}
+                source={{ uri: entry.item.thumb }}
+                video={entry.type === "stock" && entry.item.kind === "video"}
                 ratio={ratio}
-                {...tileProps(pick, { type: "stock", id: item.id, item })}
+                {...tileProps(pick, entry)}
               />
             ))}
           </View>

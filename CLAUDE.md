@@ -643,11 +643,18 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   bundle and never sent to Orbit's server. `src/content/{keys,stock}.ts`, `KeysSheet`.
 - **"Stock" means CC0 and needs no key** (2026-08-03, `src/content/openverse.ts` +
   `useCcSearch.ts`). BYOK was the whole of Stock, and almost nobody registers for an API
-  key — so on a fresh install all three surfaces that use the word were a search field
+  key — so on a fresh install **all four** surfaces that use the word were a search field
   over nothing: the Library sheet fell back to twelve **Picsum** placeholders (now
-  deleted; they were never CC0), the media picker returned an error, and the audio
+  deleted; they were never CC0), the media picker returned an error, the audio
   drawer's tab was `SFX.slice(0, 8)` — the first eight of the same bundled effects the
-  Sound FX tab already shows, under a heading that called them "Stock audio". All three
+  Sound FX tab already shows, under a heading that called them "Stock audio" — and
+  `MediaDrawerSheet`'s Stock panel, **the one "add image" from the timeline opens and so
+  the most-reached of the four**, showed "Find the right shot" over an empty grid forever.
+  That fourth one was missed on the first pass because grepping for `stock` does not
+  find it: the file names its panel `StockPanel` and its tab `"stock"`, but the user-facing
+  string is "Stock media" and the search path is `searchStock`, so a scan for the word
+  turned up `content/`, `MediaPickScreen` and `AudioDrawerSheet` only. **When changing
+  what a word means in this app, enumerate the surfaces by behaviour, not by grep.** All four
   now read Openverse filtered to `license=cc0`, which answers **anonymously**. Four
   categories — Music · Audio · Backgrounds · Images — because they do four different
   things on tap (main track, background, audio track at the playhead), and one grid that
@@ -679,6 +686,15 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
     out AND what the export's `atrim` cuts to, so guessing 10s for a 93s track renders a
     file that really is 10 seconds long with nothing admitting a number was invented.
     Openverse reported one for 20/20 in both buckets, so the guard should never fire.
+  - **A stock tile must never be a bare `<Image>`.** One that fails to load draws
+    NOTHING — the cell's own background shows through, so a whole category reads as
+    "there is no content here" while the two audio ones, which draw text, look fine. And
+    the `/thumb/` endpoint really can refuse: measured, it answers **403** to some clients
+    and 200 to others for the identical URL (`Python-urllib/3.9` → 403, curl and every
+    browser UA → 200). `StockTile` falls back thumbnail → origin asset (a different host)
+    → a visible mark, keyed on the stage so RN remounts instead of reusing the failed
+    request. `MediaTile` in the media drawer already worked this way; the Library sheet's
+    grid was written without it.
   `useCcSearch` is one hook for both sheets — written twice they drift, and that failure
   shows up as one sheet spending the day's allowance the other is saving. It also holds a
   sequence ref, because chips are far faster to tap than the network is to answer and a

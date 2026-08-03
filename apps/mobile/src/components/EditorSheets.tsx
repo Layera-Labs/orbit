@@ -82,7 +82,7 @@ import { AnimationSheet } from "./AnimationSheet";
 import { MosaicSheet } from "./MosaicSheet";
 import { MagnifierSheet } from "./MagnifierSheet";
 import { StorySheet } from "./StorySheet";
-import type { CcCategory } from "../content/openverse";
+import type { CcCategory, CcItem } from "../content/openverse";
 import { useCcSearch } from "../content/useCcSearch";
 import { formatDuration } from "../format/duration";
 import { Linking } from "react-native";
@@ -2886,30 +2886,73 @@ function StockTab({ onPick }: { onPick: () => void }) {
         ) : (
           <View style={[s.libGrid, { gap: grid.gap }]} onLayout={grid.onLayout}>
             {results.map((it) => (
-              <Pressable
+              <StockTile
                 key={it.id}
-                accessibilityRole="button"
-                accessibilityLabel={it.title}
+                item={it}
+                size={grid.size}
                 onPress={() => {
                   onPick();
                   void addCcItem(it);
                 }}
-                style={[
-                  s.stockCell,
-                  { width: grid.size, height: Math.round(grid.size * 1.2) },
-                ]}
-              >
-                <Image
-                  source={{ uri: it.thumb }}
-                  style={s.libSwatch}
-                  resizeMode="cover"
-                />
-              </Pressable>
+              />
             ))}
           </View>
         )}
       </ScrollView>
     </View>
+  );
+}
+
+/**
+ * One CC0 image in the grid, which must never render as an empty rectangle.
+ *
+ * An `<Image>` that fails to load draws NOTHING — the cell's own background
+ * shows through and the grid looks blank rather than broken, with no error
+ * anywhere to say so. That is how a whole category reads as "there is no
+ * content here" while the two audio ones, which draw text, look fine.
+ *
+ * There are two real ways to get there. Openverse's `/thumb/` endpoint is a
+ * resize service and can refuse a request outright — measured, it answers 403
+ * to some clients and 200 to others for the identical URL — and any tile can
+ * lose its network mid-load. So a failed thumbnail falls back to the origin
+ * asset, which is a different host entirely, and only then to a visible mark.
+ * `MediaTile` in the media drawer already worked this way; this grid was
+ * written without it.
+ */
+function StockTile({
+  item,
+  size,
+  onPress,
+}: {
+  item: CcItem;
+  size: number;
+  onPress: () => void;
+}) {
+  const [stage, setStage] = useState<0 | 1 | 2>(0);
+  const uri = stage === 0 ? (item.thumb ?? item.url) : stage === 1 ? item.url : null;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={item.title}
+      onPress={onPress}
+      style={[s.stockCell, { width: size, height: Math.round(size * 1.2) }]}
+    >
+      {uri ? (
+        <Image
+          // Keyed on the stage so RN remounts rather than reusing the failed
+          // request's cache entry for the new uri.
+          key={stage}
+          source={{ uri }}
+          style={s.libSwatch}
+          resizeMode="cover"
+          onError={() => setStage((n) => (n === 0 ? 1 : 2))}
+        />
+      ) : (
+        <View style={s.stockBroken}>
+          <VIcon name="image" size={18} color={vela.lightMuted} />
+        </View>
+      )}
+    </Pressable>
   );
 }
 
@@ -3930,6 +3973,13 @@ const s = StyleSheet.create({
     marginTop: 1,
   },
   ccRowDur: { color: vela.ink2, fontFamily: mono.medium, fontSize: 11.5 },
+  stockBroken: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: vela.lightSurface,
+    borderRadius: 10,
+  },
   stockVideoBadge: {
     position: "absolute",
     right: 6,
