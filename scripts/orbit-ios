@@ -21,10 +21,13 @@
 #    nothing until the directory is removed. That is `--clean`, and it is the
 #    answer whenever a build comes out behaving like the previous one.
 #
-# The simulator is unchanged and still `npm run ios` inside apps/mobile.
+# Also `npm run device`, from the repo root or from apps/mobile. The simulator
+# is unchanged and still `npm run ios` inside apps/mobile.
 #
-# Put it on PATH once and the prefix goes away:
-#   ln -s "$PWD/scripts/orbit-ios" /usr/local/bin/orbit-ios
+# Put it on PATH once and the prefix goes away. NOT /usr/local/bin, which is
+# root-owned on a stock macOS and answers "Permission denied"; ~/.local/bin is
+# already on PATH and is yours:
+#   ln -s "$PWD/scripts/orbit-ios" ~/.local/bin/orbit-ios
 
 set -eu
 

@@ -653,7 +653,8 @@ Editor panels are in `EditorSheets.tsx` plus dedicated sheets (`MosaicSheet`,
   `rm -rf node_modules/@shopify/react-native-skia && npm install` restores it. Note this is
   the one package where the device slice can be present and the simulator slice absent, so
   a working device build proves nothing about the simulator.
-- **A real device is `scripts/orbit-ios`** (or `npm run device` in `apps/mobile`) —
+- **A real device is `npm run device`** (from the repo root or `apps/mobile`; the script
+  is `scripts/orbit-ios`) —
   it sets the UTF-8 locale, finds the one connected iPhone and passes its UDID. Two
   things it encodes that are easy to get wrong by hand: the UDID expo wants is
   `hardwareProperties.udid` (`00008140-…`) and NOT the CoreDevice identifier
@@ -663,6 +664,9 @@ Editor panels are in `EditorSheets.tsx` plus dedicated sheets (`MosaicSheet`,
   which is a wrong answer wearing a normal one's clothes. It writes to a temp file.
   `--clean` removes `ios/` first, which is the answer whenever a changed `app.json`
   seems to have no effect. `npm run ios` is still the simulator.
+  Both scripts live in `scripts/` and are symlinked into **`~/.local/bin`**, not
+  `/usr/local/bin` — that is root-owned on a stock macOS and a plain `ln -s` there just
+  says "Permission denied". `~/.local/bin` is already on PATH and needs no sudo.
 - **Simulator**: bundle id `com.orbitvideo.app`; `npx expo run:ios --device <UDID>`.
   It has been renamed twice (`com.anonymous.orbit-video` → `com.galaxy.orbit` 2026-07-27 →
   here 2026-07-30), and each rename makes a **different app** as far as iOS is concerned:
