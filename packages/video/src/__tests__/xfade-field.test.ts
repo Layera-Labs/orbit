@@ -120,14 +120,19 @@ describe('field transitions reproduce ffmpeg', () => {
 
   it('offers exactly the families BOTH previews draw', () => {
     /*
-     * The maths above is correct for all seventeen and the export renders all
-     * of them, but a picker may only offer what BOTH previews draw.
-     * `xfadeHasPreview` is that gate, and naming the two exceptions here rather
-     * than letting the set speak for itself is the point: it fails if one is
-     * quietly added before its Skia half lands, AND it fails if the other
-     * fifteen are quietly dropped.
+     * The maths above is correct for every family here and the export renders
+     * all of them, but a picker may only offer what BOTH previews draw.
+     * `xfadeHasPreview` is that gate, and naming the exception here rather than
+     * letting the set speak for itself is the point: it fails if one is quietly
+     * added before its Skia half lands, AND it fails if the rest are quietly
+     * dropped.
+     *
+     * `hblur` is the one left, and it is not waiting on effort — its box
+     * reaches half the frame's width, which the canvas preview affords with a
+     * downscaled CPU running-sum and Skia's declarative tree cannot afford at
+     * all. `blur1`/`blur2` are the answer a user gets; see `PREVIEWED`.
      */
-    const skiaMissing = new Set(['pixelize', 'hblur']);
+    const skiaMissing = new Set(['hblur']);
     for (const name of Object.keys(samples)) {
       expect([name, xfadeHasPreview(name as TransitionType)]).toEqual([
         name,

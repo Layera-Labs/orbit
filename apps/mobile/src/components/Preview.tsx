@@ -1003,6 +1003,8 @@ export function Preview({ width, height }: { width: number; height: number }) {
       clip: xf?.clip,
       hole: xf?.hole,
       mask: xf?.mask,
+      block: xf?.block,
+      blur: xf?.blur,
       travel: t.length ? t : undefined,
       /*
        * The solid a `fadeblack`/`fadewhite` dips through. It is asked for on the
@@ -1448,6 +1450,39 @@ export function Preview({ width, height }: { width: number; height: number }) {
               </Group>
             </Group>
             );
+            /*
+             * `pixelize`, on the SAME shader the mosaic uses — it was written
+             * to mirror the export's downscale-and-neighbour-upscale, which is
+             * exactly what this family does too.
+             *
+             * Outside the travel group, so the block grid is anchored to the
+             * canvas rather than to the picture. Nothing here travels today, so
+             * it makes no difference yet; it will the moment something does,
+             * and a grid that slides with its own content reads as the picture
+             * crawling rather than as a pixelation.
+             *
+             * `xf.block` arrives in whatever units `xfadeStateAt` was handed,
+             * and this preview hands it the on-screen size — so it is already
+             * screen px and needs no rescaling, unlike the mosaic's.
+             */
+            const blocked = xf.block ? (
+              <Group>
+                <RuntimeShader source={PIXELATE} uniforms={{ block: xf.block }} />
+                {body}
+              </Group>
+            ) : xf.blur ? (
+              /*
+               * The authored blur. Skia's `Blur` takes a standard deviation,
+               * the same number `gblur=sigma=` and the canvas preview's
+               * `blur(Npx)` take, so no conversion sits between the three.
+               */
+              <Group>
+                <Blur blur={xf.blur} />
+                {body}
+              </Group>
+            ) : (
+              body
+            );
             return (
               <Fragment key={c.id}>
                 {/*
@@ -1479,10 +1514,10 @@ export function Preview({ width, height }: { width: number; height: number }) {
                       </Fill>
                     }
                   >
-                    {body}
+                    {blocked}
                   </Mask>
                 ) : (
-                  body
+                  blocked
                 )}
               </Fragment>
             );

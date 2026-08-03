@@ -32,14 +32,23 @@ import Svg, {
   Circle,
   ClipPath,
   Defs,
+  FeGaussianBlur,
+  Filter,
   G,
   Line,
+  Mask,
   Path,
   Rect,
 } from "react-native-svg";
 import { View } from "react-native";
 import { vela } from "../constants";
-import { xfadeStateAt, xfadeVeilAt, type XfState } from "../preview/xfade";
+import {
+  xfadeMaskGrid,
+  xfadeStateAt,
+  xfadeVeilAt,
+  type XfMask,
+  type XfState,
+} from "../preview/xfade";
 import type { TransitionType } from "../model/types";
 
 /**
@@ -47,6 +56,18 @@ import type { TransitionType } from "../model/types";
  * symmetric transition says nothing about which way it is going.
  */
 const AT = 0.42;
+
+/**
+ * Cells per side in a mask tile.
+ *
+ * The mask families are a smooth per-pixel field and SVG has no shader to run
+ * one through, so the field is sampled onto a lattice and drawn as cells. Ten
+ * is where the shape stops being ambiguous: at this size a cell is under 4pt,
+ * and the four diagonals only tell each other apart by which corner the band
+ * leans out of. Higher costs a node per cell on every tile in the sheet for a
+ * difference nobody can see at 38pt.
+ */
+const MASK_N = 10;
 
 /** The picture leaving. The darker of the two, because it is on its way out. */
 const OUT = "#33333c";
@@ -143,6 +164,9 @@ function Side({
       id={id}
       size={size}
       rect={r}
+      mask={state.mask}
+      block={state.block}
+      blur={state.blur}
       hole={state.hole}
       scale={state.scale}
       tone={tone}
@@ -151,6 +175,62 @@ function Side({
       dy={state.dy ?? 0}
       opacity={state.alpha}
     />
+  );
+}
+
+/**
+ * The picture's marks, quantised to the transition's block grid.
+ *
+ * SVG has no pixelate primitive, so rather than fake one this samples the
+ * picture the way ffmpeg's `pixelize` does — one sample per block, at the
+ * block's centre — and draws the blocks that land on a mark. The diagonal
+ * becomes a staircase and the dot becomes a cross of squares, which is exactly
+ * what the renderer does to this picture.
+ *
+ * The block is a fraction of the frame, so at tile scale it is ~1.4 units:
+ * invisible against a flat fill, and clearly visible against a 1.5-unit line,
+ * which is why the marks are what carry it.
+ */
+function blockCells(S: number, block: number, dot: number, stroke: number) {
+  const b = Math.max(0.5, block);
+  const n = Math.ceil(S / b);
+  const cells: { x: number; y: number }[] = [];
+  for (let j = 0; j < n; j++)
+    for (let i = 0; i < n; i++) {
+      const cx = (i + 0.5) * b;
+      const cy = (j + 0.5) * b;
+      const onDot = Math.hypot(cx - S / 2, cy - S / 2) <= dot / 2;
+      // Distance from the point to the line y = x.
+      const onLine = Math.abs(cx - cy) / Math.SQRT2 <= stroke / 2;
+      if (onDot || onLine) cells.push({ x: i * b, y: j * b });
+    }
+  return { b, cells };
+}
+
+/** The soft field a mask family transitions through, as an SVG mask. */
+function FieldMask({ id, size, mask }: { id: string; size: number; mask: XfMask }) {
+  const cell = size / MASK_N;
+  const v = xfadeMaskGrid(mask, MASK_N, size, size);
+  return (
+    <Mask id={id} maskUnits="userSpaceOnUse" x={0} y={0} width={size} height={size}>
+      {/*
+        * Half a cell of overlap on the size. Butt-joined at fractional
+        * coordinates the renderer antialiases both edges of every seam and
+        * leaves a grid across the mask, which reads as a screen door rather
+        * than a soft field.
+        */}
+      {v.map((a, k) => (
+        <Rect
+          key={k}
+          x={(k % MASK_N) * cell}
+          y={Math.floor(k / MASK_N) * cell}
+          width={cell + 0.5}
+          height={cell + 0.5}
+          fill="#fff"
+          opacity={a}
+        />
+      ))}
+    </Mask>
   );
 }
 
@@ -182,6 +262,9 @@ function Picture({
   id,
   size,
   rect,
+  mask,
+  block,
+  blur,
   hole,
   scale,
   tone,
@@ -193,6 +276,9 @@ function Picture({
   id: string;
   size: number;
   rect: { x: number; y: number; w: number; h: number };
+  mask?: XfMask;
+  block?: number;
+  blur?: number;
   hole?: { x: number; y: number; w: number; h: number };
   scale?: { x: number; y: number };
   tone: string;
@@ -203,6 +289,10 @@ function Picture({
 }) {
   const d = Math.max(4, Math.round(size * 0.15));
   const c = size / 2;
+  // Computed once: it was being rebuilt three times per cell inside the map.
+  const { b: cellSize, cells } = block
+    ? blockCells(size, block, d, 1.6)
+    : { b: 0, cells: [] as { x: number; y: number }[] };
   return (
     <G opacity={opacity}>
       <Defs>
@@ -210,7 +300,19 @@ function Picture({
           <Path d={windowPath(rect, hole)} clipRule="evenodd" />
         </ClipPath>
       </Defs>
-      <G clipPath={`url(#${id})`}>
+      {mask ? <FieldMask id={`${id}m`} size={size} mask={mask} /> : null}
+      {blur ? (
+        <Defs>
+          <Filter id={`${id}b`} x="-25%" y="-25%" width="150%" height="150%">
+            <FeGaussianBlur stdDeviation={blur} />
+          </Filter>
+        </Defs>
+      ) : null}
+      <G
+        clipPath={`url(#${id})`}
+        mask={mask ? `url(#${id}m)` : undefined}
+        filter={blur ? `url(#${id}b)` : undefined}
+      >
         <G translateX={dx} translateY={dy}>
           {/*
             * About the tile's centre, which is the canvas centre here — the
@@ -225,16 +327,24 @@ function Picture({
             scaleY={scale?.y ?? 1}
           >
             <Rect width={size} height={size} fill={tone} />
-            <Line
-              x1={0}
-              y1={0}
-              x2={size}
-              y2={size}
-              stroke={mark}
-              strokeWidth={1.6}
-              strokeLinecap="round"
-            />
-            <Circle cx={c} cy={c} r={d / 2} fill={mark} />
+            {block ? (
+              cells.map((q, k) => (
+                <Rect key={k} x={q.x} y={q.y} width={cellSize} height={cellSize} fill={mark} />
+              ))
+            ) : (
+              <>
+                <Line
+                  x1={0}
+                  y1={0}
+                  x2={size}
+                  y2={size}
+                  stroke={mark}
+                  strokeWidth={1.6}
+                  strokeLinecap="round"
+                />
+                <Circle cx={c} cy={c} r={d / 2} fill={mark} />
+              </>
+            )}
           </G>
         </G>
       </G>

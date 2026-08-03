@@ -280,7 +280,25 @@ export const TRANSITIONS: TransitionFamily[] = [
   },
   { key: 'pixelate', label: 'Pixelate', variants: [{ type: 'pixelize', label: 'Pixelate' }] },
   { key: 'radial', label: 'Radial', variants: [{ type: 'radial', label: 'Radial' }] },
-  { key: 'blur', label: 'Blur', variants: [{ type: 'hblur', label: 'Blur' }] },
+  { key: 'blur', label: 'Blur', variants: [{ type: 'hblur', label: 'Blur wide' }] },
+  {
+    /*
+     * AUTHORED. The frame defocuses into the cut and comes back sharp, so the
+     * two clips meet at the softest point.
+     *
+     * A GAUSSIAN, where ffmpeg's `hblur` above is a one-axis forward box. That
+     * is the whole reason this family exists: a gaussian is a primitive all
+     * three renderers have natively (`gblur`, `filter: blur()`, Skia's `Blur`),
+     * so none of them has to fake it — and `hblur` is the one family Skia
+     * cannot draw, which left the picker with no blur at all.
+     */
+    key: 'defocus',
+    label: 'Blur',
+    variants: [
+      { type: 'blur1', label: 'Blur' },
+      { type: 'blur2', label: 'Blur 2' },
+    ],
+  },
 ];
 
 /** Every token the catalogue can produce, for validating stored data. */
@@ -358,7 +376,7 @@ export function ridesOverlayPath(name: string): boolean {
  * for that file to point ffmpeg at.
  */
 export function isAuthoredTransition(name: string): boolean {
-  return !!SHAKES[name] || !!FLASHES[name] || !!ZOOMS[name];
+  return !!SHAKES[name] || !!FLASHES[name] || !!ZOOMS[name] || !!BLURS[name];
 }
 
 /**
@@ -649,6 +667,13 @@ export interface XfState {
   hole?: { x: number; y: number; w: number; h: number };
   /** Quantize this side to blocks this many canvas units across. */
   block?: number;
+  /**
+   * Gaussian-blur this side, at this sigma in canvas units.
+   *
+   * The authored `blur1`/`blur2`. A gaussian, unlike `blurX` below, because all
+   * three renderers have one natively and none has to approximate it.
+   */
+  blur?: number;
   /**
    * Box-blur this side horizontally, this many canvas units wide.
    *
@@ -1029,6 +1054,88 @@ export function zoomExpr(
 
 
 /**
+ * The blur families: how far out of focus the frame goes.
+ *
+ * A fraction of the frame's SHORT side, so the same transition reads the same
+ * on a portrait phone export and a landscape one — a sigma in absolute pixels
+ * would be four times as strong at 4K as at 540p.
+ */
+const BLURS: Record<string, number> = { blur1: 0.012, blur2: 0.03 };
+
+/**
+ * The gaussian sigma at progress `p`, in canvas units.
+ *
+ * `sin(PI*p)` is the envelope, and it is the load-bearing half exactly as it is
+ * for a shake: zero at both ends, so the frame is perfectly sharp on the first
+ * and last frame of the transition. A blur that started or stopped mid-ramp
+ * would pop into and out of focus on a single frame.
+ *
+ * Snapped, because `Math.sin(Math.PI)` is 1.22e-16 rather than 0 and a sigma
+ * that small is a filter the export would still have to run.
+ */
+export function blurSigmaAt(name: string, p: number, W: number, H: number): number {
+  const k = BLURS[name];
+  if (!k) return 0;
+  const s = k * Math.min(W, H) * Math.sin(Math.PI * Math.min(1, Math.max(0, p)));
+  return s < 1e-6 ? 0 : s;
+}
+
+/**
+ * The same envelope as a list of `sendcmd` commands, one per output frame.
+ *
+ * **`gblur` takes no expression**, which is the whole difficulty: `sigma` is a
+ * plain option, settable at runtime but not evaluated per frame. `sendcmd` is
+ * the only way to move it, and it fires a command on the first frame at or
+ * after its timestamp — the same rule `fade` follows, and the same trap.
+ * Measured against ffmpeg 8.1.2: a command written at `0.0667` on a 30fps
+ * stream lands on frame 3, not the frame at `0.06667`, because the printed
+ * decimal is a hair LARGER than the frame's own time.
+ *
+ * So each command is stamped half a frame EARLY. Any time strictly inside
+ * `((n-1)/fps, n/fps]` selects frame `n` whatever the rounding does, and the
+ * midpoint is as far from both edges as it is possible to be.
+ */
+/**
+ * What to multiply a true-gaussian sigma by to get `gblur`'s nominal one.
+ *
+ * MEASURED, against ffmpeg 8.1.2, by blurring a step edge and fitting the
+ * gaussian that best reproduces the profile. `gblur` is an IIR approximation,
+ * not a convolution, and it comes out consistently NARROW: nominal 1, 2, 4, 8
+ * and 16 fit effective 0.80, 1.50, 3.20, 6.50 and 12.95 — a ratio of 0.80 flat
+ * across four doublings, and `steps` does not move it.
+ *
+ * Both previews take a real gaussian sigma (`filter: blur()` and Skia's `Blur`
+ * are the same number), so the calibration lives HERE, in the one emitter that
+ * needs it, and `blurSigmaAt` stays the honest width everything else works in.
+ * Uncompensated the export came out a quarter less blurred than the picture the
+ * user watched, which is small enough to look like a codec artefact and is not.
+ *
+ * What remains after the width is matched is ~8/255 on a hard black-to-white
+ * edge — the shape difference between an IIR approximation and a convolution.
+ * Recorded rather than chased, the same way the grade's residual is.
+ */
+const GBLUR_NOMINAL = 1.25;
+
+export function blurCommands(
+  name: string,
+  at: number,
+  overlap: number,
+  fps: number,
+  W: number,
+  H: number,
+): { t: number; sigma: number }[] {
+  if (!BLURS[name] || overlap <= 0 || fps <= 0) return [];
+  const out: { t: number; sigma: number }[] = [];
+  const first = Math.ceil(at * fps);
+  const last = Math.floor((at + overlap) * fps);
+  for (let n = first; n <= last; n++) {
+    const p = (n / fps - at) / overlap;
+    out.push({ t: (n - 0.5) / fps, sigma: blurSigmaAt(name, p, W, H) * GBLUR_NOMINAL });
+  }
+  return out;
+}
+
+/**
  * How far the frame is displaced, at progress `p`.
  *
  * `sin(PI*p)` is the ENVELOPE and it is the load-bearing half: it is zero at
@@ -1185,6 +1292,31 @@ export function xfadeMaskAt(m: XfMask, x: number, y: number, W: number, H: numbe
 }
 
 /**
+ * The same field sampled onto an `n x n` lattice, row-major.
+ *
+ * For the picker tiles, which are ~34px of SVG and have no per-pixel shader to
+ * run the field through. Both of them build a mask out of this — a grid of
+ * cells at the sampled opacity — so a circle reads as a circle and the four
+ * diagonals read as four different corners, where before all eleven mask
+ * families drew an identical cross-fade.
+ *
+ * Sampled at cell CENTRES, and it matters: at the edges of a 34px tile the
+ * corner cell of `circleopen` is the difference between the ring having closed
+ * and not, and taking the top-left corner of each cell biases the whole field
+ * half a cell toward the origin.
+ *
+ * Shared rather than written twice for the same reason `xfadeMaskAt` is: the
+ * tile's claim is that it is the transition, and a tile sampling its own idea
+ * of the field would quietly stop being one.
+ */
+export function xfadeMaskGrid(m: XfMask, n: number, W: number, H: number): number[] {
+  const out: number[] = [];
+  for (let j = 0; j < n; j++)
+    for (let i = 0; i < n; i++)
+      out.push(xfadeMaskAt(m, ((i + 0.5) / n) * W, ((j + 0.5) / n) * H, W, H));
+  return out;
+}
+/**
  * The solid drawn between the two clips, for the families that dip through a
  * colour.
  *
@@ -1283,31 +1415,28 @@ const PREVIEWED = new Set<string>([
   ...Object.keys(SHAKES),
   ...Object.keys(FLASHES),
   ...Object.keys(ZOOMS),
+  ...Object.keys(BLURS),
   'fadeblack',
   'fadewhite',
   'zoomin',
+  'pixelize',
   /*
-   * `pixelize` and `hblur` are deliberately absent, and this is the honest half
-   * of the rule rather than a TODO. Both render in the export and both are
-   * drawn by the canvas-2D preview; neither is drawn by Skia yet, so offering
-   * them would put a family in the picker that one of the two previews shows as
-   * a plain cut. `hblur` is the harder of the two by a distance: ffmpeg's is a
-   * FORWARD box filter, so it displaces the picture by half the box as well as
-   * softening it, and a centred gaussian of the same width sits visibly in the
-   * wrong place beside the file.
-   */
-  'fadeblack',
-  'fadewhite',
-  'zoomin',
-  /*
-   * `pixelize` and `hblur` are deliberately absent, and this is the honest half
-   * of the rule rather than a TODO. Both render in the export and both are
-   * drawn by the canvas-2D preview; neither is drawn by Skia yet, so offering
-   * them would put a family in the picker that one of the two previews shows as
-   * a plain cut. `hblur` is the harder of the two by a distance: ffmpeg's is a
-   * FORWARD box filter, so it displaces the picture by half the box as well as
-   * softening it, and a centred gaussian of the same width sits visibly in the
-   * wrong place beside the file.
+   * `hblur` is deliberately absent, and this is the honest half of the rule
+   * rather than a TODO. It renders in the export and the canvas-2D preview
+   * draws it; Skia does not, and measuring says it cannot at a viable cost.
+   *
+   * ffmpeg's is a FORWARD box filter whose width here reaches `1 + W/2` — HALF
+   * THE FRAME, 541px at 1080. The canvas preview affords that by downscaling to
+   * 640 and running an exact running-sum box on the CPU. Skia's declarative
+   * tree has no equivalent: a `RuntimeEffect` would need a loop of hundreds of
+   * taps per pixel, and Skia's own blur is a centred gaussian, which is the
+   * wrong shape twice over — a forward box also DISPLACES the picture by half
+   * its width, so a gaussian of the same width sits visibly in the wrong place
+   * beside the file.
+   *
+   * So it stays export-only and unreachable from the pickers. `blur1`/`blur2`
+   * are what a user actually gets, and being ours rather than ffmpeg's they are
+   * a gaussian, which all three renderers do natively and none has to fake.
    */
 ]);
 
@@ -1336,6 +1465,13 @@ export function xfadeStateAt(
      */
     const { dx, dy } = shakeOffsetAt(name, p, W, H);
     return { alpha: role === 'to' ? p : 1, ...(dx ? { dx } : {}), ...(dy ? { dy } : {}) };
+  }
+  if (BLURS[name]) {
+    // BOTH sides, because it is the frame that goes soft and not one picture
+    // inside it — blurring only the incoming clip would read as it arriving out
+    // of focus over a sharp one, which is a different effect entirely.
+    const b = blurSigmaAt(name, p, W, H);
+    return { alpha: role === 'to' ? p : 1, ...(b > 0 ? { blur: b } : {}) };
   }
   if (ZOOMS[name]) {
     // Unlike a shake, the two sides carry DIFFERENT scales: each travels from

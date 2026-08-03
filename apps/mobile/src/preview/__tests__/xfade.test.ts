@@ -8,15 +8,19 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  blurCommands,
+  flashExpr,
   isAlphaOnly,
   MAX_OVERLAP_FRAC,
   planMainRuns,
   previewableTransitions,
   resolveTransitions,
   TRANSITIONS,
+  shakeExpr,
   xfadeMapOf,
   xfadeProgressAt,
   xfadeStateFor,
+  zoomExpr,
 } from "../xfade";
 import type { BlendMode, VisualTrackClip } from "../../model/types";
 
@@ -121,6 +125,44 @@ describe("mobile mirrors packages/video", () => {
           );
         }
       }
+    }
+  });
+
+  it("emits the same ffmpeg arguments for the authored families", async () => {
+    /*
+     * The export-side twins. Mobile never emits a filtergraph, so these are
+     * carried in the mirror purely so a divergence in the SHARED maths shows up
+     * here rather than in a rendered file — a mirror that samples the same
+     * curve but writes a different expression is a mirror that has already
+     * drifted, and only the export would ever notice.
+     */
+    const s = await shared();
+    for (const [at, overlap, fps] of [
+      [0, 0.5, 30],
+      [2.4, 1, 24],
+      [7.125, 0.8, 60],
+    ] as const) {
+      for (const name of ["blur1", "blur2"])
+        expect([name, blurCommands(name, at, overlap, fps, 1080, 1920)]).toEqual([
+          name,
+          s.blurCommands(name, at, overlap, fps, 1080, 1920),
+        ]);
+      for (const name of ["light", "blink"])
+        expect([name, flashExpr(at, overlap)]).toEqual([name, s.flashExpr(at, overlap)]);
+      for (const name of ["zoom1in", "zoom2out"])
+        for (const role of ["from", "to"] as const)
+          expect([name, role, zoomExpr(name, at, overlap, role)]).toEqual([
+            name,
+            role,
+            s.zoomExpr(name, at, overlap, role),
+          ]);
+      for (const name of ["shakeleft", "shake2down"])
+        for (const axis of ["x", "y"] as const)
+          expect([name, axis, shakeExpr(name, at, overlap, 1080, 1920, axis)]).toEqual([
+            name,
+            axis,
+            s.shakeExpr(name, at, overlap, 1080, 1920, axis),
+          ]);
     }
   });
 

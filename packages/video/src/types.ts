@@ -212,6 +212,8 @@ export type TransitionType =
   | "zoom1out"
   | "zoom2in"
   | "zoom2out"
+  | "blur1"
+  | "blur2"
   | "light"
   | "blink"
   | "fadeblack"
