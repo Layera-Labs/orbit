@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
@@ -18,7 +19,9 @@ import {
 import Animated, { cancelAnimation, Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { BUNDLED_SFX } from "../content/assets";
 import { SFX, type SfxItem } from "../content/catalog";
-import { addBundledSfx } from "../content/library";
+import { addBundledSfx, addCcItem } from "../content/library";
+import type { CcCategory, CcItem } from "../content/openverse";
+import { useCcSearch } from "../content/useCcSearch";
 import { font, vela } from "../constants";
 import { newId } from "../model/editor-ops";
 import {
@@ -27,6 +30,7 @@ import {
   type AudioLibraryRecord,
 } from "../storage/audioHistory";
 import { copyIntoMedia, extFromUri } from "../storage/media";
+import { formatDuration } from "../format/duration";
 import { useEditor } from "../store/editorStore";
 import { BottomSheet } from "./BottomSheet";
 import { VIcon, type VIconName } from "./VIcon";
@@ -58,7 +62,8 @@ type ProjectAudio = {
 type AudioSelection =
   | { type: "record"; id: string; record: AudioLibraryRecord }
   | { type: "project"; id: string; item: ProjectAudio }
-  | { type: "sfx"; id: string; item: SfxItem };
+  | { type: "sfx"; id: string; item: SfxItem }
+  | { type: "cc"; id: string; item: CcItem };
 
 const AUDIO_TABS: Array<{
   key: AudioTab;
@@ -224,6 +229,16 @@ export function AudioDrawerSheet() {
     try {
       if (selection.type === "sfx") {
         await addBundledSfx(BUNDLED_SFX[selection.item.id], selection.item.dur);
+      } else if (selection.type === "cc") {
+        /*
+         * A stock item is a remote url, so this one downloads before it can be
+         * placed — `addCcItem` owns that, and the history write with it, so the
+         * Library tab has the track the moment this returns. It answers false
+         * rather than throwing when the download fails, and the clip editor
+         * must not be opened on a clip that was never added.
+         */
+        if (!(await addCcItem(selection.item))) return;
+        setRecords(loadAudioHistory());
       } else {
         const item =
           selection.type === "record" ? selection.record : selection.item;
@@ -395,14 +410,11 @@ export function AudioDrawerSheet() {
               onSelect={setSelection}
             />
           ) : tab === "stock" ? (
-            <SfxPanel
-              title="Stock audio"
-              subtitle="Offline starter collection"
-              items={SFX.slice(0, 8)}
+            <CcAudioPanel
               selectedId={selectedId}
               playingId={playingId}
               progress={previewProgress}
-              onPreview={(item) => preview(item.id, BUNDLED_SFX[item.id])}
+              onPreview={preview}
               onSelect={setSelection}
             />
           ) : (
@@ -737,6 +749,126 @@ function SfxPanel({
   );
 }
 
+/**
+ * Stock: CC0 music and sound, auditioned before it is added.
+ *
+ * This tab used to be `SFX.slice(0, 8)` — the first eight of the same bundled
+ * effects the Sound FX tab already shows, under a heading that called them
+ * "Stock audio". Two tabs, one pack, and nothing about the word "stock" was
+ * true. It is Openverse now, filtered to `license=cc0` (see
+ * `content/openverse.ts`), which needs no API key and so has content in it on a
+ * fresh install.
+ *
+ * Music and Sound are the same corpus split by LENGTH, not by category —
+ * Openverse reports no category at all for the Freesound records that make up
+ * every CC0 track, so `category=music` returns nothing and reads exactly like
+ * "there is no CC0 music". The reason lives in `openverse.ts`; what matters
+ * here is that the two chips are a real distinction and not a label.
+ *
+ * Auditioning streams the remote url straight into the drawer's one shared
+ * player, so nothing is downloaded until it is actually chosen.
+ */
+function CcAudioPanel({
+  selectedId,
+  playingId,
+  progress,
+  onPreview,
+  onSelect,
+}: PreviewProps & {
+  selectedId?: string;
+  onSelect: (selection: AudioSelection) => void;
+}) {
+  const { category, setCategory, query, setQuery, submit, items, loading, error } =
+    useCcSearch("music");
+
+  return (
+    <ScrollView
+      showsVerticalScrollIndicator={false}
+      contentContainerStyle={styles.panelScroll}
+    >
+      <PanelHeading
+        title="Stock"
+        subtitle="Public domain (CC0) · free to use, no credit needed"
+      />
+      <View style={styles.ccControls}>
+        {CC_AUDIO_KINDS.map((k) => (
+          <Pressable
+            key={k.key}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: category === k.key }}
+            onPress={() => setCategory(k.key)}
+            style={[styles.ccChip, category === k.key && styles.ccChipOn]}
+          >
+            <Text
+              style={[
+                styles.ccChipText,
+                category === k.key && { color: vela.accent },
+              ]}
+            >
+              {k.label}
+            </Text>
+          </Pressable>
+        ))}
+        <TextInput
+          style={styles.ccInput}
+          value={query}
+          onChangeText={setQuery}
+          onSubmitEditing={submit}
+          returnKeyType="search"
+          placeholder="Search…"
+          placeholderTextColor={vela.lightMuted}
+          autoCapitalize="none"
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Search stock audio"
+          onPress={submit}
+          style={styles.ccSearchButton}
+        >
+          <VIcon name="search" size={15} color={vela.onAccent} />
+        </Pressable>
+      </View>
+
+      {error ? (
+        <Text style={styles.ccError}>{error}</Text>
+      ) : loading ? (
+        <View style={styles.ccBusy}>
+          <ActivityIndicator color={vela.accent} />
+        </View>
+      ) : !items.length ? (
+        <Text style={styles.emptyDetail}>
+          Nothing found for that. Try another word.
+        </Text>
+      ) : (
+        items.map((item, index) => {
+          // Selection ids share one namespace across every panel in the drawer;
+          // playback is keyed by the bare id, as it is for the bundled effects.
+          const id = `cc-${item.id}`;
+          return (
+            <AudioRow
+              key={item.id}
+              index={index}
+              name={item.title}
+              meta={`${formatDuration(item.durationSec ?? 0)} · ${item.creator || "Unknown"}`}
+              verbatimMeta
+              selected={selectedId === id}
+              playing={playingId === item.id}
+              progress={progress}
+              onPreview={() => onPreview(item.id, item.url)}
+              onPress={() => onSelect({ type: "cc", id, item })}
+            />
+          );
+        })
+      )}
+    </ScrollView>
+  );
+}
+
+const CC_AUDIO_KINDS: { key: CcCategory; label: string }[] = [
+  { key: "music", label: "Music" },
+  { key: "audio", label: "Sound" },
+];
+
 function ActionPanel({
   icon,
   title,
@@ -773,6 +905,7 @@ function AudioRow({
   index,
   name,
   meta,
+  verbatimMeta,
   selected,
   playing,
   progress,
@@ -782,6 +915,12 @@ function AudioRow({
   index: number;
   name: string;
   meta: string;
+  /**
+   * Leave `meta` exactly as given. The row title-cases it by default, which
+   * suits "upload · 0:12" and does not suit a person's handle — `larval1977`
+   * is not `Larval1977`, and a credit line that edits the name is not a credit.
+   */
+  verbatimMeta?: boolean;
   selected: boolean;
   playing: boolean;
   progress: number;
@@ -815,7 +954,12 @@ function AudioRow({
           <Text style={styles.audioName} numberOfLines={1}>
             {name}
           </Text>
-          <Text style={styles.audioMeta}>{meta}</Text>
+          <Text
+            style={[styles.audioMeta, verbatimMeta && styles.audioMetaVerbatim]}
+            numberOfLines={1}
+          >
+            {meta}
+          </Text>
         </View>
         <Waveform playing={playing} progress={progress} />
         {selected ? (
@@ -946,16 +1090,6 @@ function WaveBar({
       ]}
     />
   );
-}
-
-function formatDuration(seconds: number): string {
-  if (!Number.isFinite(seconds) || seconds <= 0) return "Audio";
-  if (seconds < 1) return `${Math.round(seconds * 1000)}ms`;
-  const minutes = Math.floor(seconds / 60);
-  const rest = Math.floor(seconds % 60)
-    .toString()
-    .padStart(2, "0");
-  return `${minutes}:${rest}`;
 }
 
 const styles = StyleSheet.create({
@@ -1097,6 +1231,54 @@ const styles = StyleSheet.create({
     fontSize: 9.5,
     marginTop: 2,
     textTransform: "capitalize",
+  },
+  audioMetaVerbatim: { textTransform: "none" },
+  /*
+   * The Stock controls: two category chips, a field and a search button, on one
+   * line. `flexWrap` because "Music" and "Sound" plus a usable field do not fit
+   * across a 320pt sheet, and a field clipped by the edge is worse than one on
+   * a second row.
+   */
+  ccControls: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 7 },
+  ccChip: {
+    paddingHorizontal: 11,
+    height: 30,
+    borderRadius: 10,
+    borderCurve: "continuous",
+    backgroundColor: vela.lightSurface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ccChipOn: { backgroundColor: vela.accentSoft },
+  ccChipText: { color: vela.ink2, fontFamily: font.bold, fontSize: 11.5 },
+  ccInput: {
+    flexGrow: 1,
+    flexBasis: 110,
+    height: 30,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderCurve: "continuous",
+    backgroundColor: vela.lightSurface,
+    color: vela.ink,
+    fontFamily: font.medium,
+    fontSize: 11.5,
+  },
+  ccSearchButton: {
+    width: 34,
+    height: 30,
+    borderRadius: 10,
+    borderCurve: "continuous",
+    backgroundColor: vela.accent,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ccBusy: { height: 96, alignItems: "center", justifyContent: "center" },
+  ccError: {
+    color: vela.danger,
+    fontFamily: font.medium,
+    fontSize: 10.5,
+    lineHeight: 15,
+    marginTop: 2,
   },
   waveform: {
     width: 58,

@@ -40,6 +40,8 @@ import {
   type StockKind,
 } from "../content/stock";
 import type { StockProvider } from "../content/keys";
+import { isCcRateLimited, searchCc, type CcItem } from "../content/openverse";
+import { CC_RATE_LIMIT_MESSAGE } from "../content/useCcSearch";
 import { useEditor } from "../store/editorStore";
 
 type Tab = "photos" | "videos" | "library" | "stock";
@@ -58,7 +60,8 @@ const STILL_SECONDS = 4;
 type Pick =
   | { kind: "asset"; id: string; asset: MediaLibrary.Asset }
   | { kind: "record"; id: string; record: GenRecord }
-  | { kind: "stock"; id: string; item: StockItem };
+  | { kind: "stock"; id: string; item: StockItem }
+  | { kind: "cc"; id: string; item: CcItem };
 
 const COLUMNS = 3;
 
@@ -269,6 +272,12 @@ async function resolvePick(
           : await downloadToMedia(r.url, r.kind === "video" ? "mp4" : "jpg");
       return { src, type: r.kind, duration: r.durationSec };
     }
+    if (item.kind === "cc") {
+      return {
+        src: await downloadToMedia(item.item.url, "jpg"),
+        type: "image",
+      };
+    }
     void triggerUnsplashDownload(item.item);
     const src = await downloadToMedia(
       item.item.full,
@@ -423,7 +432,29 @@ function LibraryGrid({ pickedIds, orderOf, onToggle }: GridProps) {
   );
 }
 
-/** Unsplash / Pexels, with the user's own key. */
+/** Which shelf the Stock tab is looking at. `free` needs no key and is the default. */
+type StockSource = "free" | StockProvider;
+
+const SOURCES: { key: StockSource; label: string }[] = [
+  { key: "free", label: "Free" },
+  { key: "pexels", label: "Pexels" },
+  { key: "unsplash", label: "Unsplash" },
+];
+
+/**
+ * Stock footage: CC0 by default, the keyed providers if you have a key.
+ *
+ * This tab was Unsplash and Pexels only, and both want an API key the user has
+ * to go and register for — so on a fresh install, on the very screen a new
+ * project starts from, "Stock" was a search field that could return nothing at
+ * all. `free` is Openverse filtered to `license=cc0` (see
+ * `content/openverse.ts`); it answers anonymously, so the tab works before
+ * anyone has set anything up, and the keyed providers stay for the much larger
+ * library a key buys.
+ *
+ * CC0 is photographs only here. Openverse indexes no video, and offering an
+ * empty Videos chip would be worse than not offering one.
+ */
 function StockGrid({
   ratio,
   pickedIds,
@@ -431,29 +462,60 @@ function StockGrid({
   onToggle,
 }: GridProps & { ratio: number }) {
   const setPanel = useEditor((s) => s.setPanel);
-  const [provider, setProvider] = useState<StockProvider>("pexels");
+  const [source, setSource] = useState<StockSource>("free");
   const [kind, setKind] = useState<StockKind>("image");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<StockItem[]>([]);
+  const [free, setFree] = useState<CcItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [missingKey, setMissingKey] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   // Unsplash has no video API, so asking for one would fail silently.
-  const effectiveKind: StockKind = provider === "unsplash" ? "image" : kind;
+  const effectiveKind: StockKind = source === "unsplash" ? "image" : kind;
 
-  const run = async () => {
-    if (!query.trim()) return;
+  const run = async (from: StockSource, q: string) => {
     setLoading(true);
     setMissingKey(false);
+    setErr(null);
     try {
-      setResults(await searchStock(provider, query.trim(), effectiveKind));
-    } catch (err) {
+      if (from === "free") {
+        setFree(await searchCc("image", q));
+      } else {
+        if (!q.trim()) return;
+        setResults(await searchStock(from, q.trim(), effectiveKind));
+      }
+    } catch (e) {
       setResults([]);
-      if (isMissingKey(err)) setMissingKey(true);
+      setFree([]);
+      if (isMissingKey(e)) setMissingKey(true);
+      else if (isCcRateLimited(e)) setErr(CC_RATE_LIMIT_MESSAGE);
+      else setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
   };
+
+  /*
+   * The free shelf fills itself on arrival — `searchCc` falls back to a seed
+   * query when nothing is typed, so there is content to look at before anyone
+   * has thought of a word. The keyed providers cannot do that: a search with no
+   * key is a wasted request and an error message nobody asked for.
+   */
+  useEffect(() => {
+    if (source === "free") void run("free", query);
+    // Re-running on `query` would search on every keystroke; it is submitted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [source]);
+
+  /*
+   * Only the two remote shelves, so the tile can read `item` off either without
+   * narrowing — a device asset and a library record never reach this grid.
+   */
+  const showing: Extract<Pick, { kind: "cc" | "stock" }>[] =
+    source === "free"
+      ? free.map((item) => ({ kind: "cc" as const, id: item.id, item }))
+      : results.map((item) => ({ kind: "stock" as const, id: item.id, item }));
 
   return (
     <View style={{ flex: 1 }}>
@@ -461,23 +523,40 @@ function StockGrid({
         <TextInput
           value={query}
           onChangeText={setQuery}
-          onSubmitEditing={run}
+          onSubmitEditing={() => void run(source, query)}
           returnKeyType="search"
-          placeholder={`Search ${provider}`}
+          placeholder={
+            source === "free"
+              ? "Search free photos"
+              : `Search ${SOURCES.find((x) => x.key === source)?.label ?? source}`
+          }
           placeholderTextColor={vela.muted3}
           style={s.search}
         />
-        <Pressable onPress={run} hitSlop={8} accessibilityLabel="Search stock">
+        <Pressable
+          onPress={() => void run(source, query)}
+          hitSlop={8}
+          accessibilityLabel="Search stock"
+        >
           <VIcon name="search" size={18} color={vela.textLight2} />
         </Pressable>
       </View>
       <View style={s.stockChips}>
-        {(["pexels", "unsplash"] as const).map((p) => (
-          <Chip key={p} on={provider === p} onPress={() => setProvider(p)}>
-            {p}
+        {/*
+          Named properly rather than by their internal keys — the row used to
+          read "pexels · unsplash" in lower case, which is a variable name
+          showing through, and "Free" beside them made the mismatch obvious.
+        */}
+        {SOURCES.map((src) => (
+          <Chip
+            key={src.key}
+            on={source === src.key}
+            onPress={() => setSource(src.key)}
+          >
+            {src.label}
           </Chip>
         ))}
-        {provider === "pexels"
+        {source === "pexels"
           ? (["image", "video"] as const).map((k) => (
               <Chip key={k} on={kind === k} onPress={() => setKind(k)}>
                 {k === "image" ? "Photos" : "Videos"}
@@ -488,35 +567,42 @@ function StockGrid({
 
       {missingKey ? (
         <Empty
-          title={`No ${provider} key yet`}
-          detail="Stock search uses your own API key, kept on this device."
+          title={`No ${SOURCES.find((x) => x.key === source)?.label ?? source} key yet`}
+          detail="Keyed search uses your own API key, kept on this device. Free needs none."
           action="Add a key"
           onAction={() => setPanel("keys")}
         />
       ) : loading ? (
         <Loading />
-      ) : results.length ? (
+      ) : err ? (
+        <Empty title="Could not search" detail={err} />
+      ) : showing.length ? (
         <FlatList
-          data={results}
+          data={showing}
           numColumns={COLUMNS}
-          keyExtractor={(i) => i.id}
+          keyExtractor={(p) => p.id}
           contentContainerStyle={s.grid}
-          renderItem={({ item }) => (
+          renderItem={({ item: pick }) => (
             <PickTile
-              uri={item.thumb}
-              video={item.kind === "video"}
-              duration={item.duration}
+              uri={pick.item.thumb}
+              video={pick.kind === "stock" && pick.item.kind === "video"}
+              duration={pick.kind === "stock" ? pick.item.duration : undefined}
               ratio={ratio}
-              selected={pickedIds.has(item.id)}
-              order={orderOf(item.id)}
-              onPress={(additive) =>
-                onToggle({ kind: "stock", id: item.id, item }, additive)
-              }
+              selected={pickedIds.has(pick.id)}
+              order={orderOf(pick.id)}
+              onPress={(additive) => onToggle(pick, additive)}
             />
           )}
         />
       ) : (
-        <Empty title="Search for something" detail="Photos and videos, free to use." />
+        <Empty
+          title="Search for something"
+          detail={
+            source === "free"
+              ? "Public domain photos, free to use with no credit."
+              : "Photos and videos, free to use."
+          }
+        />
       )}
     </View>
   );

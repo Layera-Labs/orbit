@@ -46,7 +46,6 @@ import {
   SFX,
   SOLID_PRESETS,
   STICKERS,
-  STOCK_BACKGROUNDS,
   openmojiUrl,
 } from "../content/catalog";
 import {
@@ -58,8 +57,8 @@ import {
 import {
   addBundledSfx,
   addBundledSticker,
+  addCcItem,
   addStickerFromUrl,
-  addStockItem,
   setBackgroundFromPhoto,
   setBackgroundFromUrl,
   setBundledBackground,
@@ -83,12 +82,9 @@ import { AnimationSheet } from "./AnimationSheet";
 import { MosaicSheet } from "./MosaicSheet";
 import { MagnifierSheet } from "./MagnifierSheet";
 import { StorySheet } from "./StorySheet";
-import {
-  searchStock,
-  isMissingKey,
-  type StockItem,
-  type StockKind,
-} from "../content/stock";
+import type { CcCategory } from "../content/openverse";
+import { useCcSearch } from "../content/useCcSearch";
+import { formatDuration } from "../format/duration";
 import { Linking } from "react-native";
 import type {
   BlendMode,
@@ -2756,121 +2752,147 @@ function useGridCell(cols: number, gap = 10) {
   };
 }
 
+/**
+ * Stock: CC0 content, and no key to get first.
+ *
+ * This tab used to be Unsplash and Pexels behind a bring-your-own-key wall,
+ * with twelve Picsum photographs standing in until someone went and registered
+ * for one. Almost nobody does, so for almost everybody "Stock" was a search
+ * field over a placeholder. It is Openverse now (see `content/openverse.ts`),
+ * filtered to `license=cc0`, which answers anonymously — so the tab has real
+ * content in it the first time it is opened, on a fresh install, with no setup.
+ *
+ * Four categories rather than one search, because they do four different things
+ * on tap: an image lands on the main track, a background goes behind the whole
+ * composition, and music and sound go onto an audio track at the playhead. A
+ * single grid that behaved differently depending on what you had picked would
+ * be the same tab keeping a secret.
+ *
+ * The BYOK providers have not gone anywhere — they are still the Stock tab of
+ * the media picker, where a key buys a much larger photo library. What they are
+ * no longer is the only thing behind this word.
+ *
+ * Music and sound are laid out as ROWS, not tiles: a square of nothing is not a
+ * picture of a sound, and the name, the length and who made it are the only
+ * things that separate one from another here. Auditioning belongs to the audio
+ * drawer, which already owns a player; this tab is for finding.
+ */
 function StockTab({ onPick }: { onPick: () => void }) {
-  const setPanel = useEditor((s) => s.setPanel);
-  const [provider, setProvider] = useState<StockProvider>("unsplash");
-  const [kind, setKind] = useState<StockKind>("image");
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<StockItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [needKey, setNeedKey] = useState<StockProvider | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-  const effKind: StockKind = provider === "unsplash" ? "image" : kind; // Unsplash = images only
+  const {
+    category: cat,
+    setCategory: setCat,
+    query,
+    setQuery,
+    submit,
+    items: results,
+    loading,
+    error: err,
+  } = useCcSearch("image");
   const grid = useGridCell(3);
-
-  const run = async () => {
-    if (!query.trim()) return;
-    setLoading(true);
-    setErr(null);
-    setNeedKey(null);
-    try {
-      setResults(await searchStock(provider, query.trim(), effKind));
-    } catch (e) {
-      setResults([]);
-      if (isMissingKey(e)) setNeedKey(provider);
-      else setErr(e instanceof Error ? e.message : String(e));
-    } finally {
-      setLoading(false);
-    }
-  };
+  const audio = cat === "music" || cat === "audio";
 
   return (
     <View style={{ gap: 12 }}>
-      <View style={s.chipRow}>
-        {(["unsplash", "pexels"] as StockProvider[]).map((p) => (
+      <View style={s.ccChipRow}>
+        {CC_CATEGORIES.map((c) => (
           <Pressable
-            key={p}
-            onPress={() => setProvider(p)}
-            style={[s.chip, provider === p && s.chipOn]}
+            key={c.key}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: cat === c.key }}
+            onPress={() => setCat(c.key)}
+            style={[s.ccChip, cat === c.key && s.ccChipOn]}
           >
-            <Text
-              style={[s.chipText, provider === p && { color: vela.accent }]}
-            >
-              {p === "unsplash" ? "Unsplash" : "Pexels"}
+            <Text style={[s.ccChipText, cat === c.key && { color: vela.accent }]}>
+              {c.label}
             </Text>
           </Pressable>
         ))}
-        {provider === "pexels"
-          ? (["image", "video"] as StockKind[]).map((k) => (
-              <Pressable
-                key={k}
-                onPress={() => setKind(k)}
-                style={[s.chip, effKind === k && s.chipOn]}
-              >
-                <Text
-                  style={[s.chipText, effKind === k && { color: vela.accent }]}
-                >
-                  {k === "image" ? "Photos" : "Videos"}
-                </Text>
-              </Pressable>
-            ))
-          : null}
       </View>
+
       <View style={{ flexDirection: "row", gap: 10 }}>
         <TextInput
-          style={[s.keyInput, { flex: 1 }]}
+          style={[s.ccInput, { flex: 1 }]}
           value={query}
           onChangeText={setQuery}
-          onSubmitEditing={run}
+          onSubmitEditing={submit}
           returnKeyType="search"
-          placeholder={`Search ${provider}…`}
+          placeholder={`Search ${CC_LABEL[cat]}…`}
           placeholderTextColor={vela.muted3}
           autoCapitalize="none"
         />
-        <Pressable onPress={run} style={s.stockSearchBtn}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Search stock"
+          onPress={submit}
+          style={s.stockSearchBtn}
+        >
           <VIcon name="search" size={20} color={vela.onAccent} />
         </Pressable>
       </View>
 
-      {needKey ? (
-        <Pressable onPress={() => setPanel("keys")} style={s.stockPrompt}>
-          <Text style={s.prefName}>
-            Add your {needKey === "unsplash" ? "Unsplash" : "Pexels"} API key
-          </Text>
-          <Text style={s.prefSub}>
-            Stock search uses your own key. Tap to add it →
-          </Text>
-        </Pressable>
-      ) : err ? (
-        <Text style={[s.prefSub, { color: vela.danger }]}>{err}</Text>
-      ) : null}
+      {/*
+        * Said once, plainly, rather than a credit line under every tile. CC0
+        * asks for nothing back, and that is the whole reason this content is
+        * here — but a grid of photographs is silent about its licence, and
+        * "stock" is a word people have learned to read as "probably not free".
+        */}
+      <Text style={s.ccNote}>Public domain (CC0) · free to use, no credit needed</Text>
+
+      {err ? <Text style={[s.prefSub, { color: vela.danger }]}>{err}</Text> : null}
 
       <ScrollView
         style={{ maxHeight: 320 }}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 8, gap: 10 }}
+        contentContainerStyle={{ paddingBottom: 8, gap: audio ? 2 : 10 }}
       >
         {loading ? (
-          <View
-            style={{
-              height: 120,
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
+          <View style={s.ccBusy}>
             <ActivityIndicator color={vela.accent} />
           </View>
-        ) : results.length ? (
-          <View
-            style={[s.libGrid, { gap: grid.gap }]}
-            onLayout={grid.onLayout}
-          >
+        ) : err ? (
+          // Already said above the scroller; a second empty line under it is
+          // just a gap that looks like something failed to render.
+          null
+        ) : !results.length ? (
+          <Text style={s.prefSub}>Nothing found for that. Try another word.</Text>
+        ) : audio ? (
+          results.map((it) => (
+            <Pressable
+              key={it.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Add ${it.title}`}
+              onPress={() => {
+                onPick();
+                void addCcItem(it);
+              }}
+              style={s.ccRow}
+            >
+              <VIcon
+                name={cat === "music" ? "audio" : "soundfx"}
+                size={17}
+                color={vela.accent}
+              />
+              <View style={{ flex: 1 }}>
+                <Text numberOfLines={1} style={s.ccRowTitle}>
+                  {it.title}
+                </Text>
+                <Text numberOfLines={1} style={s.ccRowMeta}>
+                  {it.credit}
+                </Text>
+              </View>
+              <Text style={s.ccRowDur}>{formatDuration(it.durationSec ?? 0)}</Text>
+            </Pressable>
+          ))
+        ) : (
+          <View style={[s.libGrid, { gap: grid.gap }]} onLayout={grid.onLayout}>
             {results.map((it) => (
               <Pressable
                 key={it.id}
+                accessibilityRole="button"
+                accessibilityLabel={it.title}
                 onPress={() => {
                   onPick();
-                  void addStockItem(it);
+                  void addCcItem(it);
                 }}
                 style={[
                   s.stockCell,
@@ -2882,54 +2904,29 @@ function StockTab({ onPick }: { onPick: () => void }) {
                   style={s.libSwatch}
                   resizeMode="cover"
                 />
-                {it.kind === "video" ? (
-                  <View style={s.stockVideoBadge}>
-                    <VIcon name="play" size={12} color="#fff" />
-                  </View>
-                ) : null}
               </Pressable>
             ))}
           </View>
-        ) : (
-          /*
-           * Nothing searched yet. Rather than an empty rectangle under a search
-           * field, the starter set — which needs no API key, and sets the
-           * BACKGROUND rather than adding a clip, because Canvas → Background is
-           * the door most people arrive through. The heading says so, since a
-           * grid of photographs is otherwise silent about what a tap will do.
-           */
-          <>
-            <Text style={s.libSection}>Backgrounds · tap to use</Text>
-            <View
-              style={[s.libGrid, { gap: grid.gap }]}
-              onLayout={grid.onLayout}
-            >
-              {STOCK_BACKGROUNDS.map((im) => (
-                <Pressable
-                  key={im.id}
-                  onPress={() => {
-                    onPick();
-                    void setBackgroundFromUrl(im.full);
-                  }}
-                  style={[
-                    s.stockCell,
-                    { width: grid.size, height: Math.round(grid.size * 1.2) },
-                  ]}
-                >
-                  <Image
-                    source={{ uri: im.thumb }}
-                    style={s.libSwatch}
-                    resizeMode="cover"
-                  />
-                </Pressable>
-              ))}
-            </View>
-          </>
         )}
       </ScrollView>
     </View>
   );
 }
+
+const CC_CATEGORIES: { key: CcCategory; label: string }[] = [
+  { key: "music", label: "Music" },
+  { key: "audio", label: "Audio" },
+  { key: "background", label: "Backgrounds" },
+  { key: "image", label: "Images" },
+];
+
+const CC_LABEL: Record<CcCategory, string> = {
+  music: "music",
+  audio: "sound",
+  background: "backgrounds",
+  image: "images",
+};
+
 
 type LibraryTab = "stickers" | "emoji" | "backgrounds" | "stock" | "generate";
 
@@ -3881,6 +3878,58 @@ const s = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: vela.lightSurface,
   },
+  /*
+   * The Stock categories. Self-sized rather than `s.chip`'s equal quarters:
+   * "Backgrounds" does not fit in a quarter of this sheet at 13pt, and a chip
+   * that shaves the end off its own label is the cut-off tell. It wraps for the
+   * same reason — four of these overflow a 320pt screen, and a control running
+   * off the edge is worse than one on two lines.
+   */
+  ccChipRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  ccChip: {
+    paddingHorizontal: 13,
+    height: 34,
+    borderRadius: 11,
+    borderCurve: "continuous",
+    backgroundColor: vela.lightSurface,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  ccChipOn: { backgroundColor: vela.accentSoft },
+  ccChipText: { color: vela.ink2, fontFamily: font.semibold, fontSize: 13 },
+  /*
+   * Its own field rather than `keyInput`, which is MONO. Mono is right for an
+   * API key — a string you check character by character — and wrong for
+   * "landscape": it made the one place in this sheet you type prose look like a
+   * terminal, and mono spread onto ordinary text is the house-voice tell.
+   */
+  ccInput: {
+    backgroundColor: vela.lightSurface,
+    borderRadius: 10,
+    borderCurve: "continuous",
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    color: vela.ink,
+    fontFamily: font.medium,
+    fontSize: 14,
+  },
+  ccNote: { color: vela.lightMuted, fontFamily: font.medium, fontSize: 11.5 },
+  ccBusy: { height: 120, alignItems: "center", justifyContent: "center" },
+  ccRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 11,
+    paddingVertical: 9,
+    paddingHorizontal: 2,
+  },
+  ccRowTitle: { color: vela.ink, fontFamily: font.semibold, fontSize: 13.5 },
+  ccRowMeta: {
+    color: vela.lightMuted,
+    fontFamily: font.medium,
+    fontSize: 11.5,
+    marginTop: 1,
+  },
+  ccRowDur: { color: vela.ink2, fontFamily: mono.medium, fontSize: 11.5 },
   stockVideoBadge: {
     position: "absolute",
     right: 6,

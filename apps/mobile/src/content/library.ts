@@ -8,9 +8,11 @@ import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { newId } from '../model/editor-ops';
 import { copyIntoMedia, downloadToMedia } from '../storage/media';
+import { addAudioHistory } from '../storage/audioHistory';
 import { useEditor } from '../store/editorStore';
 import type { VisualTrackClip } from '../model/types';
 import { triggerUnsplashDownload, type StockItem } from './stock';
+import type { CcItem } from './openverse';
 import { resolveModuleToMedia } from './assets';
 
 const STOCK_IMAGE_DUR = 4;
@@ -92,6 +94,52 @@ export async function addStockItem(item: StockItem): Promise<void> {
     }
   } catch (e) {
     Alert.alert('Add failed', e instanceof Error ? e.message : String(e));
+  }
+}
+
+/**
+ * Add a CC0 item from the Stock tab, wherever it belongs.
+ *
+ * One entry point rather than four, because the category is already the thing
+ * the user chose — an image goes on the main track, a background goes behind
+ * everything, and both audio kinds go on an audio track at the playhead. Making
+ * each caller re-derive that is how the same item ends up landing in two
+ * different places from two different sheets.
+ */
+export async function addCcItem(item: CcItem): Promise<boolean> {
+  try {
+    if (item.category === 'background') {
+      useEditor.getState().applyBackground({ type: 'image', src: await downloadToMedia(item.url, 'jpg') });
+      return true;
+    }
+    if (item.kind === 'image') {
+      const src = await downloadToMedia(item.url, 'jpg');
+      useEditor.getState().importVisual([{ id: newId('img'), type: 'image', src, start: 0, duration: STOCK_IMAGE_DUR }]);
+      return true;
+    }
+    const src = await downloadToMedia(item.url, 'mp3');
+    const st = useEditor.getState();
+    /*
+     * `searchCc` refuses an audio item with no duration, so this is a real
+     * number off the record and never a default standing in for one.
+     */
+    const duration = Math.max(0.1, item.durationSec ?? 0);
+    st.importAudio({ id: newId('a'), src, start: st.playheadSec, duration, volume: 1 });
+    /*
+     * Kept in the audio library too, so a track used once is reachable from the
+     * Library tab without spending another of the day's 200 searches on finding
+     * it again.
+     */
+    addAudioHistory({ name: item.title, url: src, source: 'stock', durationSec: duration });
+    return true;
+  } catch (e) {
+    Alert.alert('Add failed', e instanceof Error ? e.message : String(e));
+    /*
+     * Answered rather than swallowed, because a caller may have a next step. The
+     * audio drawer opens the clip editor on what it just added, and doing that
+     * after a failed download opens it on nothing.
+     */
+    return false;
   }
 }
 
