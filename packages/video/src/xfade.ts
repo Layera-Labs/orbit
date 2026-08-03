@@ -246,7 +246,33 @@ export const TRANSITIONS: TransitionFamily[] = [
       { type: 'squeezev', dir: 'v', label: 'Squeeze down' },
     ],
   },
-  { key: 'zoom', label: 'Zoom', variants: [{ type: 'zoomin', label: 'Zoom' }] },
+  { key: 'zoom', label: 'Zoom', variants: [{ type: 'zoomin', label: 'Zoom rush' }] },
+  {
+    /*
+     * AUTHORED. A punch: the frame magnifies into the cut and settles out of
+     * it, so the two clips meet at the top of the move.
+     *
+     * Distinct from `zoomin` above, which is ffmpeg's and is not a punch at
+     * all — it magnifies the OUTGOING clip alone, without bound, and only
+     * brings the incoming one up over the second half. Hence the label there:
+     * three things called Zoom in one picker is worse than one of them saying
+     * what it does.
+     */
+    key: 'zoom1',
+    label: 'Zoom 1',
+    variants: [
+      { type: 'zoom1in', dir: 'in', label: 'Zoom in' },
+      { type: 'zoom1out', dir: 'out', label: 'Zoom out' },
+    ],
+  },
+  {
+    key: 'zoom2',
+    label: 'Zoom 2',
+    variants: [
+      { type: 'zoom2in', dir: 'in', label: 'Zoom in 2' },
+      { type: 'zoom2out', dir: 'out', label: 'Zoom out 2' },
+    ],
+  },
   { key: 'pixelate', label: 'Pixelate', variants: [{ type: 'pixelize', label: 'Pixelate' }] },
   { key: 'radial', label: 'Radial', variants: [{ type: 'radial', label: 'Radial' }] },
   { key: 'blur', label: 'Blur', variants: [{ type: 'hblur', label: 'Blur' }] },
@@ -327,7 +353,7 @@ export function ridesOverlayPath(name: string): boolean {
  * for that file to point ffmpeg at.
  */
 export function isAuthoredTransition(name: string): boolean {
-  return !!SHAKES[name] || !!FLASHES[name];
+  return !!SHAKES[name] || !!FLASHES[name] || !!ZOOMS[name];
 }
 
 /**
@@ -993,6 +1019,74 @@ export function flashExpr(at: number, overlap: number): string {
   return `clip(1-abs((T-${r(at)})/${r(overlap)}-0.5)/${FLASH_EDGE},0,1)`;
 }
 
+const r4 = (n: number) => Number(n.toFixed(4));
+
+/**
+ * The zoom families: how far the frame magnifies, and which way.
+ *
+ * `k` is the FULL travel — the factor a clip reaches at the far end of its own
+ * half of the transition. The frame never actually gets there, because the two
+ * clips meet at the midpoint: the visible peak is `(1+k)^0.5`, so 1.15 and 1.38
+ * here. Two tiers for the reason the shakes have two, which is that VN's list
+ * pairs them that way throughout.
+ */
+const ZOOMS: Record<string, { k: number; sign: 1 | -1 }> = {
+  zoom1in: { k: 0.32, sign: 1 },
+  zoom1out: { k: 0.32, sign: -1 },
+  zoom2in: { k: 0.9, sign: 1 },
+  zoom2out: { k: 0.9, sign: -1 },
+};
+
+/**
+ * How far the frame is magnified, at progress `p`, for one side of the cut.
+ *
+ * Geometric rather than linear, which is what makes the two directions exact
+ * mirrors: `out` is `in` with a negated exponent, so a zoom out undoes a zoom
+ * in of the same tier instead of merely looking like it might.
+ *
+ * The outgoing clip travels from 1 outward and the incoming one arrives out
+ * there and settles back to 1, so each is at 1 on the side of the cut where it
+ * stands alone — the same property the shake envelope is built around, and for
+ * the same reason: a clip that is not at its own scale on the first or last
+ * frame of the transition reads as the picture JUMPING, which is a different
+ * and much worse effect.
+ *
+ * **`out` shows the canvas.** Below 1 the frame no longer fills the output, so
+ * the background appears as a border through the middle of the transition —
+ * 6.5% of the frame at tier 1. That is the effect and not a bug: the honest
+ * mirror of a punch in is a pull back, and cropping to hide it would make the
+ * two directions different moves. Both previews and the export all draw it.
+ */
+export function zoomScaleAt(name: string, p: number, role: XfRole): number {
+  const z = ZOOMS[name];
+  if (!z) return 1;
+  const u = Math.min(1, Math.max(0, role === 'from' ? p : 1 - p));
+  return Math.pow(1 + z.k, z.sign * u);
+}
+
+/**
+ * The same curve as an ffmpeg expression over absolute time.
+ *
+ * Written twice, like `shakeExpr` and `flashExpr`, with a test comparing the
+ * two numerically. `1` when this clip carries no zoom on that side, so a caller
+ * can multiply the two sides together unconditionally: each side's progress
+ * clamps to its own window, so the side that is not transitioning contributes
+ * exactly nothing.
+ */
+export function zoomExpr(
+  name: string,
+  at: number,
+  overlap: number,
+  role: XfRole,
+): string {
+  const z = ZOOMS[name];
+  if (!z) return '1';
+  const p = `clip((t-${r4(at)})/${r4(overlap)},0,1)`;
+  const u = role === 'from' ? p : `(1-${p})`;
+  return `pow(${r4(1 + z.k)},${z.sign < 0 ? '-' : ''}${u})`;
+}
+
+
 /**
  * How far the frame is displaced, at progress `p`.
  *
@@ -1247,6 +1341,7 @@ const PREVIEWED = new Set<string>([
   ...Object.keys(SQUEEZES),
   ...Object.keys(SHAKES),
   ...Object.keys(FLASHES),
+  ...Object.keys(ZOOMS),
   'fadeblack',
   'fadewhite',
   'zoomin',
@@ -1287,6 +1382,13 @@ export function xfadeStateAt(
      */
     const { dx, dy } = shakeOffsetAt(name, p, W, H);
     return { alpha: role === 'to' ? p : 1, ...(dx ? { dx } : {}), ...(dy ? { dy } : {}) };
+  }
+  if (ZOOMS[name]) {
+    // Unlike a shake, the two sides carry DIFFERENT scales: each travels from
+    // its own end of the move, and they meet at the midpoint. That crossover is
+    // the punch, and it is why neither side is at 1 when the other is.
+    const s = zoomScaleAt(name, p, role);
+    return { alpha: role === 'to' ? p : 1, scale: { x: s, y: s } };
   }
   /*
    * The dip families. The outgoing clip is left alone and the incoming one
