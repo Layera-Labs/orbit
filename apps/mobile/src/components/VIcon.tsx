@@ -95,7 +95,22 @@ const ICONS = {
   gutterAudio: { circles: [[6, 18, 2.5], [16, 16, 2.5]], paths: ['M9 18V6l10-2v12'], sw: 2 },
   subtitle: { paths: ['M4 6h16M4 12h16M4 18h10'], sw: 2 },
   image: { rects: [[3, 4, 18, 14, 2]], paths: ['M3 14l5-4 4 3 4-4 5 4'], sw: 2 },
-  video: { rects: [[3, 6, 18, 12, 2]], paths: ['M3 10h18M8 6v12M16 6v12'], sw: 1.8 },
+  /*
+   * A frame with a play triangle in it, because the old one did not read as
+   * video at all: a rounded rect crossed by one horizontal and two vertical
+   * rules is a 2x3 TABLE, and on the timeline's main lane — where it is the
+   * only thing naming that lane — it was taken for a grid or a spreadsheet.
+   *
+   * The triangle's centroid, not its bounding box, sits on the centre: a
+   * triangle's optical centre is a third of the way from its base, so a
+   * box-centred one always looks pushed right. Base at x=10, apex at 15.4 puts
+   * the centroid at 11.8, a hair left of 12, which is where it looks right.
+   *
+   * Distinct from `play` (a bare filled triangle) by the frame around it, and
+   * from `image` (the same frame with a horizon and a sun) by what is inside —
+   * the two sit on adjacent lanes and have to be told apart at a glance.
+   */
+  video: { rects: [[3, 5, 18, 14, 3]], paths: ['M10 9l5.4 3-5.4 3Z'], sw: 1.9 },
   plus: { paths: ['M12 5v14M5 12h14'], sw: 2.4 },
 
   // ---- bottom nav ----
