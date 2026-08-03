@@ -208,6 +208,8 @@ export type TransitionType =
   | "shake2right"
   | "shake2up"
   | "shake2down"
+  | "light"
+  | "blink"
   | "fadeblack"
   | "fadewhite"
   | "wipeleft"

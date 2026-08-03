@@ -45,6 +45,8 @@ import {
 } from "./transform";
 import { buildEdgeFadeMap } from "./transitions";
 import {
+  flashColor,
+  flashFadeWindows,
   ridesOverlayPath,
   shakeExpr,
   type MainRun,
@@ -1020,6 +1022,41 @@ function buildMultiTrackArgs(
       runOf.set(i, r);
     }
 
+  /*
+   * The flash families draw a full-canvas solid BETWEEN the two clips, so it
+   * goes in at the incoming clip's turn — after the outgoing clip's overlay and
+   * before its own. That is the same slot `frameStateAt` emits its `veil` op
+   * in, and it is the only one that works: over the clip being left and under
+   * the clip arriving.
+   *
+   * The colour source is a `color` lavfi input running the WHOLE project, so
+   * its `t` is timeline time and the fades below can be written in absolute
+   * seconds like every other expression here. Its input index comes from
+   * `idx++` at the point of use, which appends it after every clip — inserting
+   * an input earlier would repoint every clip at the wrong file.
+   */
+  const placeFlash = (c: VisualTrackClip) => {
+    const b = xfades.get(c.id)?.asTo;
+    if (!b || !flashColor(b.name)) return;
+    const { inAt, outAt, ramp } = flashFadeWindows(b.at, b.overlap);
+    inputs.push("-f", "lavfi", "-t", String(duration), "-i",
+      `color=c=${flashColor(b.name)!.replace('#', '0x')}:s=${W}x${H}:r=${fps}`);
+    const fi = idx++;
+    const lab = `fl${fi}`;
+    segments.push(
+      `[${fi}:v]format=rgba,` +
+        // Two chained linear ramps ARE the triangle `flashAlphaAt` samples.
+        // `fade=t=in` holds alpha at 0 before `st` and `t=out` holds it at 0
+        // after, so the source is invisible outside the flash on its own.
+        `fade=t=in:st=${r3(inAt)}:d=${r3(ramp)}:alpha=1,` +
+        `fade=t=out:st=${r3(outAt)}:d=${r3(ramp)}:alpha=1[${lab}]`,
+    );
+    segments.push(
+      `${prev}[${lab}]overlay=0:0:enable='between(t,${r3(b.at)},${r3(b.at + b.overlap)})':eof_action=pass[${lab}o]`,
+    );
+    prev = `[${lab}o]`;
+  };
+
   visualClips.forEach((c, i) => {
     const run = runOf.get(i);
     if (run) {
@@ -1027,6 +1064,7 @@ function buildMultiTrackArgs(
       if (run.clipIdx[0] === i) emitRun(run);
       return;
     }
+    placeFlash(c);
     placeClip(i, emitClipLayer(c, i, c.start));
   });
 
