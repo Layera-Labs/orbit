@@ -1,0 +1,154 @@
+#!/bin/sh
+# Build and launch the mobile app on a real iPhone.
+#
+#   scripts/orbit-ios              build + install + launch on the connected device
+#   scripts/orbit-ios --list       what is plugged in, and whether it can be used
+#   scripts/orbit-ios --device X   pick by name or UDID, when more than one is attached
+#   scripts/orbit-ios --clean      throw away ios/ and prebuild from scratch first
+#
+# Three things this exists to stop being retyped or forgotten:
+#
+# 1. `expo run:ios` NEEDS a UTF-8 locale. Without one CocoaPods dies inside its
+#    own error reporter with "Unicode Normalization not appropriate for
+#    ASCII-8BIT", which reads like a broken CocoaPods install and is not — the
+#    real cause is printed one line above the stack and scrolls past.
+# 2. The UDID `expo --device` wants is `hardwareProperties.udid`
+#    (00008140-...), NOT the CoreDevice identifier that `devicectl list devices`
+#    prints in its table (51C8E0B0-...). They look equally official and only one
+#    of them matches.
+# 3. `expo prebuild` will NOT overwrite an existing ios/, so a change to
+#    app.json — a bundle id, a new native module's config plugin — silently does
+#    nothing until the directory is removed. That is `--clean`, and it is the
+#    answer whenever a build comes out behaving like the previous one.
+#
+# The simulator is unchanged and still `npm run ios` inside apps/mobile.
+#
+# Put it on PATH once and the prefix goes away:
+#   ln -s "$PWD/scripts/orbit-ios" /usr/local/bin/orbit-ios
+
+set -eu
+
+SELF=$0
+while [ -L "$SELF" ]; do
+  LINK=$(readlink "$SELF")
+  case $LINK in
+    /*) SELF=$LINK ;;
+    *) SELF=$(dirname "$SELF")/$LINK ;;
+  esac
+done
+ROOT=$(cd "$(dirname "$SELF")/.." && pwd)
+APP="$ROOT/apps/mobile"
+
+[ -d "$APP" ] || { echo "no apps/mobile under $ROOT" >&2; exit 1; }
+
+WANT=
+CLEAN=0
+LIST=0
+while [ $# -gt 0 ]; do
+  case $1 in
+    --list | -l) LIST=1 ;;
+    --clean) CLEAN=1 ;;
+    --device | -d) shift; WANT=${1:-} ;;
+    --help | -h)
+      awk 'NR > 1 && /^#/ { sub(/^# ?/, ""); print; next } NR > 1 { exit }' "$SELF"
+      exit 0
+      ;;
+    *) echo "unknown option: $1 (try --help)" >&2; exit 1 ;;
+  esac
+  shift
+done
+
+command -v xcrun >/dev/null || { echo "xcrun not found — install Xcode." >&2; exit 1; }
+
+# Devices, as `name<TAB>udid<TAB>usable<TAB>why`. `devicectl` is asked for JSON
+# rather than scraped from its table, because the table's Identifier column is
+# the CoreDevice UUID and feeding that to expo matches nothing.
+#
+# The JSON goes to a temp FILE and not to stdout, because `devicectl` prints
+# its human table to stdout as well — so `--json-output /dev/stdout` emits
+# valid JSON followed by a table, the parse fails, and the honest-looking
+# answer is "no devices paired". A wrong answer that reads as a normal one.
+devices() {
+  JSON=$(mktemp -t orbit-ios) || return 0
+  xcrun devicectl list devices --json-output "$JSON" >/dev/null 2>&1 || true
+  python3 -c '
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        doc = json.load(f)
+except Exception:
+    sys.exit(0)
+for d in doc.get("result", {}).get("devices", []):
+    props = d.get("deviceProperties", {})
+    hw = d.get("hardwareProperties", {})
+    if hw.get("platform") != "iOS" or not hw.get("udid"):
+        continue
+    # Developer Mode is a per-device toggle under Settings > Privacy &
+    # Security, and it is the usual reason a paired phone will not take a
+    # build. Naming it beats "no such device".
+    why = "" if props.get("developerModeStatus") == "enabled" else "Developer Mode off"
+    print("\t".join([props.get("name", "?"), hw["udid"], "no" if why else "yes", why]))
+' "$JSON"
+  rm -f "$JSON"
+}
+
+LIST_OUT=$(devices)
+
+if [ "$LIST" -eq 1 ]; then
+  [ -n "$LIST_OUT" ] || { echo "no iOS devices paired."; exit 0; }
+  printf '%s\n' "$LIST_OUT" | while IFS="$(printf '\t')" read -r name udid ok why; do
+    if [ "$ok" = yes ]; then
+      printf '%-22s %s\n' "$name" "$udid"
+    else
+      printf '%-22s %s  (%s)\n' "$name" "$udid" "$why"
+    fi
+  done
+  exit 0
+fi
+
+USABLE=$(printf '%s\n' "$LIST_OUT" | awk -F'\t' '$3 == "yes"')
+
+if [ -n "$WANT" ]; then
+  # Match on either column, so a name or a UDID both work — and so does a
+  # unique fragment of either, which is the whole point of not typing a UDID.
+  MATCH=$(printf '%s\n' "$USABLE" | grep -iF "$WANT" || true)
+  COUNT=$(printf '%s' "$MATCH" | grep -c . || true)
+  [ "$COUNT" -eq 1 ] || {
+    echo "'$WANT' matched $COUNT usable devices. Try: $0 --list" >&2
+    exit 1
+  }
+else
+  COUNT=$(printf '%s' "$USABLE" | grep -c . || true)
+  case $COUNT in
+    0)
+      echo "no usable iOS device." >&2
+      echo "Plug one in and trust this Mac, then check Settings > Privacy & Security >" >&2
+      echo "Developer Mode. $0 --list shows what is paired." >&2
+      exit 1
+      ;;
+    1) MATCH=$USABLE ;;
+    *)
+      echo "more than one device is connected — say which:" >&2
+      printf '%s\n' "$USABLE" | awk -F'\t' '{ printf "  %s --device \"%s\"\n", "'"$0"'", $1 }' >&2
+      exit 1
+      ;;
+  esac
+fi
+
+NAME=$(printf '%s' "$MATCH" | cut -f1)
+UDID=$(printf '%s' "$MATCH" | cut -f2)
+
+if [ "$CLEAN" -eq 1 ]; then
+  # ios/ is gitignored (Expo CNG — app.json is canonical), so removing it loses
+  # nothing that is not regenerated, and it is the only way a changed app.json
+  # reaches the build.
+  echo "removing $APP/ios so prebuild runs again"
+  rm -rf "$APP/ios"
+fi
+
+echo "building for $NAME ($UDID)"
+cd "$APP"
+# The locale is the whole reason for the wrapper on this line. Signing is left
+# to Xcode and expo: the first run on a new device asks for a team, and those
+# are your credentials to enter, not something to automate.
+LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 exec npx expo run:ios --device "$UDID"
