@@ -11,7 +11,7 @@
 # source, so it needs the whole pnpm workspace present to install and build.
 
 # ---- build ------------------------------------------------------------------
-FROM node:20-bookworm-slim AS build
+FROM node:22-trixie-slim AS build
 WORKDIR /app
 
 # Corepack pins pnpm to whatever packageManager says, so the image and a
@@ -40,11 +40,21 @@ RUN pnpm --filter @orbit/render-service... build
 RUN CI=true pnpm install --frozen-lockfile --prod --filter @orbit/render-service...
 
 # ---- run --------------------------------------------------------------------
-FROM node:20-bookworm-slim
+FROM node:22-trixie-slim
 WORKDIR /app
 
 # ffmpeg AND ffprobe: the engine probes for an audio stream before building the
 # filtergraph, and a clip with no audio used to crash the render without it.
+#
+# **The DISTRIBUTION is what decides which transitions this service can do**, so
+# the base tag above is a product decision and not a housekeeping one. `xfade`'s
+# `cover*` and `reveal*` families — the editor's Push and Reveal, 8 of the 36 it
+# offers — arrived in ffmpeg 6.1. Debian bookworm ships 5.1, so on
+# `node:20-bookworm-slim` those eight were hidden from both pickers by the
+# capability gate and refused by `renderProject`: correct behaviour, and a
+# quarter of the catalogue missing. Trixie (Debian 13) ships 7.1 and has them.
+# Check with `scripts/orbit-render caps` after any change here — that is the
+# whole reason it prints a verdict rather than a version.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
   && rm -rf /var/lib/apt/lists/*
