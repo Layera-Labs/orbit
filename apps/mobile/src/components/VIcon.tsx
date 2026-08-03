@@ -7,7 +7,8 @@
  * filled. Pass `name` for a catalogued icon, or `d` (+ optional circles/rects)
  * as an escape hatch for data-driven glyphs (folders, project menu, etc.).
  */
-import Svg, { Path, Circle, Rect } from 'react-native-svg';
+import { useId } from 'react';
+import Svg, { Path, Circle, Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
 
 type Circ = [cx: number, cy: number, r: number];
 type RectT = [x: number, y: number, w: number, h: number, rx?: number];
@@ -184,6 +185,17 @@ export interface VIconProps {
   /** override the spec's stroke/fill mode */
   mode?: 'stroke' | 'fill';
   strokeWidth?: number;
+  /**
+   * Paint the mark itself with a gradient instead of a flat `color`.
+   *
+   * Two or more stops, applied corner to corner. This is the ONE decorative
+   * licence taken with icons here and it is deliberately confined to the mark:
+   * the design law calls a gradient BEHIND an icon (a tile, a chip, a glowing
+   * pill) a machine-made default, and a gradient INSIDE one — a jewel in the
+   * glyph — the premium version of the same instinct. Use it on a single mark
+   * that has earned it, never across a set.
+   */
+  gradient?: string[];
 }
 
 export function VIcon({
@@ -195,12 +207,27 @@ export function VIcon({
   color = '#ffffff',
   mode,
   strokeWidth,
+  gradient,
 }: VIconProps) {
   const spec: IconSpec = name ? ICONS[name] : { paths: d ? [d] : [], circles, rects };
   const m = mode ?? spec.mode ?? 'stroke';
   const sw = strokeWidth ?? spec.sw ?? 2;
-  const stroke = m === 'stroke' ? color : 'none';
-  const fill = m === 'fill' ? color : 'none';
+  /*
+   * React's own id, stripped to something SVG will accept — it hands back
+   * `:r7:`, and `url(#:r7:)` is not a reference any renderer resolves. Unique
+   * per mounted icon, so two gradient icons on one screen cannot collide on a
+   * hardcoded id and both take the first one's colours.
+   */
+  const gid = `vg${useId().replace(/[^a-zA-Z0-9]/g, '')}`;
+  const paint = gradient && gradient.length > 1 ? `url(#${gid})` : color;
+  const stroke = m === 'stroke' ? paint : 'none';
+  const fill = m === 'fill' ? paint : 'none';
+  /*
+   * `userSpaceOnUse` over the viewBox, not the default `objectBoundingBox`:
+   * bounding-box units are resolved per SHAPE, so a mark drawn as three paths
+   * would run the full ramp three times instead of once across the glyph.
+   */
+  const [, , vbW = 24, vbH = 24] = (spec.vb ?? '0 0 24 24').split(/\s+/).map(Number);
 
   return (
     <Svg
@@ -209,6 +236,26 @@ export function VIcon({
       viewBox={spec.vb ?? '0 0 24 24'}
       fill="none"
     >
+      {gradient && gradient.length > 1 ? (
+        <Defs>
+          <LinearGradient
+            id={gid}
+            gradientUnits="userSpaceOnUse"
+            x1={0}
+            y1={0}
+            x2={vbW}
+            y2={vbH}
+          >
+            {gradient.map((c, i) => (
+              <Stop
+                key={i}
+                offset={gradient.length === 1 ? 0 : i / (gradient.length - 1)}
+                stopColor={c}
+              />
+            ))}
+          </LinearGradient>
+        </Defs>
+      ) : null}
       {spec.rects?.map((r, i) => (
         <Rect
           key={`r${i}`}

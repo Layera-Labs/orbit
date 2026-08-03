@@ -74,15 +74,37 @@ interface PickProps {
   onLongSelect: (selection: DrawerSelection) => void;
 }
 
+/**
+ * The AI mark's gradient — the one place in the rail that is not a flat colour.
+ *
+ * Deliberately NOT indigo-into-purple: that pairing is the single most
+ * recognisable machine-made colour move there is, which makes it the worst
+ * possible choice for the button that says "made by a machine". This runs from
+ * the brand accent into a warm amber, so it passes through a dusty mauve on the
+ * way and reads as light refracting rather than as a stock AI badge.
+ *
+ * It is on the GLYPH, not behind it. The tile and the label stay the tab's flat
+ * colour, so the rail is still a legend and only one thing in it shimmers.
+ */
+const AI_GRADIENT = ["#5b4bff", "#ffb347"];
+
+/*
+ * Upload · Stock · AI · Library, in that order and on purpose. AI led this rail
+ * and was therefore also what the drawer opened on — so the first thing offered
+ * for "add an image" was "generate one", ahead of the two ways of getting a
+ * picture that already exists. The default moves with it: a rail that opens on
+ * its third item reads as a rail you have already been clicking.
+ */
 const TABS: Array<{
   key: DrawerTab;
   label: string;
   icon: VIconName;
   color: string;
+  gradient?: string[];
 }> = [
-  { key: "ai", label: "AI", icon: "fx", color: "#5b4bff" },
   { key: "upload", label: "Upload", icon: "export", color: "#2f7bff" },
   { key: "stock", label: "Stock", icon: "image", color: "#e84da0" },
+  { key: "ai", label: "AI", icon: "fx", color: "#5b4bff", gradient: AI_GRADIENT },
   { key: "library", label: "Library", icon: "templates", color: "#8b5cf6" },
 ];
 
@@ -106,7 +128,7 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
   const importOverlay = useEditor((s) => s.importOverlay);
   const setMediaDuration = useEditor((s) => s.setMediaDuration);
   const setSourceDims = useEditor((s) => s.setSourceDims);
-  const [tab, setTab] = useState<DrawerTab>("ai");
+  const [tab, setTab] = useState<DrawerTab>("upload");
   const [records, setRecords] = useState<GenRecord[]>(() => loadHistory());
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   /*
@@ -446,6 +468,10 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
                     name={item.icon}
                     size={20}
                     color={active ? item.color : vela.lightMuted}
+                    // The gradient rides whether or not the tab is selected —
+                    // that IS the highlight. Only on selection would make it a
+                    // second selected-state, not a mark that stands out.
+                    gradient={item.gradient}
                   />
                 </View>
                 <Text

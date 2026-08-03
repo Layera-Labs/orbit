@@ -65,18 +65,46 @@ type AudioSelection =
   | { type: "sfx"; id: string; item: SfxItem }
   | { type: "cc"; id: string; item: CcItem };
 
+/**
+ * The AI mark's gradient — the one place in the rail that is not a flat colour.
+ *
+ * Deliberately NOT indigo-into-purple: that pairing is the single most
+ * recognisable machine-made colour move there is, which makes it the worst
+ * possible choice for the button that says "made by a machine". This runs from
+ * the brand accent into a warm amber, so it passes through a dusty mauve on the
+ * way and reads as light refracting rather than as a stock AI badge.
+ *
+ * It is on the GLYPH, not behind it. The tile and the label stay the tab's flat
+ * colour, so the rail is still a legend and only one thing in it shimmers.
+ */
+const AI_GRADIENT = ["#5b4bff", "#ffb347"];
+
+/*
+ * The same spine as the media drawer — Upload · Stock · AI, Library last — with
+ * the three sources only audio has sitting between AI and Library. Two rails
+ * that share four of their entries must not order those four differently; that
+ * is how muscle memory built in one sheet misfires in the other.
+ */
 const AUDIO_TABS: Array<{
   key: AudioTab;
   label: string;
   icon: VIconName;
   color: string;
+  gradient?: string[];
 }> = [
-  { key: "music", label: "Music", icon: "audio", color: "#5b4bff" },
   { key: "upload", label: "Upload", icon: "export", color: "#2f7bff" },
-  { key: "ai", label: "AI", icon: "fx", color: "#a44cf2" },
+  /*
+   * `grid`, not `gutterAudio` — that glyph is the same note as Music's, and
+   * with Stock at 2 and Music at 4 the two sat in one glance wearing the same
+   * mark. A rail is a legend; two entries that draw the same thing is the one
+   * thing it may not do. A grid also says what this tab is: a catalogue to
+   * browse, rather than another shelf of notes.
+   */
+  { key: "stock", label: "Stock", icon: "grid", color: "#e84da0" },
+  { key: "ai", label: "AI", icon: "fx", color: "#a44cf2", gradient: AI_GRADIENT },
+  { key: "music", label: "Music", icon: "audio", color: "#5b4bff" },
   { key: "record", label: "Record", icon: "record", color: "#15b8a6" },
   { key: "soundfx", label: "Sound FX", icon: "soundfx", color: "#f39b3f" },
-  { key: "stock", label: "Stock", icon: "gutterAudio", color: "#e84da0" },
   { key: "library", label: "Library", icon: "templates", color: "#8b5cf6" },
 ];
 
@@ -97,7 +125,7 @@ export function AudioDrawerSheet() {
    * audio came out of the speaker.
    */
   const [playingId, setPlayingId] = useState<string | null>(null);
-  const [tab, setTab] = useState<AudioTab>("music");
+  const [tab, setTab] = useState<AudioTab>("upload");
   const [records, setRecords] = useState<AudioLibraryRecord[]>(() =>
     loadAudioHistory(),
   );
@@ -342,6 +370,10 @@ export function AudioDrawerSheet() {
                     name={item.icon}
                     size={18}
                     color={active ? item.color : vela.lightMuted}
+                    // Rides whether or not the tab is selected — that IS the
+                    // highlight. On selection only, it would be a second
+                    // selected-state rather than a mark that stands out.
+                    gradient={item.gradient}
                   />
                 </View>
                 <Text
