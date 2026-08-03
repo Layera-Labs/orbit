@@ -13,7 +13,7 @@
  * SWAPS the subject the token names rather than turning authentication on.
  */
 import { create } from 'zustand';
-import { loginUser, registerUser, requestPasswordReset, resetPassword as resetPasswordReq, type AuthUser } from '../net/authClient';
+import { loginUser, registerUser, requestPasswordReset, resetPassword as resetPasswordReq, type AuthUser, type ResetDelivery } from '../net/authClient';
 import { restoreSession, setSession } from '../net/session';
 import { resetSyncMark } from '../net/syncClient';
 import { useSync } from './syncStore';
@@ -28,7 +28,7 @@ interface AuthState {
   hydrate: () => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
-  requestReset: (email: string) => Promise<void>;
+  requestReset: (email: string) => Promise<ResetDelivery>;
   resetPassword: (token: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
 }
@@ -79,7 +79,7 @@ export const useAuth = create<AuthState>((set) => ({
 
   requestReset: async (email) => {
     const base = useEditor.getState().serverUrl;
-    await requestPasswordReset(base, email);
+    return requestPasswordReset(base, email);
   },
 
   resetPassword: async (token, password) => {

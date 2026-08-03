@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type FormEvent } from 'react';
+import type { ResetDelivery } from '@/net/authClient';
 import { AuthError, useAuth } from '@/store/authStore';
 import styles from './SignIn.module.css';
 
@@ -29,7 +30,7 @@ export function SignIn({ compact = false }: { compact?: boolean }) {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [sent, setSent] = useState(false);
+  const [sent, setSent] = useState<ResetDelivery | null>(null);
 
   const login = useAuth((s) => s.login);
   const register = useAuth((s) => s.register);
@@ -41,8 +42,7 @@ export function SignIn({ compact = false }: { compact?: boolean }) {
     setError(null);
     try {
       if (mode === 'forgot') {
-        await requestReset(email.trim());
-        setSent(true);
+        setSent(await requestReset(email.trim()));
       } else if (mode === 'register') {
         await register(email.trim(), password);
       } else {
@@ -62,15 +62,23 @@ export function SignIn({ compact = false }: { compact?: boolean }) {
   const swap = (next: Mode) => {
     setMode(next);
     setError(null);
-    setSent(false);
+    setSent(null);
   };
 
+  /*
+   * Worded from what the server SAID it sent. A service with no public address
+   * configured mails the raw token instead of a link, and telling that user to
+   * look for a link leaves them hunting an email for something that is not in
+   * it. The token can only be redeemed in the app — this surface has no field
+   * for one.
+   */
   if (sent)
     return (
       <div className={styles.form} data-compact={compact}>
         <p className={styles.note}>
-          If an account exists for {email.trim()}, a reset link is on its way. The link
-          works once and expires.
+          {sent === 'link'
+            ? `If an account exists for ${email.trim()}, a reset link is on its way. It works once and expires in an hour.`
+            : `If an account exists for ${email.trim()}, a reset code is on its way. Enter it in the Orbit app to choose a new password. It works once and expires in an hour.`}
         </p>
         <button type="button" className={styles.link} onClick={() => swap('login')}>
           Back to sign in

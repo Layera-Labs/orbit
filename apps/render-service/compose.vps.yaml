@@ -94,6 +94,30 @@ services:
       ORBIT_MAX_MEDIA_BYTES: ${ORBIT_MAX_MEDIA_BYTES:-5368709120}
       ORBIT_MAX_OUTPUT_BYTES: ${ORBIT_MAX_OUTPUT_BYTES:-5368709120}
 
+      # The service's own public address, e.g. https://orbit-api.example.com.
+      # Set it and password-reset emails link to the reset page this service
+      # serves at /reset; leave it unset and the raw token is emailed instead,
+      # for the user to paste into the app.
+      #
+      # It has to be STATED. The obvious shortcut — build the link from the
+      # request's Host header — is the classic reset-poisoning hole: anyone can
+      # post to /v1/auth/forgot with a Host of their choosing and have a valid
+      # token mailed to your user pointing at their box.
+      ORBIT_PUBLIC_URL: ${ORBIT_PUBLIC_URL:-}
+
+      # Transactional email, which is what makes password reset work at all.
+      # Without RESEND_API_KEY, /v1/auth/forgot answers 503 and the app tells
+      # the user reset is unavailable. These MUST be listed here: compose passes
+      # through only the variables a service names, so putting them in .env
+      # alone leaves the container without them and the symptom is a 503 from a
+      # server whose .env plainly contains the key.
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      # Optional override — a deep link or a page of your own. Unset, the reset
+      # link is built from ORBIT_PUBLIC_URL above.
+      EMAIL_RESET_URL_BASE: ${EMAIL_RESET_URL_BASE:-}
+
       RUNWAY_API_TOKEN: ${RUNWAY_API_TOKEN:-}
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
       ORBIT_RENDER_COST: ${ORBIT_RENDER_COST:-0}

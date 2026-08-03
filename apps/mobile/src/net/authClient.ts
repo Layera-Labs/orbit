@@ -60,11 +60,21 @@ export function loginUser(base: string, email: string, password: string): Promis
 }
 
 /**
+ * How this server delivers a reset. A property of the SERVER, never of the
+ * account, which is why it can be reported without leaking who has one:
+ * `link` means a reset page was mailed, `code` means the raw token was.
+ */
+export type ResetDelivery = 'link' | 'code';
+
+/**
  * Request a password-reset email. Always resolves (200) when the server can send
  * mail — the response never reveals whether the address has an account. Throws
  * `email-unconfigured` (503) when the server has no email provider set up.
+ *
+ * Older servers answer `{ok:true}` with no `delivery`; they predate the reset
+ * page and only ever mailed the raw token, so `code` is the right assumption.
  */
-export async function requestPasswordReset(base: string, email: string): Promise<void> {
+export async function requestPasswordReset(base: string, email: string): Promise<ResetDelivery> {
   let res: Response;
   try {
     res = await fetch(`${clean(base)}/v1/auth/forgot`, {
@@ -75,8 +85,8 @@ export async function requestPasswordReset(base: string, email: string): Promise
   } catch {
     throw new AuthError('no-server', 'Could not reach the server. Check the render-server URL in Profile.');
   }
-  if (res.ok) return;
-  const data = (await res.json().catch(() => ({}))) as { error?: string; kind?: AuthErrorKind };
+  const data = (await res.json().catch(() => ({}))) as { error?: string; kind?: AuthErrorKind; delivery?: ResetDelivery };
+  if (res.ok) return data.delivery === 'link' ? 'link' : 'code';
   if (res.status === 404) throw new AuthError('not-configured', 'This server does not have self-hosted accounts enabled.');
   if (res.status === 503) throw new AuthError('email-unconfigured', data.error ?? 'Email is not configured on this server yet.');
   throw new AuthError(data.kind ?? 'failed', data.error ?? `Request failed (HTTP ${res.status}).`);

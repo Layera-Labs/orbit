@@ -148,12 +148,28 @@ export function AuthSheet({
     setErr(null);
     setInfo(null);
     try {
-      await requestReset(email);
-      setInfo(
-        `If an account exists for ${email.trim()}, a reset code is on its way. Paste it below to set a new password.`,
-      );
-      setPassword("");
-      setView("reset");
+      /*
+       * The server says how it delivers, and the two answers are different
+       * screens. A server with a reset page mails a LINK — sending the user to
+       * a paste-a-code field then leaves them hunting an email for a code that
+       * was never in it, which is how a working flow reads as broken. Only the
+       * `code` server has anything to paste.
+       */
+      const delivery = await requestReset(email);
+      const addressed = `If an account exists for ${email.trim()},`;
+      if (delivery === "link") {
+        setInfo(
+          `${addressed} a reset link is on its way. Open it to choose a new password, then come back and sign in.`,
+        );
+        setPassword("");
+        setView("login");
+      } else {
+        setInfo(
+          `${addressed} a reset code is on its way. Paste it below to set a new password.`,
+        );
+        setPassword("");
+        setView("reset");
+      }
     } catch (e) {
       setErr(friendly(e));
     } finally {
