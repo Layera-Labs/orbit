@@ -45,7 +45,8 @@ import {
 } from "./transform";
 import { buildEdgeFadeMap } from "./transitions";
 import {
-  isAlphaOnly,
+  ridesOverlayPath,
+  shakeExpr,
   type MainRun,
   planMainRuns,
   resolveTransitions,
@@ -595,8 +596,29 @@ function buildMultiTrackArgs(
      */
     const xfIn = (() => {
       const b = xfades.get(c.id)?.asTo;
-      return b && isAlphaOnly(b.name) ? b : undefined;
+      return b && ridesOverlayPath(b.name) ? b : undefined;
     })();
+    /*
+     * The shake this clip is inside, on EITHER side of it — a shake displaces
+     * the whole frame, so the outgoing clip moves exactly as far as the
+     * incoming one. `asTo` wins when a clip is between two of them, matching
+     * `frameStateAt`, which resolves the boundary the playhead is actually in.
+     *
+     * `at` is rebased into this chain's frame of reference: `T0` is `c.start`
+     * on the ordinary path and 0 inside a run, and the expression is evaluated
+     * against whichever `t` that chain runs on.
+     */
+    const shakeB = (() => {
+      const x = xfades.get(c.id);
+      for (const b of [x?.asTo, x?.asFrom]) {
+        if (b && shakeExpr(b.name, 0, b.overlap, W, H, 'x') !== '0') return b;
+        if (b && shakeExpr(b.name, 0, b.overlap, W, H, 'y') !== '0') return b;
+      }
+      return undefined;
+    })();
+    const shakeAt = shakeB ? T0 + (shakeB.at - c.start) : 0;
+    const kx = shakeB ? shakeExpr(shakeB.name, shakeAt, shakeB.overlap, W, H, 'x') : '0';
+    const ky = shakeB ? shakeExpr(shakeB.name, shakeAt, shakeB.overlap, W, H, 'y') : '0';
     const key = chromaToFFmpeg(c.cutout);
     const kfs = c.keyframes;
     const kfOpacity = hasKeyframes(kfs) && animatesOpacity(kfs!);
@@ -819,11 +841,15 @@ function buildMultiTrackArgs(
       kfExpr: string | null,
       anchor: number,
       slide: string,
+      shake: string,
     ) => {
       const parts: string[] = [];
       if (kfExpr) parts.push(anchor ? `(${kfExpr})-${anchor}` : kfExpr);
       else parts.push(String(base));
       if (slide !== "0") parts.push(`(${slide})`);
+      // A shake is a DELTA like a slide, so it composes with the rect, a
+      // keyframed position and a slide rather than replacing any of them.
+      if (shake !== "0") parts.push(`(${shake})`);
       return parts.length === 1 && !kfExpr ? `${base}` : `'${parts.join("+")}'`;
     };
     return {
@@ -833,12 +859,14 @@ function buildMultiTrackArgs(
         kfPosition ? keyframeExpr(kfs!, "x", S, c.duration, "t", W) : null,
         dx,
         sx,
+        kx,
       ),
       oy: place(
         `${py}`,
         kfPosition ? keyframeExpr(kfs!, "y", S, c.duration, "t", H) : null,
         dy,
         sy,
+        ky,
       ),
       px,
       py,

@@ -191,6 +191,23 @@ export interface ElementAnim {
 export type TransitionType =
   | "cut"
   | "fade"
+  /*
+   * The AUTHORED families, below. Every other value here is an ffmpeg `xfade`
+   * token verbatim; these are not, because `xfade` has nothing like them — VN
+   * and CapCut ship a shake and ffmpeg does not. They are still exact in the
+   * export: a shake is a crossfade plus a whole-frame jitter, and the per-clip
+   * `overlay=x:y` already takes a time-varying expression, so nothing new has
+   * to run. `ridesOverlayPath` is what keeps them off the `xfade` chain, and
+   * off the server capability gate — there is no token for a build to lack.
+   */
+  | "shakeleft"
+  | "shakeright"
+  | "shakeup"
+  | "shakedown"
+  | "shake2left"
+  | "shake2right"
+  | "shake2up"
+  | "shake2down"
   | "fadeblack"
   | "fadewhite"
   | "wipeleft"
