@@ -173,6 +173,35 @@ export const TRANSITIONS: TransitionFamily[] = [
     ],
   },
   {
+    /*
+     * AUTHORED, not an `xfade` token — the whole frame jitters while the two
+     * clips cross-fade. `xfade` has no shake at all, and the editors this app
+     * is modelled on all ship one.
+     *
+     * Two intensities because VN's list pairs them that way throughout (Zoom
+     * 1/2, Dissolve 1/2, Rotate 1/2): the numbered sibling is the same idea
+     * harder, not a different one.
+     */
+    key: 'shake',
+    label: 'Shake',
+    variants: [
+      { type: 'shakeleft', dir: 'left', label: 'Shake left' },
+      { type: 'shakeright', dir: 'right', label: 'Shake right' },
+      { type: 'shakeup', dir: 'up', label: 'Shake up' },
+      { type: 'shakedown', dir: 'down', label: 'Shake down' },
+    ],
+  },
+  {
+    key: 'shake2',
+    label: 'Shake 2',
+    variants: [
+      { type: 'shake2left', dir: 'left', label: 'Shake left 2' },
+      { type: 'shake2right', dir: 'right', label: 'Shake right 2' },
+      { type: 'shake2up', dir: 'up', label: 'Shake up 2' },
+      { type: 'shake2down', dir: 'down', label: 'Shake down 2' },
+    ],
+  },
+  {
     key: 'circle',
     label: 'Circle',
     variants: [
@@ -265,6 +294,34 @@ export function isAlphaOnly(name: string): boolean {
 }
 
 /**
+ * Whether this transition is performed by the clips themselves rather than by
+ * an `xfade` filter joining them.
+ *
+ * True for `fade` (see `isAlphaOnly`) and for every AUTHORED family, and the
+ * consequences run further than the filtergraph. Such a transition **cannot be
+ * missing from a build**, because it names no `xfade` token — so it is never
+ * subtracted by the server capability gate, never refused by `renderProject`,
+ * and works against an ffmpeg that has no `xfade` filter whatsoever. It is also
+ * the one kind that survives on a blended clip, whose export branch reads the
+ * canvas underneath it and therefore cannot live inside a run.
+ */
+export function ridesOverlayPath(name: string): boolean {
+  return isAlphaOnly(name) || isAuthoredTransition(name);
+}
+
+/**
+ * Whether this transition is ours rather than ffmpeg's.
+ *
+ * Distinct from `ridesOverlayPath`, and the difference is not pedantry: `fade`
+ * rides the overlay path too, but it IS an `xfade` token and
+ * `xfade-probe.test.ts` measures it as one. Only an authored family has nothing
+ * for that file to point ffmpeg at.
+ */
+export function isAuthoredTransition(name: string): boolean {
+  return !!SHAKES[name];
+}
+
+/**
  * Whether BOTH previews render this transition, and therefore whether a picker
  * may offer it.
  *
@@ -315,7 +372,7 @@ export function previewableTransitions(
       // A cut names no filter and a fade is drawn by the compositor rather
       // than by `xfade` (see `isAlphaOnly`), so neither can be missing from a
       // build and neither is ever subtracted.
-      return !name || isAlphaOnly(name) || ok.has(name);
+      return !name || ridesOverlayPath(name) || ok.has(name);
     }),
   })).filter((f) => f.variants.length > 0);
 }
@@ -454,7 +511,7 @@ export function planMainRuns(
   const runs: MainRun[] = [];
   let cur: MainRun | null = null;
   for (const b of boundaries) {
-    if (isAlphaOnly(b.name)) {
+    if (ridesOverlayPath(b.name)) {
       cur = null;
       continue;
     }
@@ -781,6 +838,97 @@ export function xfadeStateFor(
  * there rather than on a scaled fraction of one. Same rule, resolved twice, at
  * each surface's own resolution.
  */
+/**
+ * The shake families: amplitude as a fraction of the short edge, and how many
+ * times the frame swings across the transition.
+ *
+ * `sign` is the direction the FIRST swing goes, which is the only thing that
+ * separates `shakeleft` from `shakeright` — an oscillation is symmetric, so a
+ * direction can only mean which way it starts.
+ */
+const SHAKES: Record<
+  string,
+  { axis: 'x' | 'y'; sign: 1 | -1; amp: number; freq: number }
+> = {
+  shakeleft: { axis: 'x', sign: -1, amp: 0.03, freq: 3 },
+  shakeright: { axis: 'x', sign: 1, amp: 0.03, freq: 3 },
+  shakeup: { axis: 'y', sign: -1, amp: 0.03, freq: 3 },
+  shakedown: { axis: 'y', sign: 1, amp: 0.03, freq: 3 },
+  shake2left: { axis: 'x', sign: -1, amp: 0.06, freq: 5 },
+  shake2right: { axis: 'x', sign: 1, amp: 0.06, freq: 5 },
+  shake2up: { axis: 'y', sign: -1, amp: 0.06, freq: 5 },
+  shake2down: { axis: 'y', sign: 1, amp: 0.06, freq: 5 },
+};
+
+/**
+ * How far the frame is displaced, at progress `p`.
+ *
+ * `sin(PI*p)` is the ENVELOPE and it is the load-bearing half: it is zero at
+ * both ends, so the frame is exactly where it belongs on the first and last
+ * frame of the transition. An oscillation without it would start and stop
+ * mid-swing and read as the picture jumping, which is a different and much
+ * worse effect than a shake.
+ *
+ * Written twice, as `element-anim.ts` writes its ramps — once here for the
+ * previews and once as an ffmpeg expression in `shakeExpr` — with a test
+ * asserting the two agree numerically rather than by inspection.
+ */
+export function shakeOffsetAt(
+  name: string,
+  p: number,
+  W: number,
+  H: number,
+): { dx: number; dy: number } {
+  const s = SHAKES[name];
+  if (!s) return { dx: 0, dy: 0 };
+  const d =
+    s.sign *
+      s.amp *
+      Math.min(W, H) *
+      Math.sin(Math.PI * p) *
+      Math.sin(2 * Math.PI * s.freq * p);
+  /*
+   * Snap trig noise to a true zero, the way `rotatedBoxPx` does for the same
+   * reason. `Math.sin(Math.PI)` is 1.22e-16, not 0, so the envelope never quite
+   * closes and the displacement at `p = 1` comes out around 1e-30 with a
+   * NEGATIVE sign on the leftward variants. Neither is visible; both are
+   * corrosive. A negative zero survives JSON and `Object.is(-0, 0)` is false,
+   * so two identical frames compare unequal — and "the frame is exactly where
+   * it belongs on the last frame of the transition" stops being something that
+   * can be asserted at all.
+   */
+  const snapped = Math.abs(d) < 1e-6 ? 0 : d;
+  return s.axis === 'x' ? { dx: snapped, dy: 0 } : { dx: 0, dy: snapped };
+}
+
+/**
+ * The same displacement as an ffmpeg `overlay=x:y` expression, or `'0'` when
+ * this axis does not move.
+ *
+ * `'0'` rather than an expression that evaluates to zero, because
+ * `emitClipLayer` tests for exactly that literal to decide whether to compose a
+ * term at all — which is what keeps the filtergraph byte-identical for every
+ * clip that has no shake.
+ *
+ * `at` is in the SAME frame of reference as the `t` the expression will be
+ * evaluated in. On the ordinary overlay path that is timeline seconds; the
+ * caller is what knows which, so it is not assumed here.
+ */
+export function shakeExpr(
+  name: string,
+  at: number,
+  overlap: number,
+  W: number,
+  H: number,
+  axis: 'x' | 'y',
+): string {
+  const s = SHAKES[name];
+  if (!s || s.axis !== axis || !(overlap > 0)) return '0';
+  const a = r3(s.sign * s.amp * Math.min(W, H));
+  const prog = `clip((t-${r3(at)})/${r3(overlap)},0,1)`;
+  return `${a}*sin(PI*${prog})*sin(${r3(2 * s.freq)}*PI*${prog})`;
+}
+
 /** ffmpeg's own `smoothstep`, cubic and clamped (`vf_xfade.c:290`). */
 function smoothstep(edge0: number, edge1: number, x: number): number {
   const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
@@ -962,6 +1110,7 @@ const PREVIEWED = new Set<string>([
   ...Object.keys(SLIDES),
   ...Object.keys(MASKS),
   ...Object.keys(SQUEEZES),
+  ...Object.keys(SHAKES),
   'fadeblack',
   'fadewhite',
   'zoomin',
@@ -993,6 +1142,15 @@ export function xfadeStateAt(
    * this one is exact where the colour grade is not.
    */
   if (name === 'fade') return { alpha: role === 'to' ? p : 1 };
+  if (SHAKES[name]) {
+    /*
+     * BOTH sides carry the same displacement, because it is the frame that
+     * shakes and not one picture inside it — offsetting only the incoming clip
+     * would read as that clip sliding around on top of a steady one.
+     */
+    const { dx, dy } = shakeOffsetAt(name, p, W, H);
+    return { alpha: role === 'to' ? p : 1, ...(dx ? { dx } : {}), ...(dy ? { dy } : {}) };
+  }
   /*
    * The dip families. The outgoing clip is left alone and the incoming one
    * carries the weight solved in `xfadeVeilAt`; the solid between them is a

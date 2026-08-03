@@ -37,7 +37,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { buildFFmpegArgs } from '../ffmpeg';
 import type { VideoProject } from '../types';
-import { TRANSITIONS, xfadeStateAt, type XfState } from '../xfade';
+import { isAuthoredTransition, TRANSITIONS, xfadeStateAt, type XfState } from '../xfade';
 import {
   FIXTURE_PATH,
   PROBE,
@@ -47,9 +47,17 @@ import {
 
 const ENABLED = process.env.ORBIT_FFMPEG_PROBE === '1';
 
-/** Every catalogued token except `cut`, which is the absence of a transition. */
+/**
+ * Every catalogued `xfade` TOKEN.
+ *
+ * `cut` is the absence of a transition, and the authored families (Shake, and
+ * whatever joins it) name no token at all — they are performed by the clips
+ * themselves on the ordinary overlay path, so there is no `xfade=transition=`
+ * for this file to measure. Note this is NOT `ridesOverlayPath`: `fade` rides
+ * that path too and is still a token this file measures.
+ */
 const FAMILIES = TRANSITIONS.flatMap((f) => f.variants.map((v) => v.type)).filter(
-  (t) => t !== 'cut',
+  (t) => t !== 'cut' && !isAuthoredTransition(t),
 );
 
 function ffmpeg(args: string[]): Buffer {
