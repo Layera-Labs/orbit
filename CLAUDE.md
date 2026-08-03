@@ -1157,7 +1157,46 @@ pnpm --filter @orbit/studio dev # v2 demo
     `syncDelete` used to catch only a THROWN error, so a 500 or an expired session answered
     it successfully; and an absent tombstone is indistinguishable from a project the server
     was never told about, so the next full pull handed it straight back.
-  - Still open: purchase config, social login.
+  - **Password reset is a link to a page the SERVICE serves** (2026-08-03). Register and
+    login were always fine; reset was built, tested and unreachable — the deployed box
+    answered `503 email-unconfigured`, so anyone who forgot a password lost their account
+    and its credits. Three things were wrong and only one was the missing API key.
+    `compose.vps.yaml` **never forwarded the email variables at all**, so a key in `.env`
+    would have changed nothing (compose passes through only what a service names); and
+    once forwarded, `${EMAIL_PROVIDER:-}` passes the EMPTY STRING, which `??` does not
+    fire on — `env.EMAIL_PROVIDER ?? …` resolved to `""`, missed the `resend` branch and
+    returned null on a box whose `.env` plainly contained the key. Every read in
+    `emailSenderFromEnv` is truthiness now, for exactly the reason the byte budgets are.
+    The delivered token is a **~300-character JWT**, so "paste this code in the app" was
+    never really usable: mail clients hard-wrap it and what comes back off the clipboard
+    no longer verifies. So the service serves `GET /reset` itself (`src/reset-page.ts`) —
+    a deep link needs a URL scheme the app does not have, and `apps/web` is not deployed,
+    while the API is already on HTTPS and is the one origin that can hold the form AND
+    answer it. Five things about it are deliberate:
+      - **The token is never interpolated into the markup.** It is read client-side out of
+        `location.search`, which makes the response a CONSTANT — `RESET_PAGE_HTML` is a
+        plain `const`, not a function, so nobody can pass it the token later. Same rule as
+        the SVG builder, same reason.
+      - **`Referrer-Policy: no-referrer` and `connect-src 'self'`.** The token rides in the
+        URL, so any outbound request would carry it in `Referer`; the CSP means even an
+        injected script could not post it off-origin. Plus `frame-ancestors 'none'` — a
+        reset form is a clickjacking target. `replaceState` strips the token from the
+        address bar so it stays out of history and out of anything the user copies.
+      - **The reset link's base is STATED (`ORBIT_PUBLIC_URL`), never derived from the
+        request.** Building it from the `Host` header is the classic reset-poisoning hole:
+        POST to `/v1/auth/forgot` with a `Host` of your choosing and a VALID token is
+        mailed to someone else's user, aimed at your box.
+      - **A send failure never reaches the caller.** It used to 500, which was an
+        enumeration oracle — a send is only ATTEMPTED when the account exists, so 500 vs
+        200 named the registered addresses and defeated the identical-response rule
+        directly above it. It logs `reset-email-failed` and answers 200.
+      - **`/v1/auth/forgot` returns `delivery: 'link' | 'code'`**, and both clients read it.
+        That is a property of the SERVER, not of the account, so saying it leaks nothing —
+        and without it the app sent everyone to a paste-a-code screen after mailing a
+        link, which is a working flow that reads as broken. A server predating this omits
+        the field and only ever mailed the token, so absent means `code`.
+  - Still open: purchase config, social login. Both are credential-dependent, and the
+    Apple/Google buttons in `AuthSheet` are still dead controls that answer "coming soon".
 - Per-clip audio: the **legacy concat path drops it** (`buildFFmpegArgs` concats with `a=0`,
   `ffmpeg.ts:254`) — only a lone clip's original audio plus `project.audio` mix there. The
   **multi-track path does NOT**: `buildMultiTrackArgs` gives every visual clip's stream its

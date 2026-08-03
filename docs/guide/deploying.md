@@ -157,6 +157,45 @@ deployed?" — during an incident that is the first question, not the fifth.
 `ok` stays `true` while the service is merely busy. That is deliberate: a load
 balancer pulling the one box that is doing the work is precisely wrong.
 
+### Password reset needs two more variables
+
+Register and sign in work out of the box. **Reset does not**, and the way it
+fails is quiet: `POST /v1/auth/forgot` answers `503 email-unconfigured` and the
+apps tell the user reset is unavailable. Someone who forgets their password then
+has no route back to their account or their credits.
+
+```
+RESEND_API_KEY=re_…                       # resend.com → API Keys
+EMAIL_FROM=Orbit <no-reply@yourdomain>    # a verified Resend sender or domain
+ORBIT_PUBLIC_URL=https://your-service     # this service's own public address
+```
+
+`ORBIT_PUBLIC_URL` is what turns the mail into a **link** to the reset page the
+service serves at `/reset`. Without it the raw token is emailed instead, to be
+pasted into the app — which works, but the token is a ~300-character JWT and
+mail clients wrap it, so what comes back off the clipboard often no longer
+verifies. Set it.
+
+It has to be **stated**, never inferred from the request's `Host` header. That
+shortcut is the classic reset-poisoning hole: anyone can POST to
+`/v1/auth/forgot` with a `Host` of their choosing and have a valid reset token
+mailed to your user, pointed at their box.
+
+Two failure modes worth knowing, because neither says what it is:
+
+- **Compose passes through only the variables a service names.** Putting these
+  in `.env` alone is not enough — `compose.vps.yaml` lists them, so a hand-rolled
+  compose file must too. The symptom is a 503 from a server whose `.env` plainly
+  contains the key.
+- **A send failure is deliberately invisible to the caller.** `/v1/auth/forgot`
+  answers `200` whether or not the mail went out, because a send is only
+  attempted when the account exists — surfacing the error would turn the route
+  into an oracle for which addresses are registered. Grep the logs for
+  `reset-email-failed`; that is where a bad key or an unverified sender shows up.
+
+Check it end to end with an address you own: request a reset in the app, and the
+mail should carry `https://your-service/reset?token=…`.
+
 ### Everything else
 
 `apps/render-service/.env.example` documents every variable with the reasoning.

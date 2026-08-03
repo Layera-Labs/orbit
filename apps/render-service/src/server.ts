@@ -78,7 +78,8 @@ import { collectClientSrcs, isClientSrc, makeResolveSrc } from "./resolve.js";
 import { RemoteSrcError, fetchRemoteTo } from "./remote.js";
 import { PgLedgerStore, PgUserStore, makePgPool } from "./pg-store.js";
 import { InMemoryUserStore } from "./user-store.js";
-import { emailSenderFromEnv } from "./email.js";
+import { RESET_PAGE_HEADERS, RESET_PAGE_HTML } from "./reset-page.js";
+import { emailSenderFromEnv, resetEmailMessage } from "./email.js";
 import { JobRegistry, JOB_TTL_MS } from "./jobs.js";
 import { PgJobQueue } from "./job-queue.js";
 import { PgProjectStore, type SyncedProject } from "./project-store.js";
@@ -1433,9 +1434,37 @@ export function createServer(): Express {
     // Optional transactional email for password resets (Resend today). Null when
     // unconfigured — /v1/auth/forgot then answers 503 "email not configured".
     const mailer = emailSenderFromEnv(process.env);
-    // Where the reset token is delivered: a deep link / web page base if set, else
-    // the token is emailed for the user to paste into the app's reset screen.
-    const resetUrlBase = process.env.EMAIL_RESET_URL_BASE; // e.g. "orbit://reset" or "https://…/reset"
+
+    /*
+     * Where the reset token is delivered.
+     *
+     * `EMAIL_RESET_URL_BASE` wins and can be anything — a deep link, a page on
+     * your own site. Otherwise, if the service knows its own public address, it
+     * links to the page it serves itself at `/reset`. Only with neither does it
+     * fall back to emailing the raw token to paste into the app, which works
+     * but is a poor last resort: the token is a ~300-character JWT and mail
+     * clients wrap it.
+     *
+     * NEITHER IS DERIVED FROM THE REQUEST. Building a reset link out of the
+     * `Host` header is the classic password-reset poisoning bug — an attacker
+     * posts to `/v1/auth/forgot` with `Host: evil.example`, and the victim gets
+     * a real, valid reset token pointed at the attacker's box. The public
+     * address has to be something the operator stated.
+     */
+    const publicUrl = process.env.ORBIT_PUBLIC_URL?.trim().replace(/\/+$/, "");
+    const resetUrlBase =
+      process.env.EMAIL_RESET_URL_BASE?.trim() ||
+      (publicUrl ? `${publicUrl}/reset` : undefined);
+
+    /*
+     * The reset page itself — served from this origin so the form and the
+     * endpoint it posts to are the same host, with no CORS and no second
+     * deployment. The body is a constant (the token is read client-side out of
+     * the query string), so there is nothing to escape here.
+     */
+    app.get("/reset", (_req: Request, res: Response) => {
+      res.set(RESET_PAGE_HEADERS).send(RESET_PAGE_HTML);
+    });
 
     /*
      * A token for a device that has not signed in.
@@ -1550,18 +1579,37 @@ export function createServer(): Express {
           const link = resetUrlBase
             ? `${resetUrlBase}${resetUrlBase.includes("?") ? "&" : "?"}token=${encodeURIComponent(reset.token)}`
             : undefined;
-          await mailer.send({
-            to: reset.user.email!,
-            subject: "Reset your Orbit password",
-            text:
-              `You asked to reset your Orbit password.\n\n` +
-              (link
-                ? `Open this link to continue:\n${link}\n\n`
-                : `Enter this code in the app to continue:\n\n${reset.token}\n\n`) +
-              `This link expires in 1 hour. If you didn't request it, you can ignore this email.`,
-          });
+          try {
+            await mailer.send(
+              resetEmailMessage(reset.user.email!, link, reset.token),
+            );
+          } catch (sendErr) {
+            /*
+             * A send failure must NOT reach the caller, and this is not
+             * politeness — a send is only attempted when the account exists, so
+             * answering 500 here would tell an anonymous caller exactly which
+             * addresses are registered, defeating the identical-response rule
+             * three lines above. The operator's channel for this is the log.
+             */
+            console.error(
+              JSON.stringify({
+                t: new Date().toISOString(),
+                event: "reset-email-failed",
+                provider: mailer.provider,
+                error:
+                  sendErr instanceof Error ? sendErr.message : String(sendErr),
+              }),
+            );
+          }
         }
-        res.json({ ok: true });
+        /*
+         * `delivery` describes the SERVER, not the account — which is why it can
+         * be said out loud here. The client needs it: "check your email for a
+         * link" and "paste the code below" are different screens, and a client
+         * that guesses wrong sends the user looking for something that was
+         * never sent.
+         */
+        res.json({ ok: true, delivery: resetUrlBase ? "link" : "code" });
       } catch (err) {
         res
           .status(500)
