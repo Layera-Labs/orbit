@@ -49,6 +49,7 @@ import {
   flashExpr,
   ridesOverlayPath,
   shakeExpr,
+  zoomExpr,
   type MainRun,
   planMainRuns,
   resolveTransitions,
@@ -621,6 +622,27 @@ function buildMultiTrackArgs(
     const shakeAt = shakeB ? T0 + (shakeB.at - c.start) : 0;
     const kx = shakeB ? shakeExpr(shakeB.name, shakeAt, shakeB.overlap, W, H, 'x') : '0';
     const ky = shakeB ? shakeExpr(shakeB.name, shakeAt, shakeB.overlap, W, H, 'y') : '0';
+    /*
+     * The zoom, from BOTH sides at once — the product, not a pick.
+     *
+     * Where a shake chooses one boundary because both would displace the frame
+     * identically, the two ends of a clip magnify by different amounts, and a
+     * clip between two zooms is inside neither for most of its length. Each
+     * side's expression clamps its own progress and so returns exactly 1
+     * outside its window, which makes multiplying them the whole answer: the
+     * side that is not transitioning contributes nothing, and the resolver's
+     * half-clip clamp means the two windows can never overlap anyway.
+     */
+    const zoom = (() => {
+      const x = xfades.get(c.id);
+      const parts = ([['asTo', 'to'], ['asFrom', 'from']] as const)
+        .map(([k, role]) => {
+          const b = x?.[k];
+          return b ? zoomExpr(b.name, T0 + (b.at - c.start), b.overlap, role) : '1';
+        })
+        .filter((e) => e !== '1');
+      return parts.length ? parts.join('*') : null;
+    })();
     const key = chromaToFFmpeg(c.cutout);
     const kfs = c.keyframes;
     const kfOpacity = hasKeyframes(kfs) && animatesOpacity(kfs!);
@@ -738,7 +760,15 @@ function buildMultiTrackArgs(
      * rotating. When there is no rotation `preRot` IS `v${i}`, so the emitted
      * graph for every existing project is byte-for-byte what it was.
      */
-    const preRot = deg === 0 ? `v${i}` : `vq${i}`;
+    /*
+     * The zoom is the LAST thing done to the picture, after the rotation, which
+     * is the order `frameStateAt` resolves it in and the order the compositors
+     * draw it in: decode → crop → grade → cover-fit → effects → rotate → the
+     * transition's own transform → composite. So it gets its own stage rather
+     * than joining the clip's chain, exactly as the rotation does.
+     */
+    const postRot = zoom ? `vz${i}` : `v${i}`;
+    const preRot = deg === 0 ? postRot : `vq${i}`;
     const rawLabel = hasLocalFx ? `vr${i}` : preRot;
     segments.push(`[${vIn[i]}:v]${chain}[${rawLabel}]`);
     // Keep a copy of the clip's own alpha; it is merged back after every region
@@ -820,7 +850,22 @@ function buildMultiTrackArgs(
       segments.push(`${localFxLabel}[fxam${i}]alphamerge[${preRot}]`);
     }
     const { ow, oh, dx, dy } = rotatedBoxPx({ w: rw, h: rh }, deg);
-    if (deg !== 0) segments.push(`[${preRot}]${rotateChain(deg, rw, rh)}[v${i}]`);
+    if (deg !== 0) segments.push(`[${preRot}]${rotateChain(deg, rw, rh)}[${postRot}]`);
+    if (zoom) {
+      /*
+       * `eval=frame` is what makes `scale` re-read its expressions per frame;
+       * without it they are evaluated once at init and the clip renders at a
+       * constant size, which looks like a plausible transition and is a still.
+       *
+       * Rounded to EVEN, and clamped to 2. The stream is 4:2:0 by this point,
+       * where an odd dimension is not a rounding difference but an error that
+       * aborts the render — and a scale that reaches zero is the same.
+       */
+      const dim = (n: number) => `max(2,2*round(${n}*(${zoom})/2))`;
+      segments.push(
+        `[${postRot}]scale=w='${dim(ow)}':h='${dim(oh)}':eval=frame[v${i}]`,
+      );
+    }
     /*
      * Where the clip lands. Rotation grows the box symmetrically, so pulling
      * the origin back by half the growth pins the rotation to the CENTRE of the
@@ -838,21 +883,43 @@ function buildMultiTrackArgs(
      */
     const sx = slideExpr(anim, S, E, W, H, "x");
     const sy = slideExpr(anim, S, E, W, H, "y");
+    /**
+     * A zoom about the CANVAS centre, applied to wherever the clip already sat.
+     *
+     * The magnification is a whole-canvas move, the way `dx`/`dy` are: a
+     * picture-in-picture travels toward or away from the centre of the frame
+     * rather than swelling in place, which is what makes the punch read as the
+     * camera moving instead of one layer growing. So the clip's own centre is
+     * pushed out from the canvas centre by the same factor its size grew by,
+     * and `w`/`h` — `overlay`'s live size for the layer, which `eval=frame`
+     * keeps in step with the `scale` above — put the box back around it.
+     *
+     * `round`, because `overlay` truncates a fractional offset. Left to
+     * truncation an offset that should be 3 arrives as 2 whenever the arithmetic
+     * lands a hair under, which is a whole pixel of jitter on a move that is
+     * supposed to be smooth.
+     */
+    const zoomAbout = (core: string, half: number, centre: number, dim: 'w' | 'h') =>
+      `round(${centre}+((${core})+${half}-${centre})*(${zoom})-${dim}/2)`;
     const place = (
       base: string,
       kfExpr: string | null,
       anchor: number,
       slide: string,
       shake: string,
+      half: number,
+      centre: number,
+      dim: 'w' | 'h',
     ) => {
       const parts: string[] = [];
-      if (kfExpr) parts.push(anchor ? `(${kfExpr})-${anchor}` : kfExpr);
-      else parts.push(String(base));
+      let core = kfExpr ? (anchor ? `(${kfExpr})-${anchor}` : kfExpr) : String(base);
+      if (zoom) core = zoomAbout(core, half, centre, dim);
+      parts.push(core);
       if (slide !== "0") parts.push(`(${slide})`);
       // A shake is a DELTA like a slide, so it composes with the rect, a
       // keyframed position and a slide rather than replacing any of them.
       if (shake !== "0") parts.push(`(${shake})`);
-      return parts.length === 1 && !kfExpr ? `${base}` : `'${parts.join("+")}'`;
+      return parts.length === 1 && !kfExpr && !zoom ? `${base}` : `'${parts.join("+")}'`;
     };
     return {
       label: `[v${i}]`,
@@ -862,6 +929,9 @@ function buildMultiTrackArgs(
         dx,
         sx,
         kx,
+        ow / 2,
+        W / 2,
+        'w',
       ),
       oy: place(
         `${py}`,
@@ -869,6 +939,9 @@ function buildMultiTrackArgs(
         dy,
         sy,
         ky,
+        oh / 2,
+        H / 2,
+        'h',
       ),
       px,
       py,
