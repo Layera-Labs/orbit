@@ -23,7 +23,9 @@ import {
   mosaicStepPx,
   regionBoxPx,
   ROUNDED_R,
+  xfadeMaskAt,
   type DrawOp,
+  type XfMask,
 } from '@orbit/video/browser';
 import { filterString } from './grade';
 import { applyCutout, cutoutIsSupported } from './cutout';
@@ -168,9 +170,36 @@ export function renderFrame(
     if (op.mosaic) applyMosaic(sctx, patch, op.mosaic, dw, dh);
     if (op.magnifier) applyMagnifier(sctx, patch, op.magnifier, dw, dh);
 
-    ctx.globalAlpha = op.alpha;
-    ctx.globalCompositeOperation =
+    const xf = op.xf;
+    const blend =
       (blendToCanvas(op.blend) as GlobalCompositeOperation | null) ?? 'source-over';
+    /*
+     * Some transition families are a FIELD over the whole canvas rather than a
+     * region of it — a soft alpha mask, a pixelation grid, a box blur. Those
+     * cannot run on the clip's own patch: they are expressed in canvas
+     * coordinates and the export applies them to a full-canvas frame, so a
+     * patch sized to the clip's own rect would quantize or blur on a different
+     * grid than the file does. This side is therefore composed full-frame first, the
+     * field runs over that, and only then does it reach the frame under its
+     * alpha and blend. A wipe or a slide needs none of it and keeps the direct
+     * blit — this is the same "only when it is asked for" rule that decides
+     * whether `xf` is present at all.
+     */
+    const field =
+      xf && (xf.mask || xf.block || xf.blurX) ? scratch(width, height, 'xf') : null;
+    const fctx = field ? field.getContext('2d') : null;
+    const out = fctx ?? ctx;
+    if (fctx) {
+      fctx.setTransform(1, 0, 0, 1, 0, 0);
+      fctx.globalAlpha = 1;
+      fctx.globalCompositeOperation = 'source-over';
+      fctx.filter = 'none';
+      fctx.clearRect(0, 0, width, height);
+    } else {
+      ctx.globalAlpha = op.alpha;
+      ctx.globalCompositeOperation = blend;
+    }
+
     /*
      * A transition's geometry sits on the OUTER context, around the blit —
      * the same seam rotation uses, and for the same reason: everything already
@@ -183,13 +212,31 @@ export function renderFrame(
      * exactly what the export does when it composites the run from two
      * full-canvas frames.
      */
-    const xf = op.xf;
+    out.save();
     if (xf) {
-      ctx.save();
       if (xf.clip) {
-        ctx.beginPath();
-        ctx.rect(xf.clip.x, xf.clip.y, xf.clip.w, xf.clip.h);
-        ctx.clip();
+        out.beginPath();
+        out.rect(xf.clip.x, xf.clip.y, xf.clip.w, xf.clip.h);
+        out.clip();
+      }
+      /*
+       * A hole is a rect's COMPLEMENT, drawn even-odd — the same primitive the
+       * canvas mat punches its window with. It is what lets the squeeze
+       * families keep the incoming clip on top, where every other family puts
+       * it, instead of teaching both compositors to reorder their layers.
+       */
+      if (xf.hole) {
+        out.beginPath();
+        out.rect(0, 0, width, height);
+        out.rect(xf.hole.x, xf.hole.y, xf.hole.w, xf.hole.h);
+        out.clip('evenodd');
+      }
+      // About the canvas centre, matching the export scaling a full-canvas
+      // padded frame rather than the clip's own box.
+      if (xf.scale) {
+        out.translate(width / 2, height / 2);
+        out.scale(xf.scale.x, xf.scale.y);
+        out.translate(-width / 2, -height / 2);
       }
       /*
        * Translate AFTER clipping, never before: the region is in canvas
@@ -197,7 +244,7 @@ export function renderFrame(
        * two and a slide drags its own window along with it, which looks like a
        * cut rather than a slide.
        */
-      if (xf.dx || xf.dy) ctx.translate(xf.dx ?? 0, xf.dy ?? 0);
+      if (xf.dx || xf.dy) out.translate(xf.dx ?? 0, xf.dy ?? 0);
     }
     if (op.rotation) {
       /*
@@ -211,20 +258,205 @@ export function renderFrame(
        */
       const cx = Math.round(op.dst.x) + dw / 2;
       const cy = Math.round(op.dst.y) + dh / 2;
-      ctx.save();
-      ctx.translate(cx, cy);
-      ctx.rotate((op.rotation * Math.PI) / 180);
-      ctx.drawImage(patch, -dw / 2, -dh / 2, dw, dh);
-      ctx.restore();
+      out.save();
+      out.translate(cx, cy);
+      out.rotate((op.rotation * Math.PI) / 180);
+      out.drawImage(patch, -dw / 2, -dh / 2, dw, dh);
+      out.restore();
     } else {
-      ctx.drawImage(patch, Math.round(op.dst.x), Math.round(op.dst.y), dw, dh);
+      out.drawImage(patch, Math.round(op.dst.x), Math.round(op.dst.y), dw, dh);
     }
-    if (xf) ctx.restore();
+    out.restore();
+
+    if (field && fctx && xf) {
+      // Order matches the filter: ffmpeg quantizes or blurs the frame and THEN
+      // cross-fades, so the field runs before the alpha reaches it.
+      if (xf.block) pixelizeField(fctx, field, xf.block, width, height);
+      if (xf.blurX) boxBlurField(fctx, xf.blurX, width, height);
+      if (xf.mask) maskField(fctx, xf.mask, width, height);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = op.alpha;
+      ctx.globalCompositeOperation = blend;
+      ctx.filter = 'none';
+      ctx.drawImage(field, 0, 0);
+    }
   }
 
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
   ctx.filter = 'none';
+}
+
+/**
+ * The grid a soft transition mask is sampled on, per axis.
+ *
+ * Every one of ffmpeg's mask fields ramps over a WHOLE unit of its normalized
+ * coordinate — the full half-diagonal, the full half-width, a radian of arc —
+ * so they are all low-frequency and a coarse grid bilinearly upscaled is
+ * indistinguishable from evaluating per pixel, at a fraction of the cost. The
+ * one exception is `angle`, which is singular at the exact centre; that shows
+ * as a few soft pixels there and is recorded as a tolerance rather than chased.
+ */
+const MASK_GRID = 192;
+
+/** Multiply a full-canvas layer's alpha by a transition mask. */
+function maskField(
+  ctx: CanvasRenderingContext2D,
+  m: XfMask,
+  W: number,
+  H: number,
+): void {
+  const gw = Math.max(2, Math.min(W, MASK_GRID));
+  const gh = Math.max(2, Math.min(H, MASK_GRID));
+  const g = scratch(gw, gh, 'xfmask');
+  const gctx = g.getContext('2d');
+  if (!gctx) return;
+  const img = gctx.createImageData(gw, gh);
+  const d = img.data;
+  for (let j = 0; j < gh; j++) {
+    // Sample at the texel CENTRE, which is where bilinear upscaling will put
+    // this value back. Sampling at the corner shifts the whole mask by half a
+    // grid cell, which at this grid size is several canvas pixels.
+    const y = ((j + 0.5) * H) / gh;
+    for (let i = 0; i < gw; i++) {
+      const x = ((i + 0.5) * W) / gw;
+      const a = xfadeMaskAt(m, x, y, W, H);
+      d[(j * gw + i) * 4 + 3] = Math.round(Math.max(0, Math.min(1, a)) * 255);
+    }
+  }
+  gctx.putImageData(img, 0, 0);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.imageSmoothingEnabled = true;
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.drawImage(g, 0, 0, W, H);
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/** Quantize a full-canvas layer to square blocks, as `pixelize` does. */
+function pixelizeField(
+  ctx: CanvasRenderingContext2D,
+  canvas: HTMLCanvasElement,
+  block: number,
+  W: number,
+  H: number,
+): void {
+  const bw = Math.max(1, Math.round(W / block));
+  const bh = Math.max(1, Math.round(H / block));
+  if (bw >= W && bh >= H) return;
+  const small = scratch(bw, bh, 'xfpix');
+  const sctx = small.getContext('2d');
+  if (!sctx) return;
+  /*
+   * Smoothing OFF in both directions. ffmpeg reads ONE pixel per block — the
+   * one nearest the block's centre — rather than averaging it, so a smoothed
+   * downscale would give every block the mean of its contents and read as a
+   * different effect on any detailed picture.
+   */
+  sctx.setTransform(1, 0, 0, 1, 0, 0);
+  sctx.globalCompositeOperation = 'copy';
+  sctx.imageSmoothingEnabled = false;
+  sctx.drawImage(canvas, 0, 0, bw, bh);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'copy';
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(small, 0, 0, W, H);
+  ctx.imageSmoothingEnabled = true;
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+/**
+ * The widest working buffer a box blur is computed in.
+ *
+ * `hblur`'s box reaches half the frame, so a running sum over a 4K canvas is
+ * millions of operations per frame in JS and would drop the preview below the
+ * playhead. The result of a wide box blur is smooth by construction, so
+ * computing it small and scaling up is visually the same picture — the error
+ * concentrates where the box is NARROW, which is the first and last instants of
+ * the transition where the effect is barely visible anyway.
+ */
+const BLUR_MAX_W = 640;
+
+/**
+ * ffmpeg's `hblur`, which is not a gaussian and not centred.
+ *
+ * `vf_xfade.c` accumulates `xf[x .. x+size-1]` and divides by the count, so it
+ * is a FORWARD box: the picture shifts left by half the box as well as
+ * softening, and near the right edge the window shortens instead of wrapping or
+ * clamping. Reproducing the shift matters more than the profile — a centred
+ * gaussian of the same width looks similar in isolation and sits visibly in the
+ * wrong place beside the file.
+ */
+function boxBlurField(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  W: number,
+  H: number,
+): void {
+  const size = Math.max(1, Math.round(width));
+  if (size <= 1) return;
+  const scale = Math.min(1, BLUR_MAX_W / W);
+  const bw = Math.max(2, Math.round(W * scale));
+  const bh = Math.max(2, Math.round(H * scale));
+  const box = Math.max(1, Math.round(size * scale));
+  const buf = scratch(bw, bh, 'xfblur');
+  const bctx = buf.getContext('2d', { willReadFrequently: true });
+  if (!bctx) return;
+  bctx.setTransform(1, 0, 0, 1, 0, 0);
+  bctx.globalCompositeOperation = 'copy';
+  bctx.imageSmoothingEnabled = true;
+  bctx.drawImage(ctx.canvas, 0, 0, bw, bh);
+  bctx.globalCompositeOperation = 'source-over';
+
+  const img = bctx.getImageData(0, 0, bw, bh);
+  const d = img.data;
+  const row = new Float32Array(bw * 4);
+  for (let y = 0; y < bh; y++) {
+    const o = y * bw * 4;
+    let s0 = 0;
+    let s1 = 0;
+    let s2 = 0;
+    let s3 = 0;
+    const n0 = Math.min(box, bw);
+    for (let x = 0; x < n0; x++) {
+      s0 += d[o + x * 4];
+      s1 += d[o + x * 4 + 1];
+      s2 += d[o + x * 4 + 2];
+      s3 += d[o + x * 4 + 3];
+    }
+    let cnt = n0;
+    for (let x = 0; x < bw; x++) {
+      row[x * 4] = s0 / cnt;
+      row[x * 4 + 1] = s1 / cnt;
+      row[x * 4 + 2] = s2 / cnt;
+      row[x * 4 + 3] = s3 / cnt;
+      if (x + box < bw) {
+        const a = o + (x + box) * 4;
+        const b = o + x * 4;
+        s0 += d[a] - d[b];
+        s1 += d[a + 1] - d[b + 1];
+        s2 += d[a + 2] - d[b + 2];
+        s3 += d[a + 3] - d[b + 3];
+      } else {
+        const b = o + x * 4;
+        s0 -= d[b];
+        s1 -= d[b + 1];
+        s2 -= d[b + 2];
+        s3 -= d[b + 3];
+        cnt--;
+        if (cnt < 1) cnt = 1;
+      }
+    }
+    for (let x = 0; x < bw * 4; x++) d[o + x] = row[x];
+  }
+  bctx.putImageData(img, 0, 0);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'copy';
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(buf, 0, 0, W, H);
+  ctx.globalCompositeOperation = 'source-over';
 }
 
 /**
