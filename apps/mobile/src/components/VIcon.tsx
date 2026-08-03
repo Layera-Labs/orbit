@@ -8,7 +8,16 @@
  * as an escape hatch for data-driven glyphs (folders, project menu, etc.).
  */
 import { useId } from 'react';
+import Animated, { useAnimatedProps, type SharedValue } from 'react-native-reanimated';
 import Svg, { Path, Circle, Rect, Defs, LinearGradient, Stop } from 'react-native-svg';
+
+/**
+ * The gradient axis is what moves, so the axis is the animated node.
+ *
+ * Created once at module scope — `createAnimatedComponent` inside the component
+ * would mint a new type on every render and remount the gradient each frame.
+ */
+const ASweep = Animated.createAnimatedComponent(LinearGradient);
 
 type Circ = [cx: number, cy: number, r: number];
 type RectT = [x: number, y: number, w: number, h: number, rx?: number];
@@ -196,6 +205,14 @@ export interface VIconProps {
    * that has earned it, never across a set.
    */
   gradient?: string[];
+  /**
+   * Slide the gradient's axis across the glyph, 0 → 1, so the light travels.
+   *
+   * Takes the clock rather than owning one, because the label beside the mark
+   * rides the same sweep and two independent loops drift apart. Ignored without
+   * `gradient` — there is no ramp to move.
+   */
+  sweep?: SharedValue<number>;
 }
 
 export function VIcon({
@@ -208,6 +225,7 @@ export function VIcon({
   mode,
   strokeWidth,
   gradient,
+  sweep,
 }: VIconProps) {
   const spec: IconSpec = name ? ICONS[name] : { paths: d ? [d] : [], circles, rects };
   const m = mode ?? spec.mode ?? 'stroke';
@@ -228,6 +246,36 @@ export function VIcon({
    * would run the full ramp three times instead of once across the glyph.
    */
   const [, , vbW = 24, vbH = 24] = (spec.vb ?? '0 0 24 24').split(/\s+/).map(Number);
+  /*
+   * The axis slides along its own diagonal, and the amplitude was measured off
+   * the device rather than reasoned about.
+   *
+   * A gradient pads past its ends, so once the axis has slid far enough that
+   * the glyph sits entirely beyond one stop, the mark goes a flat single
+   * colour. At ±0.75 of the box it did that for most of the cycle — solid
+   * amber, solid indigo, the ramp visible only in passing. ±0.4 is the
+   * compromise actually shipped: the middle of the sweep shows the two-tone
+   * jewel and the two ends still resolve to near-solid tints, so over a cycle
+   * the mark breathes indigo → mauve → amber → back.
+   *
+   * Keeping both colours on the glyph at ALL times needs roughly ±0.2, and that
+   * was tried and rejected: the boundary barely moves and the motion stops
+   * being legible at 18pt, which is the whole point of it. A mark that shifts
+   * hue is a better answer here than one that technically always has a ramp.
+   */
+  const travel = 0.4 * vbW;
+  const sweepProps = useAnimatedProps<{
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+  }>(() => {
+    'worklet';
+    // Always the four numbers, never a partial: an empty branch makes the
+    // inferred prop type `undefined` and the real one stops type-checking.
+    const d = sweep ? (sweep.value * 2 - 1) * travel : 0;
+    return { x1: d, y1: d, x2: vbW + d, y2: vbH + d };
+  });
 
   return (
     <Svg
@@ -238,13 +286,14 @@ export function VIcon({
     >
       {gradient && gradient.length > 1 ? (
         <Defs>
-          <LinearGradient
+          <ASweep
             id={gid}
             gradientUnits="userSpaceOnUse"
             x1={0}
             y1={0}
             x2={vbW}
             y2={vbH}
+            animatedProps={sweepProps}
           >
             {gradient.map((c, i) => (
               <Stop
@@ -253,7 +302,7 @@ export function VIcon({
                 stopColor={c}
               />
             ))}
-          </LinearGradient>
+          </ASweep>
         </Defs>
       ) : null}
       {spec.rects?.map((r, i) => (

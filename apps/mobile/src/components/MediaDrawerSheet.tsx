@@ -46,6 +46,7 @@ import { isCcRateLimited, searchCc, type CcItem } from "../content/openverse";
 import { CC_RATE_LIMIT_MESSAGE } from "../content/useCcSearch";
 import { BottomSheet } from "./BottomSheet";
 import { VIcon, type VIconName } from "./VIcon";
+import { AI_GRADIENT, useAiLabelStyle, useAiShimmer } from "./aiShimmer";
 
 type DrawerMode = "main" | "overlay";
 type DrawerTab = "ai" | "upload" | "stock" | "library";
@@ -74,19 +75,6 @@ interface PickProps {
   onLongSelect: (selection: DrawerSelection) => void;
 }
 
-/**
- * The AI mark's gradient — the one place in the rail that is not a flat colour.
- *
- * Deliberately NOT indigo-into-purple: that pairing is the single most
- * recognisable machine-made colour move there is, which makes it the worst
- * possible choice for the button that says "made by a machine". This runs from
- * the brand accent into a warm amber, so it passes through a dusty mauve on the
- * way and reads as light refracting rather than as a stock AI badge.
- *
- * It is on the GLYPH, not behind it. The tile and the label stay the tab's flat
- * colour, so the rail is still a legend and only one thing in it shimmers.
- */
-const AI_GRADIENT = ["#5b4bff", "#ffb347"];
 
 /*
  * Upload · Stock · AI · Library, in that order and on purpose. AI led this rail
@@ -129,6 +117,13 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
   const setMediaDuration = useEditor((s) => s.setMediaDuration);
   const setSourceDims = useEditor((s) => s.setSourceDims);
   const [tab, setTab] = useState<DrawerTab>("upload");
+  /*
+   * One clock for the AI mark and its label, created here rather than inside
+   * each so the light crosses both together. `tab === "ai"` is safe to read
+   * outside the rail's map because exactly one entry carries a gradient.
+   */
+  const shimmer = useAiShimmer();
+  const aiLabel = useAiLabelStyle(shimmer, tab === "ai");
   const [records, setRecords] = useState<GenRecord[]>(() => loadHistory());
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   /*
@@ -468,18 +463,34 @@ export function MediaDrawerSheet({ mode }: { mode: DrawerMode }) {
                     name={item.icon}
                     size={20}
                     color={active ? item.color : vela.lightMuted}
+                    sweep={item.gradient ? shimmer : undefined}
                     // The gradient rides whether or not the tab is selected —
                     // that IS the highlight. Only on selection would make it a
                     // second selected-state, not a mark that stands out.
                     gradient={item.gradient}
                   />
                 </View>
-                <Text
-                  style={[styles.railLabel, active && { color: item.color }]}
-                  numberOfLines={1}
-                >
-                  {item.label}
-                </Text>
+                {/*
+                  * The one animated label in the rail. `railLabel` still sets
+                  * the type; only the colour travels, and the flat `item.color`
+                  * rule is dropped for this entry because the animated style
+                  * owns that channel for both states.
+                  */}
+                {item.gradient ? (
+                  <Animated.Text
+                    style={[styles.railLabel, aiLabel]}
+                    numberOfLines={1}
+                  >
+                    {item.label}
+                  </Animated.Text>
+                ) : (
+                  <Text
+                    style={[styles.railLabel, active && { color: item.color }]}
+                    numberOfLines={1}
+                  >
+                    {item.label}
+                  </Text>
+                )}
               </Pressable>
             );
           })}
