@@ -547,6 +547,30 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
   `circleopen` is `smoothstep(0, 1, hypot(x - w/2, y - h/2)/hypot(w/2, h/2) + (P - 0.5)*3)`
   — note the **integer** `w/2` (a half-pixel offset on odd dimensions) and the 3× ramp,
   which means it is over by `p ≈ 0.83` and has not started before `p ≈ 0.17`.
+  **Seventeen of those landed on 2026-08-03** and the pickers now offer **34 of
+  36** — Black, White, Circle×2, Blinds×4, Diagonal×4, Squeeze×2, Zoom and Radial
+  joined the geometric set. Every one was read out of `vf_xfade.c` and then
+  measured back: **all exact to ≤1/255**, recorded in
+  `fixtures/xfade-field.json` and asserted with no ffmpeg by `xfade-field.test.ts`.
+  **Eleven of them are ONE shape** — the incoming clip drawn over the outgoing one
+  through a `smoothstep` of a scalar field — so `XfMask` DESCRIBES the field
+  (`radius|absx|absy|prod|angle`, a sign, a bias) and `xfadeMaskAt` samples it;
+  web builds a small bitmap and Skia runs one `RuntimeEffect` over the same
+  description, so a twelfth family that fits the shape costs a table entry and
+  nothing in either compositor. The rest needed channels, not fields: `scale`
+  about the CANVAS centre, `hole` (squeeze is the one family where ffmpeg puts
+  the OUTGOING clip on top — punching the band out of the incoming side is the
+  same picture without reordering layers, `invertClip` on mobile and `evenodd` on
+  web), `block` and `blurX`. Black/White emit a **third op** between the clips.
+  Two probe traps worth remembering, because both produce a confident lie: a
+  `-vf` after a complex filtergraph FAILS, and empty buffers compared as `NaN`
+  report every family exact; and `p` must be DERIVED from the frame index, since
+  asking for `p=0.25` at 30fps samples 0.2667 and reads as a **49/255** error in
+  correct maths. **`pixelize` and `hblur` are still export-only** — both render in
+  the export and in the canvas-2D preview, neither in Skia. `hblur` is the hard
+  one: ffmpeg's is a FORWARD box filter, so it DISPLACES the picture by half the
+  box as well as softening it, and a centred gaussian of the same width sits
+  visibly in the wrong place.
   `squeeze*` scales and therefore RESAMPLES,
   so it needs a recorded tolerance like the grade rather than an exact rule; `zoomin` is a
   scale AND a blend that only starts near `p = 0.53`; `circle*`, `vert*`, `horz*`, `diag*`
