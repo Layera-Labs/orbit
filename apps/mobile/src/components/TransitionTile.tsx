@@ -34,11 +34,12 @@ import Svg, {
   Defs,
   G,
   Line,
+  Path,
   Rect,
 } from "react-native-svg";
 import { View } from "react-native";
 import { vela } from "../constants";
-import { xfadeStateAt, type XfState } from "../preview/xfade";
+import { xfadeStateAt, xfadeVeilAt, type XfState } from "../preview/xfade";
 import type { TransitionType } from "../model/types";
 
 /**
@@ -98,12 +99,27 @@ export function TransitionTile({
         ) : (
           <>
             <Side id={`${type}A`} size={size} state={xfadeStateAt(type, AT, "from", size, size)} tone={OUT} mark={OUT_MARK} />
+            {/*
+              * The veil, in the same slot the compositors draw it in: over the
+              * picture leaving and under the one arriving. Without it Black,
+              * White, Blink and Light were four tiles identical to Fade — the
+              * dip IS the transition in those families, and it lives outside
+              * `xfadeStateAt` because it belongs to neither side.
+              */}
+            <Veil type={type} size={size} />
             <Side id={`${type}B`} size={size} state={xfadeStateAt(type, AT, "to", size, size)} tone={IN} mark={IN_MARK} />
           </>
         )}
       </Svg>
     </View>
   );
+}
+
+/** The full-frame solid a dip or a flash blooms through, if this is one. */
+function Veil({ type, size }: { type: TransitionType; size: number }) {
+  const v = xfadeVeilAt(type, AT);
+  if (!v || v.alpha <= 0) return null;
+  return <Rect width={size} height={size} fill={v.color} opacity={v.alpha} />;
 }
 
 /** One side of the transition: its region of the frame, and where its picture sits in it. */
@@ -127,6 +143,8 @@ function Side({
       id={id}
       size={size}
       rect={r}
+      hole={state.hole}
+      scale={state.scale}
       tone={tone}
       mark={mark}
       dx={state.dx ?? 0}
@@ -134,6 +152,23 @@ function Side({
       opacity={state.alpha}
     />
   );
+}
+
+/**
+ * The clip window, as a path so a `hole` can be punched out of it.
+ *
+ * Even-odd, which is the same primitive `frameOuterPaint` and the Skia
+ * compositor use for the canvas frame and for squeeze: two subpaths wound the
+ * same way, and the inner one comes out. A plain second `Rect` in a `ClipPath`
+ * would UNION with the first and punch nothing.
+ */
+function windowPath(
+  r: { x: number; y: number; w: number; h: number },
+  hole?: { x: number; y: number; w: number; h: number },
+): string {
+  const box = (b: typeof r) =>
+    `M${b.x} ${b.y}H${b.x + b.w}V${b.y + b.h}H${b.x}Z`;
+  return hole ? `${box(r)}${box(hole)}` : box(r);
 }
 
 /**
@@ -147,6 +182,8 @@ function Picture({
   id,
   size,
   rect,
+  hole,
+  scale,
   tone,
   mark,
   dx = 0,
@@ -156,6 +193,8 @@ function Picture({
   id: string;
   size: number;
   rect: { x: number; y: number; w: number; h: number };
+  hole?: { x: number; y: number; w: number; h: number };
+  scale?: { x: number; y: number };
   tone: string;
   mark: string;
   dx?: number;
@@ -163,26 +202,40 @@ function Picture({
   opacity?: number;
 }) {
   const d = Math.max(4, Math.round(size * 0.15));
+  const c = size / 2;
   return (
     <G opacity={opacity}>
       <Defs>
         <ClipPath id={id}>
-          <Rect x={rect.x} y={rect.y} width={rect.w} height={rect.h} />
+          <Path d={windowPath(rect, hole)} clipRule="evenodd" />
         </ClipPath>
       </Defs>
       <G clipPath={`url(#${id})`}>
         <G translateX={dx} translateY={dy}>
-          <Rect width={size} height={size} fill={tone} />
-          <Line
-            x1={0}
-            y1={0}
-            x2={size}
-            y2={size}
-            stroke={mark}
-            strokeWidth={1.6}
-            strokeLinecap="round"
-          />
-          <Circle cx={size / 2} cy={size / 2} r={d / 2} fill={mark} />
+          {/*
+            * About the tile's centre, which is the canvas centre here — the
+            * same origin both compositors scale about. Nested inside the
+            * travel rather than beside it so the two compose the way a matrix
+            * does, matching the single transform list the Skia preview builds.
+            */}
+          <G
+            translateX={scale ? c - c * scale.x : 0}
+            translateY={scale ? c - c * scale.y : 0}
+            scaleX={scale?.x ?? 1}
+            scaleY={scale?.y ?? 1}
+          >
+            <Rect width={size} height={size} fill={tone} />
+            <Line
+              x1={0}
+              y1={0}
+              x2={size}
+              y2={size}
+              stroke={mark}
+              strokeWidth={1.6}
+              strokeLinecap="round"
+            />
+            <Circle cx={c} cy={c} r={d / 2} fill={mark} />
+          </G>
         </G>
       </G>
     </G>
