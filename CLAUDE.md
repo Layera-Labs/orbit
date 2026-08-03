@@ -641,6 +641,48 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
 - **BYOK stock media**: Orbit is a developer/SDK product, so Unsplash/Pexels use
   **bring-your-own-key**, stored in the OS keychain via `expo-secure-store`, never in the
   bundle and never sent to Orbit's server. `src/content/{keys,stock}.ts`, `KeysSheet`.
+- **"Stock" means CC0 and needs no key** (2026-08-03, `src/content/openverse.ts` +
+  `useCcSearch.ts`). BYOK was the whole of Stock, and almost nobody registers for an API
+  key — so on a fresh install all three surfaces that use the word were a search field
+  over nothing: the Library sheet fell back to twelve **Picsum** placeholders (now
+  deleted; they were never CC0), the media picker returned an error, and the audio
+  drawer's tab was `SFX.slice(0, 8)` — the first eight of the same bundled effects the
+  Sound FX tab already shows, under a heading that called them "Stock audio". All three
+  now read Openverse filtered to `license=cc0`, which answers **anonymously**. Four
+  categories — Music · Audio · Backgrounds · Images — because they do four different
+  things on tap (main track, background, audio track at the playhead), and one grid that
+  behaved differently by what you had picked would be a tab keeping a secret. The keyed
+  providers stay in the media picker as `Pexels`/`Unsplash` beside `Free`.
+  **`license=cc0` is the contract, not a preference.** `license_type=commercial` is a far
+  larger corpus and is how you reach Jamendo's 644k tracks — every one CC BY or stricter,
+  i.e. a credit the user would owe on an exported video and which nothing here would
+  remind them about. Measured against the live API, because none of it is documented
+  where you would look:
+  - **Jamendo carries no CC0 at all** (`license=cc0&source=jamendo` → 0), so every track
+    is Freesound. That is why Music is loops and field recordings rather than a
+    production-music catalogue — the honest extent of CC0 audio, not a bad query.
+  - **`category` is null on every Freesound record**, so `category=music` against
+    `license=cc0` returns **zero** — which reads exactly like "there is no CC0 music" and
+    is not what is happening. Music and Audio split on the `length` bucket instead, whose
+    first results measured 8s (`shortest`), 93s (`short`), 199s (`medium`), 854s (`long`).
+  - **Anonymous: 20 requests/min and 200/day, keyed on IP** (`x-ratelimit-limit-anon_*`
+    on every response). So a 429 says so by name — "Search failed" reads as our bug and
+    invites the retry that keeps the window shut — and `useCcSearch` caches per
+    category-and-query, because flicking the chips to see what is in each is the likeliest
+    thing anyone does and would otherwise cost four requests a pass.
+  - **`page_size` may not exceed 20 anonymously, and asking for more is a `401`** with
+    `page_size may not exceed 20 for anonymous requests`. A paging limit wearing a
+    credential error's clothes. `result_count` is a **240 cap**, not the corpus size.
+  - **Freesound's `url` is a 128 kbps mp3 preview**; the original WAV is in `alt_files`
+    behind a Freesound key, which is the credential this exists in order not to need.
+  - An audio item with **no `duration` is dropped**: `duration` is what the timeline lays
+    out AND what the export's `atrim` cuts to, so guessing 10s for a 93s track renders a
+    file that really is 10 seconds long with nothing admitting a number was invented.
+    Openverse reported one for 20/20 in both buckets, so the guard should never fire.
+  `useCcSearch` is one hook for both sheets — written twice they drift, and that failure
+  shows up as one sheet spending the day's allowance the other is saving. It also holds a
+  sequence ref, because chips are far faster to tap than the network is to answer and a
+  slow Music response would otherwise land after a fast Images one.
 - **Content library**: `src/content/{catalog,library,assets}.ts` — Stickers · Emoji ·
   Backgrounds. Bundled OpenMoji/gradient packs in `assets/content/`, CDN fallback via jsDelivr.
   Stickers reuse the overlay-image pipeline, so they're dual-rendered for free.
