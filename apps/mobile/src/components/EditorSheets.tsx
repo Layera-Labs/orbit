@@ -29,6 +29,7 @@ import { BottomSheet as BaseBottomSheet } from "./BottomSheet";
 import { InputSheet } from "./InputSheet";
 import { VSlider } from "./VSlider";
 import { TransitionTile } from "./TransitionTile";
+import { tileSize } from "./transitionGrid";
 import {
   previewableTransitions,
   resolveTransitions,
@@ -181,7 +182,17 @@ function FullSheet({
 }) {
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
-      <StatusBar style="auto" />
+      {/*
+        * STATED, not `auto`. `expo-status-bar`'s `auto` follows the APP'S
+        * colour scheme rather than what is behind the bar, and `app.json`
+        * declares `userInterfaceStyle: "dark"` — so `auto` resolved to white
+        * glyphs on every device and every system setting, over a surface that
+        * is permanently `vela.homeBg`. The clock, wifi and battery were white
+        * on #f7f7fa. Same reasoning as `App.tsx`, which branches
+        * `light`/`dark` off the screen instead of deferring: the right glyph
+        * colour is a property of the surface, and this one never changes.
+        */}
+      <StatusBar style="dark" />
       <View style={s.full}>{children}</View>
     </Modal>
   );
@@ -1254,13 +1265,12 @@ function ExportSheet() {
  * draw would mean promising a wipe and showing a cut, which is the drift this
  * codebase refuses in the direction that actually misleads someone.
  */
-/**
- * Sized so two four-variant families sit side by side on a normal phone:
- * `4*38 + 3*8` is 176, and two of those plus the block gap clears the sheet's
- * 372pt of content. Bigger tiles push Slide and Push onto separate lines and
- * the sheet starts scrolling for no gain.
+/*
+ * The tile size is MEASURED, not chosen, and lives in `transitionGrid.ts` with
+ * a test — because the number it replaces was wrong by two points and nothing
+ * in the source could see it. See that module for the arithmetic and the
+ * failure it encodes.
  */
-const TILE = 38;
 
 function TransitionSheet() {
   const setPanel = useEditor((s) => s.setPanel);
@@ -1307,6 +1317,38 @@ function TransitionSheet() {
     };
   }, [serverUrl]);
   const families = useMemo(() => previewableTransitions(tokens), [tokens]);
+  const TILE = tileSize(useWindowDimensions().width);
+
+  /*
+   * Open on the transition this clip already has — but ONLY when it is out of
+   * sight.
+   *
+   * Without the reveal, a clip set to Blur opened at the top with nothing
+   * saying its selection was rows below, so the sheet looked like nothing was
+   * chosen. Without the fits check, the first version scrolled for a selection
+   * that was already on screen and the sheet opened one row down, showing a
+   * half-row of tiles sliced by the scroller's edge — which reads as broken
+   * rather than as more-below, the exact failure the grid's own comment warns
+   * about. Measured on the device: the catalogue very nearly fits now, so most
+   * selections need no scroll at all.
+   *
+   * Guarded by a ref rather than by the effect's deps: the capability probe
+   * resolves after mount and re-lays the whole grid out, so `onLayout` fires
+   * again and an unguarded scroll would yank the sheet back under a finger that
+   * had already started reading. It happens once, on open.
+   */
+  const gridRef = useRef<ScrollView>(null);
+  const selectedBox = useRef<{ y: number; h: number } | null>(null);
+  const viewH = useRef(0);
+  const revealed = useRef(false);
+  useEffect(() => {
+    if (revealed.current || type === "cut") return;
+    const box = selectedBox.current;
+    if (!box || !viewH.current) return;
+    revealed.current = true;
+    if (box.y + box.h <= viewH.current) return;
+    gridRef.current?.scrollTo({ y: Math.max(0, box.y - 12), animated: false });
+  });
 
   /*
    * Why this boundary is not rendering what was asked for, in the words the
@@ -1358,7 +1400,25 @@ function TransitionSheet() {
     );
 
   return (
-    <BottomSheet onClose={close} style={{ gap: 14 }} dim="#0002">
+    /*
+     * Bounded, because `BottomSheet` is `justifyContent: 'flex-end'` with no cap
+     * of its own — so a sheet taller than the screen does not scroll, it runs
+     * off the TOP, taking the title and the ✓ that closes it with it. At 22
+     * families that is what shipped. The percentage is the convention for a
+     * sheet that can outgrow the screen (`prefsSheet` 82%, `TextSettingsSheet`
+     * 88%).
+     *
+     * 88 rather than 86, decided by looking at where the fold lands: at 86 it
+     * fell immediately under the last row's LABELS, so Pixelate, Radial and
+     * Blur showed as three headings with nothing beneath them — which reads as
+     * broken, where a half-visible row of tiles reads as more-below. Those 17
+     * points still leave the sheet's top edge well clear of the Dynamic Island.
+     */
+    <BottomSheet
+      onClose={close}
+      style={{ gap: 14, maxHeight: "88%" }}
+      dim="#0002"
+    >
       <View style={s.rowBetween}>
         <Text style={s.sheetTitle}>Transition</Text>
         <Pressable onPress={close} hitSlop={10}>
@@ -1371,38 +1431,65 @@ function TransitionSheet() {
         </Text>
       ) : null}
       {/*
-        * The families FLOW rather than taking a row each. Cut and Fade have one
-        * variant apiece, so a row each left two thirds of the sheet empty above
-        * a list that then had to scroll — and scrolled to a half-visible row of
-        * tiles sliced by the container's edge. Wrapping puts the small families
-        * beside a large one and fits the whole set with no scrolling at all,
-        * which is the version worth having.
+        * The families FLOW rather than taking a row each, and that is still
+        * right: eight of the twenty-two have a single variant, so a row apiece
+        * would strand most of the sheet and make the scroll far longer. What
+        * changed is that the tile is now sized to guarantee two four-variant
+        * families pair up (see `tileSize`), so the wrap packs to about eight
+        * rows instead of thirteen.
+        *
+        * Only the grid scrolls. The title, the duration slider and Apply are
+        * pinned siblings — they are what you reach for AFTER picking, and
+        * scrolling them away would mean scrolling back. The indicator is left
+        * ON for the reason the Backgrounds grid records: a row sliced at the
+        * container's edge with no indicator reads as broken rather than as
+        * more-below.
         */}
-      <View style={s.trWrap}>
-        {families.map((f) => (
-          <View key={f.key} style={{ gap: 7 }}>
-            <Text style={s.trFamily}>{f.label}</Text>
-            <View style={s.trRow}>
-              {f.variants.map((v) => (
-                <Pressable
-                  key={v.type}
-                  accessibilityRole="button"
-                  accessibilityLabel={v.label}
-                  accessibilityState={{ selected: type === v.type }}
-                  onPress={() => apply(v.type)}
-                  hitSlop={4}
-                >
-                  <TransitionTile
-                    type={v.type}
-                    size={TILE}
-                    selected={type === v.type}
-                  />
-                </Pressable>
-              ))}
+      <ScrollView
+        ref={gridRef}
+        style={{ flexShrink: 1 }}
+        contentContainerStyle={{ paddingBottom: 4 }}
+        onLayout={(e) => {
+          viewH.current = e.nativeEvent.layout.height;
+        }}
+      >
+        <View style={s.trWrap}>
+          {families.map((f) => (
+            <View
+              key={f.key}
+              style={{ gap: 7 }}
+              onLayout={
+                f.variants.some((v) => v.type === type)
+                  ? (e) => {
+                      const { y, height } = e.nativeEvent.layout;
+                      selectedBox.current = { y, h: height };
+                    }
+                  : undefined
+              }
+            >
+              <Text style={s.trFamily}>{f.label}</Text>
+              <View style={s.trRow}>
+                {f.variants.map((v) => (
+                  <Pressable
+                    key={v.type}
+                    accessibilityRole="button"
+                    accessibilityLabel={v.label}
+                    accessibilityState={{ selected: type === v.type }}
+                    onPress={() => apply(v.type)}
+                    hitSlop={4}
+                  >
+                    <TransitionTile
+                      type={v.type}
+                      size={TILE}
+                      selected={type === v.type}
+                    />
+                  </Pressable>
+                ))}
+              </View>
             </View>
-          </View>
-        ))}
-      </View>
+          ))}
+        </View>
+      </ScrollView>
       {type !== "cut" ? (
         <View style={s.intensityRow}>
           <Text style={s.intensityLabel}>Duration</Text>

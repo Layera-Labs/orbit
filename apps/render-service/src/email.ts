@@ -77,7 +77,7 @@ export function resetEmailMessage(
       ? `Open this link to choose a new one:\n${link}\n\n`
       : `Enter this code in the app to continue:\n\n${code}\n\n`) +
     `It expires in 1 hour and can be used once. ` +
-    `If you didn't ask for this, you can ignore this email — nothing has changed.`;
+    `If you didn't ask for this, you can ignore this email. Nothing has changed.`;
 
   /*
    * Restrained on purpose. Every mail client renders CSS differently and most
@@ -100,7 +100,7 @@ export function resetEmailMessage(
     <p style="margin:0 0 24px;color:#6c6c78">You asked to reset it. This is the only thing you need to do.</p>
     ${body}
     <p style="margin:0;padding-top:20px;border-top:1px solid #e6e6eb;color:#6c6c78;font-size:13px;line-height:1.5">
-      It expires in 1 hour and can be used once. If you didn't ask for this, you can ignore this email &mdash; nothing has changed.
+      It expires in 1 hour and can be used once. If you didn't ask for this, you can ignore this email. Nothing has changed.
     </p>
   </div>
 </div>`;

@@ -135,7 +135,7 @@ export function TtsSheet() {
 
   return (
     <Modal visible animationType="slide" onRequestClose={close}>
-      <StatusBar style="auto" />
+      <StatusBar style="dark" />
       <KeyboardAvoidingView
         behavior={process.env.EXPO_OS === "ios" ? "padding" : undefined}
         style={styles.root}

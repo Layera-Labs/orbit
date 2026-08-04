@@ -274,7 +274,7 @@ export function AiGenerateModal() {
       onRequestClose={close}
       presentationStyle="fullScreen"
     >
-      <StatusBar style="auto" />
+      <StatusBar style="dark" />
       <View style={s.root}>
         <AppHeader
           title="AI Generate"

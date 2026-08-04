@@ -216,7 +216,7 @@ export function AuthSheet({
       onRequestClose={onClose}
       presentationStyle="fullScreen"
     >
-      <StatusBar style="auto" />
+      <StatusBar style="dark" />
       <View style={styles.root}>
         <KeyboardAvoidingView
           behavior={process.env.EXPO_OS === "ios" ? "padding" : undefined}

@@ -54,7 +54,7 @@ export function StorySheet() {
 
   return (
     <Modal visible animationType="slide" onRequestClose={close}>
-      <StatusBar style="auto" />
+      <StatusBar style="dark" />
       <View style={styles.root}>
         <View style={styles.header}>
           <Pressable
