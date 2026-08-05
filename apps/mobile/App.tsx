@@ -11,6 +11,7 @@ import { flushProjectSave } from './src/storage/projects';
 import { useAuth } from './src/store/authStore';
 import { configurePurchases } from './src/net/purchases';
 import { vela } from './src/constants';
+import { barStyleFor } from './src/components/statusBar';
 import { HomeScreen } from './src/screens/HomeScreen';
 import { DiscoverScreen } from './src/screens/DiscoverScreen';
 import { EditorScreen } from './src/screens/EditorScreen';
@@ -89,13 +90,14 @@ export default function App() {
   }
 
   const isEditor = screen === 'editor';
-  // The picker is the first step of editing, so it wears the editor's dark
-  // chrome rather than Home's light.
-  const darkTop = isEditor || screen === 'ai' || screen === 'pick';
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar style={darkTop ? 'light' : 'dark'} />
+      {/* One answer for "which glyphs does this surface need", in
+          `statusBar.ts`. It used to be an inline list here that included `ai`,
+          and AI Studio is a LIGHT screen — so its clock, wifi and battery were
+          white on #f7f7fa. */}
+      <StatusBar style={barStyleFor(screen)} />
       {/* Inside the root view, so a throw in any screen still leaves a usable
           app rather than a black rectangle with no way out. */}
       <ErrorBoundary>

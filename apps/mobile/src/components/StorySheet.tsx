@@ -9,13 +9,18 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { StatusBar } from "expo-status-bar";
 import { font, vela } from "../constants";
 import { titleCardOf, updateOverlay } from "../model/editor-ops";
 import { useEditor } from "../store/editorStore";
+import { useStatusBarStyle } from "./statusBar";
 import { VIcon } from "./VIcon";
 
 export function StorySheet() {
+  // Light sheet over dark chrome. Set through the hook, not a `<StatusBar>`:
+  // that component applies a style and does nothing on unmount, so closing this
+  // used to leave dark glyphs on the dark editor behind it.
+  useStatusBarStyle("dark", useEditor((st) => st.screen));
+
   const project = useEditor((s) => s.project);
   const projectName = useEditor((s) => s.name);
   const setPanel = useEditor((s) => s.setPanel);
@@ -54,7 +59,6 @@ export function StorySheet() {
 
   return (
     <Modal visible animationType="slide" onRequestClose={close}>
-      <StatusBar style="dark" />
       <View style={styles.root}>
         <View style={styles.header}>
           <Pressable

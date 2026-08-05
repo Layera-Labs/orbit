@@ -14,11 +14,11 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { StatusBar } from "expo-status-bar";
 import { font, vela } from "../constants";
 import { VIcon, type VIconName } from "./VIcon";
 import { VSlider } from "./VSlider";
 import { useEditor } from "../store/editorStore";
+import { useStatusBarStyle } from "./statusBar";
 import { useAuth } from "../store/authStore";
 import { generateTts, GenError } from "../net/genClient";
 
@@ -84,6 +84,11 @@ function errText(e: unknown): string {
 }
 
 export function TtsSheet() {
+  // Light sheet over dark chrome. Set through the hook, not a `<StatusBar>`:
+  // that component applies a style and does nothing on unmount, so closing this
+  // used to leave dark glyphs on the dark editor behind it.
+  useStatusBarStyle("dark", useEditor((st) => st.screen));
+
   const setPanel = useEditor((s) => s.setPanel);
   const serverUrl = useEditor((s) => s.serverUrl);
   const credits = useEditor((s) => s.credits);
@@ -135,7 +140,6 @@ export function TtsSheet() {
 
   return (
     <Modal visible animationType="slide" onRequestClose={close}>
-      <StatusBar style="dark" />
       <KeyboardAvoidingView
         behavior={process.env.EXPO_OS === "ios" ? "padding" : undefined}
         style={styles.root}

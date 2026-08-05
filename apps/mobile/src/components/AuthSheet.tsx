@@ -21,11 +21,12 @@ import {
   View,
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
-import { StatusBar } from "expo-status-bar";
 import { font, mono, vela } from "../constants";
 import { VIcon } from "./VIcon";
 import { AuthError } from "../net/authClient";
 import { useAuth } from "../store/authStore";
+import { useEditor } from "../store/editorStore";
+import { useStatusBarStyle } from "./statusBar";
 
 type ViewKey = "login" | "register" | "forgot" | "reset";
 
@@ -98,6 +99,11 @@ export function AuthSheet({
   onClose: () => void;
   onAuthed?: () => void;
 }) {
+  // Light sheet over dark chrome. Set through the hook, not a `<StatusBar>`:
+  // that component applies a style and does nothing on unmount, so closing this
+  // used to leave dark glyphs on the dark editor behind it.
+  useStatusBarStyle("dark", useEditor((s) => s.screen));
+
   const login = useAuth((s) => s.login);
   const register = useAuth((s) => s.register);
   const requestReset = useAuth((s) => s.requestReset);
@@ -216,7 +222,6 @@ export function AuthSheet({
       onRequestClose={onClose}
       presentationStyle="fullScreen"
     >
-      <StatusBar style="dark" />
       <View style={styles.root}>
         <KeyboardAvoidingView
           behavior={process.env.EXPO_OS === "ios" ? "padding" : undefined}

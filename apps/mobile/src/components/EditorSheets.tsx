@@ -21,9 +21,9 @@ import {
   type LayoutChangeEvent,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { StatusBar } from "expo-status-bar";
 import Animated from 'react-native-reanimated';
 import { font, mono, orbitTonal, vela, RATIOS, ratioLabel } from "../constants";
+import { useStatusBarStyle } from "./statusBar";
 import { VIcon, type VIconName } from "./VIcon";
 import { BottomSheet as BaseBottomSheet } from "./BottomSheet";
 import { InputSheet } from "./InputSheet";
@@ -180,19 +180,24 @@ function FullSheet({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  /*
+   * STATED, not `auto`. `expo-status-bar`'s `auto` follows the APP'S colour
+   * scheme rather than what is behind the bar, and `app.json` declares
+   * `userInterfaceStyle: "dark"` — so `auto` resolved to white glyphs on every
+   * device and every system setting, over a surface that is permanently
+   * `vela.homeBg`. The clock, wifi and battery were white on #f7f7fa.
+   *
+   * Held through the hook rather than rendered as a `<StatusBar>`, because that
+   * component applies a style and does nothing on unmount: this sheet is light
+   * and it opens over the DARK editor, so closing it used to leave dark glyphs
+   * on dark chrome — the same invisibility from the other side. The hook puts
+   * the screen's own answer back.
+   */
+  const screen = useEditor((st) => st.screen);
+  useStatusBarStyle("dark", screen);
+
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
-      {/*
-        * STATED, not `auto`. `expo-status-bar`'s `auto` follows the APP'S
-        * colour scheme rather than what is behind the bar, and `app.json`
-        * declares `userInterfaceStyle: "dark"` — so `auto` resolved to white
-        * glyphs on every device and every system setting, over a surface that
-        * is permanently `vela.homeBg`. The clock, wifi and battery were white
-        * on #f7f7fa. Same reasoning as `App.tsx`, which branches
-        * `light`/`dark` off the screen instead of deferring: the right glyph
-        * colour is a property of the surface, and this one never changes.
-        */}
-      <StatusBar style="dark" />
       <View style={s.full}>{children}</View>
     </Modal>
   );

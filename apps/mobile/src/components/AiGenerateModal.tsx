@@ -21,11 +21,11 @@ import {
 import { useVideoPlayer, VideoView } from "expo-video";
 import { setAudioModeAsync, useAudioPlayer } from "expo-audio";
 import * as ImagePicker from "expo-image-picker";
-import { StatusBar } from "expo-status-bar";
 import { font, mono, vela } from "../constants";
 import { AppHeader } from "./AppHeader";
 import { VIcon } from "./VIcon";
 import { useEditor } from "../store/editorStore";
+import { useStatusBarStyle } from "./statusBar";
 import { useAuth } from "../store/authStore";
 import { generateImage, generateVideo, GenError } from "../net/genClient";
 import { uploadMedia } from "../net/renderClient";
@@ -72,6 +72,11 @@ const isCancel = (e: unknown): boolean =>
   e instanceof GenError && e.kind === "cancelled";
 
 export function AiGenerateModal() {
+  // Light sheet over dark chrome. Set through the hook, not a `<StatusBar>`:
+  // that component applies a style and does nothing on unmount, so closing this
+  // used to leave dark glyphs on the dark editor behind it.
+  useStatusBarStyle("dark", useEditor((st) => st.screen));
+
   const setPanel = useEditor((s) => s.setPanel);
   const project = useEditor((s) => s.project);
   const credits = useEditor((s) => s.credits);
@@ -274,7 +279,6 @@ export function AiGenerateModal() {
       onRequestClose={close}
       presentationStyle="fullScreen"
     >
-      <StatusBar style="dark" />
       <View style={s.root}>
         <AppHeader
           title="AI Generate"
