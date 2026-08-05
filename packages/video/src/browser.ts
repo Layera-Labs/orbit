@@ -93,6 +93,7 @@ export {
   measurerFor,
   approximateMeasurer,
   wrapLines,
+  linesOf,
   APPROX_EM_PER_CHAR,
 } from './font-metrics';
 export type { FontMetrics, TextMeasurer } from './font-metrics';

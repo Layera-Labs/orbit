@@ -34,7 +34,13 @@
  */
 import type { TextOverlay } from './types';
 import { col, esc, fontFamily as family, num as n } from './svg';
-import { approximateMeasurer, measurerFor, metricsFor, type TextMeasurer } from './font-metrics';
+import {
+  approximateMeasurer,
+  linesOf,
+  measurerFor,
+  metricsFor,
+  type TextMeasurer,
+} from './font-metrics';
 import { codePointsOf, subsetFontCached } from './font-subset';
 
 /** Font bytes by family name, as the render service serves them. */
@@ -117,7 +123,7 @@ export function overlayBox(
   measure?: TextMeasurer,
 ): { x: number; y: number; w: number; h: number } {
   const m = measure ?? approximateMeasurer(o.letterSpacing ?? 0);
-  const lines = (o.text ?? '').split('\n');
+  const lines = linesOf(o.text, o.fontSize, m, o.maxWidth);
   const lineH = o.fontSize * (o.lineHeight ?? 1.25);
   /*
    * An empty caption still needs a box the editor can grab. The old code got
@@ -145,7 +151,7 @@ export function overlayToSVG(
   opts?: OverlayRenderOptions,
 ): string {
   const measure = resolveMeasurer(o, opts);
-  const lines = (o.text ?? '').split('\n');
+  const lines = linesOf(o.text, o.fontSize, measure, o.maxWidth);
   const lineH = o.fontSize * (o.lineHeight ?? 1.25);
   const anchorX = width * o.x;
   const anchorY = height * o.y;

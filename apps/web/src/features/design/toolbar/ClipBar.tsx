@@ -628,10 +628,61 @@ function PlacementMenu({ clip }: { clip: VisualTrackClip }) {
   );
 }
 
+/**
+ * Where a caption breaks its lines.
+ *
+ * `maxWidth` is stored in output pixels, because that is what `fontSize` and
+ * `letterSpacing` are and what the measurement is done in — but nobody thinks
+ * about a caption in pixels of a 3840-wide master, so it is shown and driven as
+ * a share of the frame.
+ *
+ * Off DELETES the field rather than storing the frame width. The two are not
+ * the same: a stored width is a promise that the caption breaks there forever,
+ * so a project later re-rendered at another size would reflow, and the SVG the
+ * exporter emits stops being byte-identical to the one it emitted before this
+ * control existed. Absent means absent.
+ */
+function WrapWidth({
+  overlay,
+  projectWidth,
+  set,
+}: {
+  overlay: TextOverlay;
+  projectWidth: number;
+  set: (patch: Partial<TextOverlay>) => void;
+}) {
+  const on = (overlay.maxWidth ?? 0) > 0;
+  return (
+    <>
+      <p className={styles.groupTitle}>Line breaks</p>
+      <div className={styles.menu}>
+        <MenuItem on={!on} onClick={() => set({ maxWidth: undefined })}>
+          Only where I type a new line
+        </MenuItem>
+        <MenuItem on={on} onClick={() => set({ maxWidth: Math.round(projectWidth * 0.8) })}>
+          Wrap to a width
+        </MenuItem>
+      </div>
+      {on && (
+        <SliderRow
+          label="Wrap at"
+          value={Math.min(1, overlay.maxWidth! / projectWidth)}
+          min={0.1}
+          max={1}
+          step={0.01}
+          format={(v) => `${Math.round(v * 100)}% of the frame`}
+          onChange={(v) => set({ maxWidth: Math.round(v * projectWidth) })}
+        />
+      )}
+    </>
+  );
+}
+
 /** A caption's properties. Every field maps to something `overlayToSVG` renders. */
 export function OverlayBar({ overlay }: { overlay: TextOverlay }) {
   const apply = useVideo((s) => s.apply);
   const select = useVideo((s) => s.select);
+  const projectWidth = useVideo((s) => s.project?.width ?? 1920);
   const set = (patch: Partial<TextOverlay>) => apply((p) => updateOverlay(p, overlay.id, patch));
 
   return (
@@ -646,6 +697,7 @@ export function OverlayBar({ overlay }: { overlay: TextOverlay }) {
             onChange={(e) => set({ text: e.target.value })}
             onKeyDown={(e) => e.stopPropagation()}
           />
+          <WrapWidth overlay={overlay} projectWidth={projectWidth} set={set} />
         </div>
       </BarMenu>
 
