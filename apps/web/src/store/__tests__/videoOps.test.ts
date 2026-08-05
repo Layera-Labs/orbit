@@ -16,7 +16,7 @@
  * on exactly the bug being guarded against.
  */
 import { describe, expect, it } from 'vitest';
-import type { VideoProject, VisualTrackClip } from '@orbit/video/browser';
+import type { TextOverlay, VideoProject, VisualTrackClip } from '@orbit/video/browser';
 import {
   patchClip,
   setClipTransform,
@@ -212,7 +212,13 @@ describe('setClipTransform', () => {
 });
 
 describe('updateOverlay', () => {
-  const overlayOf = (p: VideoProject) => p.overlays[0];
+  // Narrowed once, here: `Overlay` is a union and this suite is entirely about
+  // a caption. A cast would hide the day one of these fixtures stops being one.
+  const overlayOf = (p: VideoProject): TextOverlay => {
+    const o = p.overlays[0];
+    if (o.type !== 'text') throw new Error(`expected a caption, got ${o.type}`);
+    return o;
+  };
 
   it('sets a field', () => {
     expect(overlayOf(updateOverlay(base(), 'o1', { maxWidth: 800 })).maxWidth).toBe(800);
@@ -240,6 +246,6 @@ describe('updateOverlay', () => {
 
   it('is a no-op for an id that is not there', () => {
     const p = base();
-    expect(updateOverlay(p, 'nope', { maxWidth: 800 }).overlays[0].maxWidth).toBeUndefined();
+    expect(overlayOf(updateOverlay(p, 'nope', { maxWidth: 800 })).maxWidth).toBeUndefined();
   });
 });

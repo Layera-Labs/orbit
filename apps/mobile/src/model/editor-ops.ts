@@ -17,6 +17,7 @@ import type {
   Keyframe,
   Motion,
   ElementAnim,
+  Overlay,
   Rect,
   SourceRect,
   VolumePoint,
@@ -27,6 +28,7 @@ import type {
   VisualTrack,
   VisualTrackClip,
 } from "./types";
+import { textOverlaysOf } from "./types";
 import { isFullSource, normalizeRotation } from "../preview/transform";
 import { MAX_VOLUME } from "./audio-fade";
 import { requestedOverlap } from "../preview/xfade";
@@ -1157,7 +1159,11 @@ export const TITLE_CARD_ID = "story-title-card";
 export const TITLE_CARD_SECONDS = 2;
 
 export function titleCardOf(p: VideoProject): TextOverlay | undefined {
-  return p.overlays.find((o) => o.id === TITLE_CARD_ID);
+  const o = p.overlays.find((x) => x.id === TITLE_CARD_ID);
+  // The card is written as a caption and only ever read as one. Narrowed rather
+  // than cast so a document carrying something else under this id reads as
+  // "no title card" instead of being handed to the text UI.
+  return o && o.type === "text" ? o : undefined;
 }
 
 /** Shift every clip and overlay in time, clamping at 0. */
@@ -1339,7 +1345,7 @@ export function captionCues(overlays: readonly TextOverlay[]): Cue[] {
  * replace, not a category the user chose.
  */
 export function toSRT(p: VideoProject): string {
-  const cues = captionCues(p.overlays ?? []);
+  const cues = captionCues(textOverlaysOf(p.overlays ?? []));
   if (!cues.length) return "";
   return (
     cues
@@ -1353,7 +1359,7 @@ export function toSRT(p: VideoProject): string {
 
 /** Is there anything a subtitle file could contain? */
 export function hasCaptionText(p: VideoProject): boolean {
-  return captionCues(p.overlays ?? []).length > 0;
+  return captionCues(textOverlaysOf(p.overlays ?? [])).length > 0;
 }
 
 /** A filename the OS will accept from a project title someone typed. */
@@ -1388,16 +1394,30 @@ export function maxOverlayLayer(p: VideoProject): number {
  * paint order (bottom→top) means Preview and export need no z-order logic — they
  * already draw overlays in array order.
  */
-function sortByLayer(overlays: TextOverlay[]): TextOverlay[] {
+function sortByLayer(overlays: Overlay[]): Overlay[] {
   return overlays
     .map((o, i) => ({ o, i }))
     .sort((a, b) => (a.o.layer ?? 0) - (b.o.layer ?? 0) || a.i - b.i)
     .map((x) => x.o);
 }
 
+/**
+ * What to call an overlay on a timeline bar.
+ *
+ * One helper rather than `o.text` at each site, because those sites are exactly
+ * where a new overlay kind goes silently unlabelled — the bar still draws, so
+ * nothing looks broken; it is just blank, on a lane, with no way to tell which
+ * one it is. Mirrors `overlayLabel` in `apps/web/src/store/videoStore.ts`.
+ */
+export function overlayLabel(o: Overlay): string {
+  if (o.type === "text") return o.text || "Text";
+  if (o.type === "image") return "Image";
+  return o.shape === "ellipse" ? "Ellipse" : "Rectangle";
+}
+
 export function addOverlay(
   p: VideoProject,
-  overlay: TextOverlay,
+  overlay: Overlay,
 ): VideoProject {
   return { ...p, overlays: sortByLayer([...p.overlays, overlay]) };
 }
@@ -1429,10 +1449,10 @@ export function rippleDeleteOverlay(p: VideoProject, id: string): VideoProject {
   };
 }
 
-export function updateOverlay(
+export function updateOverlay<O extends Overlay = TextOverlay>(
   p: VideoProject,
   id: string,
-  patch: Partial<TextOverlay>,
+  patch: Partial<O>,
 ): VideoProject {
   /*
    * An `undefined` in the patch REMOVES the field rather than parking an
@@ -1442,12 +1462,12 @@ export function updateOverlay(
    * did before the control was touched. Mirrors the same rule in
    * `apps/web/src/store/videoStore.ts`.
    */
-  const merge = (o: TextOverlay): TextOverlay => {
+  const merge = (o: Overlay): Overlay => {
     const next = { ...o, ...patch } as Record<string, unknown>;
     for (const k of Object.keys(patch)) {
       if ((patch as Record<string, unknown>)[k] === undefined) delete next[k];
     }
-    return next as unknown as TextOverlay;
+    return next as unknown as Overlay;
   };
   return {
     ...p,

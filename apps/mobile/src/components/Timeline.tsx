@@ -50,7 +50,7 @@ import {
   type ScrollEvent,
 } from "./timelineScroll";
 import { VIcon, type VIconName } from "./VIcon";
-import { MIN_CLIP } from "../model/editor-ops";
+import { MIN_CLIP, overlayLabel } from "../model/editor-ops";
 import { projectDuration } from "../model/project";
 import type {
   Rect,
@@ -972,7 +972,7 @@ export function Timeline({ maxHeight = 270 }: { maxHeight?: number }) {
                   id: o.id,
                   start: o.start,
                   duration: Math.max(0.1, o.end - o.start),
-                  text: o.text,
+                  text: overlayLabel(o),
                 },
                 trackId: OVERLAY_TRACK,
               })),

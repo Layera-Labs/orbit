@@ -103,6 +103,7 @@ import type {
   VisualTrack,
   VisualTrackClip,
 } from "../model/types";
+import { textOverlaysOf } from "../model/types";
 import { OVERLAY_TRACK, useEditor } from "../store/editorStore";
 
 /** Fallback preview tick (20fps) when no preference is set. The Preview FPS
@@ -1102,7 +1103,17 @@ export function Preview({ width, height }: { width: number; height: number }) {
       return c ? { clip: withLive(c), trackId: t.id } : null;
     })
     .filter((x): x is { clip: VisualTrackClip; trackId: string } => !!x);
-  const captions = (project?.overlays ?? [])
+  /*
+   * Captions, and only captions.
+   *
+   * `Overlay` is a union now, and an `image` or `shape` overlay is SKIPPED here
+   * rather than handed to `CaptionText`, which would read a `text` that is not
+   * there and render an empty `<Text>` at the overlay's anchor. The export skips
+   * it too — `render.ts` rasterizes text alone and `buildFFmpegArgs` selects on
+   * type — so preview and file agree about the absence, which is the property
+   * that matters until the other renderers land.
+   */
+  const captions = textOverlaysOf(project?.overlays ?? [])
     .filter((o) => playheadSec >= o.start && playheadSec <= o.end)
     // The one under the finger is drawn from `liveText`, so it keeps up.
     .map((o) =>
@@ -1793,9 +1804,12 @@ export function Preview({ width, height }: { width: number; height: number }) {
 }
 
 function selectedOverlayFromState(id: string): TextOverlay | undefined {
-  return useEditor
+  const o = useEditor
     .getState()
     .project?.overlays.find((overlay) => overlay.id === id);
+  // Only a caption is draggable on the canvas today; anything else reads as
+  // "nothing selected" rather than being handed to the caption drag path.
+  return o && o.type === "text" ? o : undefined;
 }
 
 /** Fold an opacity into a hex color → rgba() (pass-through for non-hex). */

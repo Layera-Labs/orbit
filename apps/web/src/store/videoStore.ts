@@ -20,6 +20,7 @@ import {
   type CanvasFrame,
   type ElementAnim,
   type Rect,
+  type Overlay,
   type SourceRect,
   type TextOverlay,
   type VideoProject,
@@ -676,17 +677,16 @@ export function setElementAnim(
 
 /* -------------------------------------------------------------- overlays --- */
 
-const byLayer = (o: TextOverlay[]) =>
-  [...o].sort((a, b) => (a.layer ?? 0) - (b.layer ?? 0));
+const byLayer = (o: Overlay[]) => [...o].sort((a, b) => (a.layer ?? 0) - (b.layer ?? 0));
 
-export function addOverlay(p: VideoProject, overlay: TextOverlay): VideoProject {
+export function addOverlay(p: VideoProject, overlay: Overlay): VideoProject {
   return { ...p, overlays: byLayer([...(p.overlays ?? []), overlay]) };
 }
 
-export function updateOverlay(
+export function updateOverlay<O extends Overlay = TextOverlay>(
   p: VideoProject,
   id: string,
-  patch: Partial<TextOverlay>,
+  patch: Partial<O>,
 ): VideoProject {
   let touched = false;
   const overlays = (p.overlays ?? []).map((o) => {
@@ -705,7 +705,7 @@ export function updateOverlay(
     for (const k of Object.keys(patch)) {
       if ((patch as Record<string, unknown>)[k] === undefined) delete next[k];
     }
-    return next as unknown as TextOverlay;
+    return next as unknown as Overlay;
   });
   return touched ? { ...p, overlays } : p;
 }
@@ -750,7 +750,27 @@ export function duplicateOverlay(p: VideoProject, id: string): VideoProject {
   });
 }
 
-export function findOverlay(p: VideoProject, id: string | null): TextOverlay | null {
+/**
+ * What to call an overlay in a list or on a timeline bar.
+ *
+ * One helper rather than `o.text || 'Text'` at each site, because those sites
+ * are exactly where a new overlay kind goes silently unlabelled — the bar still
+ * draws, so nothing looks broken; it is just blank, on a lane, with no way to
+ * tell which one it is.
+ */
+export function overlayLabel(o: Overlay): string {
+  if (o.type === 'text') return o.text || 'Text';
+  if (o.type === 'image') return 'Image';
+  return o.shape === 'ellipse' ? 'Ellipse' : 'Rectangle';
+}
+
+/** The caption with this id, or null if it is absent or not a caption. */
+export function findTextOverlay(p: VideoProject, id: string | null): TextOverlay | null {
+  const o = findOverlay(p, id);
+  return o && o.type === 'text' ? o : null;
+}
+
+export function findOverlay(p: VideoProject, id: string | null): Overlay | null {
   if (!id) return null;
   return (p.overlays ?? []).find((o) => o.id === id) ?? null;
 }

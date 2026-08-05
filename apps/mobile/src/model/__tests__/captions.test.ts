@@ -5,7 +5,7 @@ import {
   hasAutoCaptions,
   setAutoCaptions,
 } from "../editor-ops";
-import type { TextOverlay, VideoProject } from "../types";
+import { textOverlaysOf, type TextOverlay, type VideoProject } from "../types";
 
 const project = (overlays: TextOverlay[] = []): VideoProject => ({
   id: "p",
@@ -37,7 +37,7 @@ const hand: TextOverlay = {
 describe("setAutoCaptions", () => {
   it("lays the transcript out in time", () => {
     const p = setAutoCaptions(project(), [caption("one", 0, 1), caption("two", 1, 2)]);
-    expect(p.overlays.map((o) => [o.text, o.start, o.end])).toEqual([
+    expect(textOverlaysOf(p.overlays).map((o) => [o.text, o.start, o.end])).toEqual([
       ["one", 0, 1],
       ["two", 1, 2],
     ]);
@@ -56,7 +56,7 @@ describe("setAutoCaptions", () => {
     const once = setAutoCaptions(project(), [caption("old", 0, 1), caption("older", 1, 2)]);
     const twice = setAutoCaptions(once, [caption("new", 0, 1)]);
     expect(twice.overlays).toHaveLength(1);
-    expect(twice.overlays[0].text).toBe("new");
+    expect(textOverlaysOf(twice.overlays)[0].text).toBe("new");
   });
 
   it("leaves a caption someone wrote by hand alone", () => {
@@ -68,7 +68,7 @@ describe("setAutoCaptions", () => {
   /* Over footage of unknown brightness, a caption has to carry its own
      legibility rather than hope the picture behind it is dark. */
   it("gives every caption an outline and sits it low in the frame", () => {
-    const [c] = setAutoCaptions(project(), [caption("x", 0, 1)]).overlays;
+    const [c] = textOverlaysOf(setAutoCaptions(project(), [caption("x", 0, 1)]).overlays);
     expect(c.stroke?.width).toBeGreaterThan(0);
     expect(c.y).toBeGreaterThan(0.7);
   });

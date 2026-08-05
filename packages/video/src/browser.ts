@@ -22,6 +22,10 @@ export type {
   TextShadow,
   TextStroke,
   TextOverlay,
+  ImageOverlay,
+  ShapeOverlay,
+  OverlayBase,
+  OverlayShape,
   Overlay,
   AudioClip,
   Background,
@@ -52,7 +56,7 @@ export type {
   Track,
   VideoProject,
 } from './types';
-export { FULL_FRAME, FULL_SOURCE } from './types';
+export { FULL_FRAME, FULL_SOURCE, textOverlaysOf } from './types';
 export {
   FILTER_PRESETS,
   NEUTRAL,

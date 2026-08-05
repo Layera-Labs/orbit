@@ -1862,7 +1862,8 @@ export function effectsTarget(): {
 export function selectedOverlay(): TextOverlay | null {
   const { selected, project } = useEditor.getState();
   if (!selected || selected.trackId !== OVERLAY_TRACK) return null;
-  return (
-    (project?.overlays ?? []).find((o) => o.id === selected.clipId) ?? null
-  );
+  const o = (project?.overlays ?? []).find((x) => x.id === selected.clipId);
+  // The name says text and every caller is a text sheet, so a non-caption
+  // overlay answers null rather than arriving somewhere that reads `.fontSize`.
+  return o && o.type === "text" ? o : null;
 }

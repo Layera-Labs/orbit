@@ -68,9 +68,13 @@ export function TextSettingsSheet({
   const selected = useEditor((s) => s.selected);
   const editSelectedText = useEditor((s) => s.editSelectedText);
   const updateOverlay = useEditor((s) => s.updateSelectedOverlay);
-  const ov = useEditor((s) =>
-    s.project?.overlays.find((o) => o.id === selected?.clipId),
-  );
+  // Narrowed to a caption: this sheet is entirely font, colour and alignment,
+  // and `Overlay` is a union. Anything else reads as "no selection" and the
+  // sheet falls back to its defaults rather than to `undefined` everywhere.
+  const ov = useEditor((s) => {
+    const o = s.project?.overlays.find((x) => x.id === selected?.clipId);
+    return o && o.type === "text" ? o : undefined;
+  });
   const projW = useEditor((s) => s.project?.width ?? 1080);
 
   const [tab, setTab] = useState<Tab>(initialTab);

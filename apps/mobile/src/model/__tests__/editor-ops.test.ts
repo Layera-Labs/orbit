@@ -684,10 +684,18 @@ describe("ensureTracks and the legacy audio array", () => {
 });
 
 describe("updateOverlay", () => {
+  // Narrowed once: `Overlay` is a union and this suite is entirely about a
+  // caption. A cast would hide the day the fixture stops being one.
+  const captionOf = (p: VideoProject) => {
+    const o = p.overlays[0];
+    if (o.type !== "text") throw new Error(`expected a caption, got ${o.type}`);
+    return o;
+  };
+
   it("sets a field on the named overlay only", () => {
     const next = updateOverlay(project, "title", { maxWidth: 800 });
-    expect(next.overlays[0].maxWidth).toBe(800);
-    expect(next.overlays[0].text).toBe("Keep my timing");
+    expect(captionOf(next).maxWidth).toBe(800);
+    expect(captionOf(next).text).toBe("Keep my timing");
     expect(next.tracks).toBe(project.tracks);
   });
 
@@ -708,7 +716,7 @@ describe("updateOverlay", () => {
   });
 
   it("is a no-op for an id that is not there", () => {
-    expect(updateOverlay(project, "nope", { maxWidth: 800 }).overlays[0].maxWidth)
+    expect(captionOf(updateOverlay(project, "nope", { maxWidth: 800 })).maxWidth)
       .toBeUndefined();
   });
 });

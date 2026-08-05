@@ -21,7 +21,7 @@ import {
   hasCaptionText,
   toSRT,
 } from "../model/editor-ops";
-import type { TextOverlay } from "../model/types";
+import { textOverlaysOf, type TextOverlay } from "../model/types";
 import { useEditor } from "../store/editorStore";
 import { BottomSheet } from "./BottomSheet";
 import { VIcon, type VIconName } from "./VIcon";
@@ -486,7 +486,10 @@ export function TextDrawerSheet() {
 
   const recentPresets = useMemo(() => {
     const seen = new Set<string>();
-    return [...(project?.overlays ?? [])]
+    // Text styles, from text overlays. `Overlay` is a union now, so this says
+    // so — an image overlay has no style to recall and would key on `undefined`
+    // three times, collapsing every one of them into a single bogus preset.
+    return [...textOverlaysOf(project?.overlays ?? [])]
       .reverse()
       .filter((overlay) => {
         const key = `${overlay.text}|${overlay.fontSize}|${overlay.color}`;

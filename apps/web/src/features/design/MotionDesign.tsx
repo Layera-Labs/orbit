@@ -16,6 +16,7 @@ import {
   duplicateOverlay,
   findClip,
   findOverlay,
+  findTextOverlay,
   moveClip,
   removeClip,
   removeOverlay,
@@ -117,7 +118,7 @@ export function MotionDesign({
   const preview = usePreview(canvasRef, live);
   const hasClips = !!live.tracks?.some((t) => t.clips.length) || !!live.overlays?.length;
   const selected = useMemo(() => findClip(live, selection), [live, selection]);
-  const selectedText = useMemo(() => findOverlay(live, selection), [live, selection]);
+  const selectedText = useMemo(() => findTextOverlay(live, selection), [live, selection]);
   const canvasDrag = useCanvasDrag(live, preview.time);
 
   /*

@@ -11,6 +11,7 @@
  */
 import {
   FULL_FRAME,
+  textOverlaysOf,
   type AudioTrack,
   type ExportOutput,
   type VideoProject,
@@ -279,7 +280,17 @@ export function buildFFmpegArgs(
     throw new Error("VideoProject has no clips or base image to render");
   }
   const duration = projectDuration(project);
-  const overlays = project.overlays.filter((o) => images[o.id]);
+  /*
+   * Captions, and ONLY captions.
+   *
+   * This used to select on `images[o.id]` alone — whether the rasterizer had
+   * produced a PNG — which picked the right overlays only because `render.ts`
+   * happened to rasterize text and nothing else. A rule spanning two files that
+   * nothing asserted. Selecting by TYPE says what is meant, and the `images`
+   * check stays because a caption whose PNG failed to write has no input to
+   * point an `overlay` filter at.
+   */
+  const overlays = textOverlaysOf(project.overlays).filter((o) => images[o.id]);
   const xfade = transitionDuration(project);
 
   const scaleChain = `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,fps=${fps},format=yuv420p`;
@@ -486,7 +497,9 @@ function buildMultiTrackArgs(
   const audioClips = tracks
     .filter((t): t is AudioTrack => t.kind === "audio")
     .flatMap((t) => t.clips);
-  const textOverlays = project.overlays.filter((o) => images[o.id]);
+  // Selected by TYPE, not by "did the rasterizer make a PNG" — see the note
+  // on the same line in `buildFFmpegArgs`.
+  const textOverlays = textOverlaysOf(project.overlays).filter((o) => images[o.id]);
 
   /*
    * Transitions on the MAIN (first visual) track. Clips OVERLAP by the
