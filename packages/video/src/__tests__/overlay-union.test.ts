@@ -80,6 +80,7 @@ function project(overlays: Overlay[]): VideoProject {
 
 /** A PNG on disk for EVERY overlay — including the ones that must be ignored. */
 const allImages = { cap: '/tmp/cap.png', img: '/tmp/img.png', shp: '/tmp/shp.png' };
+const OUT = '/tmp/out.mp4';
 
 describe('textOverlaysOf', () => {
   it('keeps captions in order and drops the rest', () => {
@@ -130,6 +131,7 @@ describe('the export skips the same overlays', () => {
   it('wires only the caption into the legacy filtergraph', () => {
     const args = buildFFmpegArgs(project([caption, sticker, plate]), {
       overlayImages: allImages,
+      outputPath: OUT,
     });
     expect(args).toContain('/tmp/cap.png');
     expect(args).not.toContain('/tmp/img.png');
@@ -148,7 +150,7 @@ describe('the export skips the same overlays', () => {
         },
       ],
     };
-    const args = buildFFmpegArgs(p, { overlayImages: allImages, baseImage: '/tmp/bg.png' });
+    const args = buildFFmpegArgs(p, { overlayImages: allImages, baseImage: '/tmp/bg.png', outputPath: OUT });
     expect(args).toContain('/tmp/cap.png');
     expect(args).not.toContain('/tmp/img.png');
     expect(args).not.toContain('/tmp/shp.png');
@@ -161,8 +163,9 @@ describe('the export skips the same overlays', () => {
     // would shift every later stream label as well as adding a picture.
     const withAll = buildFFmpegArgs(project([caption, sticker, plate]), {
       overlayImages: allImages,
+      outputPath: OUT,
     });
-    const captionOnly = buildFFmpegArgs(project([caption]), { overlayImages: allImages });
+    const captionOnly = buildFFmpegArgs(project([caption]), { overlayImages: allImages, outputPath: OUT });
     expect(withAll).toEqual(captionOnly);
   });
 });

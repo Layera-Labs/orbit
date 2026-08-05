@@ -26,6 +26,11 @@ import { MediaPool } from './sources';
 function projectSrcs(p: VideoProject): string[] {
   const out: string[] = [];
   for (const track of p.tracks ?? []) for (const c of track.clips) out.push(c.src);
+  // Image overlays too. `frameStateAt` emits a `clip` op for one, so the
+  // compositor asks for its media by src exactly as it does for a clip — and a
+  // src nobody resolved is not an error anywhere, it is a sticker that never
+  // appears.
+  for (const o of p.overlays ?? []) if (o.type === 'image') out.push(o.src);
   if (p.background?.type === 'image') out.push(p.background.src);
   return out.filter(Boolean);
 }
