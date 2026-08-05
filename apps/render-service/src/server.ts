@@ -75,7 +75,7 @@ import {
   type LedgerStore,
 } from "@orbit/billing";
 import { authFromEnv, AuthError, type UserStore } from "@orbit/auth";
-import { randomBytes } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import { collectClientSrcs, isClientSrc, makeResolveSrc } from "./resolve.js";
 import { RemoteSrcError, fetchRemoteTo } from "./remote.js";
 import { PgLedgerStore, PgUserStore, makePgPool } from "./pg-store.js";
@@ -204,6 +204,15 @@ const AUTH_CREATE_RATE_LIMIT = envNumber("ORBIT_AUTH_CREATE_RATE_LIMIT", 5);
 const GUEST_RATE_LIMIT = envNumber("ORBIT_GUEST_RATE_LIMIT", 30);
 /** Font fetches are cheap and heavily cached, but each miss can hit the network. */
 const FONT_RATE_LIMIT = envNumber("ORBIT_FONT_RATE_LIMIT", 60);
+/**
+ * The purchase webhook.
+ *
+ * Generous, because a real retry storm from RevenueCat is legitimate traffic
+ * and dropping it loses a customer their credits — but bounded, because the
+ * route reaches the database and is the one endpoint authenticated by a shared
+ * secret rather than a per-user token.
+ */
+const WEBHOOK_RATE_LIMIT = envNumber("ORBIT_WEBHOOK_RATE_LIMIT", 120);
 
 /**
  * Build identity, reported by `/health`.
@@ -388,6 +397,23 @@ export function createServer(): Express {
    * can price an export against the ledger for deployments that want a quota.
    * Requiring identity to render remains a product decision, not this file's.
    */
+  /**
+   * Compare a shared secret without leaking its length or contents by timing.
+   *
+   * `!==` on strings returns at the first differing byte, which is a usable
+   * oracle against an endpoint an attacker can call repeatedly. Lengths are
+   * compared first and separately because `timingSafeEqual` THROWS on a length
+   * mismatch rather than returning false — so the length check is not the leak,
+   * it is the precondition, and a wrong-length guess is rejected before any
+   * byte comparison happens at all.
+   */
+  const secretsMatch = (given: string | undefined, expected: string): boolean => {
+    if (!given) return false;
+    const a = Buffer.from(given);
+    const b = Buffer.from(expected);
+    return a.length === b.length && timingSafeEqual(a, b);
+  };
+
   const hits = new Map<string, { n: number; resetAt: number }>();
   const rateLimit =
     (limit: number, windowMs: number) =>
@@ -2015,9 +2041,36 @@ export function createServer(): Express {
   // by a shared secret (REVENUECAT_WEBHOOK_AUTH, set in the RevenueCat dashboard),
   // NOT the user bearer token. Credits the buyer's account by the pack size, once
   // per transaction (idempotent — RevenueCat may retry).
-  app.post("/v1/billing/webhook", async (req: Request, res: Response) => {
+  app.post(
+    "/v1/billing/webhook",
+    rateLimit(WEBHOOK_RATE_LIMIT, RATE_WINDOW_MS),
+    async (req: Request, res: Response) => {
+    /*
+     * FAIL CLOSED. This used to be `if (secret && …)`, so leaving
+     * REVENUECAT_WEBHOOK_AUTH unset did not weaken the check — it removed it,
+     * and the route became a public endpoint that mints credits. The product
+     * ids it grants against are not secret either: they are App Store
+     * identifiers that ship inside the mobile binary. An unconfigured secret is
+     * a misconfiguration, and the only safe reading of one is "refuse", not
+     * "accept everything".
+     *
+     * Truthiness rather than `??`, for the same reason `envNumber` exists: an
+     * env var set to the empty string is unset in every way that matters and
+     * `??` does not fire on it.
+     */
     const secret = process.env.REVENUECAT_WEBHOOK_AUTH;
-    if (secret && req.header("Authorization") !== secret) {
+    if (!secret) {
+      console.warn(
+        JSON.stringify({
+          t: new Date().toISOString(),
+          evt: "webhook-unconfigured",
+          msg: "REVENUECAT_WEBHOOK_AUTH is not set; refusing billing webhook",
+        }),
+      );
+      res.status(503).json({ error: "webhook not configured" });
+      return;
+    }
+    if (!secretsMatch(req.header("Authorization"), secret)) {
       res.status(401).json({ error: "invalid webhook signature" });
       return;
     }
@@ -2053,18 +2106,18 @@ export function createServer(): Express {
       return;
     }
     const account = makeAccountId(LICENSE_KEY, event.app_user_id);
-    const already = (await ledger.history(account)).some(
-      (e) =>
-        e.reason === "purchase" &&
-        (e.meta as { txId?: string } | undefined)?.txId === txId,
-    );
+    // One indexed row, not the account's whole history. RevenueCat retries, so
+    // the check has to exist; it does not have to be O(everything this account
+    // has ever done) on an id the caller supplies.
+    const already = await ledger.findByMeta(account, "purchase", "txId", txId);
     if (!already)
       await ledger.credit(account, amount, "purchase", {
         txId,
         productId: event.product_id,
       });
     res.json({ ok: true, balance: await ledger.balance(account) });
-  });
+    },
+  );
 
   // Dev-only credit top-up (production replaces this with a payment webhook).
   if (process.env.ORBIT_DEV_TOPUP === "1") {
