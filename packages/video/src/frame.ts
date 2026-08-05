@@ -45,7 +45,7 @@ import { elementFadeAt, resolveAnim, slideOffsetAt } from './element-anim';
 import { blendToFFmpeg } from './blend';
 import { backgroundToSVG } from './background-svg';
 import { canvasFrameToSVG, hasCanvasFrame } from './canvas-frame';
-import { overlayToSVG } from './overlay-svg';
+import { overlayFontOptions, overlayToSVG, type FontMap } from './overlay-svg';
 
 /** How a source fills its destination box. Mirrors the export's scale/crop. */
 export type Fit = 'cover' | 'stretch';
@@ -183,7 +183,26 @@ function backgroundOp(bg: Background | undefined, W: number, H: number): DrawOp 
  * Ops are emitted only while their window is live, matching the export's
  * `enable='between(t,S,E)'` gate.
  */
-export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
+export interface FrameOptions {
+  /**
+   * Font bytes by family, for captions.
+   *
+   * Optional, and the fallback is deliberate: with no fonts a caption is sized
+   * by the flat `0.58em` approximation and its SVG carries no `@font-face`,
+   * which is exactly what this function did before fonts were plumbed. So a
+   * caller that has not wired fonts yet — or whose font fetch failed — still
+   * gets a frame, just a slightly wider caption box.
+   *
+   * The EXPORT and the WEB PREVIEW must pass the same map, because the caption
+   * box is baked into the SVG string both of them consume. Passing it on one
+   * side only would size the box from real metrics in one renderer and from the
+   * approximation in the other, which is a worse divergence than the one this
+   * whole change set exists to remove.
+   */
+  fonts?: FontMap;
+}
+
+export function frameStateAt(p: VideoProject, t: number, opts?: FrameOptions): DrawOp[] {
   const { width: W, height: H } = p;
   const ops: DrawOp[] = [backgroundOp(p.background, W, H)];
   const fades = projectEdgeFadeMap(p);
@@ -359,7 +378,7 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
     ops.push({
       kind: 'overlay',
       id: o.id,
-      svg: overlayToSVG(o, W, H),
+      svg: overlayToSVG(o, W, H, overlayFontOptions(o, opts?.fonts)),
       dst: { x: dx, y: dy, w: W, h: H },
       fit: 'stretch',
       alpha: Math.max(0, Math.min(1, alpha)),

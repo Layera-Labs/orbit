@@ -1,13 +1,13 @@
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildFFmpegArgs, type BuildFFmpegOptions } from './ffmpeg';
 import { backgroundToSVG } from './background-svg';
 import { canvasFrameToSVG, hasCanvasFrame } from './canvas-frame';
-import { overlayToSVG } from './overlay-svg';
+import { overlayFontOptions, overlayToSVG } from './overlay-svg';
 import { rasterizeSVG } from './raster';
-import { fontFilesFor } from './google-fonts';
+import { resolveFonts } from './google-fonts';
 import { HDR_UNSUPPORTED_MESSAGE, supportsHdr } from './hdr';
 import {
   parseXfadeTokens,
@@ -40,6 +40,25 @@ export interface RenderOptions extends Omit<BuildFFmpegOptions, 'overlayImages' 
   timeoutMs?: number;
   /** Hard cap on each ffprobe, ms (default 30s). */
   probeTimeoutMs?: number;
+  /**
+   * Receives conditions that did not fail the render but DID change the output.
+   *
+   * There is exactly one today and it is the reason this exists: a caption
+   * whose font could not be resolved is rendered by resvg in a substitute face,
+   * so the file no longer matches the preview. That used to happen in complete
+   * silence — an unreachable Google produced a different-looking video and
+   * nothing anywhere admitted it. A warning is not an error (the render is
+   * still worth having), but it must not be invisible.
+   */
+  onWarning?: (warning: RenderWarning) => void;
+}
+
+/** Something that changed the output without failing the render. */
+export interface RenderWarning {
+  code: 'font-missing';
+  message: string;
+  /** The families that could not be resolved. */
+  families: string[];
 }
 
 const DEFAULT_RENDER_TIMEOUT_MS = 10 * 60_000;
@@ -274,14 +293,60 @@ export async function renderProject(project: VideoProject, opts: RenderOptions):
         ),
       );
     }
-    // Download any Google fonts the captions use so resvg embeds them.
+    /*
+     * Resolve the fonts the captions use so resvg embeds them — disk first,
+     * network last, never silently.
+     *
+     * A family we cannot find is not fatal: resvg substitutes and the render
+     * still completes. But the substituted file no longer matches the preview,
+     * which is the one divergence this engine is built to prevent, so it is
+     * reported rather than swallowed.
+     */
     const families = project.overlays.flatMap((o) => (o.type === 'text' && o.fontFamily ? [o.fontFamily] : []));
-    const fontFiles = await fontFilesFor(families);
+    const fonts_ = await resolveFonts(families);
+    const fontFiles = fonts_.files;
+    if (fonts_.missing.length) {
+      opts.onWarning?.({
+        code: 'font-missing',
+        families: fonts_.missing,
+        message:
+          `could not resolve ${fonts_.missing.length} font ${fonts_.missing.length === 1 ? 'family' : 'families'} ` +
+          `(${fonts_.missing.join(', ')}) — the export will use a substitute face and will not match the preview`,
+      });
+    }
+
+    /*
+     * The font bytes, keyed by family, so a caption is MEASURED from real
+     * advance widths instead of the flat `0.58em` guess.
+     *
+     * The same map the web preview builds from `/v1/fonts/:family`, and it has
+     * to be: the caption's background box is computed here and baked into the
+     * SVG string BOTH renderers consume, so measuring from real metrics on one
+     * side and from the approximation on the other would size that box
+     * differently in the preview and the file.
+     *
+     * A family we could not read is simply absent, which falls back to the
+     * approximation — the same behaviour as before any of this existed, and it
+     * is already reported through `onWarning` above.
+     */
+    const fonts = new Map<string, Uint8Array>();
+    await Promise.all(
+      [...fonts_.byFamily].map(async ([family, path]) => {
+        try {
+          fonts.set(family, new Uint8Array(await readFile(path)));
+        } catch {
+          /* reported as missing already; the approximation still draws it */
+        }
+      }),
+    );
 
     const overlayImages: Record<string, string> = {};
     for (const overlay of project.overlays) {
       if (overlay.type !== 'text') continue;
-      const png = rasterizeSVG(overlayToSVG(overlay, project.width, project.height), fontFiles);
+      const png = rasterizeSVG(
+        overlayToSVG(overlay, project.width, project.height, overlayFontOptions(overlay, fonts)),
+        fontFiles,
+      );
       const path = join(dir, `${overlay.id}.png`);
       await writeFile(path, png);
       overlayImages[overlay.id] = path;

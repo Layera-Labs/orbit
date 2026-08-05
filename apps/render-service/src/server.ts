@@ -52,8 +52,10 @@ import { fileURLToPath } from "node:url";
 import {
   ffmpegSupportsHdr,
   ffmpegXfadeTokens,
+  isSafeFontFamily,
   killLiveRenders,
   renderProject,
+  resolveFonts,
   type ExportOutput,
   type VideoProject,
 } from "@orbit/video";
@@ -200,6 +202,8 @@ const AUTH_CREATE_RATE_LIMIT = envNumber("ORBIT_AUTH_CREATE_RATE_LIMIT", 5);
  * in one minute, and refusing them is refusing to let the app start at all.
  */
 const GUEST_RATE_LIMIT = envNumber("ORBIT_GUEST_RATE_LIMIT", 30);
+/** Font fetches are cheap and heavily cached, but each miss can hit the network. */
+const FONT_RATE_LIMIT = envNumber("ORBIT_FONT_RATE_LIMIT", 60);
 
 /**
  * Build identity, reported by `/health`.
@@ -735,6 +739,24 @@ export function createServer(): Express {
         resolveSrc,
         output,
         onFraction,
+        /*
+         * A render that succeeded but did not produce the file the user was
+         * shown. Today that means a caption font we could not resolve, so
+         * resvg substituted a face and the export no longer matches the
+         * preview. It is not an error — the video is still worth having — but
+         * it used to be completely invisible, which made "why does my text
+         * look different in the export" unanswerable from the logs.
+         */
+        onWarning: (w) =>
+          console.warn(
+            JSON.stringify({
+              t: new Date().toISOString(),
+              event: "render-warning",
+              code: w.code,
+              families: w.families,
+              message: w.message,
+            }),
+          ),
       });
     });
     /*
@@ -1312,6 +1334,73 @@ export function createServer(): Express {
     if (!account) return;
     res.json({ balance: await ledger.balance(account) });
   });
+
+  /*
+   * ---- fonts ----
+   *
+   * The bytes of a caption's typeface, so the WEB PREVIEW can embed it.
+   *
+   * This exists because an SVG loaded through `<img>` is a resource-isolated
+   * document: it cannot see the page's `@font-face` rules or `document.fonts`.
+   * Measured against a control, a page webfont rendered at exactly the fallback
+   * width inside `<img>` — so the preview drew captions in a system face while
+   * the export drew them in the chosen one, for as long as captions have
+   * existed. The fix is to embed a subsetted face as a data URI, which the
+   * browser can only do if it has the font.
+   *
+   * **Served from here rather than fetched from Google by the client, so both
+   * ends use the same bytes.** The export resolves fonts through this exact
+   * function, on this exact box; a client fetching `fonts.gstatic.com` itself
+   * would be one Google release away from previewing a different cut of the
+   * face than the render used, which is the class of drift this whole engine is
+   * built to refuse.
+   *
+   * Mobile does not call this. Its captions are React Native `<Text>`, which
+   * measures and draws with the real font already.
+   */
+  app.get(
+    "/v1/fonts/:family",
+    rateLimit(FONT_RATE_LIMIT, RATE_WINDOW_MS),
+    requireAuth,
+    async (req: Request, res: Response) => {
+      const family = String(req.params.family ?? "");
+      /*
+       * Checked HERE as well as inside `resolveFonts`, and deliberately not
+       * only there. This is the one place the family comes straight off a URL
+       * path, so refusing early gives the caller a 400 that names the problem
+       * instead of a 404 that looks like a missing font — and it keeps the
+       * boundary visible at the edge where it matters.
+       */
+      if (!isSafeFontFamily(family)) {
+        res.status(400).json({ error: "invalid font family", code: "bad_family" });
+        return;
+      }
+      let resolved: Awaited<ReturnType<typeof resolveFonts>>;
+      try {
+        resolved = await resolveFonts([family]);
+      } catch {
+        res.status(502).json({ error: "font lookup failed", code: "font_unavailable", family });
+        return;
+      }
+      const path = resolved.files[0];
+      if (!path) {
+        // The export would substitute a face for this family too, so saying so
+        // lets the client fall back deliberately rather than silently.
+        res.status(404).json({ error: "font unavailable", code: "font_unavailable", family });
+        return;
+      }
+      try {
+        const bytes = await readFile(path);
+        res.set("Content-Type", "font/ttf");
+        res.set("X-Content-Type-Options", "nosniff");
+        // A family's bytes do not change under it; the client caches by family.
+        res.set("Cache-Control", "public, max-age=31536000, immutable");
+        res.send(bytes);
+      } catch {
+        res.status(404).json({ error: "font unavailable", code: "font_unavailable", family });
+      }
+    },
+  );
 
 
   /*
