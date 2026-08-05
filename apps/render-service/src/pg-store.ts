@@ -97,6 +97,42 @@ export class PgLedgerStore implements LedgerStore {
       meta: r.meta ?? undefined,
     }));
   }
+
+  /**
+   * One row, by reason and a `meta` key/value.
+   *
+   * `meta->>'key' = $4` reads the JSONB field as text, which matches how every
+   * caller stores it (a transaction id is a string). `LIMIT 1` is the whole
+   * point: the idempotency check this replaces read the account's ENTIRE
+   * history, on an account id an unauthenticated caller could choose.
+   *
+   * It rides `idx_ledger_account_row`, so the scan is bounded by one account's
+   * rows rather than the table; a dedicated partial index on `meta->>'txId'`
+   * would be better still if purchase volume ever makes that measurable.
+   */
+  async findByMeta(
+    account: AccountId,
+    reason: string,
+    key: string,
+    value: string,
+  ): Promise<LedgerEntry | undefined> {
+    await this.ready;
+    const res = await this.pool.query<{ row: string; delta: number; reason: string; balance_after: number; at: Date; meta: Record<string, unknown> | null }>(
+      'SELECT row, delta, reason, balance_after, at, meta FROM ledger_entries WHERE account = $1 AND reason = $2 AND meta->>$3 = $4 ORDER BY row ASC LIMIT 1',
+      [account, reason, key, value],
+    );
+    const r = res.rows[0];
+    if (!r) return undefined;
+    return {
+      id: `le_${r.row}`,
+      account,
+      delta: r.delta,
+      reason: r.reason,
+      balanceAfter: r.balance_after,
+      at: r.at.toISOString(),
+      meta: r.meta ?? undefined,
+    };
+  }
 }
 
 export class PgUserStore implements UserStore {

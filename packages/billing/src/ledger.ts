@@ -24,6 +24,22 @@ export class Ledger {
     return this.store.history(account);
   }
 
+  /**
+   * Has this account already been credited for this external transaction?
+   *
+   * The idempotency check a purchase webhook needs. Use this rather than
+   * scanning `history()` — that has no bound, and a webhook is reachable by
+   * whoever holds the shared secret at best and by anyone at worst.
+   */
+  findByMeta(
+    account: AccountId,
+    reason: string,
+    key: string,
+    value: string,
+  ): Promise<LedgerEntry | undefined> {
+    return this.store.findByMeta(account, reason, key, value);
+  }
+
   async canAfford(account: AccountId, amount: number): Promise<boolean> {
     return (await this.store.balance(account)) >= amount;
   }

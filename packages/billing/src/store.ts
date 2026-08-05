@@ -6,6 +6,23 @@ export interface LedgerStore {
   record(account: AccountId, delta: number, reason: string, meta?: Record<string, unknown>): Promise<LedgerEntry>;
   balance(account: AccountId): Promise<number>;
   history(account: AccountId): Promise<LedgerEntry[]>;
+  /**
+   * The first entry for this account with this reason and this `meta` key/value,
+   * or undefined.
+   *
+   * An idempotency check, and the reason it is not `history().some(...)` is that
+   * `history` is unbounded — no LIMIT, every row mapped into a JS object. The
+   * purchase webhook ran exactly that scan on an account id supplied by its
+   * caller, so anyone who could reach the route could force a full
+   * table-scan-per-account on every request. Reading one row makes the check
+   * O(1) against an index instead of O(account history).
+   */
+  findByMeta(
+    account: AccountId,
+    reason: string,
+    key: string,
+    value: string,
+  ): Promise<LedgerEntry | undefined>;
 }
 
 export interface InMemoryOptions {
@@ -51,5 +68,18 @@ export class InMemoryLedgerStore implements LedgerStore {
 
   async history(account: AccountId): Promise<LedgerEntry[]> {
     return [...(this.byAccount.get(account) ?? [])];
+  }
+
+  async findByMeta(
+    account: AccountId,
+    reason: string,
+    key: string,
+    value: string,
+  ): Promise<LedgerEntry | undefined> {
+    return (this.byAccount.get(account) ?? []).find(
+      (e) =>
+        e.reason === reason &&
+        (e.meta as Record<string, unknown> | undefined)?.[key] === value,
+    );
   }
 }
