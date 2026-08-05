@@ -71,11 +71,31 @@ export type { ChromaParams } from './cutout';
 export { maskToFFmpeg } from './mask';
 export { blendToFFmpeg, blendToSkia, blendToCanvas, BLEND_MODES } from './blend';
 export { hasVolumeCurve, sampleVolume, volumeCurveExpr } from './curve';
+export {
+  MAX_FADE,
+  MAX_VOLUME,
+  fadesOf,
+  maxFadeFor,
+  withFades,
+  withVolume,
+} from './audio-fade';
+export type { AudioFades } from './audio-fade';
 export { hasKeyframes, sampleKeyframes, keyframeExpr, animatesOpacity, animatesPosition } from './keyframes';
 export { createProject, projectDuration, transitionDuration } from './project';
 export { buildFFmpegArgs, MOSAIC_BLOCK } from './ffmpeg';
 export type { BuildFFmpegOptions } from './ffmpeg';
-export { overlayBox, overlayToSVG } from './overlay-svg';
+export { overlayBox, overlayToSVG, overlayFontOptions } from './overlay-svg';
+export type { FontMap, OverlayRenderOptions } from './overlay-svg';
+export { subsetFont, codePointsOf } from './font-subset';
+export {
+  parseFontMetrics,
+  measureLine,
+  measurerFor,
+  approximateMeasurer,
+  wrapLines,
+  APPROX_EM_PER_CHAR,
+} from './font-metrics';
+export type { FontMetrics, TextMeasurer } from './font-metrics';
 export {
   LEGACY_FADE_D,
   SLIDE_DISTANCE,
