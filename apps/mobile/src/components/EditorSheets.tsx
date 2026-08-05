@@ -2077,6 +2077,96 @@ function KeyframeSheet() {
   );
 }
 
+/**
+ * A picture on the overlay stack — size, angle and opacity.
+ *
+ * Its own sheet rather than a branch inside `PositionSheet`/`OpacitySheet`,
+ * because both of those resolve their target through `effectsTarget()`, which
+ * finds a CLIP. Pointed at a sticker they would show a clip's numbers and write
+ * a clip's fields — a control that looks live and edits the wrong thing, which
+ * is worse than one that is missing.
+ */
+function ImageOverlaySheet() {
+  const setPanel = useEditor((s) => s.setPanel);
+  const selected = useEditor((s) => s.selected);
+  const update = useEditor((s) => s.updateSelectedOverlay);
+  const ov = useEditor((s) => {
+    const o = s.project?.overlays.find((x) => x.id === selected?.clipId);
+    return o && o.type === "image" ? o : undefined;
+  });
+  const close = () => setPanel(null);
+  if (!ov) return null;
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  return (
+    <BottomSheet onClose={close} style={{ gap: 16 }} dim="#0002">
+      <View style={s.rowBetween}>
+        <Text style={s.sheetTitle}>Image</Text>
+        <Pressable onPress={close} hitSlop={10}>
+          <VIcon name="check" size={24} color={vela.accent} />
+        </Pressable>
+      </View>
+      <View style={s.intensityRow}>
+        <Text style={s.intensityLabel}>Width</Text>
+        <View style={{ flex: 1 }}>
+          <VSlider
+            value={ov.width}
+            min={0.02}
+            max={1}
+            step={0.01}
+            onChange={(width) => update({ width } as never)}
+          />
+        </View>
+        <Text style={s.intensityVal}>{pct(ov.width)}</Text>
+      </View>
+      <View style={s.intensityRow}>
+        <Text style={s.intensityLabel}>Height</Text>
+        <View style={{ flex: 1 }}>
+          <VSlider
+            value={ov.height}
+            min={0.02}
+            max={1}
+            step={0.01}
+            onChange={(height) => update({ height } as never)}
+          />
+        </View>
+        <Text style={s.intensityVal}>{pct(ov.height)}</Text>
+      </View>
+      <View style={s.intensityRow}>
+        <Text style={s.intensityLabel}>Angle</Text>
+        <View style={{ flex: 1 }}>
+          <VSlider
+            value={ov.rotation ?? 0}
+            min={-180}
+            max={180}
+            step={1}
+            onChange={(deg) =>
+              // Zero DELETES the field: the export inserts `format=rgba` only
+              // when a rotation is present, and without it a rotated layer gets
+              // opaque black corners. A stored `rotation: 0` is a different
+              // filtergraph from no rotation at all.
+              update({ rotation: Math.round(deg) || undefined } as never)
+            }
+          />
+        </View>
+        <Text style={s.intensityVal}>{Math.round(ov.rotation ?? 0)}°</Text>
+      </View>
+      <View style={s.intensityRow}>
+        <Text style={s.intensityLabel}>Opacity</Text>
+        <View style={{ flex: 1 }}>
+          <VSlider
+            value={ov.opacity ?? 1}
+            min={0}
+            max={1}
+            step={0.05}
+            onChange={(opacity) => update({ opacity } as never)}
+          />
+        </View>
+        <Text style={s.intensityVal}>{pct(ov.opacity ?? 1)}</Text>
+      </View>
+    </BottomSheet>
+  );
+}
+
 function OpacitySheet() {
   const setPanel = useEditor((s) => s.setPanel);
   const applyClipOpacity = useEditor((s) => s.applyClipOpacity);
@@ -3384,6 +3474,7 @@ export function EditorSheets() {
       {panel === "keyframe" && <KeyframeSheet />}
       {panel === "opacity" && <OpacitySheet />}
       {panel === "position" && <PositionSheet />}
+      {panel === "imageoverlay" && <ImageOverlaySheet />}
       {panel === "mask" && <MaskSheet />}
       {panel === "mosaic" && <MosaicSheet />}
       {panel === "magnifier" && <MagnifierSheet />}

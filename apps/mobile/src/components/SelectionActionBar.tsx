@@ -104,14 +104,23 @@ export function SelectionActionBar({
   if (!selected || !project) return null;
 
   // What is selected, in the terms the action sets are written in.
-  const isText = selected.trackId === OVERLAY_TRACK;
+  const isOverlay = selected.trackId === OVERLAY_TRACK;
   const track = project.tracks?.find((t) => t.id === selected.trackId);
   const clip = track?.clips.find((c) => c.id === selected.clipId);
-  const overlay = isText
+  const overlay = isOverlay
     ? project.overlays.find((o) => o.id === selected.clipId)
     : undefined;
-  if (!isText && !clip) return null;
-  if (isText && !overlay) return null;
+  if (!isOverlay && !clip) return null;
+  if (isOverlay && !overlay) return null;
+  /*
+   * The overlay lane holds captions AND pictures now, so "on the overlay track"
+   * stopped being the same question as "is it text". It matters: the text set
+   * opens Font and Colour sheets, which read `fontSize` and `color` off the
+   * selection — on a sticker those are not there, and the sheets would come up
+   * showing their own defaults and write them into a picture on the first tap.
+   */
+  const isText = overlay?.type === "text";
+  const isImageOverlay = overlay?.type === "image";
 
   const isAudio = track?.kind === "audio";
   const visual = track?.kind === "visual" ? (clip as VisualTrackClip) : null;
@@ -123,7 +132,7 @@ export function SelectionActionBar({
    * else is worse than no colour at all.
    */
   const lane = laneColors(
-    isText ? "text" : isAudio ? "audio" : "visual",
+    isOverlay ? "text" : isAudio ? "audio" : "visual",
     isMainVisual,
   );
 
@@ -187,6 +196,21 @@ export function SelectionActionBar({
         icon: "color",
         label: "Colour",
         onPress: () => setPanel("textedit-color"),
+      },
+      animate,
+      dup,
+      del,
+    ];
+  } else if (isImageOverlay) {
+    // A picture on the overlay stack. How it sits on the canvas is the whole
+    // point of it, so placement leads — the same order the PiP set uses.
+    actions = [
+      {
+        key: "image",
+        icon: "position",
+        label: "Adjust",
+        a11y: "Adjust the picture",
+        onPress: () => setPanel("imageoverlay"),
       },
       animate,
       dup,

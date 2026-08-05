@@ -183,6 +183,8 @@ export type EditorPanel =
   | "keyframe"
   | "opacity"
   | "position"
+  /** Size, angle and opacity for a picture on the overlay stack. */
+  | "imageoverlay"
   | "mask"
   | "mosaic"
   | "magnifier"
@@ -347,6 +349,8 @@ interface EditorState {
   importOverlay: (clips: VisualTrackClip[]) => void;
   importAudio: (clip: AudioTrackClip) => void;
   addText: () => void;
+  /** Drop a picture on the overlay stack (a sticker, an emoji, a logo). */
+  addImageOverlay: (src: string, size: number, seconds: number) => void;
   editSelectedText: (text: string) => void;
   updateSelectedOverlay: (patch: Partial<TextOverlay>) => void;
   addLayer: () => void;
@@ -1264,6 +1268,44 @@ export const useEditor = create<EditorState>((set, get) => ({
       layer,
     };
     get().apply((p) => ops.addOverlay(p, overlay));
+    set({ selected: { trackId: OVERLAY_TRACK, clipId: id } });
+  },
+
+  addImageOverlay: (src, size, seconds) => {
+    const { project, playheadSec } = get();
+    if (!project) return;
+    const id = newId("img");
+    /*
+     * A sticker is an `ImageOverlay`, not a clip on a track of its own.
+     *
+     * It used to be the latter, and `importOverlay` made a WHOLE NEW VISUAL
+     * TRACK for each one — so five emoji were five lanes on the timeline and
+     * five `-i` inputs in the filtergraph, for five small pictures. On the
+     * overlay stack it is one entry that orders against the captions by the
+     * same `layer` they use, and `imageOverlayAsClip` hands every renderer the
+     * clip shape it already draws, so nothing about the picture changed.
+     */
+    const layer = project.overlays.length
+      ? ops.maxOverlayLayer(project) + 1
+      : 0;
+    // Square in PIXELS, which on a portrait canvas is not square in fractions.
+    const height = size * (project.width / project.height);
+    get().apply((p) =>
+      ops.addOverlay(p, {
+        id,
+        type: "image",
+        src,
+        start: playheadSec,
+        end: playheadSec + seconds,
+        // The anchor is the CENTRE of the box, so a centred sticker is 0.5/0.5
+        // rather than the (1 - size) / 2 corner the clip form needed.
+        x: 0.5,
+        y: 0.5,
+        width: size,
+        height,
+        layer,
+      }),
+    );
     set({ selected: { trackId: OVERLAY_TRACK, clipId: id } });
   },
 

@@ -13,6 +13,7 @@ import type {
   AudioTrackClip,
   BlendMode,
   ElementAnim,
+  ImageOverlay,
   SlideEdge,
   TextOverlay,
   VideoProject,
@@ -625,6 +626,127 @@ function PlacementMenu({ clip }: { clip: VisualTrackClip }) {
         </MenuItem>
       </div>
     </div>
+  );
+}
+
+/**
+ * A picture on the overlay stack — a sticker, a watermark, a logo.
+ *
+ * Its own bar rather than a branch inside `OverlayBar`, because almost nothing
+ * is shared: a picture has no words, no font, no alignment, and it DOES have a
+ * size and a rotation a caption has no use for. One component with a dozen
+ * conditionals would be harder to read than two, and the timeline, duplicate
+ * and delete actions it does share are one-liners on the same store ops.
+ *
+ * `x`/`y` is the CENTRE of the box (see `ImageOverlay`), which is why the
+ * placement sliders run the full 0..1 without clamping against the size: a
+ * sticker deliberately hung half off the edge is a real composition, and the
+ * export draws it exactly there.
+ */
+export function ImageOverlayBar({ overlay }: { overlay: ImageOverlay }) {
+  const apply = useVideo((s) => s.apply);
+  const select = useVideo((s) => s.select);
+  const set = (patch: Partial<ImageOverlay>) =>
+    apply((p) => updateOverlay<ImageOverlay>(p, overlay.id, patch));
+
+  return (
+    <PropertyBar label="Image properties">
+      <BarMenu label="Size and angle" text="Size" icon="sliders">
+        <div className={styles.group}>
+          <p className={styles.groupTitle}>Size</p>
+          <SliderRow
+            label="Width"
+            value={overlay.width}
+            min={0.02}
+            max={1}
+            step={0.01}
+            format={(v) => `${Math.round(v * 100)}%`}
+            onChange={(width) => set({ width })}
+          />
+          <SliderRow
+            label="Height"
+            value={overlay.height}
+            min={0.02}
+            max={1}
+            step={0.01}
+            format={(v) => `${Math.round(v * 100)}%`}
+            onChange={(height) => set({ height })}
+          />
+          <p className={styles.groupTitle}>Angle</p>
+          <SliderRow
+            label="Rotate"
+            value={overlay.rotation ?? 0}
+            min={-180}
+            max={180}
+            step={1}
+            format={(v) => `${Math.round(v)}°`}
+            onChange={(deg) => {
+              const r = snapAngle(deg);
+              // Zero DELETES the field. The export inserts `format=rgba` only
+              // when a rotation is present, and without it a rotated layer
+              // gets opaque black corners — so a stored `rotation: 0` is a
+              // different filtergraph from no rotation at all.
+              set({ rotation: r === 0 ? undefined : r });
+            }}
+          />
+        </div>
+      </BarMenu>
+
+      <AnimationMenu element={overlay} />
+
+      <BarMenu label="Placement and timing" text="Placement" icon="sliders">
+        <div className={styles.group}>
+          <SliderRow
+            label="Across"
+            value={overlay.x}
+            min={0}
+            max={1}
+            step={0.005}
+            format={(v) => `${Math.round(v * 100)}%`}
+            onChange={(x) => set({ x })}
+          />
+          <SliderRow
+            label="Down"
+            value={overlay.y}
+            min={0}
+            max={1}
+            step={0.005}
+            format={(v) => `${Math.round(v * 100)}%`}
+            onChange={(y) => set({ y })}
+          />
+          <SliderRow
+            label="Opacity"
+            value={overlay.opacity ?? 1}
+            min={0.05}
+            max={1}
+            step={0.05}
+            format={(v) => `${Math.round(v * 100)}%`}
+            onChange={(opacity) => set({ opacity })}
+          />
+          <p className={styles.empty}>
+            On screen {overlay.start.toFixed(2)}s – {overlay.end.toFixed(2)}s. Drag its ends on
+            the timeline to retime it.
+          </p>
+        </div>
+      </BarMenu>
+
+      <Sep />
+
+      <BarButton
+        icon="duplicate"
+        label="Duplicate"
+        onClick={() => apply((p) => duplicateOverlay(p, overlay.id))}
+      />
+      <BarButton
+        icon="trash"
+        label="Delete"
+        danger
+        onClick={() => {
+          apply((p) => removeOverlay(p, overlay.id));
+          select(null);
+        }}
+      />
+    </PropertyBar>
   );
 }
 

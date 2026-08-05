@@ -46,6 +46,7 @@ import { blendToFFmpeg } from './blend';
 import { backgroundToSVG } from './background-svg';
 import { canvasFrameToSVG, hasCanvasFrame } from './canvas-frame';
 import { overlayFontOptions, overlayToSVG, type FontMap } from './overlay-svg';
+import { imageOverlayAsClip } from './overlay-clip';
 
 /** How a source fills its destination box. Mirrors the export's scale/crop. */
 export type Fit = 'cover' | 'stretch';
@@ -339,25 +340,30 @@ export function frameStateAt(p: VideoProject, t: number, opts?: FrameOptions): D
     });
   }
 
-  // Text overlays composite last, in layer order. The caption is rasterized
-  // full-frame with the text baked at its anchor, so keyframed position moves
-  // the whole layer by the DELTA from that anchor — matching the export's
-  // `overlay=(kf_x)-(o.x*W)`.
+  /*
+   * Overlays composite last, in ONE pass ordered by layer.
+   *
+   * One pass, not "pictures then captions", because `layer` has to mean the
+   * same thing for every kind — a sticker with a higher layer than a caption
+   * belongs over it. `buildMultiTrackArgs` walks this same sorted array with
+   * the same per-kind branch, so the two cannot end up in different z-orders
+   * without the difference being visible side by side in the two files.
+   *
+   * A caption is rasterized full-frame with the text baked at its anchor, so
+   * keyframed position moves the whole layer by the DELTA from that anchor —
+   * matching the export's `overlay=(kf_x)-(o.x*W)`. A picture is a sized box,
+   * so its keyframes replace the origin outright, exactly as a clip's do.
+   *
+   * A `shape` overlay has no renderer yet and is SKIPPED — by this loop and by
+   * the export alike, so both agree about the absence. It is never handed to
+   * `overlayToSVG`, which would read a `text` that is not there and paint an
+   * empty caption box across the frame; a wrong picture is worse than a
+   * missing one.
+   */
   const overlays = [...p.overlays].sort((a, b) => (a.layer ?? 0) - (b.layer ?? 0));
   for (const o of overlays) {
     if (t < o.start || t > o.end) continue;
-    /*
-     * Captions are the only kind with a renderer here today.
-     *
-     * An `image` or `shape` overlay is SKIPPED, not handed to `overlayToSVG` —
-     * which would read a `text` that is not there and paint an empty caption
-     * box across the frame. A wrong picture is worse than a missing one, and
-     * missing is exactly what the export does with the same overlay:
-     * `render.ts` rasterizes text alone and `buildFFmpegArgs` now selects on
-     * type. Preview and export agree about the absence, which is the property
-     * that matters until the renderers land.
-     */
-    if (o.type !== 'text') continue;
+    if (o.type !== 'text' && o.type !== 'image') continue;
     const dur = Math.max(0.001, o.end - o.start);
     const p01 = progressAt(o.start, dur, t);
     const kfs = o.keyframes;
@@ -374,6 +380,46 @@ export function frameStateAt(p: VideoProject, t: number, opts?: FrameOptions): D
     const anim = resolveAnim(o);
     if (!kfOpacity) alpha *= elementFadeAt(anim, o.start, o.end, t);
 
+    const slide = slideOffsetAt(anim, o.start, o.end, t, W, H);
+
+    if (o.type === 'image') {
+      /*
+       * A picture goes down the CLIP path: `imageOverlayAsClip` turns it into
+       * the `VisualTrackClip` this renderer and the export already agree on,
+       * so a sticker is placed by the same arithmetic a picture-in-picture is
+       * rather than by a second copy of it.
+       */
+      const c = imageOverlayAsClip(o);
+      const box = clipRectPx(c.rect, W, H);
+      // Keyframes REPLACE a clip's origin (they are a delta only for a caption,
+      // whose PNG is full-frame). `imageOverlayAsClip` has already shifted them
+      // out of centre space into corner space for exactly this read.
+      const base = kfPosition
+        ? (() => {
+            const k = sampleKeyframes(c.keyframes!, p01);
+            return { x: Math.round(k.x * W), y: Math.round(k.y * H), w: box.w, h: box.h };
+          })()
+        : box;
+      ops.push({
+        kind: 'clip',
+        id: o.id,
+        src: c.src,
+        dst:
+          slide.dx || slide.dy
+            ? { ...base, x: base.x + slide.dx, y: base.y + slide.dy }
+            : base,
+        fit: 'cover',
+        alpha: Math.max(0, Math.min(1, alpha)),
+        blend: 'normal',
+        filter: resolveFilter(undefined),
+        blurSigma: 0,
+        motion: hasMotion(c.motion) ? motionStateAt(c.motion, p01) : undefined,
+        mask: c.mask,
+        rotation: normalizeRotation(c.rotation) || undefined,
+      });
+      continue;
+    }
+
     let dx = 0;
     let dy = 0;
     if (kfPosition) {
@@ -383,7 +429,6 @@ export function frameStateAt(p: VideoProject, t: number, opts?: FrameOptions): D
     }
     // A caption's dst is already a delta from its baked anchor, so a slide
     // composes by addition — no special case.
-    const slide = slideOffsetAt(anim, o.start, o.end, t, W, H);
     dx += slide.dx;
     dy += slide.dy;
 

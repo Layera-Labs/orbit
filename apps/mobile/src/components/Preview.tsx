@@ -100,10 +100,11 @@ import type {
   Rect,
   CanvasFrame,
   TextOverlay,
+  ImageOverlay,
   VisualTrack,
   VisualTrackClip,
 } from "../model/types";
-import { textOverlaysOf } from "../model/types";
+import { imageOverlayAsClip } from "../model/overlay-clip";
 import { OVERLAY_TRACK, useEditor } from "../store/editorStore";
 
 /** Fallback preview tick (20fps) when no preference is set. The Preview FPS
@@ -1104,17 +1105,22 @@ export function Preview({ width, height }: { width: number; height: number }) {
     })
     .filter((x): x is { clip: VisualTrackClip; trackId: string } => !!x);
   /*
-   * Captions, and only captions.
+   * Everything on the overlay stack that is live right now, in LAYER order.
    *
-   * `Overlay` is a union now, and an `image` or `shape` overlay is SKIPPED here
-   * rather than handed to `CaptionText`, which would read a `text` that is not
-   * there and render an empty `<Text>` at the overlay's anchor. The export skips
-   * it too — `render.ts` rasterizes text alone and `buildFFmpegArgs` selects on
-   * type — so preview and file agree about the absence, which is the property
-   * that matters until the other renderers land.
+   * Sorted, and drawn as siblings in that order, because on this surface z is
+   * DOM order: a caption is an RN `<Text>` outside the Skia canvas, so a
+   * picture drawn inside the clip canvas would sit under every caption no
+   * matter what its layer said. Emitting each one in turn — a caption as a
+   * `<Text>`, a picture as its own small `<Canvas>` — is what makes `layer`
+   * mean here exactly what it means in `frameStateAt` and in the filtergraph.
+   *
+   * A `shape` overlay has no renderer anywhere yet and falls out here, as it
+   * does in the other two, so all three agree about the absence.
    */
-  const captions = textOverlaysOf(project?.overlays ?? [])
+  const liveOverlays = (project?.overlays ?? [])
+    .filter((o) => o.type === "text" || o.type === "image")
     .filter((o) => playheadSec >= o.start && playheadSec <= o.end)
+    .sort((a, b) => (a.layer ?? 0) - (b.layer ?? 0))
     // The one under the finger is drawn from `liveText`, so it keeps up.
     .map((o) =>
       liveText && liveText.id === o.id
@@ -1137,14 +1143,30 @@ export function Preview({ width, height }: { width: number; height: number }) {
       x.push({ pos: r.x, size: r.w });
       y.push({ pos: r.y, size: r.h });
     }
-    for (const o of captions) {
+    for (const o of liveOverlays) {
       if (selected?.trackId === OVERLAY_TRACK && selected?.clipId === o.id)
         continue;
-      x.push({ pos: o.x, size: 0 });
-      y.push({ pos: o.y, size: 0 });
+      // A caption has no box in the model — its size depends on the font, the
+      // string and where it wraps — so it snaps as a bare anchor. A picture
+      // does have one, and snapping its EDGES is what makes two stickers line
+      // up rather than merely having their middles agree.
+      if (o.type === "image") {
+        x.push({ pos: o.x - o.width / 2, size: o.width });
+        y.push({ pos: o.y - o.height / 2, size: o.height });
+      } else {
+        x.push({ pos: o.x, size: 0 });
+        y.push({ pos: o.y, size: 0 });
+      }
     }
     return { x, y };
-  }, [activeOverlays, captions, selected?.trackId, selected?.clipId]);
+  }, [activeOverlays, liveOverlays, selected?.trackId, selected?.clipId]);
+
+  const liveCaptions = liveOverlays.filter(
+    (o): o is TextOverlay => o.type === "text",
+  );
+  const liveImages = liveOverlays.filter(
+    (o): o is ImageOverlay => o.type === "image",
+  );
 
   // Tap an element in the preview to SELECT it (top→bottom): sticker/PiP overlays
   // by rect, then captions by a y-band, then the base clip; empty area deselects.
@@ -1159,7 +1181,18 @@ export function Preview({ width, height }: { width: number; height: number }) {
         return;
       }
     }
-    for (const o of captions) {
+    // Pictures before captions, top of the stack first, so the thing drawn
+    // last is the thing a tap lands on.
+    for (let i = liveImages.length - 1; i >= 0; i--) {
+      const o = liveImages[i];
+      const left = o.x - o.width / 2;
+      const top = o.y - o.height / 2;
+      if (nx >= left && nx <= left + o.width && ny >= top && ny <= top + o.height) {
+        select({ trackId: OVERLAY_TRACK, clipId: o.id });
+        return;
+      }
+    }
+    for (const o of liveCaptions) {
       // Hit-test the caption's CURRENT band: keyframes move it off its base y.
       const kf = hasKeyframes(o.keyframes)
         ? sampleKeyframes(
@@ -1221,6 +1254,24 @@ export function Preview({ width, height }: { width: number; height: number }) {
      * behaviour for exactly one frame rather than a guess that could be wrong
      * in either direction.
      */
+    /*
+     * A PICTURE is anchored by its CENTRE and knows its own size, so it clamps
+     * the way a PiP does — half its box may hang off either edge, and no more.
+     * That is a different rule from the caption one above, and using the
+     * caption's would pin a sticker's centre inside the frame while letting a
+     * caption's top row sit on the very last pixel.
+     */
+    const ov = overlayFromState(id);
+    if (ov?.type === "image") {
+      const hw = ov.width / 2;
+      const hh = ov.height / 2;
+      const ix = Math.max(hw, Math.min(1 - hw, from.x + dx / width));
+      const iy = Math.max(hh, Math.min(1 - hh, from.y + dy / height));
+      return {
+        x: snapSpan({ pos: ix - hw, size: ov.width }, targetsFor(snapping, snapOthers.x)) + hw,
+        y: snapSpan({ pos: iy - hh, size: ov.height }, targetsFor(snapping, snapOthers.y)) + hh,
+      };
+    }
     const h = (captionH.current[id] ?? 0) / height;
     // A caption is anchored by a point, so it snaps as a zero-size span.
     const tx = Math.max(0, Math.min(1, from.x + dx / width));
@@ -1294,7 +1345,9 @@ export function Preview({ width, height }: { width: number; height: number }) {
         }
       }
       if (sel.trackId === OVERLAY_TRACK) {
-        const overlay = selectedOverlayFromState(sel.clipId);
+        // Any overlay, not captions only — `x`/`y` is on `OverlayBase`, so a
+        // picture moves under the finger by exactly the same write.
+        const overlay = overlayFromState(sel.clipId);
         if (overlay) dragText.current = { x: overlay.x, y: overlay.y };
         return;
       }
@@ -1587,7 +1640,34 @@ export function Preview({ width, height }: { width: number; height: number }) {
         ) : null}
 
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
-          {captions.map((o: TextOverlay) => {
+          {liveOverlays.map((ov) => {
+            if (ov.type === "image") {
+              /*
+               * A picture, drawn through the SAME layer a picture-in-picture
+               * uses — `imageOverlayAsClip` hands it the `VisualTrackClip` that
+               * component already knows how to place, so a sticker is not a
+               * second implementation of "put a picture in a box".
+               *
+               * Its own `<Canvas>`, so it sits at its `layer` among the
+               * captions rather than under all of them. Skia will not draw into
+               * a canvas it does not own, and a caption is an RN `<Text>`.
+               */
+              return (
+                <Canvas
+                  key={ov.id}
+                  style={StyleSheet.absoluteFill}
+                  pointerEvents="none"
+                >
+                  <OverlayImageLayer
+                    clip={imageOverlayAsClip(ov)}
+                    width={width}
+                    height={height}
+                    playheadSec={playheadSec}
+                  />
+                </Canvas>
+              );
+            }
+            const o: TextOverlay = ov;
             // Animate the caption over its [start,end] window: keyframes drive
             // opacity + position (delta from the baked anchor); motion adds a
             // centered Ken-Burns scale/pan — the same math the export uses.
@@ -1801,6 +1881,11 @@ export function Preview({ width, height }: { width: number; height: number }) {
       </View>
     </GestureDetector>
   );
+}
+
+/** The selected overlay of ANY kind — a picture is draggable too. */
+function overlayFromState(id: string) {
+  return useEditor.getState().project?.overlays.find((o) => o.id === id);
 }
 
 function selectedOverlayFromState(id: string): TextOverlay | undefined {

@@ -19,6 +19,7 @@ import {
   type VisualTrackClip,
 } from "./types";
 import { projectDuration, transitionDuration } from "./project";
+import { imageOverlayAsClip, imageOverlaysOf } from "./overlay-clip";
 import { atempoChain, filterToFFmpeg } from "./filters";
 import { hasMotion, motionToZoompan } from "./motion";
 import { chromaToFFmpeg } from "./cutout";
@@ -500,6 +501,23 @@ function buildMultiTrackArgs(
   // Selected by TYPE, not by "did the rasterizer make a PNG" — see the note
   // on the same line in `buildFFmpegArgs`.
   const textOverlays = textOverlaysOf(project.overlays).filter((o) => images[o.id]);
+  /*
+   * A picture on the overlay stack is a `VisualTrackClip` in every respect that
+   * matters to this builder, so it becomes one — see `overlay-clip.ts`. It then
+   * runs through `emitClipLayer`/`placeClip`, the same two functions a
+   * picture-in-picture goes through, rather than through a second filter chain
+   * that would have to be kept in step with them by hand.
+   *
+   * They are appended AFTER the track clips so every existing index is
+   * unchanged: `runOf` is keyed by position in this array, and inserting
+   * earlier would point an xfade run at the wrong clip.
+   */
+  const overlayClips = imageOverlaysOf(project.overlays).map(imageOverlayAsClip);
+  const allVisual = [...visualClips, ...overlayClips];
+  const imgIdx = new Map(
+    overlayClips.map((c, k) => [c.id, visualClips.length + k] as const),
+  );
+  const capIdx = new Map(textOverlays.map((o, i) => [o.id, i] as const));
 
   /*
    * Transitions on the MAIN (first visual) track. Clips OVERLAP by the
@@ -520,12 +538,12 @@ function buildMultiTrackArgs(
   const xfades = xfadeMapOf(resolved.boundaries);
   const fadeMap = buildEdgeFadeMap(mainTrack?.clips ?? []);
 
-  // ---- inputs: base(0), visual clips, text overlays, audio clips ----
+  // ---- inputs: base(0), visual clips + image overlays, captions, audio ----
   const inputs: string[] = [];
   let idx = 0;
   inputs.push("-loop", "1", "-t", String(duration), "-i", opts.baseImage);
   const baseIdx = idx++;
-  const vIn = visualClips.map((c) => {
+  const vIn = allVisual.map((c) => {
     if (c.type === "image")
       inputs.push("-loop", "1", "-t", String(c.duration), "-i", resolve(c.src));
     else inputs.push("-i", resolve(c.src));
@@ -1200,12 +1218,38 @@ function buildMultiTrackArgs(
     placeClip(i, emitClipLayer(c, i, c.start));
   });
 
-  // ---- text overlays on top ----
-  // The caption PNG is full-frame (WxH) with the text baked at its anchor, so it
-  // reuses the same motion/keyframe machinery as visual clips: motion zoom/pans
-  // the whole layer, keyframed opacity bakes per-frame alpha, keyframed position
-  // translates the layer by the delta from the baked anchor.
-  textOverlays.forEach((o, i) => {
+  /*
+   * ---- overlays on top, in ONE pass ordered by layer ----
+   *
+   * One pass, not "pictures then captions", because `layer` has to mean the
+   * same thing for every kind — a sticker with a higher layer than a caption
+   * belongs over it. `frameStateAt` sorts the SAME array with the same
+   * comparator and dispatches on the same discriminant, which is what stops the
+   * preview and the file landing on different z-orders.
+   *
+   * A picture is emitted through `emitClipLayer`/`placeClip`, exactly as a
+   * picture-in-picture is. A caption's PNG is full-frame (WxH) with the text
+   * baked at its anchor, so it reuses the same motion/keyframe machinery a
+   * different way: motion zoom/pans the whole layer, keyframed opacity bakes
+   * per-frame alpha, keyframed position translates the layer by the delta from
+   * the baked anchor.
+   *
+   * A `shape` overlay has no renderer here and falls out of the filter below —
+   * as it does in `frameStateAt`, so both agree about the absence.
+   */
+  const drawableOverlays = [...project.overlays]
+    .filter((o) => (o.type === "text" && capIdx.has(o.id)) || o.type === "image")
+    .sort((a, b) => (a.layer ?? 0) - (b.layer ?? 0));
+
+  drawableOverlays.forEach((ov) => {
+    if (ov.type === "image") {
+      const k = imgIdx.get(ov.id)!;
+      const c = allVisual[k];
+      placeClip(k, emitClipLayer(c, k, c.start));
+      return;
+    }
+    const o = ov;
+    const i = capIdx.get(o.id)!;
     const S = o.start;
     const E = o.end;
     const dur = Math.max(0.001, E - S);

@@ -1,8 +1,10 @@
 /**
  * Add a library content item (emoji / sticker) to the timeline: download the
  * CDN PNG into the project media (so it uploads + exports like any image), then
- * drop it as a centered, square overlay clip. Reuses the overlay pipeline, so
- * it's dual-rendered (Skia preview + ffmpeg overlay) with zero engine work.
+ * drop it on the OVERLAY STACK as an `ImageOverlay`. `imageOverlayAsClip` hands
+ * every renderer the clip shape it already draws, so it is dual-rendered with
+ * zero engine work — and unlike the old form it costs one entry rather than a
+ * whole visual track per sticker.
  */
 import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -22,12 +24,7 @@ const STICKER_DUR = 4;
 
 /** Add an already-resolved sticker/emoji media file as a centered square overlay. */
 function addStickerFromSrc(src: string): void {
-  const p = useEditor.getState().project;
-  const ar = p ? p.width / p.height : 1080 / 1920;
-  const w = 0.3;
-  const h = w * ar; // keep it square in pixels regardless of canvas aspect
-  const clip: VisualTrackClip = { id: newId('img'), type: 'image', src, start: 0, duration: STICKER_DUR, rect: { x: (1 - w) / 2, y: (1 - h) / 2, w, h } };
-  useEditor.getState().importOverlay([clip]);
+  useEditor.getState().addImageOverlay(src, 0.3, STICKER_DUR);
 }
 
 /** Download a remote sticker/emoji PNG and add it as a centered square overlay. */
