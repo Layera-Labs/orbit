@@ -1,4 +1,10 @@
-import { frameStateAt, overlayBox, type VideoProject } from '@orbit/video/browser';
+import {
+  frameStateAt,
+  overlayBox,
+  overlayFontOptions,
+  type VideoProject,
+} from '@orbit/video/browser';
+import { loadedCaptionFonts } from '../../../net/fonts';
 
 export interface Box {
   x: number;
@@ -21,12 +27,15 @@ export function hitBoxesAt(project: VideoProject, time: number): { id: string; b
   const overlays = new Map(project.overlays.map((o) => [o.id, o]));
   const out: { id: string; box: Box }[] = [];
 
-  for (const op of frameStateAt(project, time)) {
+  const fonts = loadedCaptionFonts();
+  for (const op of frameStateAt(project, time, { fonts })) {
     if (op.kind === 'background') continue;
     if (op.kind === 'overlay') {
       const o = overlays.get(op.id);
       if (!o) continue;
-      const b = overlayBox(o, project.width, project.height);
+      // Measured with the same face the renderer just drew with, or the click
+      // target sits somewhere the caption visibly is not.
+      const b = overlayBox(o, project.width, project.height, overlayFontOptions(o, fonts)?.measure);
       // The op's `dst` carries the keyframed offset from the anchor, so a
       // caption that animates across the frame is outlined where it IS, not
       // where it was authored.

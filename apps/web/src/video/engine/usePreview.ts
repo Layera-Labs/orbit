@@ -7,6 +7,7 @@
  * compositor. It never computes geometry, timing or colour itself.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { loadCaptionFonts } from '../../net/fonts';
 import {
   frameStateAt,
   projectDuration,
@@ -60,6 +61,15 @@ export function usePreview(
   const audioRef = useRef<AudioGraph | null>(null);
   const svgRef = useRef(new Map<string, HTMLImageElement>());
   const resolvedRef = useRef<Record<string, string>>({});
+  /*
+   * Caption font bytes, by family.
+   *
+   * A ref rather than state on purpose: the render loop reads it every frame,
+   * and re-rendering the component when a font arrives would restart nothing
+   * useful. An empty map is a perfectly good frame — captions just measure by
+   * the flat approximation until the bytes land.
+   */
+  const fontsRef = useRef<Map<string, Uint8Array>>(new Map());
   const projectRef = useRef(project);
   projectRef.current = project;
 
@@ -83,6 +93,32 @@ export function usePreview(
       live = false;
     };
   }, [srcKey]);
+
+  /*
+   * Load the faces this project's captions use.
+   *
+   * Keyed by the sorted family list, the same shape the src resolution above
+   * uses, so adding a caption in a family already loaded costs nothing. The
+   * bytes are what let `overlayToSVG` embed an `@font-face` — without them the
+   * preview draws captions in a system fallback while the export draws the real
+   * face, which is the divergence this exists to close.
+   */
+  const familyKey = [
+    ...new Set(
+      project.overlays.flatMap((o) => (o.type === 'text' && o.fontFamily ? [o.fontFamily] : [])),
+    ),
+  ]
+    .sort()
+    .join('|');
+  useEffect(() => {
+    let live = true;
+    void loadCaptionFonts(familyKey ? familyKey.split('|') : []).then((m) => {
+      if (live) fontsRef.current = m;
+    });
+    return () => {
+      live = false;
+    };
+  }, [familyKey]);
 
   useEffect(() => {
     const pool = new MediaPool();
@@ -163,7 +199,7 @@ export function usePreview(
       }
 
       const t = clock.now();
-      const ops = frameStateAt(p, t);
+      const ops = frameStateAt(p, t, { fonts: fontsRef.current });
 
       // Decode any caption/background SVG the frame needs. `overlayToSVG` is the
       // SAME string the export rasterizes with resvg, so the layout matches.
