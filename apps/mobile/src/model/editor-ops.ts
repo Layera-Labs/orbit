@@ -1434,9 +1434,24 @@ export function updateOverlay(
   id: string,
   patch: Partial<TextOverlay>,
 ): VideoProject {
+  /*
+   * An `undefined` in the patch REMOVES the field rather than parking an
+   * undefined value under a live key. The renderers branch on PRESENCE — a
+   * `maxWidth` that exists holding nothing is a different document from one
+   * that never had the key, and only the second renders the way the project
+   * did before the control was touched. Mirrors the same rule in
+   * `apps/web/src/store/videoStore.ts`.
+   */
+  const merge = (o: TextOverlay): TextOverlay => {
+    const next = { ...o, ...patch } as Record<string, unknown>;
+    for (const k of Object.keys(patch)) {
+      if ((patch as Record<string, unknown>)[k] === undefined) delete next[k];
+    }
+    return next as unknown as TextOverlay;
+  };
   return {
     ...p,
-    overlays: p.overlays.map((o) => (o.id === id ? { ...o, ...patch } : o)),
+    overlays: p.overlays.map((o) => (o.id === id ? merge(o) : o)),
   };
 }
 

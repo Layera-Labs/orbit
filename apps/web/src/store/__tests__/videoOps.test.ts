@@ -17,7 +17,13 @@
  */
 import { describe, expect, it } from 'vitest';
 import type { VideoProject, VisualTrackClip } from '@orbit/video/browser';
-import { patchClip, setClipTransform, setElementAnim, setFrame } from '../videoStore';
+import {
+  patchClip,
+  setClipTransform,
+  setElementAnim,
+  setFrame,
+  updateOverlay,
+} from '../videoStore';
 
 const clip: VisualTrackClip = {
   id: 'c1',
@@ -202,5 +208,38 @@ describe('setClipTransform', () => {
     const withRect = setClipTransform(base(), 'c1', { rect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 } });
     const turned = setClipTransform(withRect, 'c1', { rotation: 45 });
     expect(clipOf(turned).rect).toEqual({ x: 0.1, y: 0.1, w: 0.5, h: 0.5 });
+  });
+});
+
+describe('updateOverlay', () => {
+  const overlayOf = (p: VideoProject) => p.overlays[0];
+
+  it('sets a field', () => {
+    expect(overlayOf(updateOverlay(base(), 'o1', { maxWidth: 800 })).maxWidth).toBe(800);
+  });
+
+  it('REMOVES a field patched with undefined rather than parking one there', () => {
+    /*
+     * `linesOf` branches on presence, so a `maxWidth` key holding `undefined`
+     * and no key at all render the same today — and would stop doing so the
+     * moment anything asked `'maxWidth' in o`. More immediately, a project
+     * whose wrap was switched back off has to serialise as the project it was
+     * before, or a sync diff shows a change nobody made.
+     */
+    const wrapped = updateOverlay(base(), 'o1', { maxWidth: 800 });
+    const off = updateOverlay(wrapped, 'o1', { maxWidth: undefined });
+    expect(Object.keys(overlayOf(off))).not.toContain('maxWidth');
+  });
+
+  it('leaves the other overlays and the rest of the project alone', () => {
+    const p = base();
+    const next = updateOverlay(p, 'o1', { maxWidth: 800 });
+    expect(next.tracks).toBe(p.tracks);
+    expect(overlayOf(next).text).toBe('Hi');
+  });
+
+  it('is a no-op for an id that is not there', () => {
+    const p = base();
+    expect(updateOverlay(p, 'nope', { maxWidth: 800 }).overlays[0].maxWidth).toBeUndefined();
   });
 });

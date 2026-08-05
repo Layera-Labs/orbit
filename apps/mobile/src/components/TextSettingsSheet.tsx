@@ -88,6 +88,9 @@ export function TextSettingsSheet({
   const bold = ov?.bold ?? false;
   const letterSpacing = ov?.letterSpacing ?? 0;
   const lineHeight = ov?.lineHeight ?? 1.25;
+  // Clamped to 1: a caption authored on a wider project and opened here would
+  // otherwise put the slider past its own track.
+  const wrapFrac = ov?.maxWidth ? Math.min(1, ov.maxWidth / projW) : 0;
   const cycleAlign = () =>
     updateOverlay({ align: ALIGN_ORDER[(ALIGN_ORDER.indexOf(align) + 1) % 3] });
 
@@ -103,7 +106,10 @@ export function TextSettingsSheet({
     tab === "text"
       ? undefined
       : tab === "size"
-        ? 210
+        ? // Three 52pt rows sat in 210; Wrap is a fourth, so +52. Stated rather
+          // than measured because the tab heights are fixed on purpose, and
+          // rounding it up would open an empty band under the last slider.
+          262
         : tab === "color"
           ? 324
           : 380;
@@ -252,6 +258,36 @@ export function TextSettingsSheet({
                       step={0.05}
                       onChange={(v) =>
                         updateOverlay({ lineHeight: Math.round(v * 100) / 100 })
+                      }
+                    />
+                  </SizeRow>
+                  {/*
+                    * Where the caption breaks. Shown as a share of the frame
+                    * because nobody reasons about a caption in pixels of a
+                    * 1080-wide master, but STORED in output pixels — the same
+                    * units as Size and Spacing above, and the units the export
+                    * measures in, so the break lands in the same place there.
+                    *
+                    * The bottom of the track is Off, and Off clears the field
+                    * rather than storing the frame's own width: with no width
+                    * the caption breaks only where a new line was typed, which
+                    * is what every caption written before this control did.
+                    */}
+                  <SizeRow
+                    label="Wrap"
+                    value={wrapFrac}
+                    fmt={wrapFrac > 0 ? `${Math.round(wrapFrac * 100)}%` : "Off"}
+                  >
+                    <VSlider
+                      value={wrapFrac}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      onChange={(v) =>
+                        updateOverlay({
+                          maxWidth:
+                            v > 0 ? Math.round(v * projW) : undefined,
+                        })
                       }
                     />
                   </SizeRow>

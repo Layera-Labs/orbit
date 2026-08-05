@@ -21,6 +21,7 @@ import {
   setClipVolumeCurve,
   splitClipAt,
   titleCardOf,
+  updateOverlay,
 } from "../editor-ops";
 import type { VideoProject, VisualTrackClip } from "../types";
 import { MAX_VOLUME } from "../audio-fade";
@@ -679,5 +680,35 @@ describe("ensureTracks and the legacy audio array", () => {
   it("leaves a project with no legacy audio exactly as it was", () => {
     const p = withTracks([]);
     expect(ensureTracks(p)).toBe(p);
+  });
+});
+
+describe("updateOverlay", () => {
+  it("sets a field on the named overlay only", () => {
+    const next = updateOverlay(project, "title", { maxWidth: 800 });
+    expect(next.overlays[0].maxWidth).toBe(800);
+    expect(next.overlays[0].text).toBe("Keep my timing");
+    expect(next.tracks).toBe(project.tracks);
+  });
+
+  it("REMOVES a field patched with undefined rather than parking one there", () => {
+    /*
+     * The rule `apps/web/src/store/videoStore.ts` holds too, and it is not
+     * cosmetic: the renderers branch on PRESENCE, so a key that exists holding
+     * nothing is a different document from one that never had it — and only
+     * the second is what the project was before the control was touched.
+     *
+     * Asserted with `Object.keys`, because `toEqual` treats an explicit
+     * `undefined` and an absent key as identical and would pass on exactly the
+     * bug being guarded against.
+     */
+    const wrapped = updateOverlay(project, "title", { maxWidth: 800 });
+    const off = updateOverlay(wrapped, "title", { maxWidth: undefined });
+    expect(Object.keys(off.overlays[0])).not.toContain("maxWidth");
+  });
+
+  it("is a no-op for an id that is not there", () => {
+    expect(updateOverlay(project, "nope", { maxWidth: 800 }).overlays[0].maxWidth)
+      .toBeUndefined();
   });
 });

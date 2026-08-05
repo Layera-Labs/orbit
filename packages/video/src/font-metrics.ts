@@ -320,3 +320,35 @@ export function wrapLines(
   }
   return out;
 }
+
+/**
+ * The lines a caption actually renders as — the single answer to "where does
+ * this text break".
+ *
+ * Three places asked that question independently and each answered
+ * `text.split('\n')`: `overlayBox`, `overlayToSVG`, and — differently — the
+ * mobile preview, which hard-wrapped every caption at `width: "90%"` of the
+ * canvas. So a caption long enough to reach that width wrapped on a phone and
+ * ran straight on in the exported file: the same project, drawn two ways, which
+ * is the one thing this engine is built not to do. One helper is what stops the
+ * three drifting again.
+ *
+ * `maxWidth` is in the SAME pixels as `fontSize` — the output resolution — so a
+ * caption breaks in the same place whatever size the preview happens to be. It
+ * is optional and absent by default, which is what keeps every stored project
+ * byte-identical: with no width to break against, only an explicit `\n` breaks,
+ * exactly as before.
+ */
+export function linesOf(
+  text: string | undefined,
+  fontSize: number,
+  measure: TextMeasurer,
+  maxWidth?: number,
+): string[] {
+  const t = text ?? '';
+  // Covers undefined, 0, negative and NaN in one comparison — every one of
+  // which means "no wrap", and none of which may reach `wrapLines`, whose
+  // greedy loop would push one word per line against a non-positive width.
+  if (!(maxWidth! > 0)) return t.split('\n');
+  return wrapLines(t, maxWidth!, measure, fontSize);
+}

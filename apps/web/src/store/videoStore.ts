@@ -692,7 +692,20 @@ export function updateOverlay(
   const overlays = (p.overlays ?? []).map((o) => {
     if (o.id !== id) return o;
     touched = true;
-    return { ...o, ...patch };
+    /*
+     * An `undefined` in the patch REMOVES the field rather than parking an
+     * undefined value under a live key. That distinction is load-bearing in
+     * this engine: the renderers branch on presence — `hasCanvasFrame` appends
+     * an ffmpeg input, `hasFade` picks `yuva420p`, `linesOf` wraps or does not
+     * — so a key that exists holding nothing is a different document from one
+     * that lacks the key, and only the second is the document a project had
+     * before the control was ever touched.
+     */
+    const next = { ...o, ...patch } as Record<string, unknown>;
+    for (const k of Object.keys(patch)) {
+      if ((patch as Record<string, unknown>)[k] === undefined) delete next[k];
+    }
+    return next as unknown as TextOverlay;
   });
   return touched ? { ...p, overlays } : p;
 }

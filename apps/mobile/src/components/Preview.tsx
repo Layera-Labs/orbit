@@ -1675,7 +1675,12 @@ export function Preview({ width, height }: { width: number; height: number }) {
                     ],
                   }}
                 >
-                  <CaptionText o={o} scale={scale} fontsVersion={fontsVersion} />
+                  <CaptionText
+                    o={o}
+                    scale={scale}
+                    canvasWidth={width}
+                    fontsVersion={fontsVersion}
+                  />
                 </View>
               </View>
             );
@@ -1831,10 +1836,12 @@ const STROKE_OFFSETS = [
 function CaptionText({
   o,
   scale,
+  canvasWidth,
   fontsVersion,
 }: {
   o: TextOverlay;
   scale: number;
+  canvasWidth: number;
   fontsVersion: number;
 }) {
   const fontSize = Math.max(8, o.fontSize * scale);
@@ -1867,17 +1874,35 @@ function CaptionText({
       }
     : {};
   const key = `${o.fontFamily ?? "def"}-${fontsVersion}`;
+  /*
+   * Where the caption breaks, and why it is not `"90%"` any more.
+   *
+   * A React Native `<Text>` wraps at whatever width its box gives it, so the
+   * old `width: "90%"` was a hard wrap at nine tenths of the canvas that NO
+   * other surface performed: `overlay-svg.ts` breaks only on an explicit `\n`,
+   * so the same caption came back as one long line in the exported file and as
+   * two on screen. Nobody chose that; it was a width picked to keep text off
+   * the rim.
+   *
+   * `maxWidth` is now the model's answer, honoured identically by the export
+   * (`linesOf`) and by this box. With none set, the width is the whole canvas —
+   * the region the export actually renders into — so a caption that fits the
+   * file no longer wraps here. A caption WIDER than the frame still wraps here
+   * and still overflows there; that residual is real, and it only affects text
+   * that already does not fit.
+   */
+  const boxWidth = o.maxWidth ? o.maxWidth * scale : canvasWidth;
 
   if (!o.stroke || o.stroke.width <= 0) {
     return (
-      <Text key={key} style={[base, shadow, { color: o.color, width: "90%" }]}>
+      <Text key={key} style={[base, shadow, { color: o.color, width: boxWidth }]}>
         {o.text}
       </Text>
     );
   }
   const w = o.stroke.width * scale;
   return (
-    <View style={{ width: "90%" }}>
+    <View style={{ width: boxWidth }}>
       {STROKE_OFFSETS.map(([dx, dy], i) => (
         <Text
           key={`${key}-s${i}`}

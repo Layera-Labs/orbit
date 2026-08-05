@@ -76,6 +76,15 @@ export interface TextOverlay {
   letterSpacing?: number;
   /** Line height as a multiple of the font size (default 1.25). */
   lineHeight?: number;
+  /**
+   * Wrap width in px at the output resolution — the same pixels as `fontSize`,
+   * so a caption breaks in the same place however large the preview is.
+   *
+   * Absent means no wrapping: only an explicit `\n` breaks a line, which is
+   * what every project written before this field did and still does. See
+   * `linesOf` in `font-metrics.ts`, which is the one place that decides.
+   */
+  maxWidth?: number;
   /** Stacking lane / z-order (higher = on top). Overlays are kept sorted by it. */
   layer?: number;
   /** Drop shadow behind the caption (preview + export). */

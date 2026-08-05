@@ -78,6 +78,18 @@ export interface TextOverlay {
   letterSpacing?: number;
   /** Line height as a multiple of the font size (default 1.25). */
   lineHeight?: number;
+  /**
+   * Wrap width in px at the output resolution — the same pixels as `fontSize`,
+   * so a caption breaks in the same place however large the preview is.
+   *
+   * Absent means no wrapping. The preview constrains the text to this width and
+   * lets React Native break it; the export measures with the font file and
+   * breaks greedily (`linesOf` in `packages/video/src/font-metrics.ts`). Both
+   * break on whitespace at the same width, so they agree except where native
+   * shaping and the advance-width measurement disagree — the residual already
+   * recorded for caption geometry.
+   */
+  maxWidth?: number;
   /** Stacking lane / z-order (higher = on top). Overlays are kept sorted by it. */
   layer?: number;
   /** Drop shadow behind the caption (preview + export). */
