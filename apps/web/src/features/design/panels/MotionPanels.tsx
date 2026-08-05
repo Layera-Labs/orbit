@@ -5,6 +5,7 @@ import {
   FILTER_PRESETS,
   previewableTransitions,
   resolveTransitions,
+  type CanvasFrame,
   type TextOverlay,
   type TransitionType,
   type VideoProject,
@@ -20,6 +21,7 @@ import {
   addOverlay,
   nextOverlayLayer,
   patchClip,
+  setFrame,
   setTransition,
   useVideo,
 } from '@/store/videoStore';
@@ -732,7 +734,10 @@ export function MotionDesignPanel({ project }: { project: VideoProject }) {
   return (
     <div className={styles.stack}>
       <div className={styles.group}>
-        <h3 className={styles.groupTitle}>Frame</h3>
+        {/* "Size", not "Frame" — the mat below is the Frame, and two groups
+            wearing one name in a single panel is the one thing a legend may
+            not do. The still panel says Size for the same reason. */}
+        <h3 className={styles.groupTitle}>Size</h3>
         <div className={styles.presets}>
           {SIZES.map((s) => (
             <button
@@ -796,9 +801,101 @@ export function MotionDesignPanel({ project }: { project: VideoProject }) {
           }}
         />
       </div>
+
+      <FrameGroup project={project} />
     </div>
   );
 }
+
+/** A mat that starts visible without yet eating into the picture. */
+const DEFAULT_FRAME_WIDTH = 0.03;
+
+/**
+ * The mat around the picture.
+ *
+ * One rectangle with a rounded-rect hole punched through it, filled even-odd —
+ * the same shape all three renderers already draw. Everything here is a
+ * FRACTION of `min(W, H)` rather than a pixel count, which is what lets a frame
+ * authored at 1080p survive an export at 4K.
+ *
+ * Two things are worth saying in the UI rather than leaving to be discovered.
+ *
+ * **Switching it on seeds the colour from the background.** The band has to
+ * start as something, and matching what is already behind the picture makes the
+ * first frame read as "the corners got rounded" instead of "a coloured border
+ * appeared out of nowhere". The renderers know nothing about this; it is a
+ * default chosen once, here.
+ *
+ * **Opacity below 1 shows the picture through the corner wedges too**, because
+ * the band and the wedges are one path and no renderer can separate them.
+ * Saying so costs a line; finding out costs an export.
+ */
+function FrameGroup({ project }: { project: VideoProject }) {
+  const apply = useVideo((s) => s.apply);
+  const frame = project.frame;
+  const bgColour = project.background?.type === 'color' ? project.background.color : '#000000';
+
+  const patch = (next: Partial<CanvasFrame>) =>
+    apply((p) => setFrame(p, { ...(p.frame ?? { color: bgColour, width: DEFAULT_FRAME_WIDTH }), ...next }));
+
+  return (
+    <div className={styles.group}>
+      <h3 className={styles.groupTitle}>Frame</h3>
+      <button
+        className={styles.action}
+        aria-pressed={!!frame}
+        onClick={() =>
+          apply((p) => setFrame(p, p.frame ? undefined : { color: bgColour, width: DEFAULT_FRAME_WIDTH }))
+        }
+      >
+        {frame ? 'Remove the frame' : 'Add a frame'}
+      </button>
+
+      {frame && (
+        <>
+          <ColourRow label="Colour" value={frame.color} onChange={(color) => patch({ color })} />
+          <Slider
+            label="Thickness"
+            value={frame.width}
+            min={0}
+            max={0.15}
+            step={0.002}
+            format={(v) => `${(v * 100).toFixed(1)}%`}
+            onChange={(width) => patch({ width: round3(width) })}
+          />
+          <Slider
+            label="Corner radius"
+            value={frame.radius ?? 0}
+            min={0}
+            max={0.25}
+            step={0.005}
+            format={(v) => `${(v * 100).toFixed(1)}%`}
+            onChange={(radius) => patch({ radius: round3(radius) })}
+          />
+          <Slider
+            label="Opacity"
+            value={frame.opacity ?? 1}
+            min={0.1}
+            max={1}
+            step={0.05}
+            format={(v) => `${Math.round(v * 100)}%`}
+            onChange={(opacity) => patch({ opacity: round3(opacity) })}
+          />
+          <p className={styles.note}>
+            Thickness and radius are fractions of the short edge, so the frame holds its
+            proportions at any export size. Below full opacity the picture shows through the
+            corners as well as the band; they are one shape.
+            {project.background?.type === 'image' &&
+              ' On a photo backdrop the corners outside a rounded frame render black — a flat image cannot be carried into the frame itself.'}
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+/** Slider steps land on float fuzz; three places is finer than any renderer reads. */
+const round3 = (v: number) => Math.round(v * 1000) / 1000;
 
 /* ---------------------------------------------------------------- shared --- */
 

@@ -1,11 +1,23 @@
 'use client';
 
+import {
+  MAX_VOLUME,
+  fadesOf,
+  maxFadeFor,
+  resolveAnim,
+  snapAngle,
+  withFades,
+  withVolume,
+} from '@orbit/video/browser';
 import type {
   AudioTrackClip,
   BlendMode,
+  ElementAnim,
+  SlideEdge,
   TextOverlay,
   VideoProject,
   VisualTrackClip,
+  VolumePoint,
 } from '@orbit/video/browser';
 import { ColourPicker } from '@/brand/Colour';
 import {
@@ -17,6 +29,8 @@ import {
   rippleDeleteClip,
   rippleDeleteOverlay,
   setClipRect,
+  setClipTransform,
+  setElementAnim,
   splitAt,
   updateOverlay,
   useVideo,
@@ -149,22 +163,23 @@ export function ClipBar({
           <BarMenu label="Placement" text="Placement" icon="panel">
             <PlacementMenu clip={clip} />
           </BarMenu>
+
+          <BarMenu label="Rotate and crop" text="Transform" icon="rotate">
+            <TransformMenu clip={clip} />
+          </BarMenu>
+
+          <AnimationMenu element={clip} blended={!!clip.blend && clip.blend !== 'normal'} />
         </>
       )}
 
       {visual && clip.type === 'video' && (
         <BarMenu label="Sound" text="Sound" icon={clip.muted ? 'mute' : 'sound'}>
           <div className={styles.group}>
-            <SliderRow
-              label="Volume"
-              value={clip.volume ?? 1}
-              min={0}
-              max={1}
-              step={0.05}
-              format={(v) => `${Math.round(v * 100)}%`}
-              onChange={(volume) => patch({ volume })}
-            />
+            <LevelAndFades clip={clip} />
             <div className={styles.menu}>
+              {/* Mute is a FLAG, never `volume: 0`. Writing the level to zero
+                  loses whatever the clip was set to, so unmuting cannot put it
+                  back and silently returns it to 100%. */}
               <MenuItem
                 on={clip.muted}
                 onClick={() => patch({ muted: clip.muted ? undefined : true })}
@@ -183,16 +198,10 @@ export function ClipBar({
       )}
 
       {!visual && (
-        <BarMenu label="Volume" icon="sound" value={`${Math.round((clip.volume ?? 1) * 100)}%`}>
-          <SliderRow
-            label="Volume"
-            value={clip.volume ?? 1}
-            min={0}
-            max={1}
-            step={0.05}
-            format={(v) => `${Math.round(v * 100)}%`}
-            onChange={(volume) => apply((p) => patchClip(p, clip.id, { volume }))}
-          />
+        <BarMenu label="Level and fades" icon="sound" value={`${Math.round((clip.volume ?? 1) * 100)}%`}>
+          <div className={styles.group}>
+            <LevelAndFades clip={clip} />
+          </div>
         </BarMenu>
       )}
 
@@ -237,6 +246,135 @@ export function ClipBar({
   );
 }
 
+/* ------------------------------------------------------------- animation --- */
+
+/**
+ * How an element enters and leaves.
+ *
+ * **There is no scale option, and that is deliberate.** ffmpeg cannot animate
+ * scale per frame, so a "pop" entrance would play here and be absent from the
+ * exported file. This editor already refuses transitions it cannot reproduce
+ * rather than shipping them as approximations; an option that lies is worse
+ * than one that is missing.
+ *
+ * **Slide is refused on a blended element**, with the reason shown rather than
+ * a control that silently does nothing. The export composites a blended clip at
+ * a fixed origin — its blend crops the base region under a box whose size
+ * cannot vary per frame — so nothing could move it, and a preview that slid it
+ * anyway would look better than the file.
+ */
+const SLIDE_EDGES: { edge: SlideEdge; label: string }[] = [
+  { edge: 'left', label: 'From the left' },
+  { edge: 'right', label: 'From the right' },
+  { edge: 'up', label: 'From above' },
+  { edge: 'down', label: 'From below' },
+];
+
+/** The edge names read as a source on the way in and a destination on the way out. */
+const OUT_LABEL: Record<SlideEdge, string> = {
+  left: 'Out to the left',
+  right: 'Out to the right',
+  up: 'Out upwards',
+  down: 'Out downwards',
+};
+
+const animKey = (a: ElementAnim | undefined) =>
+  !a || a.type === 'none' ? 'none' : a.type === 'fade' ? 'fade' : `slide-${a.edge ?? 'left'}`;
+
+export function AnimationMenu({
+  element,
+  blended,
+}: {
+  element: { id: string; animateIn?: ElementAnim; animateOut?: ElementAnim; animation?: 'none' | 'fade' };
+  /** Blended clips cannot slide — see the note above. */
+  blended?: boolean;
+}) {
+  const apply = useVideo((s) => s.apply);
+  // `resolveAnim` folds the legacy `animation: 'fade'` field in, so a document
+  // written before the pair existed reads back as the fade it renders.
+  const pair = resolveAnim(element);
+  const duration = pair.in?.duration ?? pair.out?.duration ?? 0.5;
+  const on = !!pair.in || !!pair.out;
+
+  const write = (next: { in?: ElementAnim; out?: ElementAnim }) =>
+    apply((p) =>
+      setElementAnim(
+        p,
+        element.id,
+        'in' in next ? next.in : pair.in,
+        'out' in next ? next.out : pair.out,
+      ),
+    );
+
+  const side = (which: 'in' | 'out') => {
+    const current = which === 'in' ? pair.in : pair.out;
+    const put = (a: ElementAnim | undefined) => write(which === 'in' ? { in: a } : { out: a });
+    return (
+      <div className={styles.group}>
+        <p className={styles.groupTitle}>{which === 'in' ? 'Entrance' : 'Exit'}</p>
+        <div className={styles.menu}>
+          <MenuItem on={animKey(current) === 'none'} onClick={() => put(undefined)}>
+            None
+          </MenuItem>
+          <MenuItem
+            on={animKey(current) === 'fade'}
+            onClick={() => put({ type: 'fade', duration })}
+          >
+            Fade
+          </MenuItem>
+          {!blended &&
+            SLIDE_EDGES.map(({ edge, label }) => (
+              <MenuItem
+                key={edge}
+                on={animKey(current) === `slide-${edge}`}
+                onClick={() => put({ type: 'slide', duration, edge })}
+              >
+                {which === 'in' ? label : OUT_LABEL[edge]}
+              </MenuItem>
+            ))}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <BarMenu label="Entrance and exit" text="Animate" icon="transition" wide>
+      <div className={styles.group}>
+        {side('in')}
+        {side('out')}
+        {on && (
+          <SliderRow
+            label="Length"
+            value={duration}
+            min={0.1}
+            max={2}
+            step={0.05}
+            format={(v) => `${v.toFixed(2)}s`}
+            onChange={(d) =>
+              write({
+                in: pair.in ? { ...pair.in, duration: d } : undefined,
+                out: pair.out ? { ...pair.out, duration: d } : undefined,
+              })
+            }
+          />
+        )}
+        {blended && (
+          <p className={styles.empty}>
+            A blended element cannot slide: the export composites it at a fixed origin, so a
+            slide would play here and not in the file. Fade works.
+          </p>
+        )}
+        {on && (
+          <p className={styles.empty}>
+            Both ends share one length, and each is clamped to half the element&rsquo;s own
+            window so an entrance and an exit cannot overlap.
+          </p>
+        )}
+      </div>
+    </BarMenu>
+  );
+}
+
 /** A value the user can read here but only change on the timeline. */
 function Readout({ label, value }: { label: string; value: string }) {
   return (
@@ -244,6 +382,177 @@ function Readout({ label, value }: { label: string; value: string }) {
       <span>{label}</span>
       <span className={`${styles.readoutValue} w-data`}>{value}</span>
     </p>
+  );
+}
+
+/* ----------------------------------------------------------------- audio --- */
+
+/**
+ * A clip's level, and its fades, written through ONE function.
+ *
+ * The rule that makes this necessary: **a `volumeCurve` overrides `volume`**
+ * rather than scaling it — every renderer reads the curve INSTEAD of the number
+ * when one is present. So a volume control that writes `volume` alone moves
+ * something nothing reads the moment the clip carries a fade: the slider says
+ * 200%, the export comes back at the plateau, and nothing anywhere explains it.
+ * `withVolume` is the single writer, and it moves a recognised fade's plateau,
+ * SCALES a hand-drawn curve (flattening someone's envelope to obey a slider
+ * would destroy work in order to honour it), and drops a curve that is silent
+ * throughout.
+ *
+ * The ceiling is `MAX_VOLUME`, shared with the export and with mobile. It is
+ * above 1 deliberately: quiet source material needs real gain, ffmpeg's
+ * `volume` multiplies and lets the result hard-clip, and that is the honest
+ * behaviour of a gain control.
+ */
+function LevelAndFades({ clip }: { clip: VisualTrackClip | AudioTrackClip }) {
+  const apply = useVideo((s) => s.apply);
+  const fades = fadesOf(clip);
+  const cap = maxFadeFor(clip.duration);
+  const write = (patch: { volume: number; volumeCurve?: VolumePoint[] }) =>
+    apply((p) => patchClip(p, clip.id, patch as Partial<VisualTrackClip>));
+
+  return (
+    <>
+      <SliderRow
+        label="Volume"
+        value={Math.min(MAX_VOLUME, fades?.volume ?? clip.volume ?? 1)}
+        min={0}
+        max={MAX_VOLUME}
+        step={0.05}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(volume) => write(withVolume(clip, volume))}
+      />
+      {fades ? (
+        <>
+          <SliderRow
+            label="Fade in"
+            value={Math.min(cap, fades.fadeIn)}
+            min={0}
+            max={cap}
+            step={0.05}
+            format={(v) => (v > 0 ? `${v.toFixed(2)}s` : 'None')}
+            onChange={(fadeIn) => write(withFades(clip.duration, { ...fades, fadeIn }))}
+          />
+          <SliderRow
+            label="Fade out"
+            value={Math.min(cap, fades.fadeOut)}
+            min={0}
+            max={cap}
+            step={0.05}
+            format={(v) => (v > 0 ? `${v.toFixed(2)}s` : 'None')}
+            onChange={(fadeOut) => write(withFades(clip.duration, { ...fades, fadeOut }))}
+          />
+          <p className={styles.empty}>
+            Each fade can run to half the clip, so the two can never cross. Above 100% the
+            gain multiplies and loud material will clip — it is a tool for quiet audio.
+          </p>
+        </>
+      ) : (
+        /*
+         * A curve this UI did not author. Saying so beats offering fade sliders
+         * that would silently replace someone's duck or ramp with a plateau.
+         */
+        <p className={styles.empty}>
+          This clip carries a custom volume curve, so the fade controls are hidden rather
+          than offered — using them would replace the shape you drew. Volume still works: it
+          scales the whole curve and keeps its shape.
+        </p>
+      )}
+    </>
+  );
+}
+
+/* ------------------------------------------------------------- transform --- */
+
+const FULL_CROP = { x: 0, y: 0, w: 1, h: 1 };
+
+/**
+ * Rotation and crop.
+ *
+ * The pipeline is decode → **crop** → grade → cover-fit into `rect` → effects →
+ * **rotate** → composite, and both ends of that are exposed here.
+ *
+ * **Rotation turns about the centre of the clip's own box**, clockwise, and the
+ * box GROWS to hold the turned picture rather than the corners being shaved —
+ * so a rotated full-frame clip shows the backdrop in the corners, which is what
+ * the export does too.
+ *
+ * **Crop is expressed against the SOURCE, not the frame.** It has to be: the
+ * export's arg builder never probes the media, so a crop in destination pixels
+ * could not be resolved without a decode the renderer does not do. The edges
+ * here are therefore "how much of the original picture to cut away", and the
+ * clip re-fills its box afterwards — cropping never leaves a gap.
+ */
+function TransformMenu({ clip }: { clip: VisualTrackClip }) {
+  const apply = useVideo((s) => s.apply);
+  const rotation = clip.rotation ?? 0;
+  const crop = clip.crop ?? FULL_CROP;
+  const set = (patch: Parameters<typeof setClipTransform>[2]) =>
+    apply((p) => setClipTransform(p, clip.id, patch));
+
+  // Each edge is an inset. Right and bottom are derived, because `SourceRect`
+  // stores an origin and a size and the user is thinking in edges.
+  const edge = (
+    label: string,
+    value: number,
+    max: number,
+    write: (v: number) => Parameters<typeof setClipTransform>[2],
+  ) => (
+    <SliderRow
+      label={label}
+      value={value}
+      min={0}
+      max={max}
+      step={0.005}
+      format={(v) => `${Math.round(v * 100)}%`}
+      onChange={(v) => set(write(v))}
+    />
+  );
+
+  return (
+    <div className={styles.group}>
+      <p className={styles.groupTitle}>Rotate</p>
+      {/* `normalizeRotation` wraps into (-180, 180], so the stored value is
+          already in the slider's own range and needs no folding here. */}
+      <SliderRow
+        label="Angle"
+        value={rotation}
+        min={-180}
+        max={180}
+        step={1}
+        format={(v) => `${Math.round(v)}°`}
+        onChange={(deg) => set({ rotation: snapAngle(deg) })}
+      />
+      <div className={styles.menu}>
+        <MenuItem onClick={() => set({ rotation: rotation + 90 })}>Turn 90° right</MenuItem>
+        <MenuItem onClick={() => set({ rotation: rotation - 90 })}>Turn 90° left</MenuItem>
+        {rotation !== 0 && <MenuItem onClick={() => set({ rotation: 0 })}>Straighten</MenuItem>}
+      </div>
+
+      <p className={styles.groupTitle}>Crop</p>
+      {edge('From the left', crop.x, Math.max(0, crop.x + crop.w - 0.05), (x) => ({
+        crop: { ...crop, x, w: crop.x + crop.w - x },
+      }))}
+      {edge('From the right', 1 - (crop.x + crop.w), Math.max(0, 1 - crop.x - 0.05), (v) => ({
+        crop: { ...crop, w: 1 - v - crop.x },
+      }))}
+      {edge('From the top', crop.y, Math.max(0, crop.y + crop.h - 0.05), (y) => ({
+        crop: { ...crop, y, h: crop.y + crop.h - y },
+      }))}
+      {edge('From the bottom', 1 - (crop.y + crop.h), Math.max(0, 1 - crop.y - 0.05), (v) => ({
+        crop: { ...crop, h: 1 - v - crop.y },
+      }))}
+      {clip.crop && (
+        <div className={styles.menu}>
+          <MenuItem onClick={() => set({ crop: FULL_CROP })}>Use the whole picture</MenuItem>
+        </div>
+      )}
+      <p className={styles.empty}>
+        Crop cuts the source, then what is left re-fills the clip&rsquo;s box. The angle snaps
+        to the nearest 15° as you pass it.
+      </p>
+    </div>
   );
 }
 
@@ -358,6 +667,9 @@ export function OverlayBar({ overlay }: { overlay: TextOverlay }) {
         value={overlay.align ?? 'center'}
         onChange={(align) => set({ align })}
       />
+
+      {/* A caption is never blended, so slide is always available here. */}
+      <AnimationMenu element={overlay} />
 
       <BarMenu label="Placement and timing" text="Placement" icon="sliders">
         <div className={styles.group}>
