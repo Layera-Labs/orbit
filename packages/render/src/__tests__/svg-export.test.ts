@@ -27,6 +27,19 @@ function pg(
   return { id: 'p', width: 400, height: 300, background, children };
 }
 
+/** A page holding one 100x100 image, with the fields under test applied. */
+function mkPage(extra: Record<string, unknown>): Page {
+  return pg([
+    mk({
+      type: 'image',
+      src: 'data:image/png;base64,iVBORw0KGgo=',
+      naturalWidth: 400,
+      naturalHeight: 400,
+      ...extra,
+    }),
+  ]);
+}
+
 describe('exportPageToSVG', () => {
   it('emits a well-formed SVG document with viewBox and page size', () => {
     const svg = exportPageToSVG(pg([]));
@@ -126,6 +139,81 @@ describe('exportPageToSVG', () => {
     expect(svg).toContain('stop-color="#ff0000"');
     expect(svg).toContain('stop-color="#0000ff"');
     expect(svg).toContain('fill="url(#');
+  });
+
+  /*
+   * The still editor grew Shadow / Edges / Crop controls, and those were
+   * verified on the Konva canvas. PNG and PDF go through `stage.toDataURL()`,
+   * so they get whatever the canvas drew for free — but SVG is built by THIS
+   * file, independently, and had no coverage for any of them. `image.crop` in
+   * particular was documented as "not applied", which was a defensible gap
+   * while nothing could set a crop and a real divergence the moment something
+   * could.
+   */
+  describe('the fields the element inspector can set', () => {
+    it('applies a drop shadow', () => {
+      const svg = exportPageToSVG(
+        pg([
+          mk({
+            type: 'shape',
+            shape: 'rect',
+            fill: '#123456',
+            shadow: { color: '#000000', blur: 12, opacity: 0.35, offsetX: 2, offsetY: 6 },
+          }),
+        ]),
+      );
+      expect(svg).toContain('<feDropShadow');
+      expect(svg).toContain('dy="6"');
+      // stdDeviation is half the blur — SVG's sigma against Konva's radius.
+      expect(svg).toContain('stdDeviation="6"');
+      expect(svg).toContain('flood-opacity="0.35"');
+      expect(svg).toMatch(/filter="url\(#[^)]+\)"/);
+    });
+
+    it('rounds an image and strokes it', () => {
+      const svg = exportPageToSVG(
+        mkPage({ cornerRadius: 20, stroke: '#ff0000', strokeWidth: 4 }),
+      );
+      expect(svg).toContain('<clipPath');
+      expect(svg).toContain('rx="20"');
+      expect(svg).toContain('stroke="#ff0000"');
+      expect(svg).toContain('stroke-width="4"');
+    });
+
+    it('maps a crop window onto the whole box', () => {
+      // The right half of the source, drawn into a 100-wide box: the image has
+      // to be twice as wide and pulled left by its own width, then clipped.
+      const svg = exportPageToSVG(
+        mkPage({ crop: { x: 0.5, y: 0, width: 0.5, height: 1 } }),
+      );
+      expect(svg).toContain('width="200"');
+      expect(svg).toContain('x="-100"');
+      expect(svg).toContain('<clipPath');
+    });
+
+    it('offsets on both axes for a centred crop', () => {
+      const svg = exportPageToSVG(
+        mkPage({ crop: { x: 0.25, y: 0.25, width: 0.5, height: 0.5 } }),
+      );
+      expect(svg).toContain('width="200"');
+      expect(svg).toContain('height="200"');
+      expect(svg).toContain('x="-50"');
+      expect(svg).toContain('y="-50"');
+    });
+
+    it('draws an uncropped image exactly as it always did', () => {
+      // The regression guard: every stored document without a crop must emit
+      // byte-identical markup to before crop existed.
+      const svg = exportPageToSVG(mkPage({}));
+      expect(svg).toContain('x="0" y="0" width="100" height="100"');
+      expect(svg).not.toContain('<clipPath');
+    });
+
+    it('survives a degenerate crop rather than dividing by zero', () => {
+      const svg = exportPageToSVG(mkPage({ crop: { x: 0, y: 0, width: 0, height: 0 } }));
+      expect(svg).not.toContain('Infinity');
+      expect(svg).not.toContain('NaN');
+    });
   });
 
   it('svgStringToBlob produces an image/svg+xml blob', () => {
