@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildProjectFromSpec, generateVideoSpec, type Brain, type VideoSpec } from '../agent';
+import { textOverlaysOf } from '@orbit/video';
 
 /** A fake brain that returns a fixed spec — no LLM / key needed. */
 const fakeBrain = (spec: VideoSpec): Brain => ({ plan: async () => spec });
@@ -29,8 +30,12 @@ describe('buildProjectFromSpec', () => {
 
   it('builds a quote card with no media', () => {
     const project = buildProjectFromSpec({ template: 'quote_card', input: { quote: 'Be water', author: 'Bruce Lee' } });
-    expect(project.overlays[0].text).toContain('Be water');
-    expect(project.overlays[1].text).toContain('Bruce Lee');
+    // Narrowed, not cast: `Overlay` is a union, and a template that started
+    // emitting something other than a caption should fail here.
+    const captions = textOverlaysOf(project.overlays);
+    expect(captions).toHaveLength(2);
+    expect(captions[0].text).toContain('Be water');
+    expect(captions[1].text).toContain('Bruce Lee');
   });
 
   it('renders a lyric video silently when no music is supplied', () => {

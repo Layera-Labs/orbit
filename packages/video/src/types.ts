@@ -52,10 +52,23 @@ export interface TextStroke {
   width: number;
 }
 
-export interface TextOverlay {
+/**
+ * What every overlay has, whatever it draws.
+ *
+ * The split is deliberate and it is not just tidiness: `frameStateAt`'s overlay
+ * loop is almost entirely timing and animation — the window, the fade, the
+ * keyframe delta, the slide, the Ken-Burns move — and NONE of that cares what
+ * the layer contains. Keeping those fields in one place is what lets a second
+ * and third kind of overlay arrive without a second and third copy of that
+ * arithmetic, which is exactly how two surfaces start disagreeing.
+ *
+ * `x`/`y` are on the base for the same reason. They are the overlay's ANCHOR,
+ * the point a keyframe or a slide displaces it from; what the anchor means is
+ * the member's business (for text, where the glyphs sit under `align`; for an
+ * image or a shape, the centre of its box).
+ */
+export interface OverlayBase {
   id: ID;
-  type: "text";
-  text: string;
   /** Appear / disappear time on the timeline, seconds. */
   start: number;
   end: number;
@@ -66,6 +79,27 @@ export interface TextOverlay {
   opacity?: number;
   /** Optional shape mask in normalized project coordinates. */
   mask?: ClipMask;
+  /** Stacking lane / z-order (higher = on top). Overlays are kept sorted by it. */
+  layer?: number;
+  /**
+   * @deprecated Superseded by `animateIn`/`animateOut`. Still READ, never
+   * written: `resolveAnim` maps a stored `"fade"` to the 0.3s fade the export
+   * has always applied, so old documents render byte-identically.
+   */
+  animation?: "none" | "fade";
+  /** Entrance animation. See `element-anim.ts`. */
+  animateIn?: ElementAnim;
+  /** Exit animation. */
+  animateOut?: ElementAnim;
+  /** Ken-Burns camera move animated over the overlay's window (preview + export). */
+  motion?: Motion;
+  /** Keyframes animating opacity + position over the window (≥2 to animate). */
+  keyframes?: Keyframe[];
+}
+
+export interface TextOverlay extends OverlayBase {
+  type: "text";
+  text: string;
   /** Font size in px at the output resolution. */
   fontSize: number;
   color: string;
@@ -85,31 +119,78 @@ export interface TextOverlay {
    * `linesOf` in `font-metrics.ts`, which is the one place that decides.
    */
   maxWidth?: number;
-  /** Stacking lane / z-order (higher = on top). Overlays are kept sorted by it. */
-  layer?: number;
   /** Drop shadow behind the caption (preview + export). */
   shadow?: TextShadow;
   /** Outline stroke around the glyphs (preview + export). */
   stroke?: TextStroke;
   /** Optional caption background box. */
   box?: { color: string; opacity?: number; padding?: number };
-  /**
-   * @deprecated Superseded by `animateIn`/`animateOut`. Still READ, never
-   * written: `resolveAnim` maps a stored `"fade"` to the 0.3s fade the export
-   * has always applied, so old documents render byte-identically.
-   */
-  animation?: "none" | "fade";
-  /** Entrance animation. See `element-anim.ts`. */
-  animateIn?: ElementAnim;
-  /** Exit animation. */
-  animateOut?: ElementAnim;
-  /** Ken-Burns camera move animated over the caption window (preview + export). */
-  motion?: Motion;
-  /** Keyframes animating opacity + position over the caption (≥2 to animate). */
-  keyframes?: Keyframe[];
 }
 
-export type Overlay = TextOverlay;
+/**
+ * A picture on the overlay stack — a sticker, a watermark, a logo.
+ *
+ * `width`/`height` are fractions of the frame and `x`/`y` is the CENTRE of the
+ * box, not its corner. Centre because that is the point everything else here
+ * displaces: a keyframe, a slide and a Ken-Burns move all move the anchor, and
+ * a rotation turns about it. Storing a corner would mean converting at every
+ * one of those, and getting it wrong in one place is a drift nobody sees until
+ * an export comes back with the sticker somewhere else.
+ */
+export interface ImageOverlay extends OverlayBase {
+  type: "image";
+  /** Media reference, resolved the same way a clip's `src` is. */
+  src: string;
+  /** Size as a fraction of the frame (1 = full width / full height). */
+  width: number;
+  height: number;
+  /** Clockwise degrees about the anchor. Same convention as `ClipTransform`. */
+  rotation?: number;
+}
+
+/** Shapes an overlay can draw. Deliberately few; each is exact in all three renderers. */
+export type OverlayShape = "rect" | "ellipse";
+
+/**
+ * A flat shape on the overlay stack — a scrim behind a caption, a colour band,
+ * a lower-third plate.
+ *
+ * Geometry matches `ImageOverlay` exactly, so the two share every placement
+ * rule and neither can drift from the other.
+ */
+export interface ShapeOverlay extends OverlayBase {
+  type: "shape";
+  shape: OverlayShape;
+  /** Size as a fraction of the frame. */
+  width: number;
+  height: number;
+  rotation?: number;
+  fill?: string;
+  /** Fill opacity (0..1), multiplied by the layer's own `opacity`. */
+  fillOpacity?: number;
+  stroke?: string;
+  /** Stroke width in px at the output resolution. */
+  strokeWidth?: number;
+  /** Corner radius in px at the output resolution. Ignored by `ellipse`. */
+  cornerRadius?: number;
+}
+
+/**
+ * Everything that can sit on the overlay stack.
+ *
+ * Consumers MUST branch on `type` rather than assume text. Before this union
+ * existed, `ffmpeg.ts` selected overlays by `images[o.id]` — whether the
+ * rasterizer had produced a PNG for it — which was correct only because
+ * `render.ts` happened to rasterize text and nothing else. That is a rule
+ * spanning two files that nothing asserted, and the kind that survives right up
+ * until someone adds a second kind of overlay.
+ */
+export type Overlay = TextOverlay | ImageOverlay | ShapeOverlay;
+
+/** Narrow an overlay list to captions — the one kind that carries words. */
+export function textOverlaysOf(overlays: readonly Overlay[]): TextOverlay[] {
+  return overlays.filter((o): o is TextOverlay => o.type === "text");
+}
 
 export interface AudioClip {
   id: ID;

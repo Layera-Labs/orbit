@@ -32,7 +32,14 @@ export function hitBoxesAt(project: VideoProject, time: number): { id: string; b
     if (op.kind === 'background') continue;
     if (op.kind === 'overlay') {
       const o = overlays.get(op.id);
-      if (!o) continue;
+      /*
+       * Only captions have a measured box. `frameStateAt` emits an overlay op
+       * for text alone today, so a non-text overlay cannot reach here — but
+       * `overlayBox` would read a `fontSize` that is not there and hand back a
+       * `NaN` rectangle, and a hit target of NaN swallows every click on the
+       * canvas rather than failing where you could see it.
+       */
+      if (!o || o.type !== 'text') continue;
       // Measured with the same face the renderer just drew with, or the click
       // target sits somewhere the caption visibly is not.
       const b = overlayBox(o, project.width, project.height, overlayFontOptions(o, fonts)?.measure);

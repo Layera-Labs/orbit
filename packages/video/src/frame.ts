@@ -346,6 +346,18 @@ export function frameStateAt(p: VideoProject, t: number, opts?: FrameOptions): D
   const overlays = [...p.overlays].sort((a, b) => (a.layer ?? 0) - (b.layer ?? 0));
   for (const o of overlays) {
     if (t < o.start || t > o.end) continue;
+    /*
+     * Captions are the only kind with a renderer here today.
+     *
+     * An `image` or `shape` overlay is SKIPPED, not handed to `overlayToSVG` —
+     * which would read a `text` that is not there and paint an empty caption
+     * box across the frame. A wrong picture is worse than a missing one, and
+     * missing is exactly what the export does with the same overlay:
+     * `render.ts` rasterizes text alone and `buildFFmpegArgs` now selects on
+     * type. Preview and export agree about the absence, which is the property
+     * that matters until the renderers land.
+     */
+    if (o.type !== 'text') continue;
     const dur = Math.max(0.001, o.end - o.start);
     const p01 = progressAt(o.start, dur, t);
     const kfs = o.keyframes;

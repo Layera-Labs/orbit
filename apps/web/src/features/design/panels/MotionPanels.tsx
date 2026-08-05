@@ -24,6 +24,7 @@ import {
   setFrame,
   setTransition,
   useVideo,
+  overlayLabel,
 } from '@/store/videoStore';
 import { CaptionsSection } from './Captions';
 import { TransitionTile } from './TransitionTile';
@@ -701,7 +702,7 @@ export function MotionTextPanel({
                   whiteSpace: 'nowrap',
                 }}
               >
-                {o.text || 'Text'}
+                {overlayLabel(o)}
               </span>
               <span className={`${styles.cost} w-data`}>{o.start.toFixed(1)}s</span>
             </button>
