@@ -9,7 +9,7 @@
  * Note the mobile Skia preview has no audio at all. Web being ahead is a
  * capability difference, not drift, precisely because the gain maths is shared.
  */
-import { hasVolumeCurve, sampleVolume, type AudioTrackClip } from '@orbit/video/browser';
+import { curvePoints, sampleVolume, type AudioTrackClip } from '@orbit/video/browser';
 
 interface Voice {
   el: HTMLAudioElement;
@@ -84,8 +84,15 @@ export class AudioGraph {
       if (playing && el.paused) void el.play().catch(() => undefined);
 
       const p = clip.duration > 0 ? local / clip.duration : 0;
-      const volume = hasVolumeCurve(clip.volumeCurve)
-        ? sampleVolume(clip.volumeCurve!, p)
+      /*
+       * `curvePoints` materializes a stored envelope against the clip's own
+       * PLATEAU. Passing 1 instead would play a ducked bed at unity here while
+       * the exported file plays it at the level the user set — the divergence
+       * this whole shape exists to make impossible.
+       */
+      const pts = curvePoints(clip.volumeCurve, clip.duration, clip.volume ?? 1);
+      const volume = pts
+        ? sampleVolume(pts, p)
         : (clip.volume ?? 1);
       gain.gain.setTargetAtTime(Math.max(0, volume), ctx.currentTime, 0.01);
     }

@@ -18,6 +18,7 @@ import type {
   TextOverlay,
   VideoProject,
   VisualTrackClip,
+  VolumeCurve,
   VolumePoint,
 } from '@orbit/video/browser';
 import { ColourPicker } from '@/brand/Colour';
@@ -410,7 +411,7 @@ function LevelAndFades({ clip }: { clip: VisualTrackClip | AudioTrackClip }) {
   const apply = useVideo((s) => s.apply);
   const fades = fadesOf(clip);
   const cap = maxFadeFor(clip.duration);
-  const write = (patch: { volume: number; volumeCurve?: VolumePoint[] }) =>
+  const write = (patch: { volume: number; volumeCurve?: VolumeCurve }) =>
     apply((p) => patchClip(p, clip.id, patch as Partial<VisualTrackClip>));
 
   return (

@@ -25,7 +25,7 @@ import { hasMotion, motionToZoompan } from "./motion";
 import { chromaToFFmpeg } from "./cutout";
 import { maskToFFmpeg } from "./mask";
 import { blendToFFmpeg } from "./blend";
-import { hasVolumeCurve, volumeCurveExpr } from "./curve";
+import { curvePoints, volumeCurveExpr } from "./curve";
 import {
   animatesOpacity,
   animatesPosition,
@@ -390,8 +390,21 @@ export function buildFFmpegArgs(
   project.audio.forEach((a, i) => {
     if (!hasAudio(resolve(a.src))) return; // skip an audio file with no audio stream
     const label = `a${i}`;
+    /*
+     * The legacy path honours an envelope too. It used to emit a bare
+     * `volume=<n>`, which made a template's music the one audio in the product
+     * that could not be faded or ducked — all three templates write here.
+     *
+     * No `adelay` on this path, so the expression is in the clip's OWN time
+     * from zero, not the timeline's: `atrim`+`asetpts` have already rebased it.
+     */
+    const aDur = a.duration ?? duration;
+    const aPts = curvePoints(a.volumeCurve, aDur, a.volume ?? 1);
+    const aGain = aPts
+      ? `volume='${volumeCurveExpr(aPts, 0, aDur)}':eval=frame`
+      : `volume=${a.volume ?? 1}`;
     segments.push(
-      `[${audioBase + i}:a]atrim=start=${a.trimIn ?? 0}:duration=${a.duration ?? duration},asetpts=PTS-STARTPTS,volume=${a.volume ?? 1}[${label}]`,
+      `[${audioBase + i}:a]atrim=start=${a.trimIn ?? 0}:duration=${aDur},asetpts=PTS-STARTPTS,${aGain}[${label}]`,
     );
     aLabels.push(`[${label}]`);
   });
@@ -1339,16 +1352,25 @@ function buildMultiTrackArgs(
 
   // ---- audio: positioned audio clips + each video clip's own audio, mixed ----
   const aLabels: string[] = [];
-  // gain: a per-frame volume expression when a curve is set, else a constant.
+  /*
+   * gain: a per-frame volume expression when a curve is set, else a constant.
+   *
+   * `curvePoints` is what turns a stored envelope into the points this
+   * expression is built from, and it needs the PLATEAU — a curve overrides
+   * `volume`, so the level the envelope is drawn against is the clip's own.
+   * Passing 1 here would render every ducked clip at unity.
+   */
   const gain = (
     curve: (typeof audioClips)[number]["volumeCurve"],
     vol: number | undefined,
     start: number,
     duration: number,
-  ) =>
-    hasVolumeCurve(curve)
-      ? `volume='${volumeCurveExpr(curve!, start, duration)}':eval=frame`
+  ) => {
+    const pts = curvePoints(curve, duration, vol ?? 1);
+    return pts
+      ? `volume='${volumeCurveExpr(pts, start, duration)}':eval=frame`
       : `volume=${vol ?? 1}`;
+  };
   audioClips.forEach((a, i) => {
     if (!hasAudio(resolve(a.src))) return;
     const ms = Math.max(0, Math.round(a.start * 1000));

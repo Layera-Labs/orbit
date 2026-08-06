@@ -43,6 +43,9 @@ export type {
   MaskShape,
   BlendMode,
   VolumePoint,
+  VolumeCurve,
+  VolumeDuck,
+  VolumeEnvelope,
   Keyframe,
   Motion,
   MotionType,
@@ -74,12 +77,22 @@ export { chromaToFFmpeg, chromaParams, chromaAlphaAt, hexToRgb } from './cutout'
 export type { ChromaParams } from './cutout';
 export { maskToFFmpeg } from './mask';
 export { blendToFFmpeg, blendToSkia, blendToCanvas, BLEND_MODES } from './blend';
-export { hasVolumeCurve, sampleVolume, volumeCurveExpr } from './curve';
+export {
+  DUCK_RAMP,
+  curvePoints,
+  duckRamp,
+  hasVolumeCurve,
+  isEnvelope,
+  sampleVolume,
+  volumeCurveExpr,
+} from './curve';
 export {
   MAX_FADE,
   MAX_VOLUME,
+  ducksOf,
   fadesOf,
   maxFadeFor,
+  withDucks,
   withFades,
   withVolume,
 } from './audio-fade';
