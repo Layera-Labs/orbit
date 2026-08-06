@@ -12,8 +12,8 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { bearer, guestToken } from './guest.js';
 
-vi.mock('@orbit/video', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@orbit/video')>();
+vi.mock('@orbit/video/node', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@orbit/video/node')>();
   return { ...actual, renderProject: async () => {} };
 });
 

@@ -29,7 +29,7 @@ import {
   type XfMask,
   type XfState,
 } from '@orbit/video/browser';
-import type { TransitionType } from '@orbit/video';
+import type { TransitionType } from '@orbit/video/types';
 
 /** Off-centre on purpose: at exactly half, a symmetric transition says nothing. */
 const AT = 0.42;

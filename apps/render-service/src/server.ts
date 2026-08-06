@@ -58,7 +58,7 @@ import {
   resolveFonts,
   type ExportOutput,
   type VideoProject,
-} from "@orbit/video";
+} from "@orbit/video/node";
 import {
   ElevenLabsProvider,
   GenerationService,
