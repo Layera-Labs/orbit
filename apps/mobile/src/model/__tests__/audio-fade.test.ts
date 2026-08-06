@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { VolumePoint } from "../types";
 import { MAX_VOLUME, fadesOf, maxFadeFor, withFades, withVolume } from "../audio-fade";
 
 const clip = (duration: number, patch: Record<string, unknown> = {}) => ({
@@ -87,7 +88,11 @@ describe("withVolume", () => {
     expect(read.fadeIn).toBeCloseTo(2, 6);
     expect(read.fadeOut).toBeCloseTo(1, 6);
     // And the plateau really is in the curve, where the export looks.
-    expect(next.volumeCurve!.map((p) => p.v)).toEqual([0, 2, 2, 0]);
+    // Narrowed: `volumeCurve` is a union now, and a fade-only clip is
+    // deliberately still the ARRAY form — asserting that here is part of the
+    // promise that no existing document changed shape.
+    expect(Array.isArray(next.volumeCurve)).toBe(true);
+    expect((next.volumeCurve as VolumePoint[]).map((p) => p.v)).toEqual([0, 2, 2, 0]);
   });
 
   it("writes a plain number when the clip has no curve", () => {
@@ -134,8 +139,8 @@ describe("withVolume", () => {
     ]) {
       const next = withVolume(clip, 9);
       expect(next.volume).toBeLessThanOrEqual(MAX_VOLUME);
-      for (const p of next.volumeCurve ?? [])
-        expect(p.v).toBeLessThanOrEqual(MAX_VOLUME);
+      for (const pt of (next.volumeCurve as VolumePoint[] | undefined) ?? [])
+        expect(pt.v).toBeLessThanOrEqual(MAX_VOLUME);
     }
   });
 });

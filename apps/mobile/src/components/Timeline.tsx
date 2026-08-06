@@ -57,6 +57,7 @@ import type {
   Transition,
   VisualTrackClip,
   VolumePoint,
+  VolumeCurve,
 } from "../model/types";
 import { SelectionActionBar } from "./SelectionActionBar";
 import { barHeights } from "./waveformBars";
@@ -108,7 +109,7 @@ type ClipLike = {
   transitionIn?: Transition;
   /** Read by the waveform strip: gain, and the envelope that overrides it. */
   volume?: number;
-  volumeCurve?: VolumePoint[];
+  volumeCurve?: VolumeCurve;
 };
 type ClipEntry = { clip: ClipLike; trackId: string };
 /** One collapsed sub-lane in a squeezed group — clips shown as colour bars. */

@@ -421,6 +421,65 @@ export interface VolumePoint {
   v: number;
 }
 
+/**
+ * A dip in the level — music stepping back under a voice.
+ *
+ * `depth` is a FRACTION of the clip's plateau, not an absolute gain, so moving
+ * the volume slider moves the duck with it. An absolute value would make a duck
+ * that was -12 dB under the music become -12 dB under silence the moment
+ * someone turned the clip down.
+ */
+export interface VolumeDuck {
+  /** Start, in seconds from the clip's own start. */
+  at: number;
+  /** Total length in seconds, both ramps included. */
+  dur: number;
+  /** Gain during the dip as a fraction of the plateau, 0..1. */
+  depth: number;
+  /** Seconds of ramp at each end. Defaults to `DUCK_RAMP`, clamped to `dur/2`. */
+  ramp?: number;
+  /** Who put it there. An automatic pass may replace its own; never a manual one. */
+  source?: "manual" | "auto";
+}
+
+/**
+ * A volume envelope stored as INTENT rather than as the points it becomes.
+ *
+ * The problem this exists for: there is one envelope slot per clip and a curve
+ * OVERRIDES `volume`, so with points alone a duck and a pair of fades cannot
+ * coexist — writing a duck makes the shape unrecognisable as fades, the sliders
+ * stop reading back, and the UI has to fall to "custom curve" on a clip whose
+ * fades the user set thirty seconds ago.
+ *
+ * Storing what was asked for rather than the result means `fadesOf` reads a
+ * number instead of trying to recognise a shape, and the renderers materialize
+ * to points at the last moment (`curvePoints`). `points` remains the escape
+ * hatch for a genuinely hand-drawn curve, which no combination of fields can
+ * describe.
+ */
+export interface VolumeEnvelope {
+  /** Seconds ramping up from silence at the head. */
+  fadeIn?: number;
+  /** Seconds ramping down to silence at the tail. */
+  fadeOut?: number;
+  ducks?: VolumeDuck[];
+  /** A hand-drawn shape, when the fields above cannot express it. */
+  points?: VolumePoint[];
+}
+
+/**
+ * What a clip's `volumeCurve` may hold.
+ *
+ * The bare array is the ORIGINAL form and is still written for anything a plain
+ * point list can express — which is every fade-only clip, so no existing
+ * document changes and no existing filtergraph moves. The object form appears
+ * only when something needs the structure, i.e. when there is a duck; a
+ * renderer that predates it degrades to the clip's plain `volume` rather than
+ * crashing, which is the right way round for a capability it could not have
+ * performed anyway.
+ */
+export type VolumeCurve = VolumePoint[] | VolumeEnvelope;
+
 /** Ken-Burns style camera move applied over a clip's duration. */
 export type MotionType =
   | "none"
@@ -502,7 +561,7 @@ export interface VisualTrackClip {
   crop?: SourceRect;
   volume?: number;
   /** Volume envelope over the clip (≥2 points; overrides `volume`). */
-  volumeCurve?: VolumePoint[];
+  volumeCurve?: VolumeCurve;
   muted?: boolean;
   /** Colour grade (preview + export). */
   filter?: ClipFilter;
@@ -552,7 +611,7 @@ export interface AudioTrackClip {
   trimIn?: number;
   volume?: number;
   /** Volume envelope over the clip (≥2 points; overrides `volume`). */
-  volumeCurve?: VolumePoint[];
+  volumeCurve?: VolumeCurve;
 }
 
 export interface VisualTrack {

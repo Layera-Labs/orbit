@@ -21,6 +21,7 @@ import type {
   Rect,
   SourceRect,
   VolumePoint,
+  VolumeCurve,
   TextOverlay,
   Track,
   Transition,
@@ -1094,20 +1095,28 @@ export function setClipMuted(
   );
 }
 
-/** Set a volume envelope on a visual (video) OR audio clip. Clears when < 2 points. */
+/** Set a volume envelope on a visual (video) OR audio clip. Clears an empty one. */
 export function setClipVolumeCurve(
   p: VideoProject,
   trackId: string,
   clipId: string,
-  curve: VolumePoint[] | undefined,
+  curve: VolumeCurve | undefined,
 ): VideoProject {
-  // Points are bounded to the SAME ceiling as `setClipVolume`. They were not,
-  // and because a curve overrides the plain number, an out-of-range point was
-  // the one way to store a gain the UI could neither show nor undo.
-  const vc =
-    curve && curve.length >= 2
+  /*
+   * Points are bounded to the SAME ceiling as `setClipVolume`. They were not,
+   * and because a curve overrides the plain number, an out-of-range point was
+   * the one way to store a gain the UI could neither show nor undo.
+   *
+   * The STRUCTURED form needs no clamp of its own: it stores a plateau-relative
+   * `depth` and takes its level from the clip's `volume`, which `setClipVolume`
+   * already bounds. Clamping a fraction against a gain ceiling would be a
+   * category error.
+   */
+  const vc = Array.isArray(curve)
+    ? curve.length >= 2
       ? curve.map((k) => ({ t: k.t, v: Math.max(0, Math.min(MAX_VOLUME, k.v)) }))
-      : undefined;
+      : undefined
+    : curve;
   return updateClips(
     p,
     trackId,

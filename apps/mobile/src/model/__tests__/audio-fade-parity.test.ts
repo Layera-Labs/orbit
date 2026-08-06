@@ -17,15 +17,19 @@ import { describe, expect, it } from "vitest";
 import {
   MAX_FADE,
   MAX_VOLUME,
+  ducksOf,
   fadesOf,
   maxFadeFor,
+  withDucks,
   withFades,
   withVolume,
 } from "../audio-fade";
-import type { VolumePoint } from "../types";
+import { DUCK_RAMP as DUCK_RAMP_MOBILE, curvePoints, sampleVolume } from "../../preview/curve";
+import type { VolumeCurve, VolumeDuck, VolumePoint } from "../types";
 
 // By path, not package name: mobile installs outside the pnpm workspace.
 const load = () => import("../../../../../packages/video/src/audio-fade");
+const loadCurve = () => import("../../../../../packages/video/src/curve");
 
 const DUCK: VolumePoint[] = [
   { t: 0, v: 1 },
@@ -34,7 +38,9 @@ const DUCK: VolumePoint[] = [
   { t: 1, v: 1 },
 ];
 
-const CLIPS: { duration: number; volume?: number; volumeCurve?: VolumePoint[] }[] = [
+const DUCKS: VolumeDuck[] = [{ at: 3, dur: 2, depth: 0.3, source: "manual" }];
+
+const CLIPS: { duration: number; volume?: number; volumeCurve?: VolumeCurve }[] = [
   { duration: 10 },
   { duration: 10, volume: 0.5 },
   { duration: 10, volume: 3 },
@@ -50,6 +56,11 @@ const CLIPS: { duration: number; volume?: number; volumeCurve?: VolumePoint[] }[
     ],
   },
   { duration: 10, volumeCurve: [{ t: 0, v: 0 }, { t: 1, v: 0 }] },
+  // The structured form, which is where fades and ducks coexist.
+  { duration: 10, volume: 0.8, volumeCurve: { fadeIn: 1, fadeOut: 2, ducks: DUCKS } },
+  { duration: 10, volume: 0.8, volumeCurve: { ducks: DUCKS } },
+  { duration: 10, volume: 0.8, volumeCurve: { fadeIn: 4, fadeOut: 4, ducks: DUCKS } },
+  { duration: 10, volumeCurve: { points: DUCK } },
 ];
 
 const FADES = [0, 0.5, 2, MAX_FADE, MAX_FADE + 10];
@@ -91,5 +102,50 @@ describe("mobile mirrors packages/video", () => {
     for (const c of CLIPS)
       for (const v of LEVELS)
         expect(withVolume(c, v)).toEqual(shared.withVolume(c as never, v));
+  });
+});
+
+describe("the structured envelope agrees too", () => {
+  it("materializes to the same points", async () => {
+    const shared = await loadCurve();
+    for (const c of CLIPS)
+      expect(
+        curvePoints(c.volumeCurve, c.duration, c.volume ?? 1),
+        JSON.stringify(c),
+      ).toEqual(shared.curvePoints(c.volumeCurve as never, c.duration, c.volume ?? 1));
+  });
+
+  it("samples to the same gain across the whole clip", async () => {
+    // The points agreeing is the structural claim; this is the audible one.
+    const shared = await loadCurve();
+    for (const c of CLIPS) {
+      const mine = curvePoints(c.volumeCurve, c.duration, c.volume ?? 1);
+      const theirs = shared.curvePoints(c.volumeCurve as never, c.duration, c.volume ?? 1);
+      if (!mine || !theirs) continue;
+      for (let i = 0; i <= 20; i++)
+        expect(sampleVolume(mine, i / 20)).toBeCloseTo(
+          shared.sampleVolume(theirs, i / 20),
+          9,
+        );
+    }
+  });
+
+  it("reads the same ducks back", async () => {
+    const shared = await load();
+    for (const c of CLIPS) expect(ducksOf(c)).toEqual(shared.ducksOf(c as never));
+  });
+
+  it("writes the same envelope when ducks are set", async () => {
+    const shared = await load();
+    for (const c of CLIPS)
+      for (const ducks of [[], DUCKS, [...DUCKS, { at: 7, dur: 1, depth: 0 }]])
+        expect(withDucks(c, ducks), JSON.stringify(c)).toEqual(
+          shared.withDucks(c as never, ducks as never),
+        );
+  });
+
+  it("agrees on the default duck ramp", async () => {
+    const shared = await loadCurve();
+    expect(DUCK_RAMP_MOBILE).toBe(shared.DUCK_RAMP);
   });
 });

@@ -22,7 +22,8 @@
  * draws them a little shorter than the old strip did — bought in exchange for
  * 200% having somewhere to go. Nothing ever clips at the top.
  */
-import type { VolumePoint } from "../model/types";
+import type { VolumePoint,
+  VolumeCurve } from "../model/types";
 import { clipGainAt } from "../preview/curve";
 import { MAX_VOLUME } from "../model/audio-fade";
 
@@ -94,7 +95,7 @@ export interface BarInput {
   trimIn?: number;
   duration: number;
   volume?: number;
-  volumeCurve?: VolumePoint[];
+  volumeCurve?: VolumeCurve;
 }
 
 /** Height of each bar as a fraction of the lane, left to right. */
