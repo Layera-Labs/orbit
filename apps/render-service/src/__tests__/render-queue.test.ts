@@ -15,8 +15,8 @@ import { bearer, guestToken } from './guest.js';
 let inFlight = 0;
 let peak = 0;
 
-vi.mock('@orbit/video', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@orbit/video')>();
+vi.mock('@orbit/video/node', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@orbit/video/node')>();
   return {
     ...actual,
     renderProject: async () => {

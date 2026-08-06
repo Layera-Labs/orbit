@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { buildProjectFromSpec, generateVideoSpec, type Brain, type VideoSpec } from '../agent';
-import { textOverlaysOf } from '@orbit/video';
+import { textOverlaysOf } from '@orbit/video/browser';
 
 /** A fake brain that returns a fixed spec — no LLM / key needed. */
 const fakeBrain = (spec: VideoSpec): Brain => ({ plan: async () => spec });

@@ -18,8 +18,8 @@ import type { Server } from 'node:http';
 import { bearer, guestToken } from './guest.js';
 
 /** Stubbed so a passing test can never depend on ffmpeg existing. */
-vi.mock('@orbit/video', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@orbit/video')>();
+vi.mock('@orbit/video/node', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@orbit/video/node')>();
   return { ...actual, renderProject: async () => {} };
 });
 
