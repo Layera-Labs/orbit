@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildFFmpegArgs, type BuildFFmpegOptions } from './ffmpeg';
 import { backgroundToSVG } from './background-svg';
+import { projectDuration } from './project';
 import { canvasFrameToSVG, hasCanvasFrame } from './canvas-frame';
 import { overlayFontOptions, overlayToSVG } from './overlay-svg';
 import { rasterizeSVG } from './raster';
@@ -16,6 +17,33 @@ import {
   unsupportedTransitions,
 } from './xfade';
 import type { VideoProject, VisualTrackClip } from './types';
+
+/**
+ * What a finished render is.
+ *
+ * `renderProject` used to resolve with the output path — which every caller
+ * already had, because they passed it in. So the return value carried no
+ * information at all, and both real callers discarded it.
+ *
+ * The two facts a caller cannot get for free are here instead. `durationSec`
+ * comes from the timeline model, which is what DECIDED the length, so it is
+ * exact and free. `bytes` is one `stat` on a file that was just written.
+ *
+ * Deliberately NOT here: width, height, codec, real container duration. Those
+ * need an `ffprobe` of the output, which puts a process spawn in the hot path
+ * of every render and adds a failure mode to a job that has already succeeded —
+ * and it would go untested in ordinary CI, where the probe suites are gated
+ * behind `ORBIT_FFMPEG_PROBE=1`. If a caller ever needs them, they belong
+ * behind an opt-in flag, so the cost lands on whoever asked for it.
+ */
+export interface RenderResult {
+  /** The file that was written — `opts.outputPath`, echoed for convenience. */
+  path: string;
+  /** Timeline length in seconds, from the project model. */
+  durationSec: number;
+  /** Size of the written file on disk. */
+  bytes: number;
+}
 
 export interface RenderOptions extends Omit<BuildFFmpegOptions, 'overlayImages' | 'hasAudio'> {
   /** ffmpeg binary path (default: `ffmpeg` on PATH). Production ships its own. */
@@ -221,9 +249,12 @@ export function ffmpegXfadeTokens(bin: string): Promise<string[]> {
 
 /**
  * Render a project to `opts.outputPath`: rasterize each text overlay to a PNG,
- * then spawn ffmpeg to composite + encode. Resolves with the output path.
+ * then spawn ffmpeg to composite + encode. Resolves with a `RenderResult`.
  */
-export async function renderProject(project: VideoProject, opts: RenderOptions): Promise<string> {
+export async function renderProject(
+  project: VideoProject,
+  opts: RenderOptions,
+): Promise<RenderResult> {
   /*
    * Refuse HDR this ffmpeg cannot actually produce, before doing any work.
    * Without the check the encode succeeds and hands back a file whose tags lie
@@ -401,7 +432,28 @@ export async function renderProject(project: VideoProject, opts: RenderOptions):
       : opts.onProgress;
 
     await runFFmpeg(opts.ffmpegPath ?? 'ffmpeg', args, onChunk, opts.timeoutMs);
-    return opts.outputPath;
+    /*
+     * The length comes from the `-t` the builder just wrote — the number that
+     * DECIDED how long to encode for — and falls back to the timeline model.
+     * Not a re-measurement of the file: that would mean an ffprobe spawn per
+     * render to answer a question we already answered. `-t` is preferred over
+     * `projectDuration` for the same reason the progress fraction prefers it,
+     * so an audio-only export or an output override is reported as what was
+     * actually encoded.
+     *
+     * A failed `stat` reports 0 rather than throwing. ffmpeg exited 0 and the
+     * file is written; losing the render over a size we only report would be
+     * the tail wagging the dog.
+     */
+    const bytes = await stat(opts.outputPath).then(
+      (st) => st.size,
+      () => 0,
+    );
+    return {
+      path: opts.outputPath,
+      durationSec: Number.isFinite(total) && total > 0 ? total : projectDuration(project),
+      bytes,
+    };
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

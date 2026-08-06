@@ -9,4 +9,5 @@ export { rasterizeSVG } from './raster';
 export { resolveFonts, clearFontCache, isSafeFontFamily } from './google-fonts';
 export type { FontResolution, ResolveFontOptions } from './google-fonts';
 export { renderProject, killLiveRenders, ffmpegSupportsHdr, ffmpegXfadeTokens } from './render';
+export type { RenderResult } from './render';
 export type { RenderOptions } from './render';
