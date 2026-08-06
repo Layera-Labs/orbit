@@ -163,6 +163,7 @@ export function TtsSheet() {
 
         <ScrollView
           keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >

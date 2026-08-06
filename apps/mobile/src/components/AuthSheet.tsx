@@ -25,6 +25,7 @@ import { VIcon } from "./VIcon";
 import { AuthError } from "../net/authClient";
 import { useAuth } from "../store/authStore";
 import { useEditor } from "../store/editorStore";
+import { useDismissKeyboardOnUnmount } from "./keyboard";
 import { useStatusBarStyle } from "./statusBar";
 
 type ViewKey = "login" | "register" | "forgot" | "reset";
@@ -66,6 +67,8 @@ export function AuthSheet({
   // that component applies a style and does nothing on unmount, so closing this
   // used to leave dark glyphs on the dark editor behind it.
   useStatusBarStyle("dark", useEditor((s) => s.screen));
+  // The keyboard follows the field, and the field goes away with this modal.
+  useDismissKeyboardOnUnmount();
 
   const login = useAuth((s) => s.login);
   const register = useAuth((s) => s.register);
@@ -191,6 +194,7 @@ export function AuthSheet({
           <ScrollView
             contentContainerStyle={styles.body}
             keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
           >
             {/* Close sits inline with the heading, right-aligned — same on every view. */}
             <View style={styles.titleRow}>

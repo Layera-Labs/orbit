@@ -25,6 +25,7 @@ import { font, mono, vela } from "../constants";
 import { AppHeader } from "./AppHeader";
 import { VIcon } from "./VIcon";
 import { useEditor } from "../store/editorStore";
+import { dismissKeyboard, useDismissKeyboardOnUnmount } from "./keyboard";
 import { useStatusBarStyle } from "./statusBar";
 import { useAuth } from "../store/authStore";
 import { generateImage, generateVideo, GenError } from "../net/genClient";
@@ -76,6 +77,7 @@ export function AiGenerateModal() {
   // that component applies a style and does nothing on unmount, so closing this
   // used to leave dark glyphs on the dark editor behind it.
   useStatusBarStyle("dark", useEditor((st) => st.screen));
+  useDismissKeyboardOnUnmount();
 
   const setPanel = useEditor((s) => s.setPanel);
   const project = useEditor((s) => s.project);
@@ -192,6 +194,8 @@ export function AiGenerateModal() {
   const run = async () => {
     const p = prompt.trim();
     if (!canGenerate) return;
+    // You have finished typing; the result appears where the keyboard is.
+    dismissKeyboard();
     const ac = new AbortController();
     abortRef.current = ac;
     setBusy(true);
@@ -372,6 +376,24 @@ export function AiGenerateModal() {
             behavior={Platform.OS === "ios" ? "padding" : undefined}
             style={s.body}
           >
+            {/*
+              * Tapping anywhere that is not a control puts the keyboard away.
+              *
+              * The prompt is `multiline` AND `autoFocus`, so the keyboard is up
+              * the moment this opens and the return key inserts a newline
+              * rather than submitting — which left NO gesture anywhere on this
+              * screen that lowered it, with Generate sitting behind it.
+              *
+              * FIRST child, so it sits UNDERNEATH everything that follows: the
+              * controls are drawn over it and take their own touches, and only
+              * a tap on bare space reaches this. Last child and it would cover
+              * the screen and swallow every button.
+              */}
+            <Pressable
+              style={StyleSheet.absoluteFill}
+              onPress={dismissKeyboard}
+              accessible={false}
+            />
             <View style={s.seg}>
               {(["image", "video"] as Mode[]).map((m) => (
                 <Pressable

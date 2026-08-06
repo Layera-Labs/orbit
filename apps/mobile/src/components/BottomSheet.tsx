@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { vela } from "../constants";
 import { useSheetMotion } from "./sheetMotion";
+import { useDismissKeyboardOnUnmount } from "./keyboard";
 
 /**
  * How far the keyboard currently covers the screen.
@@ -66,6 +67,13 @@ export function BottomSheet({
 }) {
   const { translateY, backdrop, close } = useSheetMotion(onClose);
   const keyboardInset = useKeyboardInset();
+  /*
+   * Every sheet in the app is one of these, so this is the one place that has
+   * to know: a sheet raising the keyboard owns lowering it again. Without it a
+   * sheet dismissed with a field focused leaves the keyboard floating over the
+   * screen behind, which has nothing left to type into.
+   */
+  useDismissKeyboardOnUnmount();
 
   return (
     <Modal

@@ -18,6 +18,7 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-na
 import { font, mono, vela } from "../constants";
 import type { TextAlign } from "../model/types";
 import { useEditor } from "../store/editorStore";
+import { useDismissKeyboardOnUnmount } from "./keyboard";
 import { VIcon, type VIconName } from "./VIcon";
 import { VSlider } from "./VSlider";
 import { FontPickerBody } from "./FontPickerSheet";
@@ -65,6 +66,8 @@ export function TextSettingsSheet({
   initialTab?: TextSettingsTab;
 }) {
   const setPanel = useEditor((s) => s.setPanel);
+  // The keyboard follows the field, and the field goes away with this modal.
+  useDismissKeyboardOnUnmount();
   const selected = useEditor((s) => s.selected);
   const editSelectedText = useEditor((s) => s.editSelectedText);
   const updateOverlay = useEditor((s) => s.updateSelectedOverlay);
