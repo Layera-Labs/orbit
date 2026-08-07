@@ -43,6 +43,30 @@ export interface RenderResult {
   durationSec: number;
   /** Size of the written file on disk. */
   bytes: number;
+  /**
+   * The poster frame, if `opts.thumbnail` asked for one AND it was produced.
+   *
+   * Absent on failure rather than throwing: the video exists and is worth
+   * having, and losing a completed render over a still nobody has looked at yet
+   * would be the tail wagging the dog. A `thumbnail-failed` warning says so.
+   */
+  thumbnailPath?: string;
+}
+
+/** Ask for a poster frame alongside the video. */
+export interface ThumbnailOptions {
+  /** Where to write it. The extension picks the format — `.jpg` or `.png`. */
+  path: string;
+  /**
+   * When to grab it, in seconds. Defaults to a tenth of the way in, capped at
+   * 3s.
+   *
+   * Not frame zero, which is the obvious choice and usually wrong: a fade-in
+   * starts black, and a black thumbnail is indistinguishable from a broken one.
+   * A tenth clears a typical fade proportionally, and the cap keeps a long
+   * video's poster near the opening rather than minutes into it.
+   */
+  atSec?: number;
 }
 
 export interface RenderOptions extends Omit<BuildFFmpegOptions, 'overlayImages' | 'hasAudio'> {
@@ -79,14 +103,24 @@ export interface RenderOptions extends Omit<BuildFFmpegOptions, 'overlayImages' 
    * still worth having), but it must not be invisible.
    */
   onWarning?: (warning: RenderWarning) => void;
+  /**
+   * Produce a poster frame too. OPT-IN, deliberately.
+   *
+   * It is a second ffmpeg spawn, which is exactly the cost this file already
+   * refused to pay unconditionally for an output `ffprobe` — see `RenderResult`.
+   * The callers that want one (a library grid, a batch dashboard, the cover
+   * frame every publishing platform asks for) know they want it; a render that
+   * nobody will look at should not pay for it.
+   */
+  thumbnail?: ThumbnailOptions;
 }
 
 /** Something that changed the output without failing the render. */
 export interface RenderWarning {
-  code: 'font-missing';
+  code: 'font-missing' | 'thumbnail-failed';
   message: string;
-  /** The families that could not be resolved. */
-  families: string[];
+  /** The families that could not be resolved. Only on `font-missing`. */
+  families?: string[];
 }
 
 const DEFAULT_RENDER_TIMEOUT_MS = 10 * 60_000;
@@ -449,10 +483,16 @@ export async function renderProject(
       (st) => st.size,
       () => 0,
     );
+    const durationSec =
+      Number.isFinite(total) && total > 0 ? total : projectDuration(project);
+    const thumbnailPath = opts.thumbnail
+      ? await writeThumbnail(opts, durationSec)
+      : undefined;
     return {
       path: opts.outputPath,
-      durationSec: Number.isFinite(total) && total > 0 ? total : projectDuration(project),
+      durationSec,
       bytes,
+      ...(thumbnailPath ? { thumbnailPath } : {}),
     };
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -525,6 +565,73 @@ export function ffmpegErrorTail(stderr: string, max = 2000): string {
   while (i < lines.length && FFMPEG_BANNER.test(lines[i])) i++;
   const body = lines.slice(i).join('\n').trim() || stderr.trim();
   return body.length > max ? body.slice(-max) : body;
+}
+
+/** A tenth of the way in, capped, and never past the end of a very short clip. */
+export function thumbnailTime(durationSec: number, atSec?: number): number {
+  if (atSec != null) return Math.max(0, Math.min(atSec, Math.max(0, durationSec - 0.05)));
+  // The cap matters more than the fraction: on a ten-minute render a tenth is a
+  // minute in, which is nowhere near what the video is about.
+  const tenth = Math.min(durationSec * 0.1, 3);
+  return Math.max(0, Math.min(tenth, Math.max(0, durationSec - 0.05)));
+}
+
+/**
+ * Grab one frame out of the file that was just written.
+ *
+ * Returns the path, or undefined and a warning. It never throws, because the
+ * render has already succeeded by the time this runs: the encode is done, the
+ * file is on disk, and the caller is about to be charged for it. Failing the
+ * whole thing over a still would be the tail wagging the dog.
+ *
+ * `-ss` goes BEFORE `-i` — an input seek, which jumps rather than decoding
+ * everything up to the timestamp. It can land on the nearest keyframe instead
+ * of the exact frame, which for a poster is a difference nobody can see and a
+ * difference of seconds on a long file.
+ */
+async function writeThumbnail(
+  opts: RenderOptions,
+  durationSec: number,
+): Promise<string | undefined> {
+  const thumb = opts.thumbnail!;
+  const at = thumbnailTime(durationSec, thumb.atSec);
+  try {
+    await runFFmpeg(
+      opts.ffmpegPath ?? 'ffmpeg',
+      [
+        '-nostdin',
+        '-ss',
+        at.toFixed(3),
+        '-i',
+        opts.outputPath,
+        '-frames:v',
+        '1',
+        // Without this, a single-image output makes ffmpeg treat the filename as
+        // a sequence pattern and warn about it on every render.
+        '-update',
+        '1',
+        '-q:v',
+        '2',
+        '-y',
+        thumb.path,
+      ],
+      undefined,
+      DEFAULT_PROBE_TIMEOUT_MS,
+    );
+    // ffmpeg can exit 0 having written nothing — a seek past the last frame is
+    // the way that happens. An empty file is not a thumbnail.
+    const st = await stat(thumb.path).catch(() => null);
+    if (!st || st.size === 0) throw new Error('no frame was written');
+    return thumb.path;
+  } catch (e) {
+    opts.onWarning?.({
+      code: 'thumbnail-failed',
+      message: `could not extract a poster frame at ${at.toFixed(3)}s: ${
+        e instanceof Error ? e.message : String(e)
+      }`,
+    });
+    return undefined;
+  }
 }
 
 function runFFmpeg(
