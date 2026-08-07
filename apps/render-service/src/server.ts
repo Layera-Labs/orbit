@@ -215,6 +215,43 @@ const FONT_RATE_LIMIT = envNumber("ORBIT_FONT_RATE_LIMIT", 60);
  * secret rather than a per-user token.
  */
 const WEBHOOK_RATE_LIMIT = envNumber("ORBIT_WEBHOOK_RATE_LIMIT", 120);
+/**
+ * The four generation routes, held together under ONE budget.
+ *
+ * These are the routes that spend real money: each reaches a paid provider
+ * before any debit lands, and a guest token — which the server mints for the
+ * asking — is enough to make the call. They are also long-polling, so an
+ * unbounded rate holds sockets and burns provider quota at the same time.
+ *
+ * One shared bucket rather than four, because four would hand 4x the ceiling to
+ * anyone willing to alternate between them, and nothing about "image, then
+ * video, then speech" makes a caller more legitimate. 20/min sits far above any
+ * human working rate — a generation takes seconds to minutes to come back — and
+ * far below a rate worth paying for.
+ */
+const AI_RATE_LIMIT = envNumber("ORBIT_AI_RATE_LIMIT", 20);
+/**
+ * Reads. The number is set by what the CLIENTS do, not by taste.
+ *
+ * `awaitJob` polls a render from 500ms backing off to a 4s floor, which is 18
+ * requests in the first minute for ONE export; a project pull fetches each
+ * changed document individually, so a first sync is one request per project. A
+ * limit that does not clear both of those protects nothing — it breaks
+ * exporting and syncing for the people doing the most work. 240/min is four a
+ * second: past a couple of concurrent exports plus a large first sync, and
+ * still a bound.
+ */
+const READ_RATE_LIMIT = envNumber("ORBIT_READ_RATE_LIMIT", 240);
+/**
+ * Writes — project sync, and the dev credit grant.
+ *
+ * Sized the same way: a first sync pushes every local project sequentially, so
+ * this is one request per project in a burst. Tighter than reads because a
+ * write costs a database round trip and a row, and looser than it looks because
+ * every route under it refuses a guest outright — an attacker needs a real
+ * account, and account creation is already the tightest limit here.
+ */
+const WRITE_RATE_LIMIT = envNumber("ORBIT_WRITE_RATE_LIMIT", 120);
 
 /**
  * Build identity, reported by `/health`.
@@ -417,11 +454,21 @@ export function createServer(): Express {
   };
 
   const hits = new Map<string, { n: number; resetAt: number }>();
+  /**
+   * @param bucket What to count against. Defaults to the request PATH, which is
+   *   wrong for any route carrying a parameter: `/v1/projects/a` and
+   *   `/v1/projects/b` are different paths, so the caller gets a fresh budget
+   *   per id and the limit bounds nothing. `/v1/fonts/:family` shipped with
+   *   exactly that hole — a nominal 60/min that a caller multiplied by asking
+   *   for a different family each time. Pass a literal for any route with a
+   *   `:param` in it, and a SHARED literal for routes that should compete:
+   *   alternating between the four AI routes must not buy four budgets.
+   */
   const rateLimit =
-    (limit: number, windowMs: number) =>
+    (limit: number, windowMs: number, bucket?: string) =>
     (req: Request, res: Response, next: () => void) => {
       const now = Date.now();
-      const key = `${req.path}:${req.ip ?? "unknown"}`;
+      const key = `${bucket ?? req.path}:${req.ip ?? "unknown"}`;
       const cur = hits.get(key);
       if (!cur || now >= cur.resetAt) {
         hits.set(key, { n: 1, resetAt: now + windowMs });
@@ -441,6 +488,16 @@ export function createServer(): Express {
       cur.n += 1;
       next();
     };
+
+  /*
+   * Bound once per CLASS, not per route. Spelling the bucket at each call site
+   * is how "read" becomes "reads" on one route and quietly stops competing with
+   * the rest — the failure is invisible, because the limit still appears to be
+   * mounted. These three are the only way to say AI, read and write.
+   */
+  const aiLimit = rateLimit(AI_RATE_LIMIT, RATE_WINDOW_MS, "ai");
+  const readLimit = rateLimit(READ_RATE_LIMIT, RATE_WINDOW_MS, "read");
+  const writeLimit = rateLimit(WRITE_RATE_LIMIT, RATE_WINDOW_MS, "write");
 
   /** Delete the oldest files in `dir` once it exceeds `budget`. */
   async function evictDir(dir: string, budget: number): Promise<void> {
@@ -1328,7 +1385,7 @@ export function createServer(): Express {
    * — the client cannot act differently on the two, and pretending to know
    * which would mean keeping every id forever.
    */
-  app.get("/v1/render/:id", async (req: Request, res: Response) => {
+  app.get("/v1/render/:id", readLimit, async (req: Request, res: Response) => {
     const account = await accountOf(req, res);
     if (!account) return;
     const job = queue
@@ -1357,7 +1414,7 @@ export function createServer(): Express {
     });
   });
 
-  app.get("/v1/credits", async (req: Request, res: Response) => {
+  app.get("/v1/credits", readLimit, async (req: Request, res: Response) => {
     const account = await accountOf(req, res);
     if (!account) return;
     res.json({ balance: await ledger.balance(account) });
@@ -1388,7 +1445,9 @@ export function createServer(): Express {
    */
   app.get(
     "/v1/fonts/:family",
-    rateLimit(FONT_RATE_LIMIT, RATE_WINDOW_MS),
+    // A literal bucket, not the path: the family is IN the path, so the
+    // default key gave every family its own 60/min and bounded nothing.
+    rateLimit(FONT_RATE_LIMIT, RATE_WINDOW_MS, "fonts"),
     requireAuth,
     async (req: Request, res: Response) => {
       const family = String(req.params.family ?? "");
@@ -1476,7 +1535,7 @@ export function createServer(): Express {
   };
 
   /** What changed since the client last looked. `since` is ms, 0 for everything. */
-  app.get("/v1/projects", async (req: Request, res: Response) => {
+  app.get("/v1/projects", readLimit, async (req: Request, res: Response) => {
     const account = await syncAccount(req, res);
     if (!account) return;
     const since = Number(req.query.since ?? 0);
@@ -1494,7 +1553,7 @@ export function createServer(): Express {
     });
   });
 
-  app.get("/v1/projects/:id", async (req: Request, res: Response) => {
+  app.get("/v1/projects/:id", readLimit, async (req: Request, res: Response) => {
     const account = await syncAccount(req, res);
     if (!account) return;
     const row = await projects!.get(account, req.params.id);
@@ -1505,7 +1564,7 @@ export function createServer(): Express {
     res.json(row);
   });
 
-  app.put("/v1/projects/:id", async (req: Request, res: Response) => {
+  app.put("/v1/projects/:id", writeLimit, async (req: Request, res: Response) => {
     const account = await syncAccount(req, res);
     if (!account) return;
     const body = req.body as Partial<SyncedProject> | undefined;
@@ -1534,7 +1593,7 @@ export function createServer(): Express {
     res.status(409).json({ error: "a newer version is stored", current: result.current });
   });
 
-  app.delete("/v1/projects/:id", async (req: Request, res: Response) => {
+  app.delete("/v1/projects/:id", writeLimit, async (req: Request, res: Response) => {
     const account = await syncAccount(req, res);
     if (!account) return;
     await projects!.remove(account, req.params.id, Date.now());
@@ -1769,7 +1828,7 @@ export function createServer(): Express {
     });
   }
 
-  app.post("/v1/generate-image", async (req: Request, res: Response) => {
+  app.post("/v1/generate-image", aiLimit, async (req: Request, res: Response) => {
     const body = req.body as
       | { prompt?: string; width?: number; height?: number; model?: string }
       | undefined;
@@ -1823,7 +1882,7 @@ export function createServer(): Express {
     }
   });
 
-  app.post("/v1/generate-video", async (req: Request, res: Response) => {
+  app.post("/v1/generate-video", aiLimit, async (req: Request, res: Response) => {
     const body = req.body as
       | {
           prompt?: string;
@@ -1897,7 +1956,7 @@ export function createServer(): Express {
     }
   });
 
-  app.post("/v1/tts", async (req: Request, res: Response) => {
+  app.post("/v1/tts", aiLimit, async (req: Request, res: Response) => {
     const body = req.body as
       | { text?: string; voice?: string; speed?: number }
       | undefined;
@@ -1961,7 +2020,7 @@ export function createServer(): Express {
    * into lines happens here rather than on the device so every client gets the
    * same captions from the same audio.
    */
-  app.post("/v1/transcribe", async (req: Request, res: Response) => {
+  app.post("/v1/transcribe", aiLimit, async (req: Request, res: Response) => {
     const body = req.body as { src?: string; language?: string } | undefined;
     if (!body?.src || !isClientSrc(body.src)) {
       res
@@ -2138,7 +2197,7 @@ export function createServer(): Express {
 
   // Dev-only credit top-up (production replaces this with a payment webhook).
   if (process.env.ORBIT_DEV_TOPUP === "1") {
-    app.post("/v1/credits/grant", async (req: Request, res: Response) => {
+    app.post("/v1/credits/grant", writeLimit, async (req: Request, res: Response) => {
       const account = await accountOf(req, res);
       if (!account) return;
       const amount = Number(
