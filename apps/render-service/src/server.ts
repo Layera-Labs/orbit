@@ -56,8 +56,10 @@ import {
   killLiveRenders,
   renderProject,
   resolveFonts,
+  type CaptionLine,
   type ExportOutput,
   type VideoProject,
+  type WordTiming,
 } from "@orbit/video/node";
 import {
   ElevenLabsProvider,
@@ -1998,7 +2000,22 @@ export function createServer(): Express {
         language: body.language,
         signal: ac.signal,
       });
-      const lines = groupWords(words);
+      /*
+       * Annotated, not inferred. `groupWords` lives in `@orbit/video-gen` and
+       * `CaptionLine` in `@orbit/video`, two packages that do not depend on
+       * each other — this line is the only place both are in scope, and so the
+       * only place a divergence between what the transcriber emits and what the
+       * clients parse is catchable at compile time rather than arriving at a
+       * phone as a field it silently drops.
+       *
+       * `words` is REQUIRED here even though `CaptionLine` makes it optional,
+       * and that is the whole point: optional on the type means a version of
+       * this server that no longer sends them is still a valid `CaptionLine[]`,
+       * so a plain annotation would let the field quietly disappear. Optional
+       * describes what a CLIENT must tolerate — an older server, a caption
+       * typed by hand. It is not what THIS server is allowed to omit.
+       */
+      const lines: (CaptionLine & { words: WordTiming[] })[] = groupWords(words);
       await ledger
         .debit(account, TRANSCRIBE_COST, "transcribe")
         .catch(() => undefined);

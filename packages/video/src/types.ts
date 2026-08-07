@@ -97,9 +97,39 @@ export interface OverlayBase {
   keyframes?: Keyframe[];
 }
 
+/**
+ * One word of a transcript, timed.
+ *
+ * Speech-to-text returns these; `groupWords` folds them into readable lines and
+ * keeps the array, because the line's own start and end cannot be taken apart
+ * again. Nothing RENDERS a word timing today — this is the data a word-level
+ * effect (a karaoke highlight, a word-by-word reveal) would need, landed
+ * separately from the effect so the effect does not also have to invent a
+ * transcript format.
+ */
+export interface WordTiming {
+  text: string;
+  start: number;
+  end: number;
+}
+
 export interface TextOverlay extends OverlayBase {
   type: "text";
   text: string;
+  /**
+   * Per-word timings for `text`, in the SAME units as this overlay's `start`
+   * and `end` — absolute timeline seconds, not offsets into the transcribed
+   * audio. The transcript is relative to the clip; `setAutoCaptions` is the one
+   * place that knows where that clip sits, so it resolves the words there
+   * rather than storing an offset a later reader would have to find again.
+   *
+   * Present only on auto-captions, and only while the words still spell the
+   * text: retyping a caption leaves the array describing something nobody is
+   * saying any more. Ask `captionWordsValid` before trusting it — a stale
+   * array is worse than an absent one, because it highlights the wrong word
+   * confidently.
+   */
+  words?: WordTiming[];
   /** Font size in px at the output resolution. */
   fontSize: number;
   color: string;

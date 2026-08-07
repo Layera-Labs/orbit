@@ -1,4 +1,4 @@
-import type { TextOverlay, VideoProject } from "./types.js";
+import type { TextOverlay, VideoProject, WordTiming } from "./types.js";
 
 /**
  * Auto-captions: a transcript laid out as timed overlays.
@@ -23,6 +23,39 @@ export interface CaptionLine {
   /** Seconds from the start of the transcribed audio, not the timeline. */
   start: number;
   end: number;
+  /**
+   * The words this line was built from, in the same audio-relative seconds.
+   *
+   * Optional because a server that predates it does not send one, and because
+   * nothing reads it yet. It is carried rather than discarded for the reason
+   * any lossy step is worth avoiding: the line's own span cannot be taken back
+   * apart, so throwing the array away means a word-level effect has to pay for
+   * a second transcription of audio the user already paid to transcribe once.
+   */
+  words?: WordTiming[];
+}
+
+/**
+ * Do these words still spell this text?
+ *
+ * The check is EXACT rather than fuzzy, because it can be: `groupWords` builds
+ * a line's text by joining its words with a single space, so a faithful array
+ * reproduces the string character for character. Anything else means the
+ * caption was retyped after it was transcribed, and the timings now describe
+ * words that are no longer there.
+ *
+ * That distinction matters because the failure is silent and confident. A
+ * highlighter fed a stale array does not fall over — it lights word 4 of a
+ * sentence whose fourth word has been replaced, in time with audio that says
+ * something else. Absent data reads as "no highlight"; wrong data reads as a
+ * bug in the renderer.
+ */
+export function captionWordsValid(o: {
+  text: string;
+  words?: WordTiming[];
+}): boolean {
+  if (!o.words?.length) return false;
+  return o.words.map((w) => w.text).join(" ") === o.text;
 }
 
 /**
@@ -52,6 +85,19 @@ export function setAutoCaptions(
     text: line.text,
     start: Math.max(0, line.start + offset),
     end: Math.max(0, line.end + offset),
+    // Resolved into timeline seconds by exactly the rule the line itself uses,
+    // so a word can never sit outside the caption that contains it. Omitted
+    // rather than written empty: a renderer branches on whether the field is
+    // there, and every project transcribed before this one has no field.
+    ...(line.words?.length
+      ? {
+          words: line.words.map((w) => ({
+            text: w.text,
+            start: Math.max(0, w.start + offset),
+            end: Math.max(0, w.end + offset),
+          })),
+        }
+      : {}),
     x: 0.5,
     // Low in the frame, where captions belong — and clear of the safe area a
     // phone's own UI puts over the bottom edge.

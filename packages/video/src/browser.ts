@@ -58,6 +58,7 @@ export type {
   AudioTrack,
   Track,
   VideoProject,
+  WordTiming,
 } from './types';
 export { FULL_FRAME, FULL_SOURCE, textOverlaysOf } from './types';
 export {
@@ -219,6 +220,7 @@ export type {
 // Auto-captions. Pure layout over a transcript the service produced.
 export {
   CAPTION_ID_PREFIX,
+  captionWordsValid,
   setAutoCaptions,
   hasAutoCaptions,
   clearAutoCaptions,

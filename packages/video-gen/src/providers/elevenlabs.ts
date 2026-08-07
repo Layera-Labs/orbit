@@ -149,6 +149,23 @@ export interface TranscriptWord {
 }
 
 /**
+ * A caption line, as this package produces it.
+ *
+ * Structurally the `CaptionLine` of `@orbit/video`, declared separately because
+ * this package does not depend on that one and should not acquire a dependency
+ * to borrow a type. The two are held together where they actually meet — the
+ * render service annotates `groupWords`' result as `CaptionLine[]` before it
+ * goes on the wire, so a divergence fails to compile there rather than
+ * reaching a client as a field it does not know about.
+ */
+export interface TranscriptLine {
+  text: string;
+  start: number;
+  end: number;
+  words: TranscriptWord[];
+}
+
+/**
  * Group words into caption lines.
  *
  * Pure, and separate from the provider, because this is the part with taste in
@@ -156,16 +173,21 @@ export interface TranscriptWord {
  * breaks every three words flickers. A line ends when it would get too long,
  * when it has been up too long, or when the speaker pauses — the pause being
  * the one that makes captions track speech rather than chop it evenly.
+ *
+ * Each line KEEPS the words it was built from. Grouping is the only lossy step
+ * between the model and the timeline — a line's span cannot be taken back apart
+ * — so dropping the array here would mean any later word-level effect had to
+ * pay for transcribing the same audio a second time.
  */
 export function groupWords(
   words: TranscriptWord[],
   opts: { maxChars?: number; maxSeconds?: number; gapSeconds?: number } = {},
-): { text: string; start: number; end: number }[] {
+): TranscriptLine[] {
   const maxChars = opts.maxChars ?? 42;
   const maxSeconds = opts.maxSeconds ?? 3.5;
   const gapSeconds = opts.gapSeconds ?? 0.6;
 
-  const lines: { text: string; start: number; end: number }[] = [];
+  const lines: TranscriptLine[] = [];
   let cur: TranscriptWord[] = [];
 
   const flush = () => {
@@ -174,6 +196,11 @@ export function groupWords(
       text: cur.map((w) => w.text).join(" "),
       start: cur[0].start,
       end: cur[cur.length - 1].end,
+      // A copy, so the emitted line is decoupled from the accumulator. `cur` is
+      // reassigned rather than cleared below, which makes sharing the array
+      // safe TODAY — and makes the obvious tidy-up (`cur.length = 0`) reach
+      // back into every line already pushed.
+      words: cur.slice(),
     });
     cur = [];
   };
