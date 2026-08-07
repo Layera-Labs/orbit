@@ -495,6 +495,28 @@ importers:
         specifier: ^3.8.0
         version: 3.9.1(@types/node@20.19.39)(rollup@4.60.2)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0))
 
+  packages/formats:
+    dependencies:
+      '@orbit/pipeline':
+        specifier: workspace:*
+        version: link:../pipeline
+      '@orbit/video':
+        specifier: workspace:*
+        version: link:../video
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.39
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vite:
+        specifier: ^5.2.0
+        version: 5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0)
+      vite-plugin-dts:
+        specifier: ^3.8.0
+        version: 3.9.1(@types/node@20.19.39)(rollup@4.60.2)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0))
+
   packages/model:
     dependencies:
       valtio:
