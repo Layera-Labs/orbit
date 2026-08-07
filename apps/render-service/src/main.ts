@@ -12,6 +12,29 @@ try {
 
 const port = Number(process.env.PORT ?? 8787);
 const app = createServer();
+
+/*
+ * Fail the DEPLOY, not the first request.
+ *
+ * Every Pg store creates its own tables from its constructor and awaits that
+ * promise inside each method. The tables therefore appeared on first use, which
+ * meant a wrong DATABASE_URL, a revoked password or a schema that could not be
+ * created showed up as a 500 on whoever clicked first — long after the deploy
+ * that caused it had reported success, and with an error that named a query
+ * rather than the configuration.
+ *
+ * Awaiting here inverts that: a broken database is a container that exits
+ * non-zero and never takes traffic, which is what an orchestrator already knows
+ * how to handle. With no DATABASE_URL there is nothing to wait for and this
+ * resolves immediately.
+ */
+const readiness = (await app.locals.ready) as { ok: boolean; errors: string[] };
+if (!readiness.ok) {
+  for (const e of readiness.errors) console.error(`[orbit] schema not ready — ${e}`);
+  console.error('[orbit] refusing to start: the database is not usable');
+  process.exit(1);
+}
+
 const server = app.listen(port, () => {
   console.log(`[orbit] render service listening on :${port}`);
 });

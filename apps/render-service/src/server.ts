@@ -894,6 +894,45 @@ export function createServer(): Express {
     ledgerStore = new InMemoryLedgerStore();
     userStore = new InMemoryUserStore();
   }
+
+  /*
+   * Schema readiness, resolved ONCE at startup instead of on whoever asks first.
+   *
+   * Every Pg store runs its DDL from its constructor and awaits that promise in
+   * every method. That works, and it puts the failure in the wrong place: an
+   * unreachable database or a schema that cannot be created surfaced as a 500
+   * on a user's request, minutes or hours after the deploy that broke it. The
+   * deploy itself reported success. `main.ts` awaits this before it listens, so
+   * the failure lands where someone is watching and the process exits non-zero.
+   *
+   * It RESOLVES to an outcome rather than rejecting: nothing in the test suite
+   * awaits it, and a rejected promise nobody handles is an unhandled rejection
+   * warning at best and a crashed test run at worst. The caller decides what a
+   * failure means.
+   */
+  let readyState: "starting" | "ready" | "failed" = "starting";
+  const pending: Array<{ name: string; ready: Promise<void> }> = [];
+  if (projects) pending.push({ name: "projects", ready: projects.whenReady() });
+  if (queue) pending.push({ name: "render_jobs", ready: queue.whenReady() });
+  if (ledgerStore instanceof PgLedgerStore)
+    pending.push({ name: "ledger_entries", ready: ledgerStore.whenReady() });
+  if (userStore instanceof PgUserStore)
+    pending.push({ name: "users", ready: userStore.whenReady() });
+
+  app.locals.ready = Promise.all(
+    pending.map((p) =>
+      p.ready.then(
+        () => null,
+        (e: unknown) => `${p.name}: ${e instanceof Error ? e.message : String(e)}`,
+      ),
+    ),
+  ).then((results) => {
+    // Every failure, not just the first. One unreachable database produces four
+    // of these, and a single one would read as a problem with that one table.
+    const errors = results.filter((r): r is string => r !== null);
+    readyState = errors.length ? "failed" : "ready";
+    return { ok: errors.length === 0, errors };
+  });
   const ledger = new Ledger(ledgerStore);
   const gen = new GenerationService(
     new RunwayProvider({ token: process.env.RUNWAY_API_TOKEN }),
@@ -1076,6 +1115,14 @@ export function createServer(): Express {
     res.json({
       ok: true,
       service: "orbit-render",
+      /*
+       * Whether every table this build needs actually exists. `ok` above stays
+       * true regardless — it answers "is this process alive", which a load
+       * balancer needs during a rolling deploy — while this answers "did the
+       * schema come up", which is what you look at when requests are failing
+       * and the process plainly is not.
+       */
+      schema: readyState,
       capabilities: { hdr, transitions },
       /*
        * Which build is actually answering. Without this, "is the fix
