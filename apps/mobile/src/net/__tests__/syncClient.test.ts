@@ -70,10 +70,15 @@ vi.mock("../session", () => ({ authHeaders: async () => ({}) }));
 const { syncNow, syncDelete } = await import("../syncClient");
 
 /** A server that behaves like `PgProjectStore`: last write wins, ties refused. */
-function server(initial: Stored[] = []) {
+function server(
+  initial: Stored[] = [],
+  /** Refuse a PUT for these ids with this status, to stand in for a real one. */
+  refusePut: (id: string) => number | undefined = () => undefined,
+) {
   const rows = new Map<string, Stored & { deleted?: boolean }>();
   for (const r of initial) rows.set(r.id, { ...r });
   let clock = 1_000_000;
+  const putsSeen: string[] = [];
 
   const handler = async (url: string, init?: RequestInit): Promise<Response> => {
     const path = url.replace(/^.*\/v1\//, "");
@@ -109,6 +114,9 @@ function server(initial: Stored[] = []) {
     }
 
     if (method === "PUT") {
+      putsSeen.push(id);
+      const refused = refusePut(id);
+      if (refused) return json(refused, { error: "refused" });
       const body = JSON.parse(String(init?.body)) as { name: string; updatedAt: number; data: Stored };
       const existing = rows.get(id);
       // The real rule: strictly newer wins, an equal timestamp is refused.
@@ -130,6 +138,7 @@ function server(initial: Stored[] = []) {
 
   return {
     rows,
+    putsSeen,
     install() {
       globalThis.fetch = ((url: string, init?: RequestInit) =>
         handler(String(url), init)) as unknown as typeof fetch;
@@ -288,5 +297,89 @@ describe("syncDelete", () => {
     s2.install();
     await syncNow("http://s");
     expect(disk.has("zombie")).toBe(true);
+  });
+});
+
+/**
+ * A push that fails is offered again.
+ *
+ * The watermark advances at the end of a sync whatever happened in the middle,
+ * and the push loop moved on from any answer it did not recognise. Together
+ * those two reasonable-looking decisions meant a project whose PUT failed was
+ * never pushed again: the next sync sees `updatedAt <= since` and skips it,
+ * forever. The work existed on this phone and nowhere else, and nothing said
+ * so — the sync reported `ok`.
+ *
+ * Pre-existing, and reachable by any 500 or 503. Adding a rate limit to the
+ * project routes made it reachable by ordinary use, which is why it is fixed
+ * here rather than noted.
+ */
+describe("a push the server refused", () => {
+  const PENDING_PUSH = "sync-pending-pushes.json";
+
+  it("is retried on the next sync, and lands", async () => {
+    disk.set("a", doc("a", "Alpha", 5));
+    disk.set("b", doc("b", "Beta", 6));
+
+    // `b` fails once. `a` goes up fine, so the watermark advances past both.
+    const s1 = server([], (id) => (id === "b" ? 500 : undefined));
+    s1.install();
+    expect(await syncNow("http://s")).toMatchObject({ state: "ok", pushed: 1 });
+    expect(s1.rows.has("b")).toBe(false);
+    expect(JSON.parse(files.get(PENDING_PUSH) ?? "[]")).toEqual(["b"]);
+
+    // Nothing has been edited since, so only the remembered id makes this move.
+    const s2 = server([]);
+    s2.install();
+    expect(await syncNow("http://s")).toMatchObject({ state: "ok", pushed: 1 });
+    expect(s2.rows.get("b")?.name).toBe("Beta");
+  });
+
+  /*
+   * The other half, and the reason this cannot be fixed by holding the
+   * watermark back instead. A project that DID land carries the timestamp the
+   * server now holds; offering it again would be refused as an equal timestamp,
+   * read as "both sides changed", and forked into "(this phone)". So a
+   * successful push has to stop being retried.
+   */
+  it("stops being offered once it lands, rather than duplicating", async () => {
+    disk.set("b", doc("b", "Beta", 6));
+    server([], () => 500).install();
+    await syncNow("http://s");
+
+    const s2 = server([]);
+    s2.install();
+    await syncNow("http://s");
+    expect(files.get(PENDING_PUSH)).toBeUndefined();
+
+    const s3 = server([...s2.rows.values()]);
+    s3.install();
+    const res = await syncNow("http://s");
+    expect(res).toMatchObject({ state: "ok", conflicts: 0 });
+    // One project, still called Beta. Not two, and not "Beta (this phone)".
+    expect([...disk.values()].map((p) => p.name)).toEqual(["Beta"]);
+    expect(s3.putsSeen).toEqual([]);
+  });
+
+  /*
+   * A 429 means the window is shut, so every remaining push would be refused
+   * too. Continuing turns one refusal into one per project and spends requests
+   * against a server that has just asked for quiet.
+   */
+  it("stops pushing at a 429 and remembers everything left", async () => {
+    for (const id of ["a", "b", "c", "d"]) disk.set(id, doc(id, id.toUpperCase(), 5));
+
+    const s1 = server([], (id) => (id === "b" ? 429 : undefined));
+    s1.install();
+    await syncNow("http://s");
+
+    // It asked about `a`, was refused on `b`, and did not go on to `c` or `d`.
+    expect(s1.putsSeen).toEqual(["a", "b"]);
+    expect(JSON.parse(files.get(PENDING_PUSH) ?? "[]").sort()).toEqual(["b", "c", "d"]);
+
+    const s2 = server([]);
+    s2.install();
+    await syncNow("http://s");
+    expect([...s2.rows.keys()].sort()).toEqual(["b", "c", "d"]);
   });
 });

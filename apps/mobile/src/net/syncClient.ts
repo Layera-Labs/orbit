@@ -93,6 +93,46 @@ function setPendingDeletes(ids: string[]): void {
   }
 }
 
+/**
+ * Pushes that did not reach the server.
+ *
+ * The watermark advances at the end of a sync whatever happened in the middle,
+ * and the push loop moved on from any answer it did not recognise. Together
+ * those meant a project whose PUT failed — a 500, a 503, a 429 — was never
+ * offered again: the next sync sees `updatedAt <= since` and skips it forever.
+ * The work stayed on this phone only, and a reinstall was the end of it.
+ *
+ * Not fixable by holding the watermark back. Everything pushed before the
+ * failure would be offered again at the timestamp it already carries, and the
+ * server refuses an equal timestamp — so the client would read 409 as "both
+ * sides changed" and fork every one of them into "(this phone)". That is the
+ * duplication bug this file already carries scar tissue for.
+ *
+ * So the failures are named, exactly like a failed delete is.
+ */
+const pendingPushFile = () =>
+  new File(new Directory(Paths.document), 'sync-pending-pushes.json');
+
+function pendingPushes(): string[] {
+  try {
+    const f = pendingPushFile();
+    if (!f.exists) return [];
+    const raw = JSON.parse(f.textSync()) as unknown;
+    return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function setPendingPushes(ids: string[]): void {
+  try {
+    if (ids.length) pendingPushFile().write(JSON.stringify(ids));
+    else if (pendingPushFile().exists) pendingPushFile().delete();
+  } catch {
+    /* the edit is still on disk; it just may not reach the server this time */
+  }
+}
+
 export function resetSyncMark(): void {
   try {
     const f = markFile();
@@ -196,9 +236,19 @@ export async function syncNow(base: string): Promise<SyncStatus> {
     }
 
     // ---- push ----
-    for (const p of listProjects()) {
-      if (justPulled.has(p.id)) continue;
-      if (p.updatedAt <= since) continue;
+    /*
+     * Everything edited since the last sync, PLUS anything a previous sync
+     * failed to deliver. The second half is what stops a transient 500 or a
+     * 429 costing the cloud copy of a project permanently.
+     */
+    const retry = new Set(pendingPushes());
+    const candidates = listProjects().filter(
+      (p) => !justPulled.has(p.id) && (p.updatedAt > since || retry.has(p.id)),
+    );
+    const failed: string[] = [];
+
+    for (let i = 0; i < candidates.length; i += 1) {
+      const p = candidates[i];
       const res = await req(base, `v1/projects/${p.id}`, {
         method: 'PUT',
         body: JSON.stringify({
@@ -212,7 +262,22 @@ export async function syncNow(base: string): Promise<SyncStatus> {
         pushed += 1;
         continue;
       }
-      if (res.status !== 409) continue;
+      /*
+       * Rate-limited. Every remaining push would be refused too, so stop
+       * asking: continuing spends requests against a window the server has
+       * already closed and turns one refusal into a hundred. Everything left
+       * is remembered, this one included.
+       */
+      if (res.status === 429) {
+        failed.push(...candidates.slice(i).map((c) => c.id));
+        break;
+      }
+      if (res.status !== 409) {
+        // Anything unrecognised. Remembered rather than shrugged off — this is
+        // the only record that the server does not have this project.
+        failed.push(p.id);
+        continue;
+      }
       /*
        * Both sides changed. Keep both: the server's copy takes the id so every
        * device converges, and this phone's becomes a separate project. Losing
@@ -235,8 +300,13 @@ export async function syncNow(base: string): Promise<SyncStatus> {
       conflicts += 1;
     }
 
-    // Only once BOTH halves are done: advancing after the pull would leave a
-    // failed push looking synced forever.
+    /*
+     * Only once BOTH halves are done: advancing after the pull would leave a
+     * failed push looking synced forever. What the watermark cannot express is
+     * a push that failed on its own, so those ids are carried separately and
+     * re-offered next time.
+     */
+    setPendingPushes(failed);
     writeMark(now);
     return { state: 'ok', at: Date.now(), pulled, pushed, conflicts };
   } catch (err) {

@@ -178,9 +178,16 @@ export async function syncNow(): Promise<SyncStatus> {
     // Everything touched since the last successful sync. On a first run `since`
     // is 0, so this is the whole local library — which is exactly right: that
     // is the upload that makes an existing browser's work available elsewhere.
-    for (const row of await listProjects()) {
-      if (justPulled.has(row.id)) continue;
-      if (row.updatedAt <= since) continue;
+    // Plus anything a previous sync failed to deliver — the second half is what
+    // stops a transient 500 or a 429 costing the cloud copy of a project.
+    const retry = new Set(pendingPushes());
+    const candidates = (await listProjects()).filter(
+      (row) => !justPulled.has(row.id) && (row.updatedAt > since || retry.has(row.id)),
+    );
+    const failed: string[] = [];
+
+    for (let i = 0; i < candidates.length; i += 1) {
+      const row = candidates[i];
       const res = await req(`v1/projects/${row.id}`, {
         method: 'PUT',
         body: JSON.stringify({
@@ -194,7 +201,21 @@ export async function syncNow(): Promise<SyncStatus> {
         pushed += 1;
         continue;
       }
-      if (res.status !== 409) continue;
+      /*
+       * Rate-limited. Every remaining push would be refused too, so stop
+       * asking: continuing spends requests against a window the server has
+       * already closed. Everything left is remembered, this one included.
+       */
+      if (res.status === 429) {
+        failed.push(...candidates.slice(i).map((c) => c.id));
+        break;
+      }
+      if (res.status !== 409) {
+        // Anything unrecognised. Remembered rather than shrugged off — this is
+        // the only record that the server does not have this project.
+        failed.push(row.id);
+        continue;
+      }
       /*
        * Both sides changed. Keep BOTH: the server's copy takes the id (so every
        * device converges on the same document) and ours is saved beside it
@@ -224,8 +245,10 @@ export async function syncNow(): Promise<SyncStatus> {
     /*
      * Advance the watermark only after BOTH halves succeeded. Moving it after
      * the pull would mean a push that then failed is never retried — the local
-     * edit would look synced forever.
+     * edit would look synced forever. What the watermark cannot express is a
+     * single push failing on its own, so those ids are carried separately.
      */
+    setPendingPushes(failed);
     mark.set(now);
     return { state: 'ok', at: Date.now(), pulled, pushed, conflicts };
   } catch (err) {
@@ -245,6 +268,41 @@ export async function syncNow(): Promise<SyncStatus> {
  * tiny, and losing it costs one resurrected project rather than anything worse.
  */
 const PENDING = 'orbit.sync.pendingDeletes';
+
+/**
+ * Pushes that did not reach the server. Same rules as mobile's, deliberately.
+ *
+ * The watermark advances at the end of a sync whatever happened in the middle,
+ * and the push loop moved on from any answer it did not recognise. Together
+ * those meant a project whose PUT failed — a 500, a 503, a 429 — was never
+ * offered again: the next sync sees `updatedAt <= since` and skips it forever.
+ * The work stayed in this browser only.
+ *
+ * Not fixable by holding the watermark back. Everything pushed before the
+ * failure would be offered again at the timestamp it already carries, the
+ * server refuses an equal timestamp, and the client would read 409 as "both
+ * sides changed" and fork every one of them into "(this browser)" — the
+ * duplication bug this file already carries scar tissue for.
+ */
+const PENDING_PUSH = 'orbit.sync.pendingPushes';
+
+function pendingPushes(): string[] {
+  try {
+    const raw = JSON.parse(localStorage.getItem(PENDING_PUSH) ?? '[]') as unknown;
+    return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function setPendingPushes(ids: string[]): void {
+  try {
+    if (ids.length) localStorage.setItem(PENDING_PUSH, JSON.stringify(ids));
+    else localStorage.removeItem(PENDING_PUSH);
+  } catch {
+    /* private mode: the edit is still local, it just may not reach the server */
+  }
+}
 
 function pendingDeletes(): string[] {
   try {
