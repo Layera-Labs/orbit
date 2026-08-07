@@ -32,6 +32,8 @@ export {
 } from './steps.ts';
 export type { Step, StepLog, StepRecord } from './steps.ts';
 export { countWords, formatPrompt, requireBounds } from './format.ts';
+export { extractJson, planScenes } from './planner.ts';
+export type { Brain, PlanRequest, PlanResult } from './planner.ts';
 export type { Bounds, Format, FormatBrief } from './format.ts';
 export { InMemoryGenerationQueue, startGenerationWorker } from './queue.ts';
 export type {
