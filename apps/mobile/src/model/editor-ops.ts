@@ -28,6 +28,7 @@ import type {
   VideoProject,
   VisualTrack,
   VisualTrackClip,
+  WordTiming,
 } from "./types";
 import { textOverlaysOf } from "./types";
 import { isFullSource, normalizeRotation } from "../preview/transform";
@@ -1226,6 +1227,30 @@ export function addTitleCard(
 export const CAPTION_ID_PREFIX = "caption-";
 
 /**
+ * Do these words still spell this text?
+ *
+ * MIRRORS `captionWordsValid` in `packages/video/src/captions.ts`.
+ *
+ * The check is EXACT rather than fuzzy, because it can be: a line's text is its
+ * words joined with a single space, so a faithful array reproduces the string
+ * character for character. Anything else means the caption was retyped after it
+ * was transcribed, and the timings now describe words that are no longer there.
+ *
+ * That distinction matters because the failure is silent and confident. A
+ * highlighter fed a stale array does not fall over — it lights word 4 of a
+ * sentence whose fourth word has been replaced, in time with audio that says
+ * something else. Absent data reads as "no highlight"; wrong data reads as a
+ * bug in the renderer.
+ */
+export function captionWordsValid(o: {
+  text: string;
+  words?: WordTiming[];
+}): boolean {
+  if (!o.words?.length) return false;
+  return o.words.map((w) => w.text).join(" ") === o.text;
+}
+
+/**
  * Replace the auto-captions with a fresh set.
  *
  * REPLACE, not append. Running this twice is the normal thing to do — you
@@ -1240,7 +1265,13 @@ export const CAPTION_ID_PREFIX = "caption-";
  */
 export function setAutoCaptions(
   p: VideoProject,
-  lines: { text: string; start: number; end: number }[],
+  lines: {
+    text: string;
+    start: number;
+    end: number;
+    /** Audio-relative, like `start`/`end`. Resolved onto the timeline below. */
+    words?: WordTiming[];
+  }[],
   offset = 0,
 ): VideoProject {
   const kept = p.overlays.filter((o) => !o.id.startsWith(CAPTION_ID_PREFIX));
@@ -1251,6 +1282,19 @@ export function setAutoCaptions(
     text: line.text,
     start: Math.max(0, line.start + offset),
     end: Math.max(0, line.end + offset),
+    // Resolved into timeline seconds by exactly the rule the line itself uses,
+    // so a word can never sit outside the caption that contains it. Omitted
+    // rather than written empty: a renderer branches on whether the field is
+    // there, and every project transcribed before this one has no field.
+    ...(line.words?.length
+      ? {
+          words: line.words.map((w) => ({
+            text: w.text,
+            start: Math.max(0, w.start + offset),
+            end: Math.max(0, w.end + offset),
+          })),
+        }
+      : {}),
     x: 0.5,
     // Low in the frame, where captions belong — clear of the safe area a phone
     // UI puts over the bottom edge.

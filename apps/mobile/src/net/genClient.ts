@@ -205,10 +205,22 @@ async function generateTtsOnce(
   return { url: data.url, balance: data.balance ?? 0 };
 }
 
+/**
+ * MIRRORS `CaptionLine` in `packages/video/src/captions.ts`.
+ *
+ * Mobile installs outside the pnpm workspace and cannot resolve the package, so
+ * the wire shape is declared again here. Web imports the real one; the render
+ * service annotates what it sends as that same type, so a divergence fails to
+ * compile there — this copy is checked by
+ * `src/model/__tests__/captions.test.ts`, which asserts the canonical shape is
+ * assignable to it.
+ */
 export interface CaptionLine {
   text: string;
   start: number;
   end: number;
+  /** Audio-relative per-word timings; absent from a server predating them. */
+  words?: { text: string; start: number; end: number }[];
 }
 
 /**

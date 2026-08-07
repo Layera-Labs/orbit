@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
   CAPTION_ID_PREFIX,
+  captionWordsValid,
   clearAutoCaptions,
   hasAutoCaptions,
   setAutoCaptions,
 } from "../editor-ops";
 import { textOverlaysOf, type TextOverlay, type VideoProject } from "../types";
+// By path, for the same reason the runtime mirror checks below use a path:
+// mobile installs outside the workspace and `@orbit/video` does not resolve.
+import type { CaptionLine as CanonicalCaptionLine } from "../../../../../packages/video/src/captions";
+import type { CaptionLine as WireCaptionLine } from "../../net/genClient";
 
 const project = (overlays: TextOverlay[] = []): VideoProject => ({
   id: "p",
@@ -126,5 +131,73 @@ describe('mobile mirrors packages/video', () => {
     // Not cosmetic: a project captioned on the phone must be re-captionable on
     // the web, and that only works if both recognise the same ids.
     expect(CAPTION_ID_PREFIX).toBe('caption-');
+  });
+
+  /*
+   * Word timings are resolved onto the TIMELINE — the transcript is relative to
+   * the clip, and `setAutoCaptions` is the only place that knows where the clip
+   * sits. So the two copies have to agree on the shift as well as on the field,
+   * or the same transcript lands with the words in different places on the two
+   * apps and only a word-level effect would ever show it.
+   */
+  it('resolves word timings identically', async () => {
+    const shared = await import('../../../../../packages/video/src/captions');
+    const lines = [
+      {
+        text: 'one two',
+        start: 0,
+        end: 1,
+        words: [
+          { text: 'one', start: 0, end: 0.4 },
+          { text: 'two', start: 0.5, end: 1 },
+        ],
+      },
+    ];
+    for (const offset of [0, 3.5, 60]) {
+      expect(setAutoCaptions(project(), lines, offset).overlays).toEqual(
+        shared.setAutoCaptions(project() as never, lines, offset).overlays,
+      );
+    }
+  });
+
+  it('agrees that a retyped caption is no longer described by its words', async () => {
+    const shared = await import('../../../../../packages/video/src/captions');
+    const good = { text: 'one two', words: [{ text: 'one', start: 0, end: 1 }, { text: 'two', start: 1, end: 2 }] };
+    const stale = { ...good, text: 'one three' };
+    for (const o of [good, stale, { text: 'x' }]) {
+      expect(captionWordsValid(o)).toBe(shared.captionWordsValid(o));
+    }
+    expect(captionWordsValid(good)).toBe(true);
+    expect(captionWordsValid(stale)).toBe(false);
+  });
+});
+
+/*
+ * The wire shape, checked by the COMPILER.
+ *
+ * `CaptionLine` is declared in `net/genClient.ts` as well, because mobile
+ * cannot resolve the package. Nothing at runtime can catch that copy drifting —
+ * the field simply goes missing from a response nobody inspects — so the check
+ * is an assignment tsc has to accept. Vitest strips types, so this passing
+ * proves nothing on its own; `npx tsc` in `apps/mobile` is what enforces it.
+ */
+describe('the wire type mirrors the package', () => {
+  it('accepts what the service actually sends', () => {
+    const fromServer: CanonicalCaptionLine = {
+      text: 'one two',
+      start: 0,
+      end: 1,
+      words: [
+        { text: 'one', start: 0, end: 0.4 },
+        { text: 'two', start: 0.5, end: 1 },
+      ],
+    };
+    // The assignment IS the assertion: a field the package gains and this copy
+    // does not makes tsc reject this line.
+    const asMobileReadsIt: WireCaptionLine = fromServer;
+    expect(asMobileReadsIt.words).toHaveLength(2);
+    // And `setAutoCaptions` must take it, or a response is parseable and still
+    // unusable.
+    expect(setAutoCaptions(project(), [asMobileReadsIt]).overlays).toHaveLength(1);
   });
 });
