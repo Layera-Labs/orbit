@@ -55,6 +55,7 @@ import {
   isSafeFontFamily,
   killLiveRenders,
   renderProject,
+  rasterizeSVG,
   resolveFonts,
   type CaptionLine,
   type ExportOutput,
@@ -273,6 +274,50 @@ const BUILD_VERSION = (() => {
   }
 })();
 const BUILD_SHA = process.env.ORBIT_BUILD_SHA?.trim() || undefined;
+
+/**
+ * Can this box actually rasterize? Probed once, reported by `/health`.
+ *
+ * `@resvg/resvg-js` is a NATIVE addon, and it is the only one here. ffmpeg is a
+ * subprocess and fails loudly; resvg is loaded into this process and fails on
+ * first use — which is the first render carrying a caption, not startup. So an
+ * image whose addon does not match the machine it is running on starts happily,
+ * answers `/health`, serves uploads and renders anything without text, and then
+ * breaks one specific feature for everyone. The gap between deploy and symptom
+ * is however long it takes someone to add a caption.
+ *
+ * That mismatch is not currently reachable — the image is built on the VPS it
+ * runs on (`scripts/orbit-render deploy`), so the addon is always resolved for
+ * the right architecture. This exists because the day that stops being true is
+ * the day nobody remembers it was ever load-bearing, and the cost of asking is
+ * one 1x1 rasterization for the life of the process.
+ *
+ * Deliberately synchronous and cached: `rasterizeSVG` is sync, and a box that
+ * can rasterize once can rasterize again.
+ */
+let resvgWorks: boolean | undefined;
+function probeResvg(): boolean {
+  if (resvgWorks === undefined) {
+    try {
+      // No text: this asks whether the addon LOADS and renders, not whether any
+      // particular font resolved. A missing font is a different failure with
+      // its own reporting, and folding the two together would make this answer
+      // "broken" for something a caption warning already covers.
+      rasterizeSVG(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"><rect width="1" height="1" fill="#000"/></svg>',
+      );
+      resvgWorks = true;
+    } catch (e) {
+      console.error(
+        `[orbit] resvg cannot rasterize — captions and text overlays will fail on every render: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
+      resvgWorks = false;
+    }
+  }
+  return resvgWorks;
+}
 
 /**
  * What has to happen before this process may exit.
@@ -1083,6 +1128,13 @@ export function createServer(): Express {
    * `ok` stays true while the queue is merely busy — a load balancer pulling
    * the one box that is doing work is precisely wrong. What it reports instead
    * is depth, so saturation is visible before it turns into 503s.
+   *
+   * It goes FALSE for exactly one thing: a resvg that cannot rasterize. That is
+   * not saturation, it is a box that will fail every render carrying text, and
+   * the right answer to "should traffic come here" is no. Note a failed SCHEMA
+   * does not do this — with the startup gate in `main.ts` a listening process
+   * has already proved its tables, so `schema` on a live box is diagnostic
+   * rather than a reason to pull it.
    */
   app.get("/health", async (_req: Request, res: Response) => {
     // With a shared queue the interesting depth is the CLUSTER's, not this
@@ -1112,8 +1164,16 @@ export function createServer(): Express {
     const transitions = await ffmpegXfadeTokens(
       process.env.FFMPEG_PATH ?? "ffmpeg",
     ).catch(() => [] as string[]);
-    res.json({
-      ok: true,
+    /*
+     * The one capability whose absence is fatal rather than reduced. Every
+     * other probe here narrows what can be offered; this one means no render
+     * carrying text can succeed, so the box should be taken out of rotation
+     * rather than left serving requests it cannot finish.
+     */
+    const rasterizes = probeResvg();
+    res.status(rasterizes ? 200 : 503).json({
+      ok: rasterizes,
+      ...(rasterizes ? {} : { error: "resvg cannot rasterize on this machine" }),
       service: "orbit-render",
       /*
        * Whether every table this build needs actually exists. `ok` above stays
@@ -1123,7 +1183,7 @@ export function createServer(): Express {
        * and the process plainly is not.
        */
       schema: readyState,
-      capabilities: { hdr, transitions },
+      capabilities: { hdr, transitions, rasterize: rasterizes },
       /*
        * Which build is actually answering. Without this, "is the fix
        * deployed?" is unanswerable from outside the box — and during an

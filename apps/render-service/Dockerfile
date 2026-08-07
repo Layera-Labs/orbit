@@ -10,8 +10,28 @@
 # The service imports workspace packages (@orbit/video, @orbit/billing, …) by
 # source, so it needs the whole pnpm workspace present to install and build.
 
+# The architecture is STATED, because one dependency here is a native addon.
+#
+# `@resvg/resvg-js` ships per-platform prebuilds and is loaded into the service
+# process, so an image whose addon does not match the machine running it starts
+# fine, answers /health, and then fails every render carrying a caption. ffmpeg
+# is a subprocess and would fail loudly; this one does not.
+#
+# Left unstated, `docker build` produces an image for whatever the BUILD host
+# is. That is correct today — the deploy builds on the VPS
+# (`scripts/orbit-render deploy`) — and silently wrong the first time someone
+# builds on a Mac and pushes. Naming it costs nothing where it actually runs,
+# since the VPS is amd64 anyway.
+#
+# To run the image locally on Apple silicon instead:
+#   docker build --build-arg PLATFORM=linux/arm64 -f apps/render-service/Dockerfile .
+ARG PLATFORM=linux/amd64
+
 # ---- build ------------------------------------------------------------------
-FROM node:22-trixie-slim AS build
+# Build and run on the SAME platform, deliberately. The usual cross-compile
+# idiom (`--platform=$BUILDPLATFORM` on the build stage) is wrong here: it would
+# resolve the native addon for the builder and ship it to a different target.
+FROM --platform=${PLATFORM} node:22-trixie-slim AS build
 WORKDIR /app
 
 # Corepack pins pnpm to whatever packageManager says, so the image and a
@@ -40,7 +60,7 @@ RUN pnpm --filter @orbit/render-service... build
 RUN CI=true pnpm install --frozen-lockfile --prod --filter @orbit/render-service...
 
 # ---- run --------------------------------------------------------------------
-FROM node:22-trixie-slim
+FROM --platform=${PLATFORM} node:22-trixie-slim
 WORKDIR /app
 
 # ffmpeg AND ffprobe: the engine probes for an audio stream before building the
