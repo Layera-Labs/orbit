@@ -71,6 +71,24 @@ export interface GenerationJob {
  * corrupt jobs in production, so `InMemoryGenerationQueue` enforces it too.
  */
 export interface GenerationQueue {
+  /**
+   * Put a job in.
+   *
+   * On the interface rather than left to each implementation, which is not
+   * bookkeeping: the in-memory one took `(input, opts)` and the Postgres one
+   * `(id, input, opts)` for exactly as long as nothing declared it, and the
+   * service could not call both. Two implementations of one concept drift the
+   * moment the shared shape stops naming a method.
+   *
+   * The caller supplies the id, because it usually has to answer with it before
+   * the write is confirmed.
+   */
+  enqueue(
+    id: string,
+    input: unknown,
+    opts?: { account?: string; requestId?: string },
+  ): Promise<GenerationJob>;
+  get(id: string): Promise<GenerationJob | null>;
   /** Take the oldest unclaimed job, or one whose worker has gone quiet. */
   claim(workerId: string): Promise<GenerationJob | null>;
   /** Still alive — pushes the stale deadline out. */
@@ -211,7 +229,6 @@ export class InMemoryGenerationQueue implements GenerationQueue {
   private jobs = new Map<string, GenerationJob>();
   private claimedBy = new Map<string, string>();
   private claimedAt = new Map<string, number>();
-  private seq = 0;
 
   constructor(
     /** How long a claim survives without a heartbeat before it is up for grabs. */
@@ -220,11 +237,12 @@ export class InMemoryGenerationQueue implements GenerationQueue {
   ) {}
 
   async enqueue(
+    id: string,
     input: unknown,
-    opts: { id?: string; account?: string; requestId?: string } = {},
+    opts: { account?: string; requestId?: string } = {},
   ): Promise<GenerationJob> {
     const job: GenerationJob = {
-      id: opts.id ?? `gen_${++this.seq}`,
+      id,
       status: 'queued',
       input,
       createdAt: this.now(),
