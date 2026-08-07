@@ -80,6 +80,13 @@ import {
 import { authFromEnv, AuthError, type UserStore } from "@orbit/auth";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { collectClientSrcs, isClientSrc, makeResolveSrc } from "./resolve.js";
+import { isTerminal, toExportJob } from "./export-job.js";
+import { openSse } from "./sse.js";
+import {
+  TICKET_TTL_MS,
+  mintStreamTicket,
+  verifyStreamTicket,
+} from "./stream-ticket.js";
 import { RemoteSrcError, fetchRemoteTo } from "./remote.js";
 import { PgLedgerStore, PgUserStore, makePgPool } from "./pg-store.js";
 import { InMemoryUserStore } from "./user-store.js";
@@ -1075,6 +1082,13 @@ export function createServer(): Express {
     });
   }
   const auth = authFromEnv(authEnv, { userStore });
+  /*
+   * Stream tickets are signed from the session secret, and `stream-ticket.ts`
+   * derives its own key from it rather than using it directly. In dev this is
+   * the ephemeral secret above, so a restart invalidates outstanding tickets —
+   * which is correct, and matches what a restart already does to sessions.
+   */
+  const STREAM_SECRET = authEnv.ORBIT_JWT_SECRET ?? "orbit-dev";
   const LICENSE_KEY = process.env.ORBIT_LICENSE_KEY ?? "orbit";
   const SIGNUP_BONUS = envNumber("ORBIT_SIGNUP_BONUS", 0, 0);
 
@@ -1578,6 +1592,97 @@ export function createServer(): Express {
       progress: job.progress,
       elapsedMs: (job.finishedAt ?? Date.now()) - job.createdAt,
     });
+  });
+
+  /*
+   * ---- watching a render ----
+   *
+   * `ExportJobPoller` in `@orbit/core` has been written against an SSE endpoint
+   * plus a polling fallback since long before either existed. The polling half
+   * is the route above; this is the other half.
+   *
+   * It is two routes rather than one because `EventSource` cannot set a request
+   * header — so the stream cannot present the Bearer token every other route
+   * here requires, and putting the session JWT in the query string would put
+   * the credential for the whole account into browser history and every
+   * intermediary's logs. The client asks for a TICKET with its real
+   * credentials, and the ticket is what goes in the URL. See
+   * `stream-ticket.ts`.
+   */
+  app.get(
+    "/v1/render/:id/ticket",
+    readLimit,
+    async (req: Request, res: Response) => {
+      const account = await accountOf(req, res);
+      if (!account) return;
+      const job = queue ? await queue.get(req.params.id) : jobs.get(req.params.id);
+      // Same rule, same answer as the status route: not yours is not found.
+      if (!job || (job.account !== undefined && job.account !== account)) {
+        res.status(404).json({ error: "no such render job" });
+        return;
+      }
+      const ticket = mintStreamTicket(STREAM_SECRET, job.id, job.account ?? "");
+      res.json({
+        ticket,
+        expiresInMs: TICKET_TTL_MS,
+        eventsUrl: `/v1/render/${encodeURIComponent(job.id)}/events?ticket=${encodeURIComponent(ticket)}`,
+      });
+    },
+  );
+
+  app.get("/v1/render/:id/events", async (req: Request, res: Response) => {
+    const job = queue ? await queue.get(req.params.id) : jobs.get(req.params.id);
+    if (!job) {
+      res.status(404).json({ error: "no such render job" });
+      return;
+    }
+    /*
+     * The account comes from the JOB, not from the URL. The ticket is signed
+     * over it, so a ticket minted under another session fails the signature —
+     * and nothing identifying anybody has to travel in the query string to make
+     * that work.
+     */
+    const ticket = String(req.query.ticket ?? "");
+    const check = verifyStreamTicket(
+      STREAM_SECRET,
+      ticket,
+      job.id,
+      job.account ?? "",
+    );
+    if (!check.ok) {
+      res
+        .status(401)
+        .json({ error: `stream ticket ${check.reason}`, kind: check.reason });
+      return;
+    }
+
+    const stream = openSse(res);
+    let last = "";
+    /*
+     * Polled against the queue rather than pushed to from the worker. With a
+     * shared queue the render is usually happening in a DIFFERENT PROCESS, so
+     * there is no in-memory event to subscribe to, and building one would mean
+     * a pub/sub the deployment does not have. One indexed read per second per
+     * watcher is the honest cost.
+     */
+    const tick = async () => {
+      const current = queue ? await queue.get(job.id) : jobs.get(job.id);
+      if (!current) return;
+      const dto = toExportJob(current);
+      const encoded = JSON.stringify(dto);
+      // Only on change: a render sits at one number for seconds at a time, and
+      // an unchanged event tells the client nothing it does not already have.
+      if (encoded !== last) {
+        last = encoded;
+        if (!stream.send(dto)) return;
+      }
+      if (isTerminal(dto.status)) stream.close();
+    };
+    const timer = setInterval(() => void tick().catch(() => undefined), 1000);
+    timer.unref?.();
+    stream.onClose(() => clearInterval(timer));
+    // Immediately, so a job that has already finished closes without a wait.
+    void tick().catch(() => undefined);
   });
 
   app.get("/v1/credits", readLimit, async (req: Request, res: Response) => {
