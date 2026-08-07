@@ -32,6 +32,14 @@ export {
 } from './steps.ts';
 export type { Step, StepLog, StepRecord } from './steps.ts';
 export { countWords, formatPrompt, requireBounds } from './format.ts';
+export { generate, mapLimit, previewCaptions } from './generate.ts';
+export type {
+  GenerateDeps,
+  GenerateRequest,
+  GenerateResult,
+  Spoken,
+  VoiceProvider,
+} from './generate.ts';
 export { extractJson, planScenes } from './planner.ts';
 export { NoVisualError, aspectMismatch, pickAsset, resolveVisual } from './visual.ts';
 export type {

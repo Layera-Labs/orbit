@@ -51,7 +51,7 @@ function gate() {
 describe('the worker loop', () => {
   it('claims a queued job, runs it, and records what it returned', async () => {
     const queue = new InMemoryGenerationQueue();
-    const job = await queue.enqueue({ topic: 'why the sky is blue' });
+    const job = await queue.enqueue('g1', { topic: 'why the sky is blue' });
     const worker = start(queue, async (j) => `out:${(j.input as { topic: string }).topic}`);
 
     await until(async () => (await statusOf(queue, job.id)) === 'done');
@@ -66,8 +66,8 @@ describe('the worker loop', () => {
    */
   it('fails one job and keeps going', async () => {
     const queue = new InMemoryGenerationQueue();
-    const bad = await queue.enqueue({ n: 1 });
-    const good = await queue.enqueue({ n: 2 });
+    const bad = await queue.enqueue('n1', { n: 1 });
+    const good = await queue.enqueue('n2', { n: 2 });
     const errors: string[] = [];
     const worker = start(
       queue,
@@ -89,7 +89,7 @@ describe('the worker loop', () => {
 
   it('reports where a job has got to', async () => {
     const queue = new InMemoryGenerationQueue();
-    const job = await queue.enqueue({});
+    const job = await queue.enqueue('j1', {});
     const g = gate();
     const worker = start(queue, async (_j, setStep) => {
       setStep('speak');
@@ -111,7 +111,7 @@ describe('the worker loop', () => {
   it('heartbeats while a job is running and stops afterwards', async () => {
     const queue = new InMemoryGenerationQueue();
     const beats = vi.spyOn(queue, 'heartbeat');
-    const job = await queue.enqueue({});
+    const job = await queue.enqueue('j2', {});
     const g = gate();
     const worker = start(queue, async () => {
       await g.held;
@@ -136,7 +136,7 @@ describe('the worker loop', () => {
    */
   it('hands an in-flight job back on stop rather than failing it', async () => {
     const queue = new InMemoryGenerationQueue();
-    const job = await queue.enqueue({});
+    const job = await queue.enqueue('j3', {});
     const g = gate();
     const worker = start(queue, async () => {
       await g.held;
@@ -166,7 +166,7 @@ describe('the worker loop', () => {
     await new Promise((r) => setTimeout(r, 20));
     await worker.stop();
 
-    const late = await queue.enqueue({});
+    const late = await queue.enqueue('j4', {});
     await new Promise((r) => setTimeout(r, 40));
     expect(await statusOf(queue, late.id)).toBe('queued');
   });
@@ -179,7 +179,7 @@ describe('the worker loop', () => {
    */
   it('puts back a job claimed in the instant it was told to stop', async () => {
     const queue = new InMemoryGenerationQueue();
-    const job = await queue.enqueue({});
+    const job = await queue.enqueue('j5', {});
     const real = queue.claim.bind(queue);
     const g = gate();
     vi.spyOn(queue, 'claim').mockImplementation(async (w) => {
@@ -209,7 +209,7 @@ describe('the worker loop', () => {
       if (failures++ < 2) throw new Error('ECONNRESET');
       return real(w);
     });
-    const job = await queue.enqueue({});
+    const job = await queue.enqueue('j6', {});
     const worker = start(queue, async () => 'ok', { onError: (e) => errors.push(e) });
 
     await until(async () => (await statusOf(queue, job.id)) === 'done');
@@ -244,7 +244,7 @@ describe('the claim guard', () => {
    */
   it('ignores every write from a worker that no longer holds the claim', async () => {
     const { queue, advance } = clocked(50);
-    const job = await queue.enqueue({});
+    const job = await queue.enqueue('j7', {});
     await queue.claim('old');
     advance(100);
     expect((await queue.claim('new'))!.id).toBe(job.id);
@@ -265,7 +265,7 @@ describe('the claim guard', () => {
 
   it('re-offers a job whose worker has gone quiet', async () => {
     const { queue, advance } = clocked(50);
-    const job = await queue.enqueue({});
+    const job = await queue.enqueue('j8', {});
     expect((await queue.claim('old'))!.id).toBe(job.id);
     // Still fresh: nobody else may take it.
     advance(40);
@@ -277,7 +277,7 @@ describe('the claim guard', () => {
 
   it('keeps a claim alive across a heartbeat', async () => {
     const { queue, advance } = clocked(50);
-    const job = await queue.enqueue({});
+    const job = await queue.enqueue('j9', {});
     await queue.claim('old');
     advance(40);
     await queue.heartbeat(job.id, 'old');
@@ -288,8 +288,8 @@ describe('the claim guard', () => {
 
   it('claims oldest first', async () => {
     const queue = new InMemoryGenerationQueue();
-    await queue.enqueue({}, { id: 'a' });
-    await queue.enqueue({}, { id: 'b' });
+    await queue.enqueue('a', {});
+    await queue.enqueue('b', {});
     expect((await queue.claim('w'))!.id).toBe('a');
   });
 });

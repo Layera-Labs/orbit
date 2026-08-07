@@ -115,6 +115,9 @@ importers:
 
   apps/render-service:
     dependencies:
+      '@orbit/assets':
+        specifier: workspace:*
+        version: link:../../packages/assets
       '@orbit/auth':
         specifier: workspace:*
         version: link:../../packages/auth
@@ -127,6 +130,9 @@ importers:
       '@orbit/pipeline':
         specifier: workspace:*
         version: link:../../packages/pipeline
+      '@orbit/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
       '@orbit/video':
         specifier: workspace:*
         version: link:../../packages/video

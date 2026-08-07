@@ -54,6 +54,7 @@ import {
   ffmpegXfadeTokens,
   isSafeFontFamily,
   killLiveRenders,
+  projectDuration,
   renderProject,
   rasterizeSVG,
   resolveFonts,
@@ -81,6 +82,19 @@ import { authFromEnv, AuthError, type UserStore } from "@orbit/auth";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { collectClientSrcs, isClientSrc, makeResolveSrc } from "./resolve.js";
 import { isTerminal, toExportJob } from "./export-job.js";
+import { brainFromEnv } from "./brain.js";
+import { ElevenLabsVoice, parseGenerationRequest } from "./generation.js";
+import { MediaDirAssetStore } from "./asset-store.js";
+import { PgGenerationQueue, PgStepLog } from "./generation-queue.js";
+import { openverseOrPexels } from "./stock-provider.js";
+import {
+  InMemoryGenerationQueue,
+  InMemoryStepLog,
+  generate,
+  startGenerationWorker,
+  type StepLog,
+} from "@orbit/pipeline";
+import { formatById } from "@orbit/formats";
 import { openSse } from "./sse.js";
 import {
   TICKET_TTL_MS,
@@ -959,8 +973,15 @@ export function createServer(): Express {
   let queue: PgJobQueue | null = null;
   /** Project sync. Null without a database — there is nowhere to sync TO. */
   let projects: PgProjectStore | null = null;
+  /*
+   * Hoisted, because the generation queue further down needs the same
+   * connection pool. A second pool to the same database would double the
+   * connection count for no gain, and Postgres counts connections per server.
+   */
+  let pgPool: ReturnType<typeof makePgPool> | null = null;
   if (process.env.DATABASE_URL) {
     const pool = makePgPool(process.env.DATABASE_URL);
+    pgPool = pool;
     ledgerStore = new PgLedgerStore(pool);
     userStore = new PgUserStore(pool);
     projects = new PgProjectStore(pool);
@@ -1006,6 +1027,15 @@ export function createServer(): Express {
   const pending: Array<{ name: string; ready: Promise<void> }> = [];
   if (projects) pending.push({ name: "projects", ready: projects.whenReady() });
   if (queue) pending.push({ name: "render_jobs", ready: queue.whenReady() });
+  /*
+   * Same gate as every other table: a broken schema fails the DEPLOY, where
+   * somebody is watching, rather than the first user request that touches it.
+   */
+  if (pgPool)
+    pending.push({
+      name: "generation_jobs",
+      ready: new PgGenerationQueue(pgPool).whenReady(),
+    });
   if (ledgerStore instanceof PgLedgerStore)
     pending.push({ name: "ledger_entries", ready: ledgerStore.whenReady() });
   if (userStore instanceof PgUserStore)
@@ -1684,6 +1714,210 @@ export function createServer(): Express {
     // Immediately, so a job that has already finished closes without a wait.
     void tick().catch(() => undefined);
   });
+
+  /*
+   * ---- generation ----
+   *
+   * `POST /v1/generate` accepts a topic and hands back a job id. Everything
+   * after that happens on a worker, which is not necessarily this process.
+   *
+   * Asynchronous ONLY, with no synchronous twin. A render is seconds and can
+   * reasonably hold a connection; a generation is a language model, several
+   * text-to-speech calls, a stock search per scene and then a render — minutes,
+   * across four vendors, any of which can be slow. There is no proxy in front
+   * of this that would keep such a request open, and offering it would only
+   * teach clients to depend on something that fails in production.
+   */
+  const GENERATION_COST = envNumber("ORBIT_GENERATION_COST", 0, 0);
+
+  /*
+   * Assembled once, and null when the box is not configured for it. A render
+   * service with no language model is a perfectly good render service — it just
+   * cannot generate, and the route says so by name rather than failing somewhere
+   * inside the pipeline.
+   */
+  const brain = brainFromEnv();
+  const ELEVEN_KEY = process.env.ELEVENLABS_API_KEY?.trim();
+  const generationReady = Boolean(brain && ELEVEN_KEY);
+
+  /*
+   * Postgres when there is one, memory otherwise. The in-memory pair is not a
+   * stub: a single-box deployment with no database still generates, it just
+   * loses queued jobs on a restart — which is the same trade `JobRegistry`
+   * already makes for renders, and the same one a shared queue exists to undo.
+   */
+  const pgGen = pgPool ? new PgGenerationQueue(pgPool) : null;
+  const genQueue = pgGen ?? new InMemoryGenerationQueue();
+  const genLog: StepLog =
+    pgGen && pgPool ? new PgStepLog(pgGen, pgPool) : new InMemoryStepLog();
+
+  app.post(
+    "/v1/generate",
+    writeLimit,
+    requireAuth,
+    async (req: Request, res: Response) => {
+      const account = await accountOf(req, res);
+      if (!account) return;
+      if (!generationReady) {
+        res.status(503).json({
+          error:
+            "generation is not configured on this server (needs ORBIT_LLM_* and ELEVENLABS_API_KEY)",
+          kind: "generation-unconfigured",
+        });
+        return;
+      }
+
+      let parsed;
+      try {
+        parsed = parseGenerationRequest(req.body);
+      } catch (err) {
+        res.status(400).json({ error: err instanceof Error ? err.message : "bad request" });
+        return;
+      }
+      /*
+       * The format is resolved HERE, not on the worker. An unknown one is a
+       * client mistake and deserves a 400 the caller can read — resolved later
+       * it becomes a job that accepts, queues, and then fails for a reason
+       * nobody sees until they poll.
+       */
+      if (!formatById(parsed.format)) {
+        res.status(400).json({ error: `no such format: ${parsed.format}` });
+        return;
+      }
+
+      /*
+       * The hold, not the charge. A generation spends real money at four
+       * vendors, so the credits are reserved before any of it runs and settled
+       * only when a file exists — a job that dies halfway releases them. Same
+       * rule as the render path: charge for output, never for effort.
+       */
+      const id = `gen_${randomBytes(8).toString("hex")}`;
+      /*
+       * The hold id travels ON THE JOB. It has to: the worker that settles it
+       * is often a different process, and a hold nobody can name is a hold
+       * nobody can release — credits reserved forever against a job that
+       * failed.
+       */
+      let holdId: string | undefined;
+      if (GENERATION_COST > 0) {
+        holdId = `hold_${id}`;
+        try {
+          await ledger.hold(account, holdId, GENERATION_COST, { reason: "generate" });
+        } catch {
+          res.status(402).json({ error: "not enough credits", kind: "insufficient_credits" });
+          return;
+        }
+      }
+
+      await genQueue.enqueue(id, { ...parsed, ...(holdId ? { holdId } : {}) }, {
+        account,
+        requestId: (req as { rid?: string }).rid ?? undefined,
+      });
+      res.status(202).json({ id, status: "queued" });
+    },
+  );
+
+  app.get("/v1/generate/:id", readLimit, async (req: Request, res: Response) => {
+    const account = await accountOf(req, res);
+    if (!account) return;
+    const job = (await genQueue.get(req.params.id)) as
+      | { id: string; status: string; account?: string; step?: string; result?: unknown; error?: string; createdAt: number; finishedAt?: number }
+      | null;
+    // Not yours is not found, exactly as for a render.
+    if (!job || (job.account !== undefined && job.account !== account)) {
+      res.status(404).json({ error: "no such generation" });
+      return;
+    }
+    res.json({
+      id: job.id,
+      status: job.status,
+      step: job.step,
+      result: job.result,
+      error: job.error,
+      createdAt: job.createdAt,
+      finishedAt: job.finishedAt,
+    });
+  });
+
+  /*
+   * The generation worker.
+   *
+   * Separate from the render worker on purpose. A generation is mostly WAITING
+   * on other people's APIs, and a render is mostly local CPU — running them off
+   * one loop would make a box that is busy encoding refuse to start a plan, and
+   * a box waiting on a language model look busy to the render queue. The render
+   * this one finishes with still goes through `withRenderSlot`, so the ffmpeg
+   * ceiling is respected either way.
+   */
+  if (generationReady && process.env.ORBIT_GENERATION_WORKER !== "0") {
+    const store = new MediaDirAssetStore({ mediaDir });
+    const voice = new ElevenLabsVoice(ELEVEN_KEY!, mediaDir);
+    const stock = openverseOrPexels(process.env);
+
+    const worker = startGenerationWorker({
+      queue: genQueue,
+      workerId: WORKER_ID,
+      pollMs: WORKER_POLL_MS,
+      onError: (event, err, job) =>
+        logError(event, { job: job?.id, ...errFields(err) }),
+      handle: async (job, setStep) => {
+        const input = job.input as ReturnType<typeof parseGenerationRequest>;
+        const format = formatById(input.format);
+        if (!format) throw new Error(`no such format: ${input.format}`);
+        const holdId = (job.input as { holdId?: string }).holdId;
+        try {
+          const out = await generate(
+            {
+              brain: brain!,
+              voice,
+              provider: stock,
+              store,
+              log: genLog,
+              onStep: setStep,
+              render: (project) =>
+                render(project, undefined, undefined, undefined, {
+                  rid: job.requestId,
+                  job: job.id,
+                }),
+            },
+            job.id,
+            {
+              topic: input.topic,
+              format,
+              aspect: input.aspect,
+              ...(input.notes ? { notes: input.notes } : {}),
+            },
+          );
+          /*
+           * Settled only now, with a file in hand. The same rule the render
+           * path follows: charge for output, never for effort.
+           */
+          if (holdId && job.account)
+            await ledger
+              .settle(job.account, holdId, GENERATION_COST)
+              .catch((e) => logError("generation-settle-failed", { job: job.id, ...errFields(e) }));
+          return {
+            url: out.url,
+            durationSec: projectDuration(out.project),
+            compromises: out.compromises,
+            ...(out.alignmentSkipped ? { alignmentSkipped: out.alignmentSkipped } : {}),
+          };
+        } catch (err) {
+          /*
+           * Released here rather than left to expire. Without this a failed
+           * generation reserves its credits forever — the balance is gone, no
+           * video exists, and nothing in the ledger explains why.
+           */
+          if (holdId && job.account)
+            await ledger
+              .release(job.account, holdId)
+              .catch((e) => logError("generation-release-failed", { job: job.id, ...errFields(e) }));
+          throw err;
+        }
+      },
+    });
+    shutdownTasks.push(() => worker.stop());
+  }
 
   app.get("/v1/credits", readLimit, async (req: Request, res: Response) => {
     const account = await accountOf(req, res);
