@@ -50,12 +50,39 @@ export class PexelsProvider implements AssetProvider {
     return this.mapAsset(await response.json());
   }
 
+  /**
+   * Choose one of a Pexels video's renditions.
+   *
+   * It used to take `video_files[0]`, which is not a default — Pexels returns
+   * the renditions in no useful order, so that is a coin flip between a 4K
+   * master (a download measured in hundreds of megabytes, for a frame that gets
+   * scaled down anyway) and a 640x360 preview that arrives soft. It can also be
+   * `.webm`, which resvg-adjacent parts of the pipeline and some players will
+   * not touch.
+   *
+   * So: mp4 only, smallest rendition that still reaches 1080 on its long edge,
+   * falling back to the largest available when nothing does. Lifted from
+   * `apps/mobile/src/content/stock.ts`, which has been doing it correctly for
+   * as long as this has not.
+   */
+  private pickVideoFile(item: any): string {
+    const files = (item.video_files ?? []).filter(
+      (f: any) => f.file_type === 'video/mp4',
+    );
+    const bySize = [...files].sort((a: any, b: any) => (a.width ?? 0) - (b.width ?? 0));
+    const pick =
+      bySize.find((f: any) => (f.width ?? 0) >= 1080) ??
+      bySize[bySize.length - 1] ??
+      item.video_files?.[0];
+    return pick?.link ?? '';
+  }
+
   private mapAsset(item: any): Asset {
     if (this.mode === 'videos') {
       return {
         id: String(item.id),
         type: 'video',
-        src: item.video_files?.[0]?.link || '',
+        src: this.pickVideoFile(item),
         thumbnail: item.image,
         width: item.width,
         height: item.height,

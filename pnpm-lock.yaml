@@ -566,6 +566,9 @@ importers:
 
   packages/pipeline:
     dependencies:
+      '@orbit/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@orbit/video':
         specifier: workspace:*
         version: link:../video
