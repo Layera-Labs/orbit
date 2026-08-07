@@ -31,4 +31,12 @@ export {
   runStep,
 } from './steps.ts';
 export type { Step, StepLog, StepRecord } from './steps.ts';
+export { InMemoryGenerationQueue, startGenerationWorker } from './queue.ts';
+export type {
+  GenerationJob,
+  GenerationQueue,
+  GenerationStatus,
+  GenerationWorker,
+  WorkerOptions,
+} from './queue.ts';
 export type { ComposeInput, SpokenScene, SceneVisual } from './compose.ts';
