@@ -1,12 +1,33 @@
 import type { VideoProject } from './types';
+import { OVERLAP_SCHEMA } from './migrate-overlap';
 
-/** Create a project with sensible defaults; `width`/`height` are required. */
+/**
+ * Create a project with sensible defaults; `width`/`height` are required.
+ *
+ * It takes a `Partial<VideoProject>`, so it has to carry EVERY field of one.
+ * It did not: `tracks` and `frame` were dropped on the floor, silently, while
+ * the signature said they were accepted. A caller building a multi-track
+ * project got back one with no clips and no audio, which renders perfectly —
+ * as captions over a background, for the right duration, with no picture and
+ * no sound. Nothing errors, and the output is plausible enough to be blamed on
+ * the media.
+ *
+ * Found by the Phase 0 pipeline spike, which is exactly the sort of thing a
+ * spike is for: every existing caller predates `tracks` and passes `clips`, so
+ * the gap had never been reachable before.
+ */
 export function createProject(
   opts: Partial<VideoProject> & Pick<VideoProject, 'width' | 'height'>,
 ): VideoProject {
   return {
     id: opts.id ?? 'project',
-    schemaVersion: 1,
+    /*
+     * A project born WITH tracks is born at the current schema. It cannot need
+     * the overlap migration — it has no transitions to reinterpret — so
+     * stamping it 1 would only invite a migration pass that must not change it.
+     * Without tracks the answer stays 1, so every existing caller is unaffected.
+     */
+    schemaVersion: opts.schemaVersion ?? (opts.tracks?.length ? OVERLAP_SCHEMA : 1),
     width: opts.width,
     height: opts.height,
     fps: opts.fps ?? 30,
@@ -15,6 +36,8 @@ export function createProject(
     transition: opts.transition,
     overlays: opts.overlays ?? [],
     audio: opts.audio ?? [],
+    ...(opts.tracks ? { tracks: opts.tracks } : {}),
+    ...(opts.frame ? { frame: opts.frame } : {}),
   };
 }
 
