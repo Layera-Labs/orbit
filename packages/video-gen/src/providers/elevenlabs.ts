@@ -44,6 +44,7 @@ export class ElevenLabsProvider implements MediaProvider {
 
   async tts(req: TTSRequest): Promise<GenResult> {
     if (!this.apiKey) throw new Error("ElevenLabsProvider: missing API key");
+    const startedAt = Date.now();
     const voiceId = req.voice || this.voiceId;
     // The voice id lands in the URL path, so it must not be able to traverse to
     // another endpoint — that would aim the operator's API key at an arbitrary
@@ -84,6 +85,18 @@ export class ElevenLabsProvider implements MediaProvider {
         voiceId,
         model: this.model,
         bytes: bytes.length,
+      },
+      /*
+       * ElevenLabs bills TTS by CHARACTERS OF INPUT, not by seconds of audio
+       * out — so this counts what was sent, which is also the only one of the
+       * two knowable without decoding the result.
+       */
+      usage: {
+        provider: "elevenlabs",
+        model: this.model,
+        ms: Date.now() - startedAt,
+        units: req.text.length,
+        unit: "characters",
       },
     };
   }

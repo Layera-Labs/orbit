@@ -87,7 +87,14 @@ import { RESET_PAGE_HEADERS, RESET_PAGE_HTML } from "./reset-page.js";
 import { emailSenderFromEnv, resetEmailMessage } from "./email.js";
 import { JobRegistry, JOB_TTL_MS } from "./jobs.js";
 import { PgJobQueue } from "./job-queue.js";
-import { errFields, logError, logInfo, logWarn, newRequestId } from "./logging.js";
+import {
+  errFields,
+  logError,
+  logInfo,
+  logProviderCall,
+  logWarn,
+  newRequestId,
+} from "./logging.js";
 import { PgProjectStore, type SyncedProject } from "./project-store.js";
 import { storageFromEnv } from "./storage.js";
 
@@ -2011,6 +2018,7 @@ export function createServer(): Express {
         model: body.model,
         signal: ac.signal,
       });
+      if (result.usage) logProviderCall("generate_image", result.usage, ridOf(req));
       res.json({ url: result.url, balance: await ledger.balance(account) });
     } catch (err) {
       if (ac.signal.aborted) return; // client disconnected — nothing to send
@@ -2081,6 +2089,7 @@ export function createServer(): Express {
         audio: body.audio,
         signal: ac.signal,
       });
+      if (result.usage) logProviderCall("generate_video", result.usage, ridOf(req));
       res.json({
         url: result.url,
         audioUrl: result.meta?.audioUrl,
@@ -2136,6 +2145,7 @@ export function createServer(): Express {
         speed: body.speed,
         signal: ac.signal,
       });
+      if (result.usage) logProviderCall("tts", result.usage, ridOf(req));
       const url = await materializeAudio(result.url); // data URI → served /files URL
       res.json({ url, balance: await ledger.balance(account) });
     } catch (err) {
@@ -2206,6 +2216,7 @@ export function createServer(): Express {
       // ffmpeg is not involved: the model takes the container as uploaded, and
       // extracting the audio first would cost a transcode for no gain.
       const audio = await readFile(resolveSrc(body.src));
+      const startedAt = Date.now();
       const words = await elevenLabs.transcribe({
         audio: audio.buffer.slice(
           audio.byteOffset,
@@ -2229,6 +2240,25 @@ export function createServer(): Express {
        * describes what a CLIENT must tolerate — an older server, a caption
        * typed by hand. It is not what THIS server is allowed to omit.
        */
+      /*
+       * Measured HERE rather than reported by the provider, because
+       * `transcribe` returns words rather than a `GenResult` and there is no
+       * `usage` to carry. `audio-bytes` is what this route actually knows —
+       * ElevenLabs bills Scribe by audio DURATION, which would mean decoding
+       * the file to find out. Bytes track duration closely enough to spot a
+       * change in shape, and the rate key says `audio-bytes` so nobody mistakes
+       * it for the vendor's own unit.
+       */
+      logProviderCall(
+        "transcribe",
+        {
+          provider: "elevenlabs",
+          ms: Date.now() - startedAt,
+          units: audio.byteLength,
+          unit: "audio-bytes",
+        },
+        ridOf(req),
+      );
       const lines: (CaptionLine & { words: WordTiming[] })[] = groupWords(words);
       await ledger
         .debit(account, TRANSCRIBE_COST, "transcribe")
