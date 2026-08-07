@@ -121,6 +121,9 @@ importers:
       '@orbit/billing':
         specifier: workspace:*
         version: link:../../packages/billing
+      '@orbit/formats':
+        specifier: workspace:*
+        version: link:../../packages/formats
       '@orbit/pipeline':
         specifier: workspace:*
         version: link:../../packages/pipeline

@@ -13,6 +13,7 @@
   "dependencies": {
     "@orbit/auth": "workspace:*",
     "@orbit/billing": "workspace:*",
+    "@orbit/formats": "workspace:*",
     "@orbit/pipeline": "workspace:*",
     "@orbit/video": "workspace:*",
     "@orbit/video-gen": "workspace:*",
