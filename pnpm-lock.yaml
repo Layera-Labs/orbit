@@ -536,6 +536,28 @@ importers:
         specifier: ^3.8.0
         version: 3.9.1(@types/node@20.19.39)(rollup@4.60.2)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0))
 
+  packages/pipeline:
+    dependencies:
+      '@orbit/video':
+        specifier: workspace:*
+        version: link:../video
+      '@orbit/video-gen':
+        specifier: workspace:*
+        version: link:../video-gen
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.39
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vite:
+        specifier: ^5.2.0
+        version: 5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0)
+      vite-plugin-dts:
+        specifier: ^3.8.0
+        version: 3.9.1(@types/node@20.19.39)(rollup@4.60.2)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0))
+
   packages/providers:
     dependencies:
       '@orbit/model':
@@ -5833,7 +5855,7 @@ snapshots:
       '@vue/shared': 3.5.33
       estree-walker: 2.0.2
       magic-string: 0.30.21
-      postcss: 8.5.10
+      postcss: 8.5.20
       source-map-js: 1.2.1
 
   '@vue/compiler-ssr@3.5.33':
@@ -7598,8 +7620,7 @@ snapshots:
 
   nanoid@3.3.11: {}
 
-  nanoid@3.3.16:
-    optional: true
+  nanoid@3.3.16: {}
 
   negotiator@0.6.3: {}
 
@@ -7840,7 +7861,6 @@ snapshots:
       nanoid: 3.3.16
       picocolors: 1.1.1
       source-map-js: 1.2.1
-    optional: true
 
   postgres-array@2.0.0: {}
 
@@ -8647,7 +8667,7 @@ snapshots:
   vite@5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0):
     dependencies:
       esbuild: 0.21.5
-      postcss: 8.5.10
+      postcss: 8.5.20
       rollup: 4.60.2
     optionalDependencies:
       '@types/node': 20.19.39
