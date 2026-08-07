@@ -137,15 +137,36 @@ for (const backend of backends) {
       expect((await q.get(id('stale')))!.result).toBe('real.mp4');
     });
 
-    it('keeps a claim alive across a heartbeat', async () => {
-      const q = new PgGenerationQueue(pool, 60);
+    /*
+     * Asserted on `claimed_at` itself, not by racing a short stale window
+     * against the clock. The first version of this test used a 60ms window and
+     * two sleeps, which is fine in-process and meaningless against a remote
+     * server where one round trip is measured in seconds — it failed there
+     * while the code was correct. What the heartbeat actually promises is that
+     * the deadline moves, and only for the worker holding the claim.
+     */
+    it('pushes the stale deadline out, and only for the worker holding it', async () => {
+      const q = new PgGenerationQueue(pool);
       await q.enqueue(id('beat'), {});
       await q.claim('old');
-      await new Promise((r) => setTimeout(r, 40));
+      const claimedAt = async () =>
+        new Date(
+          (
+            await pool.query('SELECT claimed_at FROM generation_jobs WHERE id = $1', [
+              id('beat'),
+            ])
+          ).rows[0].claimed_at,
+        ).getTime();
+      const first = await claimedAt();
+
+      await q.heartbeat(id('beat'), 'someone-else');
+      expect(await claimedAt()).toBe(first);
+
+      // Separation only, so `now()` cannot land in the same millisecond. The
+      // assertion below is about which value moved, not about how long it took.
+      await new Promise((r) => setTimeout(r, 5));
       await q.heartbeat(id('beat'), 'old');
-      await new Promise((r) => setTimeout(r, 40));
-      // 80ms since the claim, 40 since it last said anything.
-      expect((await q.claim('new'))?.id).not.toBe(id('beat'));
+      expect(await claimedAt()).toBeGreaterThan(first);
     });
 
     it('puts a released job back for whoever is still up', async () => {
