@@ -1,4 +1,5 @@
 export type {
+  ProviderUsage,
   GenImageRequest,
   GenVideoRequest,
   TTSRequest,

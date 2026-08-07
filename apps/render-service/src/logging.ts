@@ -74,6 +74,74 @@ export const logError = (event: string, fields: LogFields = {}): void =>
   emit("error", event, fields);
 
 /**
+ * What the operator pays, per unit, in cents. Empty by default and that is the
+ * point.
+ *
+ * `ORBIT_PROVIDER_RATES` is JSON keyed `"<provider>:<unit>"`, e.g.
+ *   {"runway:video-seconds": 5, "elevenlabs:characters": 0.003}
+ *
+ * A price belongs to the operator's contract, not to this codebase. Rates
+ * differ per plan, change without notice, and a confident-looking wrong number
+ * in a log is worse than no number — someone will build a margin calculation on
+ * it. So `costCents` appears only where the operator has said what they pay,
+ * and the measured `units` is always there so any estimate can be recomputed
+ * from a real invoice afterwards.
+ */
+function parseRates(): Record<string, number> {
+  const raw = process.env.ORBIT_PROVIDER_RATES;
+  if (!raw?.trim()) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const out: Record<string, number> = {};
+    for (const [k, v] of Object.entries(parsed))
+      if (typeof v === "number" && Number.isFinite(v)) out[k] = v;
+    return out;
+  } catch {
+    logWarn("provider-rates-invalid", {
+      msg: "ORBIT_PROVIDER_RATES is not valid JSON — provider cost will not be estimated",
+    });
+    return {};
+  }
+}
+let rates: Record<string, number> | undefined;
+
+/** Usage as this service reports it: what the provider measured, plus a price. */
+export interface ProviderCall {
+  provider: string;
+  model?: string;
+  ms: number;
+  units?: number;
+  unit?: string;
+}
+
+/**
+ * One line per provider call, with the request that caused it.
+ *
+ * This is the number that answers "why is generation slow" and "what did that
+ * cost" — neither of which was answerable at all before, because a provider
+ * call produced no log of its own and the only timing was the whole request.
+ */
+export function logProviderCall(
+  op: string,
+  usage: ProviderCall,
+  rid?: string,
+): void {
+  rates ??= parseRates();
+  const key = usage.unit ? `${usage.provider}:${usage.unit}` : undefined;
+  const rate = key ? rates[key] : undefined;
+  const costCents =
+    rate != null && usage.units != null
+      ? Math.round(rate * usage.units * 1000) / 1000
+      : undefined;
+  logInfo("provider-call", {
+    ...(rid ? { rid } : {}),
+    op,
+    ...usage,
+    ...(costCents == null ? {} : { costCents }),
+  });
+}
+
+/**
  * An error as fields rather than as a string.
  *
  * A stack is the useful part and it is multi-line, which is exactly what breaks

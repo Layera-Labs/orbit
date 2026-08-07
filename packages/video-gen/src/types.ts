@@ -36,10 +36,43 @@ export interface TTSRequest {
   signal?: AbortSignal;
 }
 
+/**
+ * What one provider call actually consumed.
+ *
+ * Separate from `meta`, which is free-form vendor detail (a task id, a ratio, a
+ * companion audio url) and is there for the caller. This is the operational
+ * measurement: how long the vendor took, and how much of whatever they bill for
+ * it used. The service logs it; nothing is returned to the client.
+ *
+ * Deliberately carries NO money. A price belongs to the operator's contract,
+ * not to this package — it differs per plan, changes without warning, and a
+ * confident-looking wrong number in a log is worse than an absent one. What is
+ * recorded here is measured fact; `apps/render-service` multiplies it by rates
+ * the operator states.
+ */
+export interface ProviderUsage {
+  /** Vendor, as one lowercase token: 'runway', 'elevenlabs', 'replicate'. */
+  provider: string;
+  /** The model actually used, after defaults are applied. */
+  model?: string;
+  /** Wall-clock time at the vendor, milliseconds. */
+  ms: number;
+  /**
+   * How much was consumed, in `unit`. Absent when the vendor bills per call
+   * rather than per quantity — which is itself worth knowing, so it is omitted
+   * rather than reported as 1.
+   */
+  units?: number;
+  /** What `units` counts: 'video-seconds', 'characters', 'images'. */
+  unit?: string;
+}
+
 export interface GenResult {
   /** URL (or data URI) of the produced asset — typically stored in R2. */
   url: string;
   meta?: Record<string, unknown>;
+  /** What the call consumed. Absent from a provider that does not report it. */
+  usage?: ProviderUsage;
 }
 
 export interface MediaProvider {
