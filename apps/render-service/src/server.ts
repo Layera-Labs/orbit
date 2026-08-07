@@ -87,6 +87,7 @@ import { RESET_PAGE_HEADERS, RESET_PAGE_HTML } from "./reset-page.js";
 import { emailSenderFromEnv, resetEmailMessage } from "./email.js";
 import { JobRegistry, JOB_TTL_MS } from "./jobs.js";
 import { PgJobQueue } from "./job-queue.js";
+import { errFields, logError, logInfo, logWarn, newRequestId } from "./logging.js";
 import { PgProjectStore, type SyncedProject } from "./project-store.js";
 import { storageFromEnv } from "./storage.js";
 
@@ -119,9 +120,12 @@ export function envNumber(name: string, fallback: number, min = 1): number {
   if (raw === undefined || raw.trim() === "") return fallback;
   const n = Number(raw);
   if (!Number.isFinite(n) || n < min) {
-    console.warn(
-      `[orbit] ${name}="${raw}" is not a usable number — using ${fallback}`,
-    );
+    logWarn("env-invalid", {
+      msg: `${name}="${raw}" is not a usable number — using ${fallback}`,
+      name,
+      raw,
+      fallback,
+    });
     return fallback;
   }
   return n;
@@ -308,11 +312,10 @@ function probeResvg(): boolean {
       );
       resvgWorks = true;
     } catch (e) {
-      console.error(
-        `[orbit] resvg cannot rasterize — captions and text overlays will fail on every render: ${
-          e instanceof Error ? e.message : String(e)
-        }`,
-      );
+      logError("resvg-unavailable", {
+        msg: "resvg cannot rasterize — captions and text overlays will fail on every render",
+        ...errFields(e),
+      });
       resvgWorks = false;
     }
   }
@@ -327,6 +330,19 @@ function probeResvg(): boolean {
  * unwinding it leaves a job marked as running on a machine that is gone.
  */
 export type ShutdownTask = () => Promise<void>;
+
+/**
+ * The request id, carried on the request itself.
+ *
+ * A local intersection rather than a global `Express.Request` augmentation:
+ * augmenting the framework's own interface makes `rid` look like something
+ * Express provides, and every handler in the repo would silently accept it as
+ * present when only requests through THIS middleware have it.
+ */
+type RequestWithId = Request & { rid?: string };
+
+/** The id for a request, or undefined off the request path (a worker, startup). */
+const ridOf = (req: Request): string | undefined => (req as RequestWithId).rid;
 
 export function createServer(): Express {
   const app = express();
@@ -368,33 +384,40 @@ export function createServer(): Express {
   const storage = storageFromEnv();
   const jobs = new JobRegistry();
   if (storage.kind === "local")
-    console.warn(
-      "[orbit] output storage is LOCAL DISK — renders do not survive a restart and a second replica cannot see them. Set ORBIT_S3_BUCKET for durable storage.",
-    );
+    logWarn("storage-local", {
+      msg: "output storage is LOCAL DISK — renders do not survive a restart and a second replica cannot see them. Set ORBIT_S3_BUCKET for durable storage.",
+    });
 
   /*
-   * One structured line per request.
+   * One structured line per request, and an id that everything else can quote.
    *
-   * The service logged only failures, so there was no way to answer "is it
-   * slow, and where" without adding a print and redeploying. JSON because the
-   * first thing any log pipeline does is parse it, and a human can still read
-   * it. No bodies and no query strings — they carry upload tokens.
+   * The service logged only failures, so there was no way to answer "is it slow,
+   * and where" without adding a print and redeploying. Worse, the failure lines
+   * and the access lines had nothing in common: one said a POST returned 500 and
+   * the other said what broke, and joining them meant guessing from timestamps
+   * on a box serving several requests at once.
+   *
+   * `rid` is minted here and attached to the request, so every log line the
+   * handler produces carries it, and returned as `X-Request-Id` so a user can
+   * quote the one that failed. No bodies and no query strings — they carry
+   * upload tokens.
    */
   app.use((req: Request, res: Response, next: () => void) => {
     const started = Date.now();
+    const rid = newRequestId();
+    (req as RequestWithId).rid = rid;
+    res.setHeader("X-Request-Id", rid);
     res.on("finish", () => {
       const ms = Date.now() - started;
       // Health checks would otherwise be most of the log.
       if (req.path === "/health") return;
-      console.log(
-        JSON.stringify({
-          t: new Date().toISOString(),
-          method: req.method,
-          path: req.path,
-          status: res.statusCode,
-          ms,
-        }),
-      );
+      logInfo("request", {
+        rid,
+        method: req.method,
+        path: req.path,
+        status: res.statusCode,
+        ms,
+      });
     });
     next();
   });
@@ -786,7 +809,18 @@ export function createServer(): Express {
    * no second copy at all), and ffmpeg's own failure is a better message than a
    * guess made here.
    */
-  async function ensureLocal(project: VideoProject): Promise<void> {
+  /**
+   * Where a log line came from, when the answer is not "this request".
+   *
+   * A render reaches `render()` down two paths — a synchronous request, and a
+   * worker claiming a queued job that some OTHER process accepted, possibly on
+   * another machine. Passing this rather than reading a request means the
+   * worker's lines carry the `rid` of the request that queued the job, which is
+   * the only thing that connects "my export failed" to the encode that failed.
+   */
+  type Trace = { rid?: string; job?: string };
+
+  async function ensureLocal(project: VideoProject, trace: Trace = {}): Promise<void> {
     if (storage.kind === "local") return;
     const names = new Set<string>();
     for (const src of collectClientSrcs(project)) {
@@ -798,7 +832,7 @@ export function createServer(): Express {
         const path = resolveSrc(`upload:${name}`);
         if (await statAsync(path).then(() => true, () => false)) return;
         await storage.fetchTo(name, path).catch((err) => {
-          console.error(`[orbit] could not restore ${name}:`, err);
+          logError("upload-restore-failed", { ...trace, name, ...errFields(err) });
           return false;
         });
       }),
@@ -856,9 +890,11 @@ export function createServer(): Express {
     onStart?: () => void,
     /** How far through the encode ffmpeg has got, 0..1. */
     onFraction?: (fraction: number) => void,
+    /** Who asked, so a worker's lines join the request that queued the job. */
+    trace: Trace = {},
   ): Promise<string> {
     await mkdirAsync(outDir, { recursive: true });
-    await ensureLocal(project);
+    await ensureLocal(project, trace);
     const name = `v_${++counter}_${Date.now()}.mp4`;
     const path = join(outDir, name);
     const safe = await localizeProject(project);
@@ -878,15 +914,12 @@ export function createServer(): Express {
          * look different in the export" unanswerable from the logs.
          */
         onWarning: (w) =>
-          console.warn(
-            JSON.stringify({
-              t: new Date().toISOString(),
-              event: "render-warning",
-              code: w.code,
-              families: w.families,
-              message: w.message,
-            }),
-          ),
+          logWarn("render-warning", {
+            ...trace,
+            code: w.code,
+            families: w.families,
+            msg: w.message,
+          }),
       });
     });
     /*
@@ -928,14 +961,14 @@ export function createServer(): Express {
      * missing.
      */
     if (storage.kind === "local")
-      console.warn(
-        "[orbit] DATABASE_URL is set but storage is local disk — renders stay in-process. A shared queue needs shared storage (ORBIT_S3_BUCKET) or a worker would be handed media it cannot read.",
-      );
+      logWarn("queue-disabled", {
+        msg: "DATABASE_URL is set but storage is local disk — renders stay in-process. A shared queue needs shared storage (ORBIT_S3_BUCKET) or a worker would be handed media it cannot read.",
+      });
     else queue = new PgJobQueue(pool);
   } else {
-    console.warn(
-      "[orbit] no DATABASE_URL — using in-memory storage (ephemeral; credits and accounts reset on restart)",
-    );
+    logWarn("storage-ephemeral", {
+      msg: "no DATABASE_URL — using in-memory storage (ephemeral; credits and accounts reset on restart)",
+    });
     ledgerStore = new InMemoryLedgerStore();
     userStore = new InMemoryUserStore();
   }
@@ -1030,9 +1063,9 @@ export function createServer(): Express {
         "ORBIT_JWT_SECRET is required in production (it signs every session token)",
       );
     authEnv.ORBIT_JWT_SECRET = randomBytes(32).toString("hex");
-    console.warn(
-      "[orbit] ORBIT_JWT_SECRET is unset — using an ephemeral dev secret; every token is invalidated on restart",
-    );
+    logWarn("jwt-secret-ephemeral", {
+      msg: "ORBIT_JWT_SECRET is unset — using an ephemeral dev secret; every token is invalidated on restart",
+    });
   }
   const auth = authFromEnv(authEnv, { userStore });
   const LICENSE_KEY = process.env.ORBIT_LICENSE_KEY ?? "orbit";
@@ -1234,7 +1267,7 @@ export function createServer(): Express {
         void evictMedia(); // keep the store under budget; never blocks the reply
         res.json({ id: `upload:${id}` });
       } catch (err) {
-        console.error("[orbit] upload normalize failed:", err);
+        logError("upload-normalize-failed", { rid: ridOf(req), ...errFields(err) });
         res
           .status(500)
           .json({ error: err instanceof Error ? err.message : String(err) });
@@ -1335,13 +1368,21 @@ export function createServer(): Express {
         // in-process registry otherwise, which is the single-box behaviour.
         if (queue) {
           const id = `job_${Date.now().toString(36)}_${randomBytes(9).toString("hex")}`;
-          const job = await queue.enqueue(id, project, body?.output, account);
+          const job = await queue.enqueue(
+            id,
+            project,
+            body?.output,
+            account,
+            ridOf(req),
+          );
           res.status(202).json({ id: job.id, status: job.status });
           return;
         }
         const job = jobs.start(
           (markRunning, setProgress) =>
-            render(project, body?.output, markRunning, setProgress).then(settle),
+            render(project, body?.output, markRunning, setProgress, {
+              rid: ridOf(req),
+            }).then(settle),
           account,
         );
         res.status(202).json({ id: job.id, status: job.status });
@@ -1349,7 +1390,11 @@ export function createServer(): Express {
       }
 
       try {
-        const url = await settle(await render(project, body?.output));
+        const url = await settle(
+          await render(project, body?.output, undefined, undefined, {
+            rid: ridOf(req),
+          }),
+        );
         res.json({ url });
       } catch (err) {
         if (err instanceof QueueFullError) {
@@ -1364,11 +1409,9 @@ export function createServer(): Express {
           return;
         }
         // Log the full failure server-side — the client only sees a summary, so
-        // without this an ffmpeg error is effectively undebuggable.
-        console.error(
-          "[orbit] render failed:",
-          err instanceof Error ? (err.stack ?? err.message) : err,
-        );
+        // without this an ffmpeg error is effectively undebuggable. The `rid` is
+        // what joins it to the access line the client can quote back.
+        logError("render-failed", { rid: ridOf(req), ...errFields(err) });
         res.status(500).json({ error: clientMessage(err) });
       }
     },
@@ -1408,7 +1451,7 @@ export function createServer(): Express {
         try {
           claimed = await q.claim(WORKER_ID);
         } catch (err) {
-          console.error("[orbit] queue poll failed:", err);
+          logError("queue-poll-failed", errFields(err));
         }
         if (!claimed) {
           await new Promise((r) => setTimeout(r, WORKER_POLL_MS));
@@ -1439,6 +1482,9 @@ export function createServer(): Express {
               lastWrite = now;
               void q.setProgress(job.id, fraction, WORKER_ID).catch(() => undefined);
             },
+            // Carried from the row, so these lines join the request that queued
+            // the job — on a machine that never saw that request.
+            { rid: job.requestId, job: job.id },
           );
           await q.finish(job.id, url, WORKER_ID);
           /*
@@ -1452,6 +1498,12 @@ export function createServer(): Express {
               .debit(job.account, RENDER_COST, "render")
               .catch(() => undefined);
         } catch (err) {
+          logError("render-failed", {
+            rid: job.requestId,
+            job: job.id,
+            worker: WORKER_ID,
+            ...errFields(err),
+          });
           await q
             .fail(job.id, err instanceof Error ? err.message : String(err), WORKER_ID)
             .catch(() => undefined);
@@ -1874,15 +1926,11 @@ export function createServer(): Express {
              * addresses are registered, defeating the identical-response rule
              * three lines above. The operator's channel for this is the log.
              */
-            console.error(
-              JSON.stringify({
-                t: new Date().toISOString(),
-                event: "reset-email-failed",
-                provider: mailer.provider,
-                error:
-                  sendErr instanceof Error ? sendErr.message : String(sendErr),
-              }),
-            );
+            logError("reset-email-failed", {
+              rid: ridOf(req),
+              provider: mailer.provider,
+              ...errFields(sendErr),
+            });
           }
         }
         /*
@@ -2243,13 +2291,10 @@ export function createServer(): Express {
      */
     const secret = process.env.REVENUECAT_WEBHOOK_AUTH;
     if (!secret) {
-      console.warn(
-        JSON.stringify({
-          t: new Date().toISOString(),
-          evt: "webhook-unconfigured",
-          msg: "REVENUECAT_WEBHOOK_AUTH is not set; refusing billing webhook",
-        }),
-      );
+      logWarn("webhook-unconfigured", {
+        rid: ridOf(req),
+        msg: "REVENUECAT_WEBHOOK_AUTH is not set; refusing billing webhook",
+      });
       res.status(503).json({ error: "webhook not configured" });
       return;
     }
@@ -2335,7 +2380,7 @@ export function createServer(): Express {
    */
   shutdownTasks.push(async () => {
     const killed = killLiveRenders();
-    if (killed) console.log(`[orbit] stopped ${killed} encode(s) in flight`);
+    if (killed) logInfo("encodes-killed", { killed });
   });
 
   app.locals.shutdown = async (): Promise<void> => {

@@ -17,6 +17,7 @@
  * moves to a worker pool. The trade is explicit — a restart loses the record of
  * jobs whose encodes died with it anyway.
  */
+import { errFields, logError } from "./logging.js";
 export type JobStatus = "queued" | "running" | "done" | "error";
 
 export interface Job {
@@ -115,10 +116,7 @@ export class JobRegistry {
          * were added — so the moment async became the default for both
          * clients, every real failure became invisible here.
          */
-        console.error(
-          `[orbit] render job ${job.id} failed:`,
-          err instanceof Error ? (err.stack ?? err.message) : err,
-        );
+        logError("render-failed", { job: job.id, ...errFields(err) });
       } finally {
         job.finishedAt = this.now();
       }

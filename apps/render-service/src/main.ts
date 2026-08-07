@@ -1,5 +1,6 @@
 import process from 'node:process';
 import { createServer } from './server.js';
+import { logError, logInfo } from './logging.js';
 
 // Load `apps/render-service/.env` (gitignored) if present, so the developer can
 // keep REPLICATE_API_TOKEN etc. in a file instead of exporting it each run. Uses
@@ -30,13 +31,13 @@ const app = createServer();
  */
 const readiness = (await app.locals.ready) as { ok: boolean; errors: string[] };
 if (!readiness.ok) {
-  for (const e of readiness.errors) console.error(`[orbit] schema not ready — ${e}`);
-  console.error('[orbit] refusing to start: the database is not usable');
+  for (const e of readiness.errors) logError('schema-not-ready', { msg: e });
+  logError('startup-refused', { msg: 'the database is not usable' });
   process.exit(1);
 }
 
 const server = app.listen(port, () => {
-  console.log(`[orbit] render service listening on :${port}`);
+  logInfo('listening', { port });
 });
 
 /**
@@ -58,7 +59,7 @@ let closing = false;
 async function stop(signal: string): Promise<void> {
   if (closing) return;
   closing = true;
-  console.log(`[orbit] ${signal} received, shutting down`);
+  logInfo('shutdown', { signal });
 
   // Stop taking new work first, so nothing is claimed while we unwind.
   server.close();
