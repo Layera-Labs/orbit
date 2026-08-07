@@ -24,6 +24,7 @@
     "spike": "node --experimental-strip-types src/spike/run.ts"
   },
   "dependencies": {
+    "@orbit/shared": "workspace:*",
     "@orbit/video": "workspace:*",
     "@orbit/video-gen": "workspace:*"
   },

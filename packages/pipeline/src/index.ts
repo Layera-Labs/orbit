@@ -33,6 +33,15 @@ export {
 export type { Step, StepLog, StepRecord } from './steps.ts';
 export { countWords, formatPrompt, requireBounds } from './format.ts';
 export { extractJson, planScenes } from './planner.ts';
+export { NoVisualError, aspectMismatch, pickAsset, resolveVisual } from './visual.ts';
+export type {
+  AssetStore,
+  Compromise,
+  Pick as VisualPick,
+  ResolveDeps,
+  ResolvedVisual,
+  VisualWant,
+} from './visual.ts';
 export type { Brain, PlanRequest, PlanResult } from './planner.ts';
 export type { Bounds, Format, FormatBrief } from './format.ts';
 export { InMemoryGenerationQueue, startGenerationWorker } from './queue.ts';
