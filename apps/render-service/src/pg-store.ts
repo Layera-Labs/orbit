@@ -12,8 +12,36 @@
  */
 import pkg from 'pg';
 import type { Pool as PoolType } from 'pg';
-import type { AccountId, LedgerEntry, LedgerStore } from '@orbit/billing';
+import {
+  InsufficientCreditsError,
+  type AccountId,
+  type LedgerEntry,
+  type LedgerStore,
+  type RecordGuard,
+  type RecordOnceResult,
+  type RecordOptions,
+} from '@orbit/billing';
 import type { UserRecord, UserStore } from '@orbit/auth';
+
+/** The columns every read of `ledger_entries` selects. */
+interface LedgerRow {
+  row: string;
+  delta: number;
+  reason: string;
+  balance_after: number;
+  at: Date;
+  meta: Record<string, unknown> | null;
+}
+
+const rowToEntry = (account: AccountId, r: LedgerRow): LedgerEntry => ({
+  id: `le_${r.row}`,
+  account,
+  delta: r.delta,
+  reason: r.reason,
+  balanceAfter: r.balance_after,
+  at: r.at.toISOString(),
+  meta: r.meta ?? undefined,
+});
 
 const { Pool } = pkg;
 
@@ -58,25 +86,100 @@ export class PgLedgerStore implements LedgerStore {
     await this.pool.query('CREATE INDEX IF NOT EXISTS idx_ledger_account_row ON ledger_entries(account, row)');
   }
 
-  async record(account: AccountId, delta: number, reason: string, meta?: Record<string, unknown>): Promise<LedgerEntry> {
+  async record(
+    account: AccountId,
+    delta: number,
+    reason: string,
+    meta?: Record<string, unknown>,
+    opts?: RecordOptions,
+  ): Promise<LedgerEntry> {
+    const { entry } = await this.write(account, delta, reason, meta, undefined, opts);
+    return entry;
+  }
+
+  async recordOnce(
+    account: AccountId,
+    delta: number,
+    reason: string,
+    meta: Record<string, unknown>,
+    guard: RecordGuard,
+    opts?: RecordOptions,
+  ): Promise<RecordOnceResult> {
+    return this.write(account, delta, reason, meta, guard, opts);
+  }
+
+  /**
+   * The one writer, because every part of it has to be in ONE transaction.
+   *
+   * Three things happen under the account's advisory lock, and separating any
+   * of them reintroduces a race that costs money:
+   *
+   *   - the guard lookup, so two concurrent retries of the same job cannot both
+   *     find nothing and both charge;
+   *   - the previous balance read, so two debits cannot compute `balance_after`
+   *     from the same prior row;
+   *   - the floor check, so a caller cannot pass an affordability check that a
+   *     concurrent write has already invalidated.
+   *
+   * `pg_advisory_xact_lock` is per account and releases on COMMIT/ROLLBACK, so
+   * this serializes writers for ONE account and nobody else.
+   */
+  private async write(
+    account: AccountId,
+    delta: number,
+    reason: string,
+    meta: Record<string, unknown> | undefined,
+    guard: RecordGuard | undefined,
+    opts: RecordOptions | undefined,
+  ): Promise<RecordOnceResult> {
     await this.ready;
     const client = await this.pool.connect();
     try {
       await client.query('BEGIN');
-      // Serialize concurrent writers for this account so two debits can't read
-      // the same prior balance. Released automatically on COMMIT/ROLLBACK.
       await client.query('SELECT pg_advisory_xact_lock(hashtext($1))', [account]);
+
+      if (guard) {
+        const found = await client.query<LedgerRow>(
+          `SELECT row, delta, reason, balance_after, at, meta
+             FROM ledger_entries
+            WHERE account = $1 AND meta->>$2 = $3
+              AND ($4::text IS NULL OR reason = $4)
+            ORDER BY row ASC LIMIT 1`,
+          [account, guard.key, guard.value, guard.reason ?? null],
+        );
+        if (found.rows[0]) {
+          await client.query('COMMIT');
+          return { entry: rowToEntry(account, found.rows[0]), created: false };
+        }
+      }
+
       const prev = await client.query<{ balance_after: number }>(
         'SELECT balance_after FROM ledger_entries WHERE account = $1 ORDER BY row DESC LIMIT 1',
         [account],
       );
-      const balanceAfter = (prev.rows[0]?.balance_after ?? 0) + delta;
+      const before = prev.rows[0]?.balance_after ?? 0;
+      const balanceAfter = before + delta;
+      if (opts?.minBalanceAfter != null && balanceAfter < opts.minBalanceAfter) {
+        await client.query('ROLLBACK');
+        throw new InsufficientCreditsError(account, -delta, before);
+      }
       const ins = await client.query<{ row: string; at: Date }>(
         'INSERT INTO ledger_entries (account, delta, reason, balance_after, meta) VALUES ($1, $2, $3, $4, $5::jsonb) RETURNING row, at',
         [account, delta, reason, balanceAfter, meta ? JSON.stringify(meta) : null],
       );
       await client.query('COMMIT');
-      return { id: `le_${ins.rows[0].row}`, account, delta, reason, balanceAfter, at: ins.rows[0].at.toISOString(), meta };
+      return {
+        entry: {
+          id: `le_${ins.rows[0].row}`,
+          account,
+          delta,
+          reason,
+          balanceAfter,
+          at: ins.rows[0].at.toISOString(),
+          meta,
+        },
+        created: true,
+      };
     } catch (e) {
       await client.query('ROLLBACK').catch(() => {});
       throw e;
