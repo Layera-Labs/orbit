@@ -121,6 +121,9 @@ importers:
       '@orbit/billing':
         specifier: workspace:*
         version: link:../../packages/billing
+      '@orbit/pipeline':
+        specifier: workspace:*
+        version: link:../../packages/pipeline
       '@orbit/video':
         specifier: workspace:*
         version: link:../../packages/video
@@ -140,6 +143,9 @@ importers:
         specifier: ^8.13.1
         version: 8.22.0
     devDependencies:
+      '@electric-sql/pglite':
+        specifier: ^0.5.4
+        version: 0.5.4
       '@types/cors':
         specifier: ^2.8.19
         version: 2.8.19
@@ -1052,6 +1058,9 @@ packages:
         optional: true
       search-insights:
         optional: true
+
+  '@electric-sql/pglite@0.5.4':
+    resolution: {integrity: sha512-yYZUyyXrHU7tPlCjwZQJ6hIG9DscdCCn7Uk0mYKwC1FeHX286AbcmFveMiRBEak8e9iPupjsoVImN3yJZVed2g==}
 
   '@esbuild/aix-ppc64@0.21.5':
     resolution: {integrity: sha512-1SDgH6ZSPTlggy1yI6+Dbkiz8xzpHJEVAlF/AM1tHPLsf5STom9rwtjE4hKAF20FfXXNTFqEYXyJNWh1GiZedQ==}
@@ -5024,6 +5033,8 @@ snapshots:
       search-insights: 2.17.3
     transitivePeerDependencies:
       - '@algolia/client-search'
+
+  '@electric-sql/pglite@0.5.4': {}
 
   '@esbuild/aix-ppc64@0.21.5':
     optional: true
