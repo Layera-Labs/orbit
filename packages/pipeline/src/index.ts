@@ -25,4 +25,10 @@ export {
 } from './scene-plan.ts';
 export type { ScenePlan, Scene, Aspect } from './scene-plan.ts';
 export { composeStory } from './compose.ts';
+export {
+  InMemoryStepLog,
+  runSequence,
+  runStep,
+} from './steps.ts';
+export type { Step, StepLog, StepRecord } from './steps.ts';
 export type { ComposeInput, SpokenScene, SceneVisual } from './compose.ts';
