@@ -30,6 +30,19 @@ export class PgLedgerStore implements LedgerStore {
     this.ready = this.init();
   }
 
+  /**
+   * Resolves once this store's schema exists, rejecting if it cannot be made.
+   *
+   * The DDL runs from the constructor and every method awaits it, which means a
+   * broken schema or an unreachable database surfaced as a failed USER REQUEST
+   * — minutes or hours after the deploy that caused it, on whoever happened to
+   * click first. Startup awaits this instead, so the failure lands on the
+   * deploy where someone is watching.
+   */
+  whenReady(): Promise<void> {
+    return this.ready;
+  }
+
   private async init(): Promise<void> {
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS ledger_entries (
@@ -140,6 +153,19 @@ export class PgUserStore implements UserStore {
 
   constructor(private pool: PoolType) {
     this.ready = this.init();
+  }
+
+  /**
+   * Resolves once this store's schema exists, rejecting if it cannot be made.
+   *
+   * The DDL runs from the constructor and every method awaits it, which means a
+   * broken schema or an unreachable database surfaced as a failed USER REQUEST
+   * — minutes or hours after the deploy that caused it, on whoever happened to
+   * click first. Startup awaits this instead, so the failure lands on the
+   * deploy where someone is watching.
+   */
+  whenReady(): Promise<void> {
+    return this.ready;
   }
 
   private async init(): Promise<void> {
