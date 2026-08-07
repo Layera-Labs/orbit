@@ -25,6 +25,8 @@ export interface QueuedJob extends Job {
   output?: unknown;
   /** Who is working on it, for the stale-claim sweep. */
   claimedBy?: string;
+  /** The request that queued it, for logs on whichever worker picks it up. */
+  requestId?: string;
 }
 
 export class PgJobQueue {
@@ -88,6 +90,21 @@ export class PgJobQueue {
     await this.pool.query(
       `ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS progress REAL`,
     );
+    /*
+     * The request that queued this job, so a worker's log lines can be joined
+     * to it — and that is the whole reason the column exists rather than the id
+     * simply being logged at enqueue. An async render is accepted by one
+     * process and performed by ANOTHER, possibly on a different machine and
+     * minutes later; without carrying the id through the row there is nothing
+     * connecting "my export failed" to the encode that failed.
+     *
+     * Nullable, like the two above: a job queued by an instance that predates
+     * this column reads back as "no id", which is exactly right and lets a
+     * rolling deploy work in both directions.
+     */
+    await this.pool.query(
+      `ALTER TABLE render_jobs ADD COLUMN IF NOT EXISTS request_id TEXT`,
+    );
   }
 
   async enqueue(
@@ -95,17 +112,19 @@ export class PgJobQueue {
     project: unknown,
     output?: unknown,
     account?: string,
+    requestId?: string,
   ): Promise<Job> {
     await this.ready;
     const res = await this.pool.query(
-      `INSERT INTO render_jobs (id, status, project, output, account)
-       VALUES ($1, 'queued', $2, $3, $4)
+      `INSERT INTO render_jobs (id, status, project, output, account, request_id)
+       VALUES ($1, 'queued', $2, $3, $4, $5)
        RETURNING id, status, created_at, account`,
       [
         id,
         JSON.stringify(project),
         output == null ? null : JSON.stringify(output),
         account ?? null,
+        requestId ?? null,
       ],
     );
     const row = res.rows[0];
@@ -140,7 +159,7 @@ export class PgJobQueue {
          FOR UPDATE SKIP LOCKED
          LIMIT 1
        )
-       RETURNING id, status, project, output, created_at, claimed_by, account`,
+       RETURNING id, status, project, output, created_at, claimed_by, account, request_id`,
       [workerId, String(this.staleMs)],
     );
     if (!res.rows.length) return null;
@@ -153,6 +172,7 @@ export class PgJobQueue {
       output: row.output ?? undefined,
       claimedBy: row.claimed_by ?? undefined,
       account: row.account ?? undefined,
+      requestId: row.request_id ?? undefined,
     };
   }
 
