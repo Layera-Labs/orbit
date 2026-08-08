@@ -1,5 +1,7 @@
 import {
   ScenePlanError,
+  brandOf,
+  logoOverlays,
   assertSceneArrays,
   captionOverlays,
   countWords,
@@ -164,6 +166,7 @@ export function composeListicle(input: ComposeInput): VideoProject {
   const { width, height } = frameSize(plan.aspect);
   const fps = input.fps ?? 30;
   const { startAt, total } = sceneClock(spoken);
+  const brand = brandOf(input.brand);
   const numbers = itemNumbers(plan.scenes.length);
 
   const visualClips: VisualTrackClip[] = plan.scenes.map((_, i) => ({
@@ -219,7 +222,8 @@ export function composeListicle(input: ComposeInput): VideoProject {
       x: 0.24,
       y: 0.2,
       fontSize: numeral,
-      color: '#ffd400',
+      color: brand.accent,
+      ...(brand.fontFamily ? { fontFamily: brand.fontFamily } : {}),
       bold: true,
       align: 'center',
       maxWidth: Math.round(width * 0.2),
@@ -235,7 +239,8 @@ export function composeListicle(input: ComposeInput): VideoProject {
       x: 0.56,
       y: 0.2,
       fontSize: Math.round(numeral * 0.5),
-      color: '#ffffff',
+      color: brand.ink,
+      ...(brand.fontFamily ? { fontFamily: brand.fontFamily } : {}),
       bold: true,
       align: 'center',
       maxWidth: Math.round(width * 0.42),
@@ -249,9 +254,12 @@ export function composeListicle(input: ComposeInput): VideoProject {
       width,
       y: CAPTION_Y,
       layer: 2,
-      highlight: { color: '#ffd400' },
+      color: brand.ink,
+      fontFamily: brand.fontFamily,
+      highlight: { color: brand.accent },
     }),
   );
+  overlays.push(...logoOverlays(input.brand, { width, height, total }));
 
   return createProject({
     width,

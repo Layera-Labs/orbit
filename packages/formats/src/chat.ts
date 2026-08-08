@@ -1,5 +1,7 @@
 import {
   ScenePlanError,
+  brandOf,
+  logoOverlays,
   assertSceneArrays,
   countWords,
   frameSize,
@@ -125,6 +127,7 @@ export function composeChat(input: ComposeInput): VideoProject {
   const { width, height } = frameSize(plan.aspect);
   const fps = input.fps ?? 30;
   const { startAt, total } = sceneClock(spoken);
+  const brand = brandOf(input.brand);
 
   // Dimmed, and held still. The background is not the subject and a Ken-Burns
   // move under a block of text is what makes the text hard to read.
@@ -203,7 +206,9 @@ export function composeChat(input: ComposeInput): VideoProject {
         y,
         width: 0.58,
         height: bubbleH / height,
-        fill: own ? '#2b7cff' : '#2a2a2e',
+        // Your own bubbles carry the brand; theirs stay neutral, because a
+        // thread where both sides are branded reads as one person talking.
+        fill: own ? brand.accent : '#2a2a2e',
         fillOpacity: 0.96,
         cornerRadius: Math.round(bubbleH * 0.32),
         // Only the NEWEST bubble animates in. An older one re-entering every
@@ -224,7 +229,8 @@ export function composeChat(input: ComposeInput): VideoProject {
         x: own ? 0.68 : 0.32,
         y,
         fontSize,
-        color: '#ffffff',
+        color: brand.ink,
+        ...(brand.fontFamily ? { fontFamily: brand.fontFamily } : {}),
         align: 'center',
         maxWidth: Math.round(width * 0.52),
         ...(slot === 0
@@ -233,6 +239,8 @@ export function composeChat(input: ComposeInput): VideoProject {
       });
     }
   });
+
+  overlays.push(...logoOverlays(input.brand, { width, height, total }));
 
   return createProject({
     width,

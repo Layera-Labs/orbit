@@ -315,3 +315,82 @@ describe('chat', () => {
     expect(() => story.validate({ ...story.brief.example, scenes: story.brief.example.scenes.map((s) => ({ ...s, visual: 'a kitchen' })) })).toThrow();
   });
 });
+
+describe.each(FORMATS.map((f) => [f.id, f] as const))('%s — the brand', (_id, f) => {
+  const BRAND = {
+    ink: '#f5f0e8',
+    accent: '#e2574c',
+    fontFamily: 'Bricolage Grotesque',
+    logo: { src: 'logo.png' },
+  } as const;
+
+  it('treats an explicit undefined brand exactly as an absent one', () => {
+    expect(f.compose(inputFor(f, { brand: undefined }))).toEqual(f.compose(inputFor(f)));
+  });
+
+  it('keeps the exact look it shipped with when there is no brand', () => {
+    /*
+     * The guarantee that makes this safe to add, and it has to name the
+     * VALUES. Comparing `brand: undefined` against an absent brand — which is
+     * what this test used to do — only proves those two paths agree; both go
+     * through the same defaults, so a changed default passes it. A mutation
+     * run proved exactly that. Every generation ever run passes no brand at
+     * all, so a default that drifts silently re-styles the back catalogue.
+     */
+    const texts = textOverlaysOf(f.compose(inputFor(f)).overlays);
+    for (const o of texts) {
+      // The accent is a legitimate ink for a numeral; nothing else may drift.
+      expect(['#ffffff', '#ffd400'], `${o.id} is no longer a shipped colour`).toContain(o.color);
+      expect(o.fontFamily, `${o.id} gained a face nobody asked for`).toBeUndefined();
+    }
+    // The shipped accent, wherever a format puts its emphasis.
+    expect(JSON.stringify(f.compose(inputFor(f)).overlays)).toContain('#ffd400');
+  });
+
+  it('puts the brand ink and typeface on every piece of text it draws', () => {
+    const texts = textOverlaysOf(f.compose(inputFor(f, { brand: BRAND })).overlays);
+    expect(texts.length).toBeGreaterThan(0);
+    for (const o of texts) {
+      expect(o.fontFamily, `${o.id} has no brand face`).toBe(BRAND.fontFamily);
+      // The accent is allowed on a numeral; nothing may be left on the old
+      // hardcoded white.
+      expect([BRAND.ink, BRAND.accent]).toContain(o.color);
+    }
+  });
+
+  it('uses the brand accent for emphasis rather than a literal', () => {
+    // Every format emphasises SOMETHING — a lit word, a numeral, your own
+    // bubble. Whichever it is, the colour has to come from the brand, and the
+    // shipped default must be gone.
+    const project = f.compose(inputFor(f, { brand: BRAND }));
+    const json = JSON.stringify(project.overlays);
+    expect(json).toContain(BRAND.accent);
+    expect(json).not.toContain('#ffd400');
+  });
+
+  it('draws the logo over everything, for the whole video', () => {
+    const project = f.compose(inputFor(f, { brand: BRAND }));
+    const logo = project.overlays.find((o) => o.id === 'brand-logo')!;
+    expect(logo.type).toBe('image');
+    expect(logo.start).toBe(0);
+    expect(logo.end).toBe(f.brief.example.scenes.length * 4);
+    // Above every caption and bubble: a watermark under the content is not one.
+    const highest = Math.max(...project.overlays.filter((o) => o.id !== 'brand-logo').map((o) => o.layer ?? 0));
+    expect(logo.layer!).toBeGreaterThan(highest);
+  });
+
+  it('keeps the logo clear of the frame edge and out of the bottom corners', () => {
+    // The bottom sixth is where every platform puts its own UI.
+    const logo = f
+      .compose(inputFor(f, { brand: BRAND }))
+      .overlays.find((o) => o.id === 'brand-logo')! as { x: number; y: number };
+    expect(logo.y).toBeLessThan(0.3);
+    expect(logo.x).toBeGreaterThan(0.5);
+  });
+
+  it('draws no logo when the brand has no mark', () => {
+    const project = f.compose(inputFor(f, { brand: { accent: '#123456' } }));
+    expect(project.overlays.some((o) => o.id === 'brand-logo')).toBe(false);
+  });
+});
+

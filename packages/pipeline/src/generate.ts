@@ -26,7 +26,7 @@
  * real ones.
  */
 import type { CaptionLine, VideoProject } from '@orbit/video/browser';
-import type { SceneVisual, SpokenScene } from './compose.ts';
+import type { BrandKit, SceneVisual, SpokenScene } from './compose.ts';
 import type { Format } from './format.ts';
 import { planScenes, type Brain } from './planner.ts';
 import { captionTextOf, frameSize, type Aspect, type ScenePlan } from './scene-plan.ts';
@@ -90,6 +90,14 @@ export interface GenerateRequest {
   notes?: string;
   /** An audio src for the bed, already resolved. */
   music?: string;
+  /**
+   * The customer's ink, accent, typeface and mark.
+   *
+   * Threaded straight through to `compose`, exactly like `music`: the runner
+   * has no opinion about it, and a format is the only thing that knows where a
+   * brand's accent belongs.
+   */
+  brand?: BrandKit;
 }
 
 export interface GenerateResult {
@@ -257,6 +265,7 @@ export async function generate(
     visuals: resolved.map((r): SceneVisual => ({ src: r.src, type: r.type })),
     ...(req.music ? { music: req.music } : {}),
     ...(filler ? { filler } : {}),
+    ...(req.brand ? { brand: req.brand } : {}),
   });
 
   step('render');

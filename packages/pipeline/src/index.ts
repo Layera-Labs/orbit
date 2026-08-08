@@ -31,8 +31,10 @@ export {
   musicTracks,
   narrationClips,
   sceneClock,
+  brandOf,
+  logoOverlays,
 } from './compose.ts';
-export type { CaptionStyle } from './compose.ts';
+export type { BrandKit, BrandLogo, CaptionStyle } from './compose.ts';
 export {
   InMemoryStepLog,
   runSequence,

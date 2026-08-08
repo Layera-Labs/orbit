@@ -1,5 +1,7 @@
 import {
   ScenePlanError,
+  brandOf,
+  logoOverlays,
   assertSceneArrays,
   captionOverlays,
   countWords,
@@ -151,6 +153,7 @@ export function composeSplit(input: ComposeInput): VideoProject {
   const { width, height } = frameSize(plan.aspect);
   const fps = input.fps ?? 30;
   const { startAt, total } = sceneClock(spoken);
+  const brand = brandOf(input.brand);
 
   const top: VisualTrackClip[] = plan.scenes.map((_, i) => ({
     id: `scene-${i}`,
@@ -199,13 +202,18 @@ export function composeSplit(input: ComposeInput): VideoProject {
    * so 0.66 is comfortably clear of it and still well above the platform UI in
    * the bottom sixth.
    */
-  const overlays = captionOverlays(plan, spoken, startAt, {
-    fontSize: Math.round(height * 0.04),
-    width,
-    y: 0.66,
-    widthFraction: 0.9,
-    highlight: { color: '#ffd400' },
-  });
+  const overlays = [
+    ...captionOverlays(plan, spoken, startAt, {
+      fontSize: Math.round(height * 0.04),
+      width,
+      y: 0.66,
+      widthFraction: 0.9,
+      color: brand.ink,
+      fontFamily: brand.fontFamily,
+      highlight: { color: brand.accent },
+    }),
+    ...logoOverlays(input.brand, { width, height, total }),
+  ];
 
   return createProject({
     width,

@@ -14,6 +14,7 @@
 import {
   createProject,
   type AudioTrackClip,
+  type ImageOverlay,
   type CaptionLine,
   type TextOverlay,
   type Track,
@@ -70,6 +71,8 @@ export interface ComposeInput {
    * over the narration.
    */
   filler?: string;
+  /** The customer's ink, accent, typeface and mark. Absent means the defaults. */
+  brand?: BrandKit;
 }
 
 /**
@@ -80,6 +83,107 @@ export interface ComposeInput {
  * invisible in the editor and obvious the moment it is posted.
  */
 const CAPTION_Y = 0.78;
+
+/**
+ * A brand, as the RENDERER needs it.
+ *
+ * Deliberately not `OrbitTheme`, which is the editor chrome's CSS variables and
+ * has nothing to do with what comes out of ffmpeg. Sharing them would tie the
+ * look of somebody's video to the look of the tool they made it in, and the two
+ * move for entirely different reasons.
+ *
+ * Four fields, and the restraint is the point. A brand kit that can set every
+ * value in every format is a theme engine, and a format stops being a format
+ * once its author cannot predict what it will look like. These are the things
+ * that are genuinely the customer's: their ink, their one accent, their
+ * typeface, their mark.
+ */
+export interface BrandKit {
+  /** Caption ink. Defaults to white, which is what every format shipped with. */
+  ink?: string;
+  /**
+   * The ONE colour used for emphasis — the lit word, the numeral, your own
+   * bubbles. One rather than a palette because a format decides WHERE emphasis
+   * goes and a brand decides what colour it is; two accents means the format
+   * has to choose between them, and it has no basis to.
+   */
+  accent?: string;
+  /**
+   * Typeface for every piece of text a format draws.
+   *
+   * Resolved by the render service through `google-fonts.ts`, the same path a
+   * hand-made project's caption font takes — so a family it cannot fetch warns
+   * (`font-missing`) and renders in a substitute rather than failing. A
+   * self-hosted face has no path here yet and would need one.
+   */
+  fontFamily?: string;
+  /** A watermark, drawn over everything for the whole video. */
+  logo?: BrandLogo;
+}
+
+export interface BrandLogo {
+  /** Image source, resolved like any other clip `src`. */
+  src: string;
+  /** Default `'top-right'`: the bottom corners are where platform UI lands. */
+  corner?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
+  /** Width as a fraction of the frame. Default 0.14. */
+  scale?: number;
+  /** Default 0.85 — present, not shouting. */
+  opacity?: number;
+}
+
+/** The brand with every default filled in, so a format never writes `??`. */
+export function brandOf(brand?: BrandKit): Required<Omit<BrandKit, 'logo'>> & {
+  logo?: BrandLogo;
+} {
+  return {
+    ink: brand?.ink ?? '#ffffff',
+    accent: brand?.accent ?? '#ffd400',
+    // Empty means "say nothing", which is what every format did before a brand
+    // existed: the overlay carries no `fontFamily` and the renderer picks.
+    fontFamily: brand?.fontFamily ?? '',
+    ...(brand?.logo ? { logo: brand.logo } : {}),
+  };
+}
+
+/**
+ * The watermark, as an overlay, or nothing.
+ *
+ * An `ImageOverlay` rather than a clip on a track: it belongs to the whole
+ * video, not to a scene, and the overlay stack is already the layer that
+ * composites last. `layer: 9` puts it over every caption and bubble — a
+ * watermark under the content is not a watermark.
+ */
+export function logoOverlays(
+  brand: BrandKit | undefined,
+  frame: { width: number; height: number; total: number },
+): ImageOverlay[] {
+  const logo = brand?.logo;
+  if (!logo?.src) return [];
+  const w = logo.scale ?? 0.14;
+  // Square box: the real aspect is unknown here and `imageOverlayAsClip` fits
+  // inside the rect, so a wide mark simply uses less of the height.
+  const h = (w * frame.width) / frame.height;
+  const inset = 0.06;
+  const corner = logo.corner ?? 'top-right';
+  const right = corner.endsWith('right');
+  const bottom = corner.startsWith('bottom');
+  return [
+    {
+      id: 'brand-logo',
+      type: 'image',
+      src: logo.src,
+      start: 0,
+      end: frame.total,
+      layer: 9,
+      x: right ? 1 - inset - w / 2 : inset + w / 2,
+      y: bottom ? 1 - inset - h / 2 : inset + h / 2,
+      width: w,
+      height: h,
+      opacity: logo.opacity ?? 0.85,
+    },
+  ];
+}
 
 /**
  * The parts every archetype needs, so four formats cannot each invent them.
@@ -160,6 +264,8 @@ export interface CaptionStyle {
   /** Fraction of the width a caption may occupy before it wraps. */
   widthFraction?: number;
   color?: string;
+  /** Typeface, from the brand. Empty or absent means the renderer decides. */
+  fontFamily?: string;
   /** Light the word being spoken. Needs per-word timings to do anything. */
   highlight?: WordHighlight;
   layer?: number;
@@ -234,11 +340,18 @@ export function composeStory(input: ComposeInput): VideoProject {
 
   const narration = narrationClips(spoken, startAt);
 
-  const overlays = captionOverlays(plan, spoken, startAt, {
-    fontSize: Math.round(height * 0.045),
-    width,
-    y: CAPTION_Y,
-  });
+  const brand = brandOf(input.brand);
+  const overlays = [
+    ...captionOverlays(plan, spoken, startAt, {
+      fontSize: Math.round(height * 0.045),
+      width,
+      y: CAPTION_Y,
+      color: brand.ink,
+      fontFamily: brand.fontFamily,
+      highlight: { color: brand.accent },
+    }),
+    ...logoOverlays(input.brand, { width, height, total }),
+  ];
 
   return createProject({
     width,
@@ -272,6 +385,7 @@ function caption(
     ...(o.layer != null ? { layer: o.layer } : {}),
     fontSize: o.fontSize,
     color: o.color ?? '#ffffff',
+    ...(o.fontFamily ? { fontFamily: o.fontFamily } : {}),
     ...(o.highlight ? { highlight: o.highlight } : {}),
     align: 'center',
     bold: true,
