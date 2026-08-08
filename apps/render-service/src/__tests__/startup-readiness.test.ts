@@ -82,6 +82,39 @@ describe('with a database it cannot reach', () => {
     expect(named).toContain('ledger_entries');
     expect(named).toContain('users');
     expect(named).toContain('projects');
+    expect(named).toContain('generation_jobs');
+  });
+
+  /*
+   * The failure mode that made this worth its own test.
+   *
+   * Every Pg store kicks `init()` from its constructor and holds the promise;
+   * the readiness list is what ATTACHES to it. So a store built outside that
+   * list has a rejection with no handler — which on Node 22 terminates the
+   * process, taking the service down by the least controlled route available
+   * instead of failing the deploy where someone is watching, and taking a test
+   * run with it besides.
+   *
+   * It shipped exactly once: the generation queue was built twice, one instance
+   * to report readiness and a second, unwatched one for the routes. Nothing
+   * asserted here caught it, because the readiness list still contained a
+   * plausible `generation_jobs` entry — from the copy nobody used.
+   */
+  it('leaves no store rejection unhandled', async () => {
+    const loose: unknown[] = [];
+    const catcher = (e: unknown) => loose.push(e);
+    process.on('unhandledRejection', catcher);
+    try {
+      process.env.DATABASE_URL = UNREACHABLE;
+      const { ready } = await start();
+      await ready;
+      // Past the microtask queue: an unattached rejection is reported at the
+      // end of a turn, so asserting immediately would pass either way.
+      await new Promise((r) => setTimeout(r, 50));
+      expect(loose).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', catcher);
+    }
   });
 
   /*
