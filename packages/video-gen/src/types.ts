@@ -47,7 +47,7 @@ export interface TTSRequest {
  * Deliberately carries NO money. A price belongs to the operator's contract,
  * not to this package — it differs per plan, changes without warning, and a
  * confident-looking wrong number in a log is worse than an absent one. What is
- * recorded here is measured fact; `apps/render-service` multiplies it by rates
+ * recorded here is measured fact; `services/render` multiplies it by rates
  * the operator states.
  */
 export interface ProviderUsage {

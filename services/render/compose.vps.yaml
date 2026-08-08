@@ -1,13 +1,13 @@
 # A single-box deployment: the service, a database, and TLS. For one VPS.
 #
 #   cd /opt/orbit
-#   docker compose -f apps/render-service/compose.vps.yaml up -d --build
+#   docker compose -f services/render/compose.vps.yaml up -d --build
 #
 # Run it from the REPO ROOT — the build context is `../..` because the service
 # imports workspace packages by source and cannot be built from its own
 # directory alone.
 #
-# BUT THE ENV FILE LIVES NEXT TO THIS FILE, at apps/render-service/.env, not at
+# BUT THE ENV FILE LIVES NEXT TO THIS FILE, at services/render/.env, not at
 # the repo root. Compose reads `.env` from its PROJECT DIRECTORY, which defaults
 # to the directory holding the compose file — not the directory you ran the
 # command from. A root .env is silently ignored and the stack fails on the first
@@ -37,7 +37,7 @@ services:
   render:
     build:
       context: ../..
-      dockerfile: apps/render-service/Dockerfile
+      dockerfile: services/render/Dockerfile
     # Bound to LOOPBACK, not 0.0.0.0. A proxy on this box reaches it; the
     # internet cannot, so nobody can skip TLS by asking for port 8787 directly.
     # The `:8787:8787` form without the address prefix would publish it to the
@@ -173,7 +173,7 @@ services:
   # something on them — aaPanel, Plesk, an existing nginx. Enable it only on a
   # box with nothing else serving HTTP:
   #
-  #   docker compose -f apps/render-service/compose.vps.yaml --profile caddy up -d --build
+  #   docker compose -f services/render/compose.vps.yaml --profile caddy up -d --build
   #
   # Otherwise leave it off and point the existing proxy at 127.0.0.1:8787. Two
   # of its settings are not optional there: a body limit of at least 512 MB

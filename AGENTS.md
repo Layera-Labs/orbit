@@ -2,12 +2,22 @@
 
 ## Project Structure & Module Organization
 
-Orbit is a pnpm/Turbo TypeScript monorepo. Workspace entries live under `packages/*` and `apps/*`.
+Orbit is a pnpm/Turbo TypeScript monorepo, laid out by what a directory IS rather
+than by what it is made of:
+
+| Directory | Holds |
+|---|---|
+| `packages/*` | The SDK. Everything published, or about to be. |
+| `services/*` | Long-running servers. Deployed, not imported. |
+| `apps/*` | Shipped products built on the SDK — `web`, and `mobile`. |
+| `examples/*` | Small demos, one idea each. Not products. |
+
+`apps/mobile` is excluded from the pnpm workspace and installs with npm.
 
 - `packages/core`: canvas engine, scene graph, renderer, history, audio/video utilities.
 - `packages/react` and `packages/next`: React and Next.js editor wrappers.
 - `packages/ui`, `packages/shared`, `packages/assets`, `packages/effects`, `packages/agentic`: reusable UI, types, asset providers, effects, and AI workflow modules.
-- `apps/demo`: Vite React demo. `apps/demo-next`: Next.js demo.
+- `examples/demo`: Vite React demo. `examples/demo-next`: Next.js demo.
 - `docs/`: API and guide markdown. Tests are colocated in `src/__tests__/` with `*.test.ts` names.
 
 ## Build, Test, and Development Commands

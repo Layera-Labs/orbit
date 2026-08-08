@@ -28,12 +28,18 @@ Source-of-truth docs: [docs/roadmap.md](docs/roadmap.md),
 
 pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
 
+**Four top-level directories, split by what a thing IS** (2026-08-08): `packages/`
+is the SDK, `services/` is what gets deployed, `apps/` is the shipped products,
+`examples/` is small demos. `apps/render-service` became `services/render` and the
+four demos moved to `examples/` in the same change — the container's build context
+is still the repo root, so nothing about the Dockerfile's depth changed.
+
 | Path | Role |
 |---|---|
 | `apps/mobile` | **The video editor app.** Expo SDK 55 / RN 0.83 / React 19 / Skia dev build. |
-| `apps/render-service` | Express service: `/v1/upload`, `/v1/render`, AI gen endpoints, auth, billing. |
+| `services/render` | Express service: `/v1/upload`, `/v1/render`, AI gen endpoints, auth, billing. |
 | `apps/web` | **The web product.** Next 14 / React 18. Image editor + AI studio + video editor. |
-| `apps/studio`, `apps/demo`, `apps/demo-next`, `apps/webview-host` | Web demos for the SDK. |
+| `examples/studio`, `examples/demo`, `examples/demo-next`, `examples/webview-host` | Web demos for the SDK. |
 | `packages/video` | **Canonical video engine** — ffmpeg arg builder + `renderProject`, effect math. |
 | `packages/video-gen`, `packages/video-ai` | AI providers (ElevenLabs TTS, image/video gen). |
 | `packages/model` / `render` / `providers` / `editor` | v2 web SDK: Valtio doc model → react-konva renderer → provider registry → React UI. |
@@ -1063,7 +1069,7 @@ pnpm --filter @orbit/studio dev # v2 demo
 ## Known gaps / deliberate non-features
 
 - **Not production-ready**, but most of the blockers closed 2026-07-28/29:
-  - **Storage has a seam** — `apps/render-service/src/storage.ts`. Local disk (serve
+  - **Storage has a seam** — `services/render/src/storage.ts`. Local disk (serve
     from `/files`) is still the default; set `ORBIT_S3_BUCKET` + keys and BOTH uploads and
     rendered output go to any S3-compatible bucket instead. SigV4 is hand-rolled (no 2MB
     AWS SDK for one PUT) and pinned to AWS's own published example in `storage.test.ts`.
@@ -1092,14 +1098,14 @@ pnpm --filter @orbit/studio dev # v2 demo
     as a verdict rather than a dump), `health`, `deploy` (pull, rebuild, wait, print the
     build that answered), `verify`, `logs`, `sh`. It resolves the compose file from its
     OWN path, through symlinks, so it works from anywhere: `docker compose -f
-    apps/render-service/compose.vps.yaml …` is relative and failed twice for exactly that
+    services/render/compose.vps.yaml …` is relative and failed twice for exactly that
     reason. `caps` excludes `custom` from its count for the same reason
     `parseXfadeTokens` does, so it cannot disagree with `/health` by one. Symlink it into
     `/usr/local/bin` on the box and the path prefix goes too.
   - **Deployable** — `Dockerfile` + `compose.yaml` (Postgres + MinIO). Built from the repo
     root because it is a pnpm workspace. Note `Dockerfile.dockerignore`: Docker reads
     `<context>/.dockerignore` and the context is the repo root, so a `.dockerignore` inside
-    `apps/render-service/` is silently ignored and `.env` lands in the image.
+    `services/render/` is silently ignored and `.env` lands in the image.
     `pnpm prune --prod` does NOT work here — it strips the per-package `node_modules` a
     workspace resolves through; install with `--prod --filter` a second time instead.
   - **Shutdown is a real shutdown** (2026-07-29) — `main.ts` owns SIGTERM/SIGINT and

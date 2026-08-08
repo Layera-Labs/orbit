@@ -299,8 +299,8 @@ These were considered out of scope for the initial MVP and can be added in futur
 | `@orbit/agentic` | ✅ Stable | ~400 |
 | `@orbit/effects` | ✅ Stable | ~300 |
 | `@orbit/assets` | ✅ Stable | ~400 |
-| `apps/demo` | ✅ Stable | ~100 |
-| `apps/demo-next` | ✅ Stable | ~100 |
+| `examples/demo` | ✅ Stable | ~100 |
+| `examples/demo-next` | ✅ Stable | ~100 |
 
 **Total:** ~13,500 lines of TypeScript
 
@@ -316,7 +316,7 @@ These were considered out of scope for the initial MVP and can be added in futur
 | Testing | ✅ Complete | 203 unit tests, 17 test files, coverage reporting configured |
 | Documentation | ✅ Complete | VitePress docs site with 11 pages |
 | Build | ✅ Passing | All 10 packages build successfully |
-| Demos | ✅ Ready | Both `apps/demo` (Vite/React) and `apps/demo-next` (Next.js) build and run |
+| Demos | ✅ Ready | Both `examples/demo` (Vite/React) and `examples/demo-next` (Next.js) build and run |
 
 ---
 
@@ -324,14 +324,14 @@ These were considered out of scope for the initial MVP and can be added in futur
 
 ### React Demo (Vite)
 ```bash
-cd apps/demo
+cd examples/demo
 pnpm dev
 # Opens at http://localhost:5173
 ```
 
 ### Next.js Demo
 ```bash
-cd apps/demo-next
+cd examples/demo-next
 pnpm dev
 # Opens at http://localhost:3000
 ```
@@ -464,7 +464,7 @@ interface VectorBoardLayer {
 | Testing | ✅ Complete | 203 unit tests, 17 test files, coverage reporting configured |
 | Documentation | ✅ Complete | VitePress docs site with 11 pages |
 | Build | ✅ Passing | All 10 packages build successfully |
-| Demos | ✅ Ready | Both `apps/demo` (Vite/React) and `apps/demo-next` (Next.js) build and run |
+| Demos | ✅ Ready | Both `examples/demo` (Vite/React) and `examples/demo-next` (Next.js) build and run |
 
 ---
 

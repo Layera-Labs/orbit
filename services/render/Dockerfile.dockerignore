@@ -4,7 +4,7 @@
 # — so a `.dockerignore` sitting next to this Dockerfile is silently ignored.
 # BuildKit's per-Dockerfile convention is `<dockerfile-name>.dockerignore`, and
 # it is the only form that works for a Dockerfile outside its own context.
-# Getting this wrong is not cosmetic: it put `apps/render-service/.env`,
+# Getting this wrong is not cosmetic: it put `services/render/.env`,
 # secrets and all, straight into the image.
 #
 # Paths are relative to the REPO ROOT, since that is the build context.
@@ -22,10 +22,10 @@
 # The other apps. The service imports `packages/*`, never these.
 apps/mobile
 apps/web
-apps/studio
-apps/demo
-apps/demo-next
-apps/webview-host
+examples/studio
+examples/demo
+examples/demo-next
+examples/webview-host
 
 .git
 .github

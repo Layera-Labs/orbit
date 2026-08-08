@@ -6,7 +6,7 @@
 # container will run this.
 #
 # Built from the REPO ROOT, not this directory:
-#   docker build -f apps/render-service/Dockerfile -t orbit-render .
+#   docker build -f services/render/Dockerfile -t orbit-render .
 # The service imports workspace packages (@orbit/video, @orbit/billing, …) by
 # source, so it needs the whole pnpm workspace present to install and build.
 
@@ -24,7 +24,7 @@
 # since the VPS is amd64 anyway.
 #
 # To run the image locally on Apple silicon instead:
-#   docker build --build-arg PLATFORM=linux/arm64 -f apps/render-service/Dockerfile .
+#   docker build --build-arg PLATFORM=linux/arm64 -f services/render/Dockerfile .
 ARG PLATFORM=linux/amd64
 
 # ---- build ------------------------------------------------------------------
@@ -44,11 +44,11 @@ RUN corepack enable
 # each one compiles against tsc's defaults — ES5, no module resolution — and
 # fails on the workspace's own type definitions.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.json ./
-COPY apps/render-service/package.json apps/render-service/
+COPY services/render/package.json services/render/
 COPY packages packages
 RUN pnpm install --frozen-lockfile --filter @orbit/render-service...
 
-COPY apps/render-service apps/render-service
+COPY services/render services/render
 RUN pnpm --filter @orbit/render-service... build
 
 # Re-link, production only.
@@ -84,7 +84,7 @@ ENV PORT=8787
 
 COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/packages packages
-COPY --from=build /app/apps/render-service apps/render-service
+COPY --from=build /app/services/render services/render
 
 # A writable home for a mounted volume, owned by the user the service runs as.
 #
@@ -107,4 +107,4 @@ EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8787)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-CMD ["node", "apps/render-service/dist/main.js"]
+CMD ["node", "services/render/dist/main.js"]

@@ -37,6 +37,10 @@ render service that does the actual encoding with ffmpeg.
 
 A pnpm + Turbo TypeScript monorepo. Node >= 20, pnpm 10.
 
+Four top-level directories, split by what a thing **is**: `packages/` is the SDK,
+`services/` is what gets deployed, `apps/` is the shipped products, `examples/` is
+small demos.
+
 | Path | What it is |
 |---|---|
 | `packages/video` | **The canonical video engine.** ffmpeg arg builder, `renderProject`, and all effect maths. |
@@ -45,10 +49,10 @@ A pnpm + Turbo TypeScript monorepo. Node >= 20, pnpm 10.
 | `packages/video-gen` · `video-ai` | AI providers — ElevenLabs TTS + transcription, Runway, Replicate, mock. |
 | `packages/auth` · `billing` | Four auth adapters plus guest tokens; a credit ledger with hold/settle/release. |
 | `packages/core` · `react` · `next` · `ui` · `shared` · `assets` · `effects` · `agentic` | The v1 SDK. Legacy, still builds, still used by the demos. |
-| `apps/render-service` | Express: upload, render, generation, auth, billing, storage. |
+| `services/render` | Express: upload, render, generation, auth, billing, storage. |
 | `apps/web` | The web product — one editor over the SDK, plus an AI studio. Next.js 14. |
 | `apps/mobile` | Native video editor. Expo SDK 55 / RN 0.83 / React 19 / Skia. **Outside the pnpm workspace** — see below. |
-| `apps/studio` · `demo` · `demo-next` · `webview-host` | SDK demos. |
+| `examples/studio` · `demo` · `demo-next` · `webview-host` | SDK demos. |
 
 ## The one idea worth knowing
 
@@ -300,7 +304,7 @@ Over HTTP, the same thing is `POST /v1/generate` → `202 {id}` → poll
 ## The render service
 
 ```bash
-cd apps/render-service && cp .env.example .env
+cd services/render && cp .env.example .env
 docker compose up
 ```
 

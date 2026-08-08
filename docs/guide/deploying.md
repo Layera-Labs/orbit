@@ -7,7 +7,7 @@ There are three deployable pieces and they are independent:
 
 | Piece | What it is | Where it runs |
 |---|---|---|
-| `apps/render-service` | Express + ffmpeg. Auth, credits, uploads, renders, AI. | A container. Not serverless — see below. |
+| `services/render` | Express + ffmpeg. Auth, credits, uploads, renders, AI. | A container. Not serverless — see below. |
 | `apps/web` | Next 14. The editor and AI studio. | Vercel, or `next start` anywhere. |
 | `apps/mobile` | Expo / React Native. | EAS build → TestFlight / Play internal. |
 
@@ -28,7 +28,7 @@ function platform survives any of those. Use a container.
 # From the REPO ROOT — the service imports workspace packages by source and
 # needs the whole pnpm workspace to install.
 ORBIT_JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))") \
-  docker compose -f apps/render-service/compose.yaml up --build
+  docker compose -f services/render/compose.yaml up --build
 ```
 
 That compose file is the **reference for what the service needs**, not a
@@ -38,10 +38,10 @@ a public IP) use `compose.vps.yaml` instead, which adds Postgres, a volume for
 media and renders, and Caddy for automatic HTTPS:
 
 ```bash
-docker compose -f apps/render-service/compose.vps.yaml up -d --build
+docker compose -f services/render/compose.vps.yaml up -d --build
 ```
 
-Its variables go in **`apps/render-service/.env`**, next to the compose file —
+Its variables go in **`services/render/.env`**, next to the compose file —
 *not* the repo root, even though that is where you run the command. Compose
 reads `.env` from its project directory, which defaults to wherever the compose
 file lives. A root `.env` is silently ignored, and the failure names a variable
@@ -198,7 +198,7 @@ mail should carry `https://your-service/reset?token=…`.
 
 ### Everything else
 
-`apps/render-service/.env.example` documents every variable with the reasoning.
+`services/render/.env.example` documents every variable with the reasoning.
 The ones most often wanted:
 
 - `RUNWAY_API_TOKEN`, `ELEVENLABS_API_KEY` — generation and voice. Absent, those

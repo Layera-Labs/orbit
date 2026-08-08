@@ -1,6 +1,6 @@
 # A runnable deployment, and the reference for what the service actually needs.
 #
-#   docker compose -f apps/render-service/compose.yaml up --build
+#   docker compose -f services/render/compose.yaml up --build
 #
 # Run it from the repo root: the build context is `..`/`..` because the service
 # is part of a pnpm workspace and cannot be built from its own directory alone.
@@ -8,7 +8,7 @@ services:
   render:
     build:
       context: ../..
-      dockerfile: apps/render-service/Dockerfile
+      dockerfile: services/render/Dockerfile
     ports:
       - "8787:8787"
     environment:

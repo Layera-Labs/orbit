@@ -2,7 +2,7 @@ import process from 'node:process';
 import { createServer } from './server.js';
 import { logError, logInfo } from './logging.js';
 
-// Load `apps/render-service/.env` (gitignored) if present, so the developer can
+// Load `services/render/.env` (gitignored) if present, so the developer can
 // keep REPLICATE_API_TOKEN etc. in a file instead of exporting it each run. Uses
 // Node's built-in loader; a missing file is fine (rely on the ambient env).
 try {

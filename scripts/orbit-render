@@ -3,7 +3,7 @@
 #
 # Every command here was, at some point, a long line pasted into a VPS shell —
 # and twice it failed for the same reason: `docker compose -f
-# apps/render-service/compose.vps.yaml` is relative, so it only works from the
+# services/render/compose.vps.yaml` is relative, so it only works from the
 # repo root and says "no such file or directory" everywhere else. So the FIRST
 # thing this does is find the repo from its own location. Where you run it from
 # stops mattering, which is the entire point of it existing.
@@ -36,7 +36,7 @@ while [ -L "$SELF" ]; do
   esac
 done
 ROOT=$(cd "$(dirname "$SELF")/.." && pwd)
-COMPOSE="$ROOT/apps/render-service/compose.vps.yaml"
+COMPOSE="$ROOT/services/render/compose.vps.yaml"
 SERVICE=render
 
 [ -f "$COMPOSE" ] || { echo "no compose file at $COMPOSE" >&2; exit 1; }

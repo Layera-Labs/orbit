@@ -188,7 +188,7 @@ async function main(): Promise<void> {
       'ELEVENLABS_API_KEY is not set. This spike exists to measure REAL provider\n' +
         'calls, so it refuses to run against a mock — a fabricated number is worse\n' +
         'than no number, because pricing would be built on it.\n\n' +
-        '  export $(grep -E "^ELEVENLABS_API_KEY=" apps/render-service/.env | xargs)\n',
+        '  export $(grep -E "^ELEVENLABS_API_KEY=" services/render/.env | xargs)\n',
     );
     process.exit(2);
   }

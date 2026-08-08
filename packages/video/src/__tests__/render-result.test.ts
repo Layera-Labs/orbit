@@ -3,7 +3,7 @@
  *
  * It used to resolve with `opts.outputPath` — the string the caller had just
  * passed in. So the return value carried no information at all, and both real
- * callers (`apps/render-service/src/server.ts`, `packages/video-ai/src/agent.ts`)
+ * callers (`services/render/src/server.ts`, `packages/video-ai/src/agent.ts`)
  * discarded it. `RenderResult` replaces it with the two facts a caller cannot
  * get for free.
  *

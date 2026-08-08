@@ -18,7 +18,7 @@ const pkgDir = (name) => dirname(require.resolve(`${name}/package.json`));
  * `packages/editor` and `packages/render` carry konva/react-konva in
  * devDependencies so their own builds work, which under pnpm creates real
  * directories that can win resolution and give us two Konva instances.
- * `apps/studio/vite.config.ts` solves the same problem with Vite's `dedupe`.
+ * `examples/studio/vite.config.ts` solves the same problem with Vite's `dedupe`.
  *
  * `react` and `react-dom` are deliberately NOT in this list. Next resolves them
  * through export conditions the app must not override — the server needs the
@@ -121,7 +121,7 @@ export default {
    */
   distDir: process.env.NEXT_DIST_DIR || '.next',
   // NOT laziness: StrictMode's dev double-mount races Konva/ResizeObserver
-  // imperative setup (zoom-to-fit). apps/studio/src/main.tsx omits it for the
+  // imperative setup (zoom-to-fit). examples/studio/src/main.tsx omits it for the
   // same reason.
   reactStrictMode: false,
   transpilePackages: [
