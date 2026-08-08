@@ -1217,6 +1217,74 @@ pnpm --filter @orbit/studio dev # v2 demo
   them and silently retiming someone's captions is worse than a player stacking two lines.
 - Story and some editor preferences are incomplete.
 
+## TODO: the repo split (decided 2026-08-08, not started)
+
+**Orbit becomes the SDK repo and nothing else.** Two products move out and this
+repo keeps only the packages, the render service, the web app and small examples.
+
+| Today | Becomes |
+|---|---|
+| `apps/mobile` — the full VN-style video editor | its own repo |
+| Shortspilot (`~/Github/shortspilot`, plan docs only) | its own repo |
+| — | `examples/` here: one small app per feature, not a product |
+
+**The examples are the point of the split, not a consolation prize.** `apps/mobile`
+is 40k lines of product and is a terrible thing to read to learn how to place a
+clip. What belongs here instead is a set of minimal apps — one that renders a
+timeline, one that does captions, one that does transitions, one that exports —
+each showing a single feature end to end with nothing else in the way. That is
+what an SDK's repo is for, and it is also what proves the published packages
+actually work from outside the workspace.
+
+### The ordering is forced, and it is the whole plan
+
+**Publish `@orbit/*` FIRST. Nothing moves out before that.**
+
+The reason is measured, not stylistic. `apps/mobile` cannot import `@orbit/video`
+(it is outside the pnpm workspace), so it hand-mirrors ~10 modules — `curve`,
+`audio-fade`, `captions`, `canvasFrame`, `transform`, `gradient`, `overlay-clip`,
+`transitions`, `element-anim`, `xfade` — and **12 test files keep those mirrors
+honest by importing the canonical copy at `../../../../../packages/video/src/…`**.
+That relative path is the only thing standing between a mirror and silent drift,
+and it is exactly what a repo boundary deletes.
+
+So there are two possible orders and only one of them is safe:
+
+1. **Publish, then move.** The mirrors re-point at `@orbit/video/browser` and the
+   parity tests survive as-is, now testing against the artifact real consumers get
+   — which is strictly better than testing against a sibling directory.
+2. Move, then publish. The 12 parity tests are deleted or stubbed, and the
+   dual-render invariant — the thing this engine's correctness rests on — stops
+   being enforced on the mobile side for however long that takes. This is how the
+   invariant dies, quietly, and the symptom is a preview that disagrees with the
+   exported file months later.
+
+Do (1). Concretely, [docs/roadmap.md](docs/roadmap.md)'s **Phase 4 (Publish) moves
+ahead of the Shortspilot work**, which is a real reordering and the main scheduling
+consequence of this decision.
+
+### Sequence
+
+1. **Phase 4 (publish) from the plan** — `private: true` audit, versions aligned,
+   `publishConfig`, React 19 peers checked rather than claimed, `npm pack` installed
+   into a scratch Vite app and a scratch Next app.
+2. **Beta-open this repo publicly** once the packages install clean from outside.
+3. **Move `apps/mobile` out.** Its mirrors become imports of the published package;
+   the 12 parity tests move with it and keep running against the tarball. Keep the
+   Vela design system, `VIcon`, the vendored `model/` — that is all product.
+4. **Build `examples/`** from what the move leaves behind: the smallest app per
+   feature, each one a thing you can read in a sitting.
+5. **Shortspilot as its own repo**, consuming published `@orbit/*` like any other
+   customer. This is a REVERSAL of `shortspilot-build-plan.md` §2, which recommends
+   in-monorepo — and the reversal is sound rather than an override, because that
+   recommendation rested on "every `@orbit/*` package is private and unpublished".
+   Publishing removes its premise. Do not re-litigate §2 without noticing that.
+6. Then multiple products on one published SDK, which is the actual goal.
+
+**What this makes non-negotiable:** the moment mobile and Shortspilot are outside,
+a breaking change to `@orbit/video` is a release, not a refactor. Semver starts
+mattering the day step 2 happens, not the day someone complains.
+
 ## Working style
 
 - Commits: short imperative subjects with a scope, e.g. `mobile: refine AI studio UI`,
