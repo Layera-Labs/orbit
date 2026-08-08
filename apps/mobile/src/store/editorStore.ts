@@ -154,6 +154,14 @@ export type Screen =
    * on a screen with nothing on it and no obvious first move.
    */
   | "pick"
+  /**
+   * Describing a video rather than assembling one.
+   *
+   * Not a sheet over another screen: a generation runs for minutes and the
+   * result is a whole project, so it needs somewhere it can be left and come
+   * back to. `generateStore` holds the job, so leaving here does not abandon it.
+   */
+  | "generate"
   | "editor";
 /** Editor sheets/panels — mirrors Vela's `panel` state machine. */
 export type EditorPanel =

@@ -6,6 +6,7 @@ import { BottomNav } from '../components/BottomNav';
 import { PrimaryButton } from '../components/OrbitUi';
 import { OrbitMark } from '../components/OrbitMark';
 import { VIcon, type VIconName } from '../components/VIcon';
+import { AI_GRADIENT } from '../components/aiShimmer';
 import { font, vela } from '../constants';
 import { openAi } from '../store/aiActions';
 import { useAuth } from '../store/authStore';
@@ -86,7 +87,7 @@ export function AiStudioScreen() {
         </View>
 
         {authed ? (
-          <SignedInStudio email={user?.email} credits={credits} onImage={() => launch('aigen', { mode: 'image' })} onVideo={() => launch('aigen', { mode: 'video', source: 'text' })} onPhotoVideo={() => launch('aigen', { mode: 'video', source: 'photo' })} onVoice={() => launch('tts')} onHistory={openHistory} />
+          <SignedInStudio email={user?.email} credits={credits} onGenerate={() => go('generate')} onImage={() => launch('aigen', { mode: 'image' })} onVideo={() => launch('aigen', { mode: 'video', source: 'text' })} onPhotoVideo={() => launch('aigen', { mode: 'video', source: 'photo' })} onVoice={() => launch('tts')} onHistory={openHistory} />
         ) : (
           <>
             <View style={styles.intro}>
@@ -121,7 +122,7 @@ export function AiStudioScreen() {
   );
 }
 
-function SignedInStudio({ email, credits, onImage, onVideo, onPhotoVideo, onVoice, onHistory }: { email?: string; credits: number | null; onImage: () => void; onVideo: () => void; onPhotoVideo: () => void; onVoice: () => void; onHistory: () => void }) {
+function SignedInStudio({ email, credits, onGenerate, onImage, onVideo, onPhotoVideo, onVoice, onHistory }: { email?: string; credits: number | null; onGenerate: () => void; onImage: () => void; onVideo: () => void; onPhotoVideo: () => void; onVoice: () => void; onHistory: () => void }) {
   const actions: Array<{
     label: string;
     detail: string;
@@ -166,6 +167,24 @@ function SignedInStudio({ email, credits, onImage, onVideo, onPhotoVideo, onVoic
           <Text style={styles.creditText}>{credits ?? '—'}</Text>
         </View>
       </View>
+      {/*
+        The lead action, and deliberately not a fifth tile in the grid below.
+        Everything in that grid returns ONE asset you then have to place; this
+        returns a finished, editable project. Sizing it like its neighbours
+        would file the difference away.
+
+        It carries the AI gradient on the GLYPH and nothing behind it — the same
+        rule the drawer rails follow, where a gradient inside a mark is the
+        premium form and a gradient tile behind one is the machine-made default.
+      */}
+      <Pressable style={styles.lead} onPress={onGenerate}>
+        <VIcon name='video' size={26} gradient={AI_GRADIENT} />
+        <View style={styles.leadText}>
+          <Text style={styles.leadTitle}>Topic to video</Text>
+          <Text style={styles.leadDetail}>Narrated, captioned, cut for you</Text>
+        </View>
+        <VIcon name='chevronRight' size={17} color={vela.lightMuted} />
+      </Pressable>
       <View style={styles.toolGrid}>
         {actions.map((action) => (
           <Pressable key={action.label} style={styles.toolCard} onPress={action.onPress}>
@@ -255,12 +274,32 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   creditText: { color: vela.accent, fontFamily: font.bold, fontSize: 13 },
+  lead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    backgroundColor: vela.lightCard,
+    borderRadius: 18,
+    borderCurve: 'continuous',
+    padding: 18,
+    marginTop: 22,
+    borderWidth: 1,
+    borderColor: vela.lightBorder,
+  },
+  leadText: { flex: 1 },
+  leadTitle: { color: vela.ink, fontFamily: font.bold, fontSize: 16 },
+  leadDetail: {
+    color: vela.lightMuted,
+    fontFamily: font.medium,
+    fontSize: 12.5,
+    marginTop: 3,
+  },
   toolGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     rowGap: 12,
-    marginTop: 24,
+    marginTop: 14,
   },
   toolCard: {
     width: '48%',

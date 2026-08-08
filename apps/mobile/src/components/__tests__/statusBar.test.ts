@@ -32,6 +32,7 @@ const SCREEN_FILE: Record<BarScreen, string> = {
   ai: "AiStudioScreen.tsx",
   profile: "ProfileScreen.tsx",
   pick: "MediaPickScreen.tsx",
+  generate: "GenerateScreen.tsx",
   editor: "EditorScreen.tsx",
 };
 

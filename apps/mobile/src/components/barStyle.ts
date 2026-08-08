@@ -41,6 +41,7 @@ export type BarScreen =
   | "ai"
   | "profile"
   | "pick"
+  | "generate"
   | "editor";
 
 /**
@@ -51,6 +52,8 @@ export type BarScreen =
  *
  * `ai` is deliberately NOT here. It reads like editor chrome because it is
  * reached from the same rail, but `AiStudioScreen` is a light screen.
+ * `generate` is reached from `ai` and shares its surface, so it is not here
+ * either — unlike `pick`, which is reached from Home and wears the editor's.
  */
 const DARK_SCREENS: ReadonlySet<BarScreen> = new Set<BarScreen>([
   "editor",

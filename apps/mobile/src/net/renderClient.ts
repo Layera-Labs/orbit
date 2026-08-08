@@ -105,6 +105,18 @@ function guessType(uri: string): string {
 const UPLOAD_STALL_MS = 45_000;
 
 /**
+ * Resolve an output url the service handed back.
+ *
+ * It is absolute when output storage is a bucket (a presigned GET) and relative
+ * when it is local disk (`/files/…`), and the client cannot tell which it will
+ * be — the same build talks to both. Exported because generation returns urls
+ * the same way and two copies of this rule is how one of them ends up handing
+ * `/files/x.mp4` to a downloader.
+ */
+export const absoluteUrl = (base: string, url: string): string =>
+  /^https?:\/\//.test(url) ? url : `${base}${url}`;
+
+/**
  * POST one file, reporting bytes as they go.
  *
  * XHR rather than `fetch`, for the one thing fetch cannot do in React Native:
@@ -288,8 +300,7 @@ export async function exportProject(
   // A server from before the job API answers with the url outright.
   const url = data.id ? await awaitJob(cleanBase, data.id, onProgress) : data.url;
   if (!url) throw new Error('render returned no url');
-  // Absolute once output storage is a bucket; still relative on local disk.
-  return /^https?:\/\//.test(url) ? url : `${cleanBase}${url}`;
+  return absoluteUrl(cleanBase, url);
   };
 
   try {

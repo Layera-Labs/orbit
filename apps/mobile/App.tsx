@@ -21,6 +21,7 @@ import { MediaLibraryScreen } from './src/screens/MediaLibraryScreen';
 import { OnboardingScreen } from './src/screens/OnboardingScreen';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { ProfileScreen } from './src/screens/ProfileScreen';
+import { GenerateScreen } from './src/screens/GenerateScreen';
 
 const ONBOARDING_KEY = 'orbit.onboarding.complete';
 
@@ -101,7 +102,7 @@ export default function App() {
       {/* Inside the root view, so a throw in any screen still leaves a usable
           app rather than a black rectangle with no way out. */}
       <ErrorBoundary>
-        {isEditor ? <EditorScreen /> : screen === 'pick' ? <MediaPickScreen /> : screen === 'discover' ? <DiscoverScreen /> : screen === 'library' ? <MediaLibraryScreen /> : screen === 'ai' ? <AiStudioScreen /> : screen === 'profile' ? <ProfileScreen /> : <HomeScreen />}
+        {isEditor ? <EditorScreen /> : screen === 'pick' ? <MediaPickScreen /> : screen === 'discover' ? <DiscoverScreen /> : screen === 'library' ? <MediaLibraryScreen /> : screen === 'ai' ? <AiStudioScreen /> : screen === 'generate' ? <GenerateScreen /> : screen === 'profile' ? <ProfileScreen /> : <HomeScreen />}
       </ErrorBoundary>
     </GestureHandlerRootView>
   );
