@@ -32,7 +32,7 @@
  * and the two finally agree. resvg ignores the `@font-face` and uses its own
  * `fontFiles`, which is harmless: both are the same face.
  */
-import type { TextOverlay } from './types';
+import type { ShapeOverlay, TextOverlay } from './types';
 import { col, esc, fontFamily as family, num as n } from './svg';
 import {
   approximateMeasurer,
@@ -223,4 +223,80 @@ export function overlayToSVG(
     `fill="${col(o.color, '#ffffff')}" text-anchor="${textAnchor}" dominant-baseline="middle"${strokeAttr}${filterAttr}>${tspans}</text>`;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${n(width, 1)}" height="${n(height, 1)}">${fontEl}${filterEl}${boxEl}${textEl}</svg>`;
+}
+
+/**
+ * The shape's box in project pixels.
+ *
+ * `x`/`y` is the CENTRE and `width`/`height` are fractions of the frame — the
+ * same reading `imageOverlayAsClip` gives an `ImageOverlay`, and the type says
+ * as much. Written once here so an editor's selection outline and the
+ * rasterizer cannot disagree about where the rectangle is, which is the same
+ * reason `overlayBox` exists for text.
+ */
+export function shapeBox(
+  o: ShapeOverlay,
+  width: number,
+  height: number,
+): { x: number; y: number; w: number; h: number } {
+  const w = Math.max(0, o.width) * width;
+  const h = Math.max(0, o.height) * height;
+  return { x: o.x * width - w / 2, y: o.y * height - h / 2, w, h };
+}
+
+/**
+ * Produce a `width`×`height` SVG containing the positioned shape.
+ *
+ * **Full-frame, exactly like a caption's**, and that is the whole design. A
+ * shape could have been rasterized to its own small PNG and composited at an
+ * offset — but then its keyframes would REPLACE the origin (a clip's reading)
+ * while a caption's keyframes are a DELTA on a full-frame layer, and the two
+ * overlay kinds would animate differently for no reason a format author could
+ * ever guess. Sharing the caption's path means every timing rule already
+ * written and already tested — the window, the fade, `animateIn`, the slide,
+ * the keyframe sample — applies to a shape with no second copy of it anywhere.
+ *
+ * The cost is a full-frame PNG per shape, which is what text already pays.
+ *
+ * Every interpolated value goes through `num`/`col`, never `esc`. A colour is
+ * not text: `esc` is an XML transform the parser UNDOES, so `url('/etc/passwd')`
+ * looks escaped and decodes back into a live reference. `col` rejects anything
+ * that is not a colour outright. Same rule as the rest of this file, and the
+ * reason `rasterizeSVG` additionally refuses `<image>`/`<use>` on the way in.
+ */
+export function shapeToSVG(o: ShapeOverlay, width: number, height: number): string {
+  const b = shapeBox(o, width, height);
+  const fill = `fill="${col(o.fill, '#000000')}" fill-opacity="${n(o.fillOpacity ?? 1, 1)}"`;
+  /*
+   * `stroke-width` alone does not draw a stroke; an absent `stroke` colour
+   * leaves SVG's default of `none`. Requiring BOTH here means a shape that sets
+   * only one of them renders the same way in every surface rather than picking
+   * up a default that differs between resvg and a browser.
+   */
+  const stroked = o.stroke != null && (o.strokeWidth ?? 0) > 0;
+  const stroke = stroked
+    ? ` stroke="${col(o.stroke)}" stroke-width="${n(o.strokeWidth)}"`
+    : '';
+
+  const el =
+    o.shape === 'ellipse'
+      ? `<ellipse cx="${n(b.x + b.w / 2)}" cy="${n(b.y + b.h / 2)}" rx="${n(b.w / 2)}" ry="${n(b.h / 2)}" ${fill}${stroke}/>`
+      : // `rx` is clamped to half the box: SVG treats a larger radius as half
+        // anyway, but resvg and browsers have disagreed about the rounding on
+        // the way there, and a pill must be a pill in both.
+        `<rect x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" ` +
+        `rx="${n(Math.max(0, Math.min(o.cornerRadius ?? 0, b.w / 2, b.h / 2)))}" ${fill}${stroke}/>`;
+
+  /*
+   * Rotation is about the shape's own centre, clockwise, matching
+   * `VisualTrackClip.rotation` — degrees, so it round-trips through JSON
+   * exactly, and clockwise because that is what ffmpeg's `rotate`, Skia and
+   * canvas all do, so no renderer has to flip the sign.
+   */
+  const rot = o.rotation ?? 0;
+  const body = rot
+    ? `<g transform="rotate(${n(rot)} ${n(b.x + b.w / 2)} ${n(b.y + b.h / 2)})">${el}</g>`
+    : el;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${n(width, 1)}" height="${n(height, 1)}">${body}</svg>`;
 }

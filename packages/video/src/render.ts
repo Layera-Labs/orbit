@@ -6,7 +6,7 @@ import { buildFFmpegArgs, type BuildFFmpegOptions } from './ffmpeg';
 import { backgroundToSVG } from './background-svg';
 import { projectDuration } from './project';
 import { canvasFrameToSVG, hasCanvasFrame } from './canvas-frame';
-import { overlayFontOptions, overlayToSVG } from './overlay-svg';
+import { overlayFontOptions, overlayToSVG, shapeToSVG } from './overlay-svg';
 import { rasterizeSVG } from './raster';
 import { resolveFonts } from './google-fonts';
 import { HDR_UNSUPPORTED_MESSAGE, supportsHdr } from './hdr';
@@ -407,11 +407,36 @@ export async function renderProject(
 
     const overlayImages: Record<string, string> = {};
     for (const overlay of project.overlays) {
-      if (overlay.type !== 'text') continue;
-      const png = rasterizeSVG(
-        overlayToSVG(overlay, project.width, project.height, overlayFontOptions(overlay, fonts)),
-        fontFiles,
-      );
+      /*
+       * Text and shapes both become a full-frame PNG here; an IMAGE overlay
+       * does not, because it goes down the clip path instead (see
+       * `imageOverlayAsClip`) and rasterizing it would produce a second,
+       * unused copy of a picture ffmpeg is about to read from disk anyway.
+       *
+       * The `default` on the switch is what keeps this honest: a fourth
+       * overlay kind is a compile error here rather than a layer that silently
+       * stops being drawn.
+       */
+      let svg: string;
+      switch (overlay.type) {
+        case 'text':
+          svg = overlayToSVG(
+            overlay,
+            project.width,
+            project.height,
+            overlayFontOptions(overlay, fonts),
+          );
+          break;
+        case 'shape':
+          // No fonts: a shape has no glyphs, so it needs no subsetting and no
+          // measurement, and handing it `overlayFontOptions` would read a
+          // `fontFamily` that is not on the type.
+          svg = shapeToSVG(overlay, project.width, project.height);
+          break;
+        default:
+          continue;
+      }
+      const png = rasterizeSVG(svg, fontFiles);
       const path = join(dir, `${overlay.id}.png`);
       await writeFile(path, png);
       overlayImages[overlay.id] = path;

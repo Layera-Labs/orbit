@@ -8,16 +8,26 @@
  * else. Correct by coincidence, and exactly the sort of coincidence that ends
  * the day a second kind of overlay arrives.
  *
- * The claim under test is narrow and it is the one that matters right now:
- * **a non-text overlay is SKIPPED by every renderer, not mis-drawn by one.**
- * `image` and `shape` have no renderer yet; a skipped layer is a missing
- * picture, which the preview and the export can agree about, while a mis-drawn
- * one is two surfaces disagreeing — the failure this engine is built to prevent.
+ * All three kinds now draw, and each takes a DIFFERENT path, which is what this
+ * file pins down:
+ *
+ * - `text` and `shape` are PLATES — rasterized full-frame and composited at
+ *   0,0, so `overlayImages` carries a PNG for each and the filtergraph chains
+ *   one `overlay` filter per plate.
+ * - `image` is a CLIP — `imageOverlayAsClip` turns it into a `VisualTrackClip`
+ *   placed exactly as a picture-in-picture is, so it never appears as an
+ *   overlay op and never gets a plate PNG.
+ *
+ * The claim that matters is that **the preview and the export make the same
+ * choice for the same overlay.** Two surfaces disagreeing is the failure this
+ * engine is built to prevent; a kind drawn by one and skipped by the other is
+ * the worst version of it.
  *
  * The ffmpeg cases deliberately hand the builder an `overlayImages` entry for
- * the non-text overlay. That is the mutation: under the old `images[o.id]`
- * selection those overlays WOULD have been wired into the filtergraph, so a test
- * that omitted the entry would pass against the bug.
+ * EVERY overlay, including the picture. That is the mutation: selection is by
+ * `type`, so a builder that went back to picking overlays by "did the
+ * rasterizer make a PNG" would wire the sticker in twice and these tests would
+ * catch it.
  */
 import { describe, expect, it } from 'vitest';
 import { buildFFmpegArgs } from '../ffmpeg';
@@ -78,7 +88,21 @@ function project(overlays: Overlay[]): VideoProject {
   };
 }
 
-/** A PNG on disk for EVERY overlay — including the ones that must be ignored. */
+function multitrack(overlays: Overlay[]): VideoProject {
+  return {
+    ...project(overlays),
+    clips: [],
+    tracks: [
+      {
+        id: 'main',
+        kind: 'visual',
+        clips: [{ id: 'v0', type: 'video', src: 'a.mp4', start: 0, duration: 4 }],
+      },
+    ],
+  };
+}
+
+/** A PNG on disk for EVERY overlay — including the picture, which must ignore it. */
 const allImages = { cap: '/tmp/cap.png', img: '/tmp/img.png', shp: '/tmp/shp.png' };
 const OUT = '/tmp/out.mp4';
 
@@ -97,76 +121,112 @@ describe('textOverlaysOf', () => {
   });
 });
 
-describe('the preview skips what it cannot draw', () => {
-  it('emits an overlay op for the caption and none for the others', () => {
+describe('the preview draws each kind down its own path', () => {
+  it('emits a plate op for the caption and the shape, and none for the picture', () => {
     const ops = frameStateAt(project([caption, sticker, plate]), 1);
-    expect(ops.filter((o) => o.kind === 'overlay').map((o) => o.id)).toEqual(['cap']);
+    expect(ops.filter((o) => o.kind === 'overlay').map((o) => o.id)).toEqual(['cap', 'shp']);
+    // The sticker is still drawn — as a clip, which is the whole point of it
+    // not being a plate.
+    expect(ops.some((o) => o.kind === 'clip' && o.id === 'img')).toBe(true);
   });
 
-  it('never builds a caption SVG out of a non-text overlay', () => {
+  it('never builds a caption SVG out of a shape', () => {
     /*
-     * The specific mis-draw this guards. `overlayToSVG` would read a `text`,
-     * `fontSize` and `color` that are not there and emit a `<text>` with
-     * `font-size="NaN"` — an empty caption painted across the whole frame,
-     * over the picture, in every preview.
+     * The specific mis-draw this guards, and the reason the two builders are
+     * separate functions rather than one with optional fields. Handing a shape
+     * to `overlayToSVG` reads a `text`, `fontSize` and `color` that are not
+     * there and emits a `<text>` with `font-size="NaN"` — an empty caption
+     * painted across the whole frame, over the picture, in every preview.
      */
-    const ops = frameStateAt(project([sticker, plate]), 1);
-    expect(ops.filter((o) => o.kind === 'overlay')).toHaveLength(0);
-    expect(ops.some((o) => o.svg?.includes('<text'))).toBe(false);
+    const ops = frameStateAt(project([plate]), 1);
+    const svg = ops.find((o) => o.kind === 'overlay')?.svg ?? '';
+    expect(svg).toContain('<rect');
+    expect(svg).not.toContain('<text');
+    expect(svg).not.toContain('NaN');
   });
 
-  it("leaves the captions' own layer order untouched by an interloper", () => {
-    // Overlays are drawn in layer order, and skipping one must not renumber the
-    // rest — a caption that moved above a title because a sticker was dropped
-    // between them is a z-order bug with no visible cause.
+  it('draws an ellipse as an ellipse', () => {
+    const ops = frameStateAt(project([{ ...plate, shape: 'ellipse' }]), 1);
+    expect(ops.find((o) => o.kind === 'overlay')?.svg).toContain('<ellipse');
+  });
+
+  it('keeps layer order across the two paths', () => {
+    // Overlays are drawn in layer order and that order has to mean the same
+    // thing for every kind — a caption that ended up under a scrim because the
+    // scrim took a different code path is a z-order bug with no visible cause.
     const lo = { ...caption, id: 'lo', layer: 0 };
     const hi = { ...caption, id: 'hi', layer: 2 };
-    const mid = { ...sticker, layer: 1 };
+    const mid = { ...plate, id: 'mid', layer: 1 };
     const ops = frameStateAt(project([hi, mid, lo]), 1);
-    expect(ops.filter((o) => o.kind === 'overlay').map((o) => o.id)).toEqual(['lo', 'hi']);
+    expect(ops.filter((o) => o.kind === 'overlay').map((o) => o.id)).toEqual(['lo', 'mid', 'hi']);
   });
 });
 
-describe('the export skips the same overlays', () => {
-  it('wires only the caption into the legacy filtergraph', () => {
+describe('the export makes the same choice as the preview', () => {
+  it('wires both plates into the legacy filtergraph, and the picture not as a plate', () => {
     const args = buildFFmpegArgs(project([caption, sticker, plate]), {
       overlayImages: allImages,
       outputPath: OUT,
     });
     expect(args).toContain('/tmp/cap.png');
+    expect(args).toContain('/tmp/shp.png');
+    // The sticker's plate PNG is offered and must be ignored: a picture is read
+    // from its own `src` down the clip path, and consuming both would composite
+    // it twice.
     expect(args).not.toContain('/tmp/img.png');
-    expect(args).not.toContain('/tmp/shp.png');
   });
 
-  it('wires only the caption into the multi-track filtergraph', () => {
-    const p: VideoProject = {
-      ...project([caption, sticker, plate]),
-      clips: [],
-      tracks: [
-        {
-          id: 'main',
-          kind: 'visual',
-          clips: [{ id: 'v0', type: 'video', src: 'a.mp4', start: 0, duration: 4 }],
-        },
-      ],
-    };
-    const args = buildFFmpegArgs(p, { overlayImages: allImages, baseImage: '/tmp/bg.png', outputPath: OUT });
+  it('wires both plates into the multi-track filtergraph', () => {
+    const args = buildFFmpegArgs(multitrack([caption, sticker, plate]), {
+      overlayImages: allImages,
+      baseImage: '/tmp/bg.png',
+      outputPath: OUT,
+    });
     expect(args).toContain('/tmp/cap.png');
+    expect(args).toContain('/tmp/shp.png');
     expect(args).not.toContain('/tmp/img.png');
-    expect(args).not.toContain('/tmp/shp.png');
+
+    /*
+     * And CONSUMED, not merely loaded. These two assertions are not the same
+     * one twice: the inputs are added by one loop and composited by another, so
+     * a plate can be opened as an `-i` and then never reach an `overlay`
+     * filter. That is a layer missing from the file with a filtergraph that
+     * looks busy and an argv that mentions the picture — the exact failure a
+     * mutation run caught here, because the presence check alone survived
+     * dropping shapes from the compositing filter entirely.
+     */
+    const graph = args[args.indexOf('-filter_complex') + 1];
+    // `[t*]` here, not `[ov*]`: the two builders name their plate streams
+    // differently, and asserting the legacy names against the multi-track graph
+    // passes for the wrong reason the moment the label scheme is touched.
+    expect(graph).toMatch(/\[t0\]/);
+    expect(graph).toMatch(/\[t1\]/);
   });
 
-  it('emits the SAME argv as a project that never had the other overlays', () => {
-    // The strongest form of "skipped": not merely absent from the inputs, but
-    // producing a filtergraph indistinguishable from the one before they were
-    // added. Input indices are positional, so an overlay wired in by mistake
-    // would shift every later stream label as well as adding a picture.
-    const withAll = buildFFmpegArgs(project([caption, sticker, plate]), {
+  it('chains one overlay filter per plate, in layer order', () => {
+    // Input indices are positional and each `overlay` filter consumes the
+    // previous stage's label, so a plate wired in at the wrong point does not
+    // merely draw in the wrong order — it repoints every later stream.
+    const args = buildFFmpegArgs(project([caption, plate]), {
       overlayImages: allImages,
       outputPath: OUT,
     });
-    const captionOnly = buildFFmpegArgs(project([caption]), { overlayImages: allImages, outputPath: OUT });
-    expect(withAll).toEqual(captionOnly);
+    const graph = args[args.indexOf('-filter_complex') + 1];
+    expect(graph.match(/\[ov\d\]/g)).toEqual(['[ov0]', '[ov0]', '[ov1]', '[ov1]']);
+    expect(graph.indexOf('[ov0]')).toBeLessThan(graph.indexOf('[ov1]'));
+  });
+
+  it('a shape with no PNG is skipped rather than pointed at nothing', () => {
+    // The rasterizer can fail on one overlay — a bad colour, a full disk — and
+    // an `overlay` filter aimed at a file that does not exist takes the whole
+    // render down rather than losing one layer.
+    const args = buildFFmpegArgs(project([caption, plate]), {
+      overlayImages: { cap: '/tmp/cap.png' },
+      outputPath: OUT,
+    });
+    expect(args).toEqual(
+      buildFFmpegArgs(project([caption]), { overlayImages: { cap: '/tmp/cap.png' }, outputPath: OUT }),
+    );
   });
 });
 

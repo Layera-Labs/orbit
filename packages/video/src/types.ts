@@ -222,6 +222,30 @@ export function textOverlaysOf(overlays: readonly Overlay[]): TextOverlay[] {
   return overlays.filter((o): o is TextOverlay => o.type === "text");
 }
 
+/**
+ * An overlay rasterized to a FULL-FRAME PNG, as opposed to one placed as a clip.
+ *
+ * This is the distinction both renderers actually care about, and it is not the
+ * same as "is it text". Text and shapes are baked at their anchor into a
+ * width×height plate that is then composited at 0,0, so their `motion` zooms
+ * the whole layer and their keyframed position is a DELTA from the baked
+ * anchor. An `ImageOverlay` instead becomes a `VisualTrackClip` and is placed
+ * like a picture-in-picture, where keyframes REPLACE the origin.
+ *
+ * Naming the category is what let the shape renderer land without a second
+ * copy of the compositing arithmetic: everything downstream asks "is this a
+ * plate?", not "is this a caption?", so a shape inherits the window, the fade,
+ * `animateIn`, the slide and the keyframe sample already written and tested for
+ * captions.
+ */
+export type PlateOverlay = TextOverlay | ShapeOverlay;
+
+export function plateOverlaysOf(overlays: readonly Overlay[]): PlateOverlay[] {
+  return overlays.filter(
+    (o): o is PlateOverlay => o.type === "text" || o.type === "shape",
+  );
+}
+
 export interface AudioClip {
   id: ID;
   src: string;

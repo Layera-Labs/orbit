@@ -11,7 +11,7 @@
  */
 import {
   FULL_FRAME,
-  textOverlaysOf,
+  plateOverlaysOf,
   type AudioTrack,
   type ExportOutput,
   type VideoProject,
@@ -291,7 +291,7 @@ export function buildFFmpegArgs(
    * check stays because a caption whose PNG failed to write has no input to
    * point an `overlay` filter at.
    */
-  const overlays = textOverlaysOf(project.overlays).filter((o) => images[o.id]);
+  const overlays = plateOverlaysOf(project.overlays).filter((o) => images[o.id]);
   const xfade = transitionDuration(project);
 
   const scaleChain = `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,fps=${fps},format=yuv420p`;
@@ -513,7 +513,7 @@ function buildMultiTrackArgs(
     .flatMap((t) => t.clips);
   // Selected by TYPE, not by "did the rasterizer make a PNG" — see the note
   // on the same line in `buildFFmpegArgs`.
-  const textOverlays = textOverlaysOf(project.overlays).filter((o) => images[o.id]);
+  const plateOverlays = plateOverlaysOf(project.overlays).filter((o) => images[o.id]);
   /*
    * A picture on the overlay stack is a `VisualTrackClip` in every respect that
    * matters to this builder, so it becomes one — see `overlay-clip.ts`. It then
@@ -530,7 +530,7 @@ function buildMultiTrackArgs(
   const imgIdx = new Map(
     overlayClips.map((c, k) => [c.id, visualClips.length + k] as const),
   );
-  const capIdx = new Map(textOverlays.map((o, i) => [o.id, i] as const));
+  const capIdx = new Map(plateOverlays.map((o, i) => [o.id, i] as const));
 
   /*
    * Transitions on the MAIN (first visual) track. Clips OVERLAP by the
@@ -562,7 +562,7 @@ function buildMultiTrackArgs(
     else inputs.push("-i", resolve(c.src));
     return idx++;
   });
-  const oIn = textOverlays.map((o) => {
+  const oIn = plateOverlays.map((o) => {
     inputs.push("-loop", "1", "-i", images[o.id]);
     return idx++;
   });
@@ -1251,7 +1251,7 @@ function buildMultiTrackArgs(
    * as it does in `frameStateAt`, so both agree about the absence.
    */
   const drawableOverlays = [...project.overlays]
-    .filter((o) => (o.type === "text" && capIdx.has(o.id)) || o.type === "image")
+    .filter((o) => (o.type !== "image" && capIdx.has(o.id)) || o.type === "image")
     .sort((a, b) => (a.layer ?? 0) - (b.layer ?? 0));
 
   drawableOverlays.forEach((ov) => {
