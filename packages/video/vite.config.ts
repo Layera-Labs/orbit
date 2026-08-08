@@ -5,11 +5,19 @@ import { resolve } from 'path';
 export default defineConfig({
   build: {
     lib: {
-      // Three entries: the full package, the browser-safe subset, and the bare
-      // types. Web apps import `./browser`; Node keeps importing the default.
+      /*
+       * One entry per subpath in `package.json#exports`, and they have to stay
+       * in step. `node` is here because it stopped being reachable from any
+       * other entry the moment `index.ts` became browser-only: rollup emitted
+       * nothing for it, `vite-plugin-dts` still emitted `node.d.ts` from the
+       * source, and so `@orbit/video/node` TYPECHECKED while resolving to a
+       * file that did not exist. A missing runtime with a present type is the
+       * worst shape this failure can take.
+       */
       entry: {
         index: resolve(__dirname, 'src/index.ts'),
         browser: resolve(__dirname, 'src/browser.ts'),
+        node: resolve(__dirname, 'src/node.ts'),
         types: resolve(__dirname, 'src/types.ts'),
       },
       formats: ['es'],

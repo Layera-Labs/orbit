@@ -21,7 +21,7 @@ declaratively by both the renderer and the UI.**
 | `@orbit/render` | **react-konva** renderer. The canvas is a pure function of the model; each element binds to its own `useSnapshot`, so dragging one element re-renders only that node. Transformer, snapping/smart-guides, zoom-to-cursor, marquee, inline text editing, raster export. `OrbitRenderer` interface is the seam for a future WebGL/web3 renderer. |
 | `@orbit/providers` | Pluggable provider interfaces — `Template`/`Photo`/`Video`/`Font`/`Background`/`Asset` — plus `ProviderRegistry` and zero-config built-ins (Picsum, preset backgrounds, Google Fonts, demo templates). Also the web3 seams: `StorageProvider`, `PublishTarget`, `AssetRef.uri`. |
 | `@orbit/editor` | React UI. Thin store bindings (`useStore`/`useEditorState`/`useSelectedElement`), pluggable **SidePanel sections** (Templates/Elements/Text/Photos/Background/Fonts/Layers — provider-backed ones auto-hide), Toolbar, Pages bar, Properties, Export menu. No bridge. |
-| `apps/studio` | New demo app exercising the full stack. |
+| `examples/studio` | New demo app exercising the full stack. |
 
 Dependency graph (acyclic): `model → render → editor`; `model → providers → editor`.
 

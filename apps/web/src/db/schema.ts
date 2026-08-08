@@ -8,7 +8,7 @@
  * URL — those die on reload — and never a `file:`/absolute path. It stores
  * `orbit-media:<id>`, which is resolved to an object URL for preview and
  * swapped for an `upload:<token>` at export. The render service only accepts
- * `upload:` or `http(s)` srcs (`apps/render-service/src/resolve.ts`), so this
+ * `upload:` or `http(s)` srcs (`services/render/src/resolve.ts`), so this
  * indirection is what makes local media renderable at all.
  */
 import type { Document as OrbitDocument } from '@orbit/model';

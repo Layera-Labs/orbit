@@ -1,4 +1,5 @@
 export type {
+  ProviderUsage,
   GenImageRequest,
   GenVideoRequest,
   TTSRequest,
@@ -17,6 +18,7 @@ export { groupWords } from './providers/elevenlabs';
 export type {
   ElevenLabsProviderOptions,
   TranscribeRequest,
+  TranscriptLine,
   TranscriptWord,
 } from './providers/elevenlabs';
 export { ProviderError } from './errors';

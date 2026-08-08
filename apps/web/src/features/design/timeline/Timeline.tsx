@@ -3,13 +3,13 @@
 import { Fragment, useCallback, useMemo, useRef } from 'react';
 import type {
   AudioTrack,
-  TextOverlay,
+  Overlay,
   VideoProject,
   VisualTrack,
 } from '@orbit/video/browser';
 import { Icon } from '@/brand/Icon';
 import { useDesign, PX_PER_SECOND_MAX, PX_PER_SECOND_MIN } from '@/store/designStore';
-import { addVisualTrack, byStart, useVideo } from '@/store/videoStore';
+import { addVisualTrack, byStart, overlayLabel, useVideo } from '@/store/videoStore';
 import { Clip, type ClipView } from './Clip';
 import { useClipDrag, type LaneRect } from './useClipDrag';
 import styles from './Timeline.module.css';
@@ -24,7 +24,7 @@ type Row =
   | { id: string; kind: 'audio'; track: AudioTrack; base: boolean }
   /** One lane per caption `layer`, so overlapping titles never sit on top of
    *  each other and become unclickable. */
-  | { id: string; kind: 'text'; layer: number; overlays: TextOverlay[]; base: false };
+  | { id: string; kind: 'text'; layer: number; overlays: Overlay[]; base: false };
 
 /** Seconds of empty runway past the end, so a clip can be dragged later. */
 const TAIL_SECONDS = 6;
@@ -109,7 +109,7 @@ export function Timeline({
    */
   /** Caption lanes, one per `layer`, highest layer first. */
   const textRows = useMemo<Row[]>(() => {
-    const byLayer = new Map<number, TextOverlay[]>();
+    const byLayer = new Map<number, Overlay[]>();
     for (const o of project.overlays ?? []) {
       const layer = o.layer ?? 0;
       const list = byLayer.get(layer);
@@ -174,7 +174,7 @@ export function Timeline({
           id: o.id,
           start: o.start,
           duration: Math.max(0.05, o.end - o.start),
-          label: o.text || 'Text',
+          label: overlayLabel(o),
           variant: 'text' as const,
         }));
 

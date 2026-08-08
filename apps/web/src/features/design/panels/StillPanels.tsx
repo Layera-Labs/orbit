@@ -40,7 +40,7 @@ export function StillDesignPanel() {
   return (
     <div className={styles.stack}>
       <div className={styles.group}>
-        <h3 className={styles.groupTitle}>Frame</h3>
+        <h3 className={styles.groupTitle}>Size</h3>
         <div className={styles.presets}>
           {SIZES.map((s) => (
             <button

@@ -45,6 +45,9 @@ export function SelectionActions() {
 
   const id = sel[0];
   const locked = store.getElement(id)?.locked;
+  // Ungroup applies to a lone group, not to a multi-selection that happens to
+  // contain one — `ungroup` takes a single id and would silently ignore the rest.
+  const isGroup = sel.length === 1 && store.getElement(id)?.type === 'group';
 
   return (
     <motion.div className="o-sel-actions" style={{ left, top }} onMouseDown={(e) => e.stopPropagation()} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.14 }}>
@@ -87,6 +90,28 @@ export function SelectionActions() {
                     </button>
                   ))}
                 </>
+              )}
+              {/*
+                Grouping. `group` and `ungroup` have been on the store since it
+                was written and nothing anywhere called them, so a document
+                could hold a group (from a template, or another client) that the
+                editor could show but never take apart.
+
+                Each is offered only when it can actually do something: grouping
+                needs two elements, ungrouping needs the selection to BE a
+                group. An item that appears and then no-ops is worse than one
+                that is absent.
+              */}
+              {(sel.length >= 2 || isGroup) && <div style={GROUP_LABEL}>Group</div>}
+              {sel.length >= 2 && (
+                <button onClick={() => { store.group(sel); close(); }}>
+                  <Icon name="group" size={15} /> Group these
+                </button>
+              )}
+              {isGroup && (
+                <button onClick={() => { store.ungroup(id); close(); }}>
+                  <Icon name="group" size={15} /> Ungroup
+                </button>
               )}
             </div>
           )}

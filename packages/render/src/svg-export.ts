@@ -13,7 +13,6 @@
  *
  * Known limitations (intentional for the v2 image core):
  * - Text auto-wrapping by width is not reproduced; explicit "\n" breaks are.
- * - `image.crop` is not applied (the full image is drawn into the box).
  * - `video` renders as its placeholder rect; `audio`/`qr` are skipped (mirrors
  *   the renderer, which renders nothing for them).
  * - `pattern` page backgrounds are skipped; `gradient` supports `linear-gradient`.
@@ -109,8 +108,31 @@ function textSvg(el: El<'text'>): string {
 
 function imageSvg(el: El<'image'> | El<'svg'>, defs: Defs): string {
   const radius = el.type === 'image' ? (el.cornerRadius ?? 0) : 0;
+  /*
+   * The crop.
+   *
+   * `Crop` is FRACTIONS of the source, and both it and Konva's `crop` mean the
+   * same thing: map that window of the source onto the whole destination box.
+   * SVG has no crop attribute, so it is expressed the way it actually works —
+   * draw the image bigger than the box, offset so the window lands on the
+   * origin, and clip to the box.
+   *
+   * The clip is therefore needed whenever there is a crop OR a corner radius,
+   * and the two share one path. That is also why this had to be fixed rather
+   * than documented: the still editor can now set a crop, and until this
+   * landed the PNG and PDF exports (which go through Konva's own stage)
+   * honoured it while the SVG export silently drew the whole picture.
+   */
+  const crop = el.type === 'image' ? el.crop : undefined;
+  const cw = crop && crop.width > 0 ? crop.width : 1;
+  const ch = crop && crop.height > 0 ? crop.height : 1;
+  const drawW = el.width / cw;
+  const drawH = el.height / ch;
+  const drawX = -(crop?.x ?? 0) * drawW;
+  const drawY = -(crop?.y ?? 0) * drawH;
+
   let clip = '';
-  if (radius > 0) {
+  if (radius > 0 || crop) {
     const id = `o-clip-${defs.n++}`;
     defs.out.push(
       `<clipPath id="${id}"><rect x="0" y="0" width="${num(el.width)}" ` +
@@ -119,8 +141,8 @@ function imageSvg(el: El<'image'> | El<'svg'>, defs: Defs): string {
     clip = ` clip-path="url(#${id})"`;
   }
   const img =
-    `<image href="${esc(el.src)}" x="0" y="0" width="${num(el.width)}" ` +
-    `height="${num(el.height)}" preserveAspectRatio="none"${clip}/>`;
+    `<image href="${esc(el.src)}" x="${num(drawX)}" y="${num(drawY)}" width="${num(drawW)}" ` +
+    `height="${num(drawH)}" preserveAspectRatio="none"${clip}/>`;
   const sw = el.type === 'image' ? (el.strokeWidth ?? 0) : 0;
   if (el.type === 'image' && el.stroke && sw > 0) {
     return (

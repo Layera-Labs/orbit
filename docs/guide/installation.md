@@ -1,5 +1,11 @@
 # Installation
 
+> **Not yet on npm.** These packages are not published to a registry; the
+> install commands below describe the intended shape once they are. Today Orbit is
+> consumed from source in the monorepo — see the [README](../../README.md) for what
+> actually works, and the roadmap for when this changes. There is no Orbit API key:
+> the render service authenticates with its own JWTs, including guest tokens.
+
 Orbit is distributed as a monorepo of scoped npm packages. Install only what you need for your framework and features.
 
 ## Requirements

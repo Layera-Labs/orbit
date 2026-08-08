@@ -59,6 +59,7 @@ export class ReplicateProvider implements MediaProvider {
   }
 
   async generateImage(req: GenImageRequest): Promise<GenResult> {
+    const startedAt = Date.now();
     if (!this.token) throw new Error('ReplicateProvider: missing API token');
     const model = req.model ?? this.model;
     const res = await this.fetchImpl(`${REPLICATE_API}/models/${model}/predictions`, {
@@ -73,7 +74,17 @@ export class ReplicateProvider implements MediaProvider {
     }
     const url = pickUrl(settled.output);
     if (!url) throw new Error('Replicate returned no output URL');
-    return { url, meta: { provider: 'replicate', model, id: settled.id } };
+    return {
+      url,
+      meta: { provider: 'replicate', model, id: settled.id },
+      usage: {
+        provider: 'replicate',
+        model,
+        ms: Date.now() - startedAt,
+        units: 1,
+        unit: 'images',
+      },
+    };
   }
 
   /** Poll the prediction until it reaches a terminal state. */

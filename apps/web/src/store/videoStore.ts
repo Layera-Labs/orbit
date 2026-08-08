@@ -10,10 +10,18 @@
  */
 import { create } from 'zustand';
 import {
+  clampSourceRect,
+  isFullSource,
+  normalizeRotation,
   projectDuration,
   requestedOverlap,
   type AudioTrack,
+  type AudioTrackClip,
+  type CanvasFrame,
+  type ElementAnim,
   type Rect,
+  type Overlay,
+  type SourceRect,
   type TextOverlay,
   type VideoProject,
   type VisualTrack,
@@ -167,21 +175,33 @@ export function appendAudio(
   return { ...p, tracks };
 }
 
-/** Patch one visual clip. Returns the project unchanged when nothing differs. */
+/**
+ * Patch one clip, on whichever track it is on.
+ *
+ * **It used to skip audio tracks** (`if (t.kind !== 'visual') return t`), which
+ * made the audio clip's volume slider a control that did nothing: it called
+ * this, this walked past the only track the clip could be on, and the project
+ * came back unchanged. Clip ids are unique across the whole project, so there
+ * was never a reason to look at only half of it.
+ *
+ * The per-track `here` flag matters too. With one shared `touched`, every track
+ * AFTER the one holding the match got rebuilt as a new object with identical
+ * contents — invisible, but it defeats the identity checks the timeline and the
+ * preview use to decide what to re-render.
+ */
 export function patchClip(
   p: VideoProject,
   id: string,
-  patch: Partial<VisualTrackClip>,
+  patch: Partial<VisualTrackClip> | Partial<AudioTrackClip>,
 ): VideoProject {
   let touched = false;
   const tracks = (p.tracks ?? []).map((t) => {
-    if (t.kind !== 'visual') return t;
-    const clips = t.clips.map((c) => {
-      if (c.id !== id) return c;
-      touched = true;
-      return { ...c, ...patch };
-    });
-    return touched ? { ...t, clips } : t;
+    if (!t.clips.some((c) => c.id === id)) return t;
+    touched = true;
+    return {
+      ...t,
+      clips: t.clips.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+    } as typeof t;
   });
   return touched ? { ...p, tracks } : p;
 }
@@ -568,25 +588,124 @@ export function setClipRect(p: VideoProject, id: string, rect: Rect): VideoProje
   }));
 }
 
+/**
+ * Rotation and crop on one clip, written in a SINGLE op.
+ *
+ * They travel together because a gesture that changes one usually changes
+ * another — dragging a mid-edge crop handle moves the rect as well as the crop
+ * window — and three separate mutations would be three undo steps for one drag.
+ * The mobile editor's `setClipTransform` has the same signature for the same
+ * reason.
+ *
+ * Both fields are normalized on the way IN so nothing downstream has to wonder
+ * whether 370° and 10° are the same clip, and a neutral value is DELETED rather
+ * than stored: a full-frame `crop` and a rotation of 0 both have to leave the
+ * project byte-identical to one that was never transformed, or the filtergraph
+ * grows a `rotate`/`crop` pair that does nothing and costs a `format=rgba`.
+ */
+export function setClipTransform(
+  p: VideoProject,
+  id: string,
+  patch: { rect?: Rect; rotation?: number; crop?: SourceRect },
+): VideoProject {
+  return applyToClip(p, id, (c) => {
+    const next: VisualTrackClip = { ...c };
+    if (patch.rect) next.rect = patch.rect;
+    if (patch.rotation !== undefined) {
+      const deg = normalizeRotation(patch.rotation);
+      if (deg) next.rotation = deg;
+      else delete next.rotation;
+    }
+    if (patch.crop) {
+      const crop = clampSourceRect(patch.crop);
+      if (isFullSource(crop)) delete next.crop;
+      else next.crop = crop;
+    }
+    return next;
+  });
+}
+
+/**
+ * The canvas frame — a mat over the finished picture — or `undefined` to remove
+ * it.
+ *
+ * The field is DELETED rather than set to a neutral value, because
+ * `hasCanvasFrame` is what both renderers branch on and a `{width: 0}` frame
+ * would still append an overlay input to the filtergraph. A project someone has
+ * switched the frame off on has to be byte-identical to one that never had one.
+ */
+export function setFrame(p: VideoProject, frame: CanvasFrame | undefined): VideoProject {
+  if (!frame) {
+    if (!p.frame) return p;
+    const { frame: _drop, ...rest } = p;
+    return rest as VideoProject;
+  }
+  return { ...p, frame };
+}
+
+/**
+ * Entrance and exit animation, on a clip or a caption.
+ *
+ * One op for both, because the model carries `animateIn`/`animateOut` on every
+ * visual clip AND every text overlay, and `resolveAnim` reads them the same way.
+ * Two ops would be two places to get the removal rule wrong.
+ *
+ * **`undefined` REMOVES the field.** Storing `{type: 'none'}` instead would put
+ * a clip that has never been animated and one whose animation was switched off
+ * into different documents, and the second one emits a different filtergraph —
+ * `hasFade` joins the condition that picks `yuva420p`. Off has to mean absent.
+ */
+export function setElementAnim(
+  p: VideoProject,
+  id: string,
+  animateIn: ElementAnim | undefined,
+  animateOut: ElementAnim | undefined,
+): VideoProject {
+  const strip = <T extends { animateIn?: ElementAnim; animateOut?: ElementAnim }>(el: T): T => {
+    const { animateIn: _i, animateOut: _o, ...rest } = el;
+    return {
+      ...(rest as T),
+      ...(animateIn && animateIn.type !== 'none' ? { animateIn } : {}),
+      ...(animateOut && animateOut.type !== 'none' ? { animateOut } : {}),
+    };
+  };
+  if ((p.overlays ?? []).some((o) => o.id === id)) {
+    return { ...p, overlays: (p.overlays ?? []).map((o) => (o.id === id ? strip(o) : o)) };
+  }
+  return applyToClip(p, id, strip);
+}
+
 /* -------------------------------------------------------------- overlays --- */
 
-const byLayer = (o: TextOverlay[]) =>
-  [...o].sort((a, b) => (a.layer ?? 0) - (b.layer ?? 0));
+const byLayer = (o: Overlay[]) => [...o].sort((a, b) => (a.layer ?? 0) - (b.layer ?? 0));
 
-export function addOverlay(p: VideoProject, overlay: TextOverlay): VideoProject {
+export function addOverlay(p: VideoProject, overlay: Overlay): VideoProject {
   return { ...p, overlays: byLayer([...(p.overlays ?? []), overlay]) };
 }
 
-export function updateOverlay(
+export function updateOverlay<O extends Overlay = TextOverlay>(
   p: VideoProject,
   id: string,
-  patch: Partial<TextOverlay>,
+  patch: Partial<O>,
 ): VideoProject {
   let touched = false;
   const overlays = (p.overlays ?? []).map((o) => {
     if (o.id !== id) return o;
     touched = true;
-    return { ...o, ...patch };
+    /*
+     * An `undefined` in the patch REMOVES the field rather than parking an
+     * undefined value under a live key. That distinction is load-bearing in
+     * this engine: the renderers branch on presence — `hasCanvasFrame` appends
+     * an ffmpeg input, `hasFade` picks `yuva420p`, `linesOf` wraps or does not
+     * — so a key that exists holding nothing is a different document from one
+     * that lacks the key, and only the second is the document a project had
+     * before the control was ever touched.
+     */
+    const next = { ...o, ...patch } as Record<string, unknown>;
+    for (const k of Object.keys(patch)) {
+      if ((patch as Record<string, unknown>)[k] === undefined) delete next[k];
+    }
+    return next as unknown as Overlay;
   });
   return touched ? { ...p, overlays } : p;
 }
@@ -631,7 +750,27 @@ export function duplicateOverlay(p: VideoProject, id: string): VideoProject {
   });
 }
 
-export function findOverlay(p: VideoProject, id: string | null): TextOverlay | null {
+/**
+ * What to call an overlay in a list or on a timeline bar.
+ *
+ * One helper rather than `o.text || 'Text'` at each site, because those sites
+ * are exactly where a new overlay kind goes silently unlabelled — the bar still
+ * draws, so nothing looks broken; it is just blank, on a lane, with no way to
+ * tell which one it is.
+ */
+export function overlayLabel(o: Overlay): string {
+  if (o.type === 'text') return o.text || 'Text';
+  if (o.type === 'image') return 'Image';
+  return o.shape === 'ellipse' ? 'Ellipse' : 'Rectangle';
+}
+
+/** The caption with this id, or null if it is absent or not a caption. */
+export function findTextOverlay(p: VideoProject, id: string | null): TextOverlay | null {
+  const o = findOverlay(p, id);
+  return o && o.type === 'text' ? o : null;
+}
+
+export function findOverlay(p: VideoProject, id: string | null): Overlay | null {
   if (!id) return null;
   return (p.overlays ?? []).find((o) => o.id === id) ?? null;
 }

@@ -16,6 +16,7 @@ import {
   duplicateOverlay,
   findClip,
   findOverlay,
+  findTextOverlay,
   moveClip,
   removeClip,
   removeOverlay,
@@ -40,7 +41,7 @@ import {
   TransitionsPanel,
 } from './panels/MotionPanels';
 import { StockPanel } from './panels/StockPanel';
-import { ClipBar, OverlayBar } from './toolbar/ClipBar';
+import { ClipBar, ImageOverlayBar, OverlayBar } from './toolbar/ClipBar';
 import { StickersPanel } from './panels/StickersPanel';
 import { Timeline } from './timeline/Timeline';
 import panel from './panels/Panels.module.css';
@@ -117,7 +118,13 @@ export function MotionDesign({
   const preview = usePreview(canvasRef, live);
   const hasClips = !!live.tracks?.some((t) => t.clips.length) || !!live.overlays?.length;
   const selected = useMemo(() => findClip(live, selection), [live, selection]);
-  const selectedText = useMemo(() => findOverlay(live, selection), [live, selection]);
+  const selectedText = useMemo(() => findTextOverlay(live, selection), [live, selection]);
+  // A picture on the overlay stack gets its own bar. Selected via `findOverlay`
+  // and narrowed here, because `selectedText` deliberately answers null for it.
+  const selectedImage = useMemo(() => {
+    const o = findOverlay(live, selection);
+    return o && o.type === 'image' ? o : null;
+  }, [live, selection]);
   const canvasDrag = useCanvasDrag(live, preview.time);
 
   /*
@@ -350,6 +357,8 @@ export function MotionDesign({
               actually producing rather than over the timeline row. */}
           {selectedText ? (
             <OverlayBar overlay={selectedText} />
+          ) : selectedImage ? (
+            <ImageOverlayBar overlay={selectedImage} />
           ) : selected ? (
             <ClipBar
               clip={selected.clip}

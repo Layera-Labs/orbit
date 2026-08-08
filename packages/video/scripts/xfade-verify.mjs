@@ -11,7 +11,7 @@
  * inside the service's own container, where there is node and ffmpeg and
  * nothing else:
  *
- *   docker compose -f apps/render-service/compose.vps.yaml \
+ *   docker compose -f services/render/compose.vps.yaml \
  *     exec render node packages/video/scripts/xfade-verify.mjs
  *
  * It measures the BARE filter, not a render. That is deliberate: a difference

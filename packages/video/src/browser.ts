@@ -22,6 +22,10 @@ export type {
   TextShadow,
   TextStroke,
   TextOverlay,
+  ImageOverlay,
+  ShapeOverlay,
+  OverlayBase,
+  OverlayShape,
   Overlay,
   AudioClip,
   Background,
@@ -39,6 +43,9 @@ export type {
   MaskShape,
   BlendMode,
   VolumePoint,
+  VolumeCurve,
+  VolumeDuck,
+  VolumeEnvelope,
   Keyframe,
   Motion,
   MotionType,
@@ -51,8 +58,9 @@ export type {
   AudioTrack,
   Track,
   VideoProject,
+  WordTiming,
 } from './types';
-export { FULL_FRAME, FULL_SOURCE } from './types';
+export { FULL_FRAME, FULL_SOURCE, textOverlaysOf } from './types';
 export {
   FILTER_PRESETS,
   NEUTRAL,
@@ -70,12 +78,43 @@ export { chromaToFFmpeg, chromaParams, chromaAlphaAt, hexToRgb } from './cutout'
 export type { ChromaParams } from './cutout';
 export { maskToFFmpeg } from './mask';
 export { blendToFFmpeg, blendToSkia, blendToCanvas, BLEND_MODES } from './blend';
-export { hasVolumeCurve, sampleVolume, volumeCurveExpr } from './curve';
+export {
+  DUCK_RAMP,
+  curvePoints,
+  duckRamp,
+  hasVolumeCurve,
+  isEnvelope,
+  sampleVolume,
+  volumeCurveExpr,
+} from './curve';
+export {
+  MAX_FADE,
+  MAX_VOLUME,
+  ducksOf,
+  fadesOf,
+  maxFadeFor,
+  withDucks,
+  withFades,
+  withVolume,
+} from './audio-fade';
+export type { AudioFades } from './audio-fade';
 export { hasKeyframes, sampleKeyframes, keyframeExpr, animatesOpacity, animatesPosition } from './keyframes';
 export { createProject, projectDuration, transitionDuration } from './project';
 export { buildFFmpegArgs, MOSAIC_BLOCK } from './ffmpeg';
 export type { BuildFFmpegOptions } from './ffmpeg';
-export { overlayBox, overlayToSVG } from './overlay-svg';
+export { overlayBox, overlayToSVG, overlayFontOptions } from './overlay-svg';
+export type { FontMap, OverlayRenderOptions } from './overlay-svg';
+export { subsetFont, codePointsOf } from './font-subset';
+export {
+  parseFontMetrics,
+  measureLine,
+  measurerFor,
+  approximateMeasurer,
+  wrapLines,
+  linesOf,
+  APPROX_EM_PER_CHAR,
+} from './font-metrics';
+export type { FontMetrics, TextMeasurer } from './font-metrics';
 export {
   LEGACY_FADE_D,
   SLIDE_DISTANCE,
@@ -137,6 +176,15 @@ export {
   MAX_OVERLAP_FRAC,
   TRANSITIONS,
   isAlphaOnly,
+  blurSigmaAt,
+  flashAlphaAt,
+  flashColor,
+  flashExpr,
+  isAuthoredTransition,
+  ridesOverlayPath,
+  shakeExpr,
+  shakeOffsetAt,
+  parseXfadeTokens,
   planMainRuns,
   previewableTransitions,
   resolveTransitions,
@@ -145,8 +193,13 @@ export {
   xfadeName,
   xfadeProgressAt,
   requestedOverlap,
+  transitionUnsupportedMessage,
+  unsupportedTransitions,
+  xfadeMaskAt,
+  xfadeMaskGrid,
   xfadeStateAt,
   xfadeStateFor,
+  xfadeVeilAt,
 } from './xfade';
 export type {
   ClipXfades,
@@ -157,13 +210,17 @@ export type {
   TransitionDowngrade,
   TransitionFamily,
   TransitionVariant,
+  XfMask,
+  XfMaskField,
   XfRole,
   XfState,
+  XfVeil,
 } from './xfade';
 
 // Auto-captions. Pure layout over a transcript the service produced.
 export {
   CAPTION_ID_PREFIX,
+  captionWordsValid,
   setAutoCaptions,
   hasAutoCaptions,
   clearAutoCaptions,

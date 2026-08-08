@@ -1,7 +1,14 @@
 export type { AccountId, Operation, LedgerEntry, License, CostTable } from './types';
-export type { LedgerStore, InMemoryOptions } from './store';
+export type {
+  LedgerStore,
+  InMemoryOptions,
+  RecordOptions,
+  RecordGuard,
+  RecordOnceResult,
+} from './store';
 export { InMemoryLedgerStore } from './store';
-export { Ledger, InsufficientCreditsError } from './ledger';
+export { Ledger, InsufficientCreditsError, UnknownHoldError } from './ledger';
+export type { Hold } from './ledger';
 export {
   makeAccountId,
   isLicenseKeyFormat,

@@ -107,6 +107,7 @@ export class RunwayProvider implements MediaProvider {
 
   async generateImage(req: GenImageRequest): Promise<GenResult> {
     if (!this.token) throw new Error('RunwayProvider: missing API token');
+    const startedAt = Date.now();
     const model = req.model ?? this.imageModel;
     // Follow the project's aspect ratio (mapped to the nearest supported one),
     // so the generated image matches the video the user is making.
@@ -126,11 +127,17 @@ export class RunwayProvider implements MediaProvider {
     }
     const url = pickUrl(task.output);
     if (!url) throw new Error('Runway returned no output URL');
-    return { url, meta: { provider: 'runway', model, id, ratio } };
+    return {
+      url,
+      meta: { provider: 'runway', model, id, ratio },
+      // One image per call, so the count is the billable quantity.
+      usage: { provider: 'runway', model, ms: Date.now() - startedAt, units: 1, unit: 'images' },
+    };
   }
 
   async generateVideo(req: GenVideoRequest): Promise<GenResult> {
     if (!this.token) throw new Error('RunwayProvider: missing API token');
+    const startedAt = Date.now();
     // Runway animates a source image; text-to-video = generate an image first.
     const promptImage =
       req.image ?? (await this.generateImage({ prompt: req.prompt, width: req.width, height: req.height, signal: req.signal })).url;
@@ -156,7 +163,24 @@ export class RunwayProvider implements MediaProvider {
     // Optional matching sound effect (Runway video is silent), returned so the
     // caller can add it as a separate audio clip.
     const audioUrl = req.audio ? await this.soundEffect(req.prompt, duration, req.signal) : undefined;
-    return { url, meta: { provider: 'runway', model, id, ratio, duration, ...(audioUrl ? { audioUrl } : {}) } };
+    return {
+      url,
+      meta: { provider: 'runway', model, id, ratio, duration, ...(audioUrl ? { audioUrl } : {}) },
+      /*
+       * Runway bills video by the second, and `duration` is what was actually
+       * requested of it (5 or 10) rather than what the caller asked for. Note
+       * this SPANS the nested image generation when the caller supplied no
+       * source image, which is the honest number: that image was generated for
+       * this video and billed to the same account.
+       */
+      usage: {
+        provider: 'runway',
+        model,
+        ms: Date.now() - startedAt,
+        units: duration,
+        unit: 'video-seconds',
+      },
+    };
   }
 
   /** Generate a matching sound effect (eleven_text_to_sound_v2). Returns its URL. */

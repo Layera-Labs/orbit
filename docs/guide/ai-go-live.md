@@ -2,7 +2,7 @@
 
 Everything below is config, not code. Each feature is independent and gated by
 its own env var: leave one unset and that endpoint returns `503`/degrades, it
-never crashes the server. Server env lives in `apps/render-service/.env` (copy
+never crashes the server. Server env lives in `services/render/.env` (copy
 from `.env.example`). Client config lives in `apps/mobile/src/constants.ts`.
 
 ## 1. Storage (Postgres — Neon or Supabase)
@@ -10,7 +10,7 @@ from `.env.example`). Client config lives in `apps/mobile/src/constants.ts`.
 1. Create a Postgres database (Neon or Supabase both work — it's a plain URL).
 2. Set `DATABASE_URL` in the render-service `.env` (include `?sslmode=require`
    for Neon). Tables are created automatically on first run.
-3. Verify: `cd apps/render-service && TEST_DATABASE_URL="<url>" npm test`
+3. Verify: `cd services/render && TEST_DATABASE_URL="<url>" npm test`
    — the 3 skipped Postgres tests should pass (they write/clean up `test:*` rows).
 
 Without `DATABASE_URL` storage is in-memory and resets on restart — dev only.

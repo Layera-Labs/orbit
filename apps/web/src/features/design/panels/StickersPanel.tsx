@@ -5,7 +5,8 @@ import { Icon } from '@/brand/Icon';
 import { SwatchGrid } from '@/brand/Colour';
 import { addMedia } from '@/db/media';
 import { mediaSrc, type MediaRow } from '@/db/schema';
-import { addOverlayClip, useVideo } from '@/store/videoStore';
+import { addOverlay, nextOverlayLayer, useVideo } from '@/store/videoStore';
+import { newId } from '@/db/idb';
 import { MediaPanel } from './MediaPanel';
 import styles from './Panels.module.css';
 
@@ -117,19 +118,37 @@ export function StickersPanel({ time }: { time: number }) {
   const [tone, setTone] = useState(TONES[0]);
   const [busy, setBusy] = useState<string | null>(null);
 
+  /*
+   * A sticker is an `ImageOverlay`, not a clip on a track of its own.
+   *
+   * It used to be the latter, and the cost was real: every mark added a whole
+   * visual track — a lane on the timeline and an `-i` input in the filtergraph
+   * — for one small picture, and it could not use the `layer` z-order captions
+   * already had. On the overlay stack it is one entry, ordered against the
+   * captions by the same field, and `imageOverlayAsClip` hands the renderers
+   * the clip shape they already know so nothing about the drawing changed.
+   *
+   * `x`/`y` is the CENTRE of the box, so the old top-left of 0.08 becomes
+   * 0.08 + half the size — the mark sits exactly where it always did.
+   */
   const place = (src: string, ratio: number) =>
     apply((p) => {
-      // A square-ish mark at a quarter width, top-left, clear of the edge. Its
-      // rect is normalized, so it means the same thing at any output size.
-      const w = 0.26;
-      const h = Math.min(0.9, (w * p.width) / p.height / ratio);
-      return addOverlayClip(p, {
+      // A square-ish mark at a quarter width, top-left, clear of the edge.
+      // Normalized, so it means the same thing at any output size.
+      const width = 0.26;
+      const height = Math.min(0.9, (width * p.width) / p.height / ratio);
+      const start = Math.round(time * 100) / 100;
+      return addOverlay(p, {
+        id: newId('img'),
         type: 'image',
         src,
-        start: Math.round(time * 100) / 100,
-        duration: SECONDS,
-        rect: { x: 0.08, y: 0.08, w, h },
-        note: 'Sticker',
+        start,
+        end: start + SECONDS,
+        x: 0.08 + width / 2,
+        y: 0.08 + height / 2,
+        width,
+        height,
+        layer: nextOverlayLayer(p),
       });
     });
 

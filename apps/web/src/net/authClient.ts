@@ -85,9 +85,17 @@ export const registerUser = (email: string, password: string) =>
 export const loginUser = (email: string, password: string) =>
   post('v1/auth/login', { email, password });
 
-/** Sends a reset mail. Resolves with nothing useful — by design, so the reply
- *  cannot be used to discover which addresses have accounts. */
-export async function requestPasswordReset(email: string): Promise<void> {
+/**
+ * How this server delivers a reset: `link` means it mailed a reset page,
+ * `code` means it mailed the raw token. A property of the SERVER, not of the
+ * account, so reporting it leaks nothing about who has one.
+ */
+export type ResetDelivery = 'link' | 'code';
+
+/** Sends a reset mail. Says only HOW it delivers — by design, so the reply
+ *  cannot be used to discover which addresses have accounts. A server that
+ *  predates the reset page omits `delivery` and only ever mailed the token. */
+export async function requestPasswordReset(email: string): Promise<ResetDelivery> {
   let res: Response;
   try {
     res = await fetch(`${BASE}/v1/auth/forgot`, {
@@ -100,13 +108,14 @@ export async function requestPasswordReset(email: string): Promise<void> {
   }
   if (res.status === 404)
     throw new AuthError('not-configured', 'This render service does not have accounts enabled.');
-  if (!res.ok) {
-    const data = (await res.json().catch(() => ({}))) as {
-      error?: string;
-      kind?: AuthErrorKind;
-    };
+  const data = (await res.json().catch(() => ({}))) as {
+    error?: string;
+    kind?: AuthErrorKind;
+    delivery?: ResetDelivery;
+  };
+  if (!res.ok)
     throw new AuthError(data.kind ?? 'failed', data.error ?? 'Could not send the reset email.');
-  }
+  return data.delivery === 'link' ? 'link' : 'code';
 }
 
 export const resetPassword = (token: string, password: string) =>

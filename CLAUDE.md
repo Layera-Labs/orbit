@@ -8,8 +8,11 @@ Open-source, embeddable, white-label **design-canvas editor SDK** for **image + 
 with an agentic (AI) layer. Inspired by **Polotno SDK** and **Canva**. Targets React,
 Next.js, and React Native.
 
-**Current focus: a native mobile video-editing app (`apps/mobile`), modelled on the VN
-Video Editor app.** That is where nearly all active work happens.
+**This repo is the SDK.** The mobile video editor was extracted to its own repo on
+2026-08-08 and **purged from this history** — it is a product, not part of what is
+being published, and it was 40k lines of app sitting where an SDK's examples
+belong. It lives at `~/Github/orbit-mobile` with its own 182 commits and its own
+CLAUDE.md carrying everything that was learned building it.
 
 **One brand, settled 2026-07-31: Layera Labs is the org, Orbit is the product.**
 `github.com/Layera-Labs/orbit`. The SDK is Orbit SDK and the app is Orbit — not two
@@ -28,12 +31,18 @@ Source-of-truth docs: [docs/roadmap.md](docs/roadmap.md),
 
 pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
 
+**Four top-level directories, split by what a thing IS** (2026-08-08): `packages/`
+is the SDK, `services/` is what gets deployed, `apps/` is the shipped products,
+`examples/` is small demos. `apps/render-service` became `services/render` and the
+four demos moved to `examples/` in the same change — the container's build context
+is still the repo root, so nothing about the Dockerfile's depth changed.
+
 | Path | Role |
 |---|---|
-| `apps/mobile` | **The video editor app.** Expo SDK 55 / RN 0.83 / React 19 / Skia dev build. |
-| `apps/render-service` | Express service: `/v1/upload`, `/v1/render`, AI gen endpoints, auth, billing. |
+| `services/render` | Express service: `/v1/upload`, `/v1/render`, AI gen endpoints, auth, billing. |
 | `apps/web` | **The web product.** Next 14 / React 18. Image editor + AI studio + video editor. |
-| `apps/studio`, `apps/demo`, `apps/demo-next`, `apps/webview-host` | Web demos for the SDK. |
+| `examples/studio`, `examples/demo`, `examples/demo-next`, `examples/webview-host` | Small demos, one idea each. Not products. |
+| `examples/mobile` | An Expo example: AI studio, timeline, export. Standalone npm, not in the workspace. |
 | `packages/video` | **Canonical video engine** — ffmpeg arg builder + `renderProject`, effect math. |
 | `packages/video-gen`, `packages/video-ai` | AI providers (ElevenLabs TTS, image/video gen). |
 | `packages/model` / `render` / `providers` / `editor` | v2 web SDK: Valtio doc model → react-konva renderer → provider registry → React UI. |
@@ -41,608 +50,24 @@ pnpm + Turbo TypeScript monorepo, Node >= 20, pnpm 10.29.2.
 
 ## Hard rules (violating these breaks things)
 
-1. **`apps/mobile` is NOT in the pnpm workspace** (`!apps/mobile`). It installs
-   **standalone with npm**. Never run `pnpm add`/`pnpm install` inside it — it corrupts
-   Metro resolution. Add deps via `npx expo install <pkg>` or edit `package.json` then
-   `npm install` **in `apps/mobile`**.
-2. Because of that isolation, mobile **cannot import `@orbit/video`**. It **vendors**
-   `packages/video/src/{types,project}.ts` into `apps/mobile/src/model/`. **Keep the
-   vendored copies in sync with the canonical engine.**
-3. **Never use emoji in mobile UI** — they render as tofu in the iOS Simulator. Use
-   `src/components/VIcon.tsx` (react-native-svg, 24×24 `d` paths). No `@expo/vector-icons`
-   in the design-system screens.
-4. Never reference bare `fontWeight`; use `font.{regular…extrabold}` / `mono.*` from
-   `src/constants.ts`.
+1. **Every effect is rendered twice and the two must agree.** A change to a
+   filter, transition, blur, motion or mask lands in BOTH the preview and the
+   ffmpeg export, with a test parsing the real filtergraph. A broken agreement
+   test stops the line.
+2. **Measure ffmpeg; do not reason about it.** Probe the filter with known RGB
+   bytes and read the output. That method has caught several shipping bugs that
+   looked obviously correct on paper.
+3. **Never import the default `@orbit/video` entry from a browser bundle.** Use
+   `@orbit/video/browser` (pure) or `@orbit/video/node` (ffmpeg, resvg, fs).
+   `browser-safety.test.ts` walks the import graph and fails on a `node:` builtin.
+4. **Any Expo app in `examples/` installs with npm, never pnpm** — pnpm's symlinked
+   store corrupts Metro's module resolution. That is why `examples/mobile` is
+   outside the workspace.
 
-## Mobile editor architecture (`apps/mobile`)
-
-- **Model**: `VideoProject.tracks` — CapCut-style multi-track. Visual tracks stack
-  bottom→top by z-order; each clip has an absolute `start` + normalized `rect` (PiP).
-  Audio tracks mix. A legacy single-track `clips`/`audio` path still exists; `ensureTracks`
-  migrates v1 projects on open. `buildMultiTrackArgs` composites when `tracks` is present.
-- **Preview** (`src/components/Preview.tsx`): Skia `<Canvas>`. Base + overlay video decode
-  live per-frame via `src/preview/useClipFrame.ts` (Skia.Video + useFrameCallback, seek+retry).
-- **Effects are dual-rendered from ONE model** — every clip effect must work in BOTH the
-  Skia preview and the ffmpeg/resvg export. Filters=`<ColorMatrix>`/eq; Transitions=
-  `<Group opacity>`/xfade; Blur=`<Blur>`/gblur; Motion(Ken Burns)=`<Group transform>`/zoompan;
-  Cutout(chroma)=Skia `RuntimeEffect`/`colorkey`. Shared math lives in `packages/video/src/`
-  (`motion|cutout|mask|blend|curve|keyframes|filters|transform.ts`) mirrored into
-  `apps/mobile/src/preview/`.
-- **Rotation + crop** (2026-07-31, `packages/video/src/transform.ts`). `rotation` is
-  CLOCKWISE **degrees** about the centre of `rect`; `crop` is a `SourceRect` normalized to
-  the media's **own** size — it has to be, because `ffmpeg.ts` never probes the media and
-  `frameStateAt` is sync and pure. Order everywhere: decode → **crop** → grade → cover-fit
-  into `rect` → effects → **rotate** → composite. There is still exactly ONE cover-fit; it
-  just reads from the crop window, so nothing crops twice (`sourceCropPx(nw,nh,undefined,…)`
-  === `coverCrop(…)`, asserted). Four things measured against real ffmpeg 8.1.2, not
-  reasoned about:
-  - `rotate=…:c=none` **needs `format=rgba`** — with no alpha plane the fill is opaque black
-    and every rotated clip gets black corners.
-  - `ow`/`oh` come from `rotatedBoxPx`, never ffmpeg's `rotw()`/`roth()`, so the preview and
-    the test can reproduce the encoder's exact number. It rounds **UP** to even (rounding to
-    nearest shaves the corner the rotation just made) and snaps trig noise to zero — without
-    that, `cos(π/2)` = 6.1e-17 made a 96px box come out 98.
-  - The overlay origin is pulled back by half the growth (`rx-dx`), which pins the turn to
-    the rect CENTRE. Values go negative; `overlay` accepts that, but the **blend path's base
-    `crop` does not** — it is clamped, or a rotated PiP touching an edge aborts the render.
-  - **No supersampling.** It was tried: `scale` 2x → rotate → `scale …:flags=area` gives four
-    coverage steps instead of one, but the downscale averages colour against the transparent
-    fill's black, so composited over black a red edge measured 16/64/144 where it should be
-    64/128/192 — **up to 64/255 too dark on every boundary pixel**. `unpremultiply` does not
-    fix it (the framework auto-inserts a matching `auto_premultiply` and the pair cancels);
-    `setparams=alpha_mode=premultiplied` would, but only exists in ffmpeg 8 and would fail
-    outright on 7.x. So the export's rotated edge is one honest hard pixel and both previews
-    antialias — a recorded divergence on the boundary pixel only, far smaller than the
-    alternative's error. Do not "improve" this without re-measuring.
-- **State**: zustand — `src/store/{editorStore,authStore,aiActions}.ts`. Sheets are driven by
-  store `panel` state (`setPanel`); prefs in store `prefs`; export in `exportToPhotos`.
-- **Persistence**: expo-file-system v55 class API (`File`/`Directory`/`Paths`), one JSON per
-  project under documentDirectory, media copied into `media/`.
-- **Timeline** (`Timeline.tsx`): fixed left gutter of VIcons over 5 lanes — Music · Text ·
-  Image · Video (main) · Sound (read-only mirror). Scrub by scrolling under a fixed center
-  playhead; scroll locks while a clip is selected so trim-handle pans win.
-  **Nothing here is animated on purpose** — a `LinearTransition` on the body dragged the
-  whole timeline along behind a trim. Trim handles keep the geometry in LOCAL state and
-  write the store **once, on release** (the web editor's `useClipDrag` rule): a per-frame
-  `apply()` clones the project and re-renders three screens, so the edge trailed the finger.
-  The body MOVE deliberately still writes live, because `setClipStart` re-packs the track in
-  Quick mode and moves neighbours under linkage — deferring that would replace live feedback
-  with a snap.
-- **A caption's `x` positions it, and on mobile it did NOT** (fixed 2026-08-02). The
-  preview's caption layer spanned the full width and centred its text, so `o.x` moved
-  nothing on screen — while `overlay-svg.ts` has always anchored the text at
-  `width * o.x`. Dragging a caption sideways therefore appeared to do nothing AND moved
-  it in the exported file, and a caption placed off-centre anywhere else came back
-  centred here. The offset goes on an INNER view, because the outer one carries the
-  Ken-Burns `transformOrigin` expressed in its own box — translate that box and the zoom
-  pivots about the wrong point. Verified on device with three captions at
-  `x = 0.12/0.5/0.88` and the three alignments; each lands on its anchor.
-  **`y` is the caption's TOP**, so it is clamped against the layer's MEASURED height
-  (`onLayout` into a ref): clamping the anchor to 1, as it used to, let you drag the text
-  until only its first pixel row was on the canvas and then off it entirely. A PiP clamps
-  against its `rect`; a caption has no box in the model, since its height depends on the
-  font, the string and where it wraps.
-- **Nothing that moves under a finger writes the store per frame** (2026-08-02). The
-  trim handles were fixed for this long ago; the CLIP MOVE and every preview drag were
-  not, and each one called `apply` on every pointer event — which clones the project,
-  re-renders the preview, the timeline and the editor chrome, and queues a save and a
-  sync. The dragged thing trailed the finger by several frames, so you kept moving to
-  catch it up and pushed a caption off the canvas. All of them now hold the geometry in
-  LOCAL state and write once on release: `Timeline`'s `moveGeom` beside `leftGeom`/
-  `rightGeom`, and `Preview`'s `textAt`/`rectAt`/`effectAt` feeding `liveText` and `live`
-  (which grew `mosaic`/`magnifier` so a dragged region rides there too). One write is
-  also one undo step. The clip move's live neighbour re-packing is the price — Quick mode
-  now settles them once, on release, which is the right side of that trade.
-  **A `simctl` touch path cannot drive the timeline's `bodyPan`** — `blocksExternalGesture`
-  inside the horizontal ScrollView needs real UIKit touch arbitration. Verified by A/B:
-  the OLD handler does not move the clip under the same synthetic path either, so a null
-  result there is the harness and not the code. The preview drags DO respond to it.
-- **`SelectionActionBar` follows the clip.** Its actions branch by track kind + clip type
-  (video / image / audio / caption / sticker); it used to show one set for everything and
-  explain the dead ones with an alert. It is positioned from state that already exists —
-  scrolling the timeline IS setting the playhead, so the scroll offset is
-  `playheadSec * pxPerSec` and the clip's on-screen centre needs no plumbing out of
-  `Timeline`. Vertically it sits **ABOVE its own lane, always** (2026-08-01). It used to drop
-  below when it could not fit above, which is exactly what happened on the MUSIC
-  lane — the top one, where `laneTop - BAR_H` goes negative against a `RULER_H` of
-  22 — so the bar for a music clip appeared on the text lane and read as belonging
-  to it. Asked for four times now. It is clamped to 0 rather than allowed
-  negative, which would put it over the transport's play and undo buttons; on the
-  top lane that means it overlaps the ruler and the first few pixels of the lane's
-  own strip, which is a deliberate trade against appearing over a different lane. It is rendered
-  INSIDE the timeline's vertical scroller, from `selLane` (`RULER_H` plus each lane and its
-  `LANE_GAP`), so it travels with the lanes; positioning it from `EditorScreen` would mean
-  plumbing that scroll offset back out. It previously cleared the WHOLE timeline, which put
-  the bar for a clip on the fourth lane at the very top of the screen with nothing tying the
-  two together — the user asked for it on its lane three times. `BAR_H` is a stated constant
-  because the bar is absolutely positioned and contributes no height for a percentage to
-  measure against, and `ITEM_H` is stated separately: the slot sits INSIDE the padding, so
-  the old `height: BAR_H - 2` double-counted it and the bar ran 8pt taller than the number
-  placing it.
-- **A clip's level has ONE writer, because a curve overrides `volume`** (2026-07-31).
-  `clipGainAt` and `ffmpeg.ts` both read `volumeCurve` INSTEAD of `volume` when one is
-  set — deliberate, and the reason `withFades` writes the plateau into both. But the
-  Volume panel wrote `volume` alone, so on any clip carrying a fade it moved a number no
-  renderer reads: set a fade, drag Volume to 200%, and the export came back at 100% with
-  nothing to say why. Both controls go through `withVolume` (`model/audio-fade.ts`) now,
-  which moves a recognised fade's plateau, SCALES a hand-drawn curve (flattening someone's
-  duck to obey a slider would destroy work to honour it), and drops a curve that is silent
-  throughout. Measured after the fix against ffmpeg 8.1.2: a faded clip at 200% renders
-  **+6.00 dB** over the same clip at 100%. `setClipVolumeCurve` clamps points to the same ceiling as
-  `setClipVolume` — unclamped, a curve point was the one way to store a gain the UI could
-  neither show nor undo. **`MAX_VOLUME` (`model/audio-fade.ts`) is that ceiling and the
-  ONLY place it is written**: both ops, all three volume sliders and the waveform's scale
-  read it. It is **5 (500%) since 2026-08-01**, up from 2, because quiet source material
-  needs more than +6 dB. ffmpeg's `volume` multiplies and lets the result hard-clip, which
-  is the honest behaviour and means the top of the range is a tool for quiet audio.
-  The waveform's height scale became a **square root** in the same change: linear at a
-  ceiling of 5 would put unity at a fifth of the lane and draw ordinary audio — nearly all
-  audio — as a stripe along the bottom. Sqrt keeps unity at ~45%, puts 2x at ~63%, and
-  still lets 5x reach the top; it also lifts very small gains, so a fade's last bar no
-  longer lands on `FLOOR_H`.
-- **A slider must not write the store on every touch event** (2026-08-01). Dragging the
-  volume slider threw "Maximum update depth exceeded" and the knob trailed the finger —
-  one cause, two symptoms. Three parts, all in `VSlider`/`sliderValue.ts`, and each is
-  load-bearing: values are QUANTIZED and an unchanged one is not reported (default grid
-  1/200 of the range; volume passes `step={0.05}` for 5% snapping) — and `quantize`
-  rounds off float fuzz, because `0 + 3*0.05` is `0.15000000000000002` and the dedupe
-  compares with `===`, so without it nothing is ever deduplicated; reports are coalesced
-  to **one per frame** with a guaranteed flush on release, so a fast swipe crossing every
-  bucket still cannot storm; and the knob is drawn from the FINGER while it is down, not
-  from `value`, which is what removes the round-trip lag. The gesture object is also built
-  ONCE behind a config ref — inline, `GestureDetector` re-attached on every render and a
-  handler that sets state re-rendered into another new gesture.
-  The other half of that crash was in the store: **every `applyClip*` action re-selected
-  its clip with a FRESH object** (`set({ selected: { trackId, clipId } })`), so `selected`
-  changed identity on every gesture frame and every consumer re-rendered and every
-  `useEffect` keyed on it re-ran, for a value that had not changed. `reselect(set, get, …)`
-  is now the single writer and no-ops when the same clip is already selected.
-- **The volume slider shows its scale and detents onto 100%.** `ticks` draws a mark every
-  N value units (volume: every 50%) and `defaultValue` draws a taller one at the level the
-  control normally sits at — and the finger SNAPS onto it within `DETENT_PX` (6), so the
-  mark is something you can aim at rather than a decoration. The radius is deliberately
-  small: at 5% steps on a ~300pt track a step is ~3pt, and a greedy detent would make 90%
-  unreachable. `tickValues` refuses to draw more than `MAX_TICKS` (40) — past that a scale
-  stops saying where you are and becomes texture — and carries an epsilon, because
-  `5 / 0.5` is `9.999999999999998` and a plain floor drops the mark on 500%.
-- **Apply-to-all exists twice, and they are separate actions on purpose.**
-  `applySoundToAll` (Sound lane) takes only video clips and carries mute;
-  `applyAudioVolumeToAll` (`AudioClipSheet`) takes every clip on ONE audio track and moves
-  the level only. Both go through `withVolume`, so a clip carrying a fade has its plateau
-  moved rather than being flattened. Both name their scope and their count in a
-  confirmation — a project can hold more than one audio track, and relevelling one the
-  user was not looking at is how a mix gets lost.
-- **The percentage beside a volume slider is a typed field** (`PercentField`). 0–500% in
-  5% steps, and it commits on blur, on Done **and on unmount** — a number pad has no
-  return key, so tapping the sheet's ✓ or the backdrop tears the field down without ever
-  blurring it, and without that flush a typed number is silently discarded. It never
-  commits per keystroke: "1" on the way to "150" is a real value that would drop the clip
-  to 1% and rescale a fade's curve to match. `parsePercent` REFUSES an empty or
-  unparseable field rather than coercing — `Number("")` is 0, and reading a cleared field
-  as "mute" is not helpfulness.
-- **Mute is a flag, and the Sound lane is now a control.** `clip.muted` is what both
-  previews and the export read; muting used to write `volume: 0` and unmute used to
-  write 1, so a clip you had at 40% came back at 100% with the number gone.
-  `ops.setClipMuted` sets the flag and leaves the level alone. Tapping a block on the
-  Sound lane selects the main clip it mirrors and opens `SoundVolumeSheet` — mute,
-  volume, and an Apply-to-all that names its scope (that track's clips with their own
-  sound; music and voiceover keep their own controls). NOTE: an RN `Switch` does not
-  respond to `simctl`-injected taps, so verify a toggle by driving the store from a
-  `TEMP-VERIFY` hook and screenshotting the result, not by tapping it.
-- **The preview's audio is a real Web Audio graph, for gain above 1** (2026-08-01).
-  It used to be `expo-audio`, whose `player.volume` is a **0–1 property that saturates
-  in the native player** — so a clip at 200% (or 500%, once `MAX_VOLUME` moved) sounded
-  exactly like 100% here while ffmpeg rendered the real boost. `react-native-audio-api`
-  gives a `GainNode` whose `gain` is unbounded, so `audioGraph.ts` no longer clamps.
-  **It is a native module: `app.json` registers its config plugin and a rebuild is
-  required.**
-  The swap forced a different shape and this is the part to understand before touching
-  it. An `expo-audio` player can SEEK, so the old graph held one open per clip and
-  re-positioned it every tick. A Web Audio `AudioBufferSourceNode` **cannot** — it is
-  one-shot, started once with an offset and a duration and immovable after. So the graph
-  **ARMS**: on play, and again whenever the playhead jumps further than
-  `REARM_TOLERANCE_SEC` (0.25s) from where the running sources would have carried it.
-  That tolerance is deliberately generous — re-arming stops and recreates every source,
-  which clicks, so frame jitter must never trigger it. The arithmetic lives in
-  `preview/audioSchedule.ts` and is unit-tested there, because nothing about the graph
-  itself can be tested off-device. Decoded buffers are cached by uri across voices AND
-  mounts; a decode failure caches as `null` so it is not retried every sync.
-  `expo-audio` is still used elsewhere (recording), so it stays installed.
-- **Export**: upload local media → `POST /v1/upload` (`upload:<id>` token) → resolved project →
-  `POST /v1/render` → download MP4 → save to Photos. The server's `resolveSrc` only maps tokens
-  to files in its media dir and rejects non-token/non-URL srcs (clients can't point ffmpeg
-  at arbitrary paths).
-- **An `upload:` token is NOT durable, and both ends now say so** (2026-08-01). The media dir is
-  a cache with a byte budget, so eviction, a redeploy onto a fresh volume or simply changing the
-  render server all leave a client holding tokens that name nothing. `/v1/render` checks every
-  token BEFORE taking a render slot and answers **409 `{code:'missing_uploads', missing:[…]}`**
-  — after `ensureLocal`, so with a bucket behind the cache "missing" means genuinely
-  unrecoverable. Left to ffmpeg this arrived as `No such file or directory` out of a half-built
-  filtergraph, which a client cannot act on. Mobile's `uploadCache` is keyed by **server AND
-  file** (it was file only, so dev-Mac tokens got sent to production) and `exportProject` retries
-  **exactly once** on that 409, having forgotten the named tokens, so the second pass re-uploads
-  only what went missing. One retry, because a second failure is real and must surface.
-- **The H.264 level is capped at 5.2, and that is what makes an export saveable** (2026-07-31,
-  measured against ffmpeg 8.1.2). Left alone x264 picks whatever level its VBV needs, and
-  **`bufsize` is the knob that drives it, not the resolution**: 2160×3840 at `-b:v 160M
-  -bufsize 320M` emits **Level 6.1**; the same bitrate at `-bufsize 160M` emits 5.1. Apple's
-  decoder stops at 5.2, and the way that surfaces is not a playback glitch — `PHPhotoLibrary`
-  refuses the asset, so a render that completed end to end dies at the last step with "this
-  video couldn't be saved to the Camera Roll album". A device reproduced it every time on
-  4K/High while 4K/Low, whose smaller buffer stayed inside 5.1, saved fine. `-level:v 5.2`
-  makes x264 warn and clamp the buffer, which is the outcome we want. The other half of the
-  fix is `exportMbps`: it was `scale²` off a 40 Mbps 1080p reference (160 Mbps at 4K), and is
-  now `scale^1.5` — pixels^0.75, how H.264 actually behaves — off 18, so 4K/High lands at
-  ~51 Mbps and the worst case in the UI (4K/High/60) measures Level 5.2 with no warning.
-- **Every call to the service is under a JWT** (2026-07-29) — generation, credits, upload
-  and render alike. Guest-first survives because signed-out is a **guest token**
-  (`POST /v1/auth/guest`), not the absence of one: signed by the server, naming a subject
-  the client cannot choose. It replaced `X-Orbit-Account`, a client-supplied header the
-  server took at its word — set it to someone else's and you spent their credits. Token
-  custody is `src/net/session.ts` on both clients (keychain on mobile, localStorage on
-  web), under ONE key for guest and member, with a single shared in-flight bootstrap so
-  four callers at launch don't mint four accounts. A 401 retries once **only for a guest**
-  (`discardIfGuest`) — a member's expiry is a real sign-in, and silently swapping them onto
-  a guest account would detach them from their own credits. `ORBIT_JWT_SECRET` is required
-  in production and ephemeral in dev. Render jobs carry their `account`, so
-  `GET /v1/render/:id` 404s someone else's job rather than handing over the MP4.
-- **`ensureTracks` used to return early and strand the legacy `audio` array** (fixed
-  2026-08-02). `if (p.tracks?.length) return p` — so a project that had tracks AND a
-  non-empty `project.audio` kept its music somewhere NOTHING reads: `previewAudioOf`
-  walks tracks only, and `buildFFmpegArgs` routes to the multi-track builder the moment
-  `tracks` is defined. Silent in the preview, absent from the export, no lane on the
-  timeline. `adoptLegacyAudio` folds those clips onto the audio track and EMPTIES the
-  array — which the v1 migration itself failed to do, so it copied the music into a
-  track and left the original behind, which is one of the two ways a project reaches
-  that state. The fold is keyed on clip ID for exactly that reason: appending blindly
-  would give every already-migrated project its music twice, at the same moment, summed
-  (`amix` does not normalise).
-- **The audio library heals like the gen library, and it did not used to** (2026-08-02).
-  `audioHistory.ts` returned its records verbatim — no rebase, no existence check — one
-  file over from `genHistory.ts`, which has both. Two reports came out of that single
-  gap, and neither surfaced where it happened: a stale container path added a SILENT
-  clip (the project's own rebase heals it on the next open, so the track came back after
-  an app restart, which reads as "sometimes it just does not play"), and a file a
-  reinstall had really deleted stayed listed as available until the far end of an export
-  said `this media is no longer on the device: x.wav`. A dead record is DROPPED rather
-  than greyed out: a record is its file, an upload has nothing to re-download, and a row
-  that cannot be used invites the tap that fails four screens later.
-- **A failed audio decode is retried, and is no longer sticky for the life of the
-  process** (2026-08-02). `audioGraph` cached a failure as `null` forever, reasoning that
-  a file which will not decode now will not decode on the next tick. True of a corrupt
-  file, false of an absent one — and absent is the case that happens. Retrying is cheap
-  because `sync` is driven by EDITS, not by the tick; `MAX_DECODE_ATTEMPTS` is what bounds
-  the genuinely corrupt file. It also `console.warn`s now: a silent track with the
-  transport running and the waveform scrolling over it is the hardest thing here to
-  report, because nothing admitted it had happened.
-- **Every absolute `file://` we persist goes stale, and `rebaseMediaUri` is the cure.** iOS
-  hands the app a fresh container UUID on every install. `projects.ts` has healed project
-  JSON for a long time; `genHistory.ts` did NOT, so the Library and Upload grids pointed at
-  dead paths and `<Image>` failed *silently* — nothing painted and the tile's own background
-  showed through as a blank grey box. `loadHistory` now rebases, drops records whose file is
-  really gone, and `MediaTile` has an `onError` fallback so a broken image can never render
-  as an unexplained rectangle again. `GenRecord.thumbUri` persists a video's poster; without
-  it every tile re-extracted one on every sheet open, forever. The same staleness is why
-  `ensurePoster` checks that its file EXISTS rather than just that a poster is set.
-- **A src is stored two ways and only one of them loads.** `copyIntoMedia` returns a `file://`
-  URI; anything that takes a clip's `src` at face value gets a bare path. `<Image>` and Skia
-  both need the URI form and both fail SILENTLY on the bare one. `ensurePoster` fed
-  `setPoster` a bare `clip.src` for any project opening on an image, which blanked the poster
-  on the export screen, the export sheet, the projects list and Home at once — and, because
-  `fileExists` requires the `file:` scheme, made "do we have a poster?" answer NO forever, so
-  every call re-derived it and wrote the project to disk again. `toFileUri` (`storage/media.ts`)
-  is the one normaliser; `setPoster` applies it so no consumer has to.
-- **Preview media is cached across mounts** (`src/preview/{mediaCache,mediaPool}.ts`,
-  2026-07-31). Every visual layer is keyed by clip id, so crossing a cut unmounts and
-  remounts it — and `useImage` has no cache at all (it re-reads and re-decodes the file on
-  every mount, rendering NOTHING until it lands) while `Skia.Video` reopens a decoder. That
-  was seconds of blank picture per scrub. Images now sit in a `ByteLru` and decoders are
-  leased from a `LeasePool`, and the two are different structures for a reason: an image may
-  be drawn by several layers and is never handed back, so eviction may only DROP a reference
-  (freeing one that is on screen is a crash) and the bound must be bytes, not entries;
-  a decoder is leased to exactly one layer and always returns, so an idle one can be freed —
-  and the lease must be exclusive, because two layers sharing a decoder would fight over its
-  seek position. Both neighbours of the on-screen clip are prefetched.
-- **HDR10 is gated on a capability probe**, not attempted and refused. `/health` reports
-  `capabilities.hdr` from `ffmpegSupportsHdr`, mobile caches it per server URL
-  (`src/net/capabilities.ts`, fail-CLOSED — an unreachable server hides the toggle rather
-  than offering it on a guess), and `ExportSheet` only renders the row when it is true.
-  Homebrew's ffmpeg has no `zscale`, so on a dev Mac the toggle is simply absent.
-- **The canvas frame is a MAT, and the shape is the whole design** (2026-07-31).
-  `CanvasFrame` on the project — one required `color`, a `width` band and an optional
-  `radius`/`opacity`, all fractions of `min(W,H)`. It renders as one rectangle with a
-  rounded-rect hole punched out, filled even-odd, because every renderer has a
-  first-class primitive for exactly that: an `evenodd` path in SVG (export + web) and
-  `<DiffRect>` in Skia (mobile). `color` is REQUIRED because an opaque MP4's corner
-  wedges must be filled with something; filling from the background does not survive —
-  a gradient would have to be duplicated and kept in sync, and an image cannot be
-  embedded at all since `assertNoExternalRefs` forbids `<image>`. The UI seeds the
-  colour from a solid background instead, so the common case still looks like corners
-  revealing the background. **Rounding the corners rounds the CARD** (2026-07-31):
-  `outerRadiusPx` is concentric — radius plus band — and the wedges outside it are
-  painted by `frameOuterPaint`, which reduces any background to a colour or the same
-  gradient the base layer uses (`gradientEnds` is shared, so the corners cannot drift
-  from the page behind them). It is 0 when `radius` is 0, so a frame authored before
-  this still renders exactly as it did. A PHOTO background resolves to BLACK in all
-  three renderers — no rasterized SVG can carry a photograph, and reproducing it would
-  mean a masked second overlay of the base in ffmpeg plus a clip in two preview
-  compositors; leaving the outer edge square instead was considered and fixes nothing
-  for the person who asked for a rounded card. The web needed no change: it draws the
-  same SVG. **Three placement rules in `ffmpeg.ts`, all of which look
-  nearly right when broken**: the input is appended LAST (indices come from `idx++`, so
-  inserting earlier repoints every clip at the wrong file); the overlay goes after the
-  last caption; and it goes BEFORE the output tail, or `scale` quarters the band's
-  thickness at 4K and `HDR_CONVERT_FILTER` leaves its Rec.709 colours tagged PQ BT.2020
-  without conversion. Radius is clamped once in `canvasFramePx` — SVG, `ctx.roundRect`
-  and Skia's `RRectXY` all resolve an over-large one differently. `even()` is
-  deliberately NOT used: that is for H.264 chroma subsampling on scale/crop dims.
-  On mobile the mat is its OWN `<Canvas>` layered after the captions, because captions
-  are RN `<Text>` outside the Skia canvas and would otherwise cover a frame the export
-  draws over them.
-- **Mobile's gradient BACKGROUND was drawn at the wrong angle** (fixed 2026-07-31).
-  `BackgroundFill` built its line from `cos`/`sin` of the raw angle while the export
-  and the web use `dx=sin, dy=-cos` in normalized coords, so the default 180deg ran
-  RIGHT-TO-LEFT in the preview and top-to-bottom in every export. A two-stop gradient
-  looks plausible from either end, which is why it survived. `src/preview/gradient.ts`
-  mirrors `gradientEnds`; `__tests__/gradient.test.ts` compares the two.
-- **Element animation is fade and slide, and deliberately nothing else**
-  (`packages/video/src/element-anim.ts`, 2026-07-31). `animateIn`/`animateOut` on every
-  visual clip AND every text overlay. Built in the `curve.ts`/`keyframes.ts` shape — a
-  JS sampler plus the same function as an ffmpeg expression — and the fade is NOT a
-  second ramp: `animWindows` returns a `ClipFade` and `elementFadeAt` delegates to
-  `fadeFactorAt`, so it is provably the transition's curve on a different window.
-  **No scale**: ffmpeg cannot animate it per frame, and an option that only worked in
-  the preview is the drift this repo refuses. Three things learned the hard way:
-  `hasFade(anim)` must join the `yuva420p` condition at `ffmpeg.ts`, because that
-  format is otherwise chosen from the TRANSITION fade alone and `fade=alpha=1` on a
-  stream with no alpha plane does NOTHING; `slideExpr` must `clip(…,0,1)` its progress,
-  since an `if`-window leaves the ramp unbounded below `start` where it exceeds full
-  travel (caught by the numeric agreement test, which is a bar `keyframes.ts` has never
-  been held to); and slide is REFUSED on a blended clip in all three renderers, because
-  the blend path crops the base region under a fixed-size box. `TextOverlay.animation`
-  is absorbed by `resolveAnim` rather than migrated — stored documents are never
-  rewritten, and a legacy `'fade'` still produces a byte-identical graph.
-- **A transition is an OVERLAP, and the export is an `xfade` chain**
-  (`packages/video/src/xfade.ts`, 2026-08-02). A transitioned clip starts `overlap`
-  seconds before the one before it ends, so the project gets **shorter** by the sum of
-  its transitions — the one-time `migrateTransitionOverlap` (`schemaVersion: 3`, mirrored
-  on both clients, run on open) moves the main track and then moves every caption, music
-  cue and PiP by the shift accumulated at ITS OWN start. **Geometry is authoritative for
-  timing, `transitionIn` for intent**: `requestedOverlap` is the only thing that turns a
-  stored duration into a `start`, and `resolveTransitions` reads `prevEnd - nextStart`
-  back out, so a clip dragged after the fact cannot leave the export doing something the
-  timeline does not show. Both clamp to `MAX_OVERLAP_FRAC` (half the shorter clip).
-  The model's `TransitionType` values are **ffmpeg `xfade` tokens verbatim** — no house
-  vocabulary to keep in step — and `TRANSITIONS` is the one catalogue, read by both
-  pickers. `dissolve`/`wind`/`slice`/`distance`/`fadegrays` are deliberately absent: no
-  exact canvas-2D and Skia reproduction, so offering them would break the no-drift rule.
-  Four things measured against ffmpeg 8.1.2, not reasoned about:
-  - **A `fade` needs no `xfade` filter at all.** With the clips overlapping, drawing B
-    over A at alpha `p` IS `p*B + (1-p)*A` — measured at `127 0 127` between red and blue
-    at p=0.5. So `isAlphaOnly` keeps fades on the ordinary per-clip path, `planMainRuns`
-    builds runs only for the geometric families, and every project that predates them
-    emits a **byte-identical** filtergraph. It is also what lets a blended clip keep its
-    transition, since a blend reads the canvas under it and a run has no such canvas.
-  - **The incoming clip must NOT be alpha-ramped inside a run.** `xfade` is doing the
-    work; ramping as well hands it a half-transparent picture. Measured **252/255** away
-    from the transition asked for, on every geometric family at once, from a graph that
-    reads as obviously correct.
-  - **`offset` comes from the clip's own start, never from an accumulator.** Summing
-    `dur - overlap` is equal only while the resolver's clamp does not bite, and diverges
-    silently when it does. Taking it from geometry is also exactly what `frameStateAt`
-    uses.
-  - **A run is padded onto a transparent full-canvas frame, in rgba.** `xfade` demands
-    two streams of identical size and a clip is only as big as its `rect`; `pad=` is
-    cheaper and rejects the negative offsets rotation and keyframes produce. rgba rather
-    than `yuva444p` (which ffmpeg would silently insert anyway) because the blending
-    families then mix in the space both previews mix in. No `shortest` on the pad
-    overlay — the pad is the main input and defines the length, so a source that runs out
-    early cannot shorten the stream every later `offset` addresses.
-  `__tests__/xfade-probe.test.ts` (gated on `ORBIT_FFMPEG_PROBE=1`) probes all 35 tokens
-  with **coordinate-ramp inputs** — A is `(x*4, y*4, 64)`, B is `(64, x*4, y*4)`, so every
-  output pixel names its own source and a translate, a scale and a clip are directly
-  readable; flat colours cannot tell `slideleft` from `revealleft` at all. It writes
-  `fixtures/xfade-probe.json`, which an always-on test asserts against with no ffmpeg.
-  **The fixture is a claim about ONE ffmpeg**, and the render server does not run that
-  one: its image installs Debian's, so `node:20-bookworm-slim` gives **5.1**, by
-  construction and not by neglect. `packages/video/scripts/xfade-verify.mjs` is the
-  answer — dependency-free, runs inside the service's own container, re-measures the bare
-  filter and diffs it against the fixture. Run it after any base-image change:
-  `docker compose -f apps/render-service/compose.vps.yaml exec render node
-  packages/video/scripts/xfade-verify.mjs`.
-  Recorded there: the real filtergraph agrees with the bare filter to a **mean under 4**
-  everywhere, with a **max of ~108 on the sliding families** — that is what compositing a
-  hard edge in 4:2:0 costs on the one boundary column, the same price every other layer
-  in this engine already pays, and it is why the assertion is on the mean.
-  **`XfState` is the preview's half**, and it is per-SIDE: each clip's `DrawOp` carries
-  its own already-resolved geometry (`op.xf`), so no compositor ever needs to know about
-  the other clip. The transition's ALPHA is folded into `op.alpha` rather than duplicated,
-  so the presence of `op.xf` is itself the answer to "does anything special happen here" —
-  a fade arrives with no `xf` at all. **Wipe×4, Slide×4, Push×4 and Reveal×4 have landed**
-  (2026-08-02) — sixteen variants verified against ffmpeg pixel for pixel, because none of
-  them resamples and so none has a tolerance to hide in. `clip` is a rectangle in the units
-  of whatever canvas `xfadeStateAt` was handed, so `frameStateAt` resolves it in PROJECT
-  pixels and the Skia preview in its own on-screen size, and each surface's edge lands on a
-  real pixel. `dx`/`dy` are a whole-CANVAS travel, not a nudge to the clip's box — the
-  export slides the padded full-canvas frame, so a picture-in-picture travels as far as a
-  full-frame clip does. **Translate after clipping, never before**: the region is the part
-  of the canvas this side owns and the travel is the picture moving inside it; one
-  transform carrying both drags the window along and reads as a cut. Web applies it on the OUTER context around the
-  blit and mobile on the outer `<Group>` — the seam rotation already uses — because a wipe
-  cuts the FRAME, not the clip: a picture-in-picture straddling the split is half gone,
-  which is what the export does. **Both sides are clipped**, not just the incoming one, or
-  the outgoing clip fills the holes a masked or picture-in-picture incoming clip leaves.
-  Four measured details: `z` is an integer truncation and a WIPE keeps the outgoing clip on
-  `<= z` while the sliding families keep it on `< z` — **the two split one pixel apart**,
-  which is exactly the sort of thing the probe exists to settle and memory gets wrong; the
-  window is half-open, so at `p = 1` the outgoing side is gone rather than keeping the
-  boundary column for a frame; each set is two rules on two axes rather than four cases
-  (`p * L` with the incoming clip low, `(1 - p) * L` with the outgoing one low); and slide,
-  push and reveal share one region split and differ only in which picture travels, so they
-  are one function with three answers. Reveal's region is what makes it work — the incoming
-  clip holds still and its clip is what keeps the outgoing one visible ON TOP, since the
-  compositor always draws the incoming one over.
-  One deliberate non-reproduction: at `p = 0` ffmpeg's guard on the shifted index is `> 0`
-  rather than `>= 0`, so the leading row or column takes a wrapped value for one frame in
-  the variants where the outgoing clip travels. `xfade-probe.test.ts` names and skips it
-  rather than porting a modulo wrap whose only effect is that stray line.
-  **Sixteen of thirty-five families are still export-only** and preview as a cut — a
-  preview running BEHIND the file, the tolerable direction, and unreachable from the
-  pickers, which are built from `previewableTransitions()`.
-  **The picker's tiles are the transitions themselves**, laid out by `xfadeStateAt` at
-  `p = 0.42` rather than drawn as glyphs — so a tile cannot depict something the renderer
-  does not do, and a family that lands in the renderer gets a correct tile for free.
-  Found on the device rather than on paper: the four directional families split the frame
-  at the SAME place at the same instant, so on flat fills their tiles are identical, and a
-  dot at each picture's centre does not save it either (the arriving picture is still
-  mostly off-frame that early, and its dot with it). A **diagonal corner to corner** is
-  always partly visible wherever its picture sits and reads out both halves at once: wipe
-  is one unbroken line, push restarts at the seam, slide is displaced AND restarts, reveal
-  is displaced on the left and still reaches the far corner. The Cut tile draws no base
-  fill, so the sheet shows through its seam — with one, it was a wipe tile.
-  What was measured about the sixteen, so it is not re-derived:
-  `fadeblack` is `A*(1-p)*smoothstep(0.8,1,1-p) + B*p*smoothstep(0,0.8,p)` with a `floor`
-  to 8 bits (asymmetric, and it needs an answer about what the run's ALPHA does through the
-  dip before a third full-frame op can be right); `squeeze*` scales and therefore RESAMPLES,
-  so it needs a recorded tolerance like the grade rather than an exact rule; `zoomin` is a
-  scale AND a blend that only starts near `p = 0.53`; `circle*`, `vert*`, `horz*`, `diag*`
-  and `radial` want gradient masks; `pixelize` and `hblur` are resampling filters.
-- **BYOK stock media**: Orbit is a developer/SDK product, so Unsplash/Pexels use
-  **bring-your-own-key**, stored in the OS keychain via `expo-secure-store`, never in the
-  bundle and never sent to Orbit's server. `src/content/{keys,stock}.ts`, `KeysSheet`.
-- **Content library**: `src/content/{catalog,library,assets}.ts` — Stickers · Emoji ·
-  Backgrounds. Bundled OpenMoji/gradient packs in `assets/content/`, CDN fallback via jsDelivr.
-  Stickers reuse the overlay-image pipeline, so they're dual-rendered for free.
-
-## Design system ("Vela")
-
-Originally specced from the user's own `Vela.dc.html` mockup. That file and its
-screenshots were removed from the repo — and from its history — on 2026-07-31, before
-the project was opened up; the user keeps the only copy locally. Do not go looking for
-it in the tree or in `git log`, and do not re-add it. Everything it decided is in
-`constants.ts`, `VIcon.tsx` and this file.
-Tokens in `apps/mobile/src/constants.ts` — `vela` / `theme.vela`, plus `sp` (spacing),
-`r` (radii), `elev` (tight directional shadows).
-
-Current palette on `codex/ui-redesign` — **settled deliberately 2026-07-27, don't
-re-litigate**: one hue, neutral surfaces, no gradients in chrome. That is about the
-BRAND and still holds everywhere it was made — nav, buttons, sheets, Home, the mark.
-**The timeline is the one deliberate exception** (2026-07-31, and it is not a
-regression to "fix"):
-
-- **`apps/mobile/src/components/laneColors.ts` gives each lane a colour**, because on
-  the timeline colour is the only thing that says which lane you are looking at and
-  which lane a floating HUD belongs to. Music purple, text green, sticker/PiP blue,
-  the main image/video lane yellow, the clip-sound lane orange. Five hues on the
-  chrome would be a paint box; five hues used as a legend is a legend.
-- **One registry, two readers.** `Timeline` and `SelectionActionBar` both call
-  `laneFor` — the gutter icon, the clip body where no media covers it, the waveform,
-  the selection border, the trim handles and the floating bar all come from it. A
-  second copy is exactly how the strip and the bar over it drift apart.
-- **`onKey` is measured, not chosen.** There is no single ink for the five: white
-  reads on the purple, green and blue and is illegible on the yellow and orange,
-  which take near-black. `__tests__/laneColors.test.ts` holds every pair to 4.5:1, so
-  a later nudge to a hue cannot quietly take its label with it.
-- The playhead, ruler, add tile and transition chips stay `vela.accent`. They belong
-  to the editor, not to a lane.
-- The main and sticker lanes keep their filmstrips, so their hue arrives as the
-  border and the trim handles — where lengthening and shortening actually happen.
-
-- `accent`/`action` `#5b4bff` (indigo), `accent2` `#8b83ff` — a lighter step of the SAME
-  hue, not a second colour. It was `#933ff2` (purple); the indigo→purple pair was the
-  most recognizable machine-made colour move there is.
-- Dark surfaces are **neutral**, not blue-charcoal: `editorBg` `#0e0e11`, `sheet`
-  `#17171a`, `card` `#1c1c1f`, `toolbar` `#101013`… The old set leaned blue and competed
-  with the accent sitting on it.
-- **No two-hue gradients in chrome.** `orbitGradient` is gone; `orbitTonal`
-  (`[accent, accentDim]`, one hue two values) replaces it and is only for surfaces that
-  genuinely need depth. Buttons, avatars and marks are solid fills.
-- All 8 project templates are **cool** (slate / indigo / plum / graphite / blue / violet
-  / slate-green / neutral). They were warm gold-era leftovers clashing with the chrome.
-- Light Home stays `homeBg` `#f7f7fa`.
-
-`OrbitMark` (planet + tilted ring + orbiting dot) is the brand's signature artifact —
-nav, header, onboarding, and the AI Studio hero. `animate` sends the dot round the ring
-(9s, passes behind the planet on the far side, honours reduced motion); it's **off by
-default** and the resting position is the t=0 position, so nothing is gated on motion.
-
-History: gold-on-black `#e3ac3d` before this; teal before that, which the user rejected.
-
-Screens: `EditorScreen` (dark) · `HomeScreen`/`ProjectsScreen` (light) · `DiscoverScreen` ·
-`AiStudioScreen` · `MediaLibraryScreen` · `ProfileScreen` · `OnboardingScreen`, with a
-floating `BottomNav`. Router lives in `App.tsx` over the store's `screen`.
-Editor panels are in `EditorSheets.tsx` plus dedicated sheets (`MosaicSheet`,
-`MagnifierSheet`, `StorySheet`, `TtsSheet`, `TextSettingsSheet`, …).
-
-**The user cares a lot about visual feel.** The global anti-slop design law in
-`~/.claude/CLAUDE.md` applies to every UI change here — read it before designing.
-
-## Verifying mobile work
-
-- **Cheap check that everything resolves/compiles** (stronger than tsc): start Metro
-  (`npx expo start --port 8081`) then
-  `curl -s -o /tmp/b.js -w '%{http_code}' 'http://localhost:8081/index.bundle?platform=ios&dev=true'`
-  — 200 = the whole app bundles. **Restart Metro with `--clear` after adding a NEW
-  file**: its watcher misses newly-created ones, so it happily rebuilds (the byte count
-  even changes, from the edits to existing files) while leaving the new module out of the
-  graph entirely. The check then passes against a bundle that does not contain the thing
-  you are checking. Grep the bundle for a distinctive string from the new file to be sure.
-- **A `KeyboardAvoidingView` has to BE the bottom-anchored container, not sit inside
-  one** (2026-08-02). `TextSettingsSheet` had it the other way round — the KAV inside the
-  sheet with `width: '100%'` and no flex, while a `flex-end` backdrop above it pinned the
-  sheet to the bottom of the screen. `behavior="padding"` then had nothing to push:
-  the padding grew inside a box whose bottom edge was already behind the keyboard, and
-  tapping Edit on a text clip focused a field you could not see. Every other sheet
-  already had it right (`InputSheet`, `TtsSheet`, `AuthSheet`, `AiGenerateModal` all give
-  the KAV `flex: 1`), so the shape to copy was already in the tree. Verified with the
-  simulator's SOFTWARE keyboard — a hardware keyboard is connected by default and hides
-  the entire class of bug; `⌘K` in the Simulator app is what toggles it.
-- **RN's `SafeAreaView` OVERWRITES the padding in its own style.** It applies insets by
-  writing `padding` onto its native view, so a `paddingHorizontal` declared on the same
-  style is silently replaced — and in portrait the left/right insets are ZERO, so the
-  gutter becomes 0 and copy runs flush to both rims. `ExportOverlay` shipped exactly that.
-  Put the safe area on an outer view that carries nothing but `flex`/background, and the
-  gutter on a child.
-- **A missing simulator build is not always a code problem.** `expo run:ios` failing with
-  `rsync … libskia.xcframework/ios-arm64_arm64e_x86_64-simulator/*: No such file` means
-  that slice directory is EMPTY (an interrupted install), not that the project is broken:
-  `rm -rf node_modules/@shopify/react-native-skia && npm install` restores it. Note this is
-  the one package where the device slice can be present and the simulator slice absent, so
-  a working device build proves nothing about the simulator.
-- **Simulator**: bundle id `com.orbitvideo.app`; `npx expo run:ios --device <UDID>`.
-  It has been renamed twice (`com.anonymous.orbit-video` → `com.galaxy.orbit` 2026-07-27 →
-  here 2026-07-30), and each rename makes a **different app** as far as iOS is concerned:
-  the old one keeps its own keychain and documents, so delete it rather than wondering why
-  a signed-in session vanished. `com.galaxy.orbit` had to go because Apple's identifier
-  namespace is global and another team already holds `com.galaxy.*` — it was unregistrable,
-  and therefore unshippable, not merely inconvenient.
-  **`expo prebuild` will NOT overwrite an existing `ios/`**, so a bundle-id change in
-  `app.json` silently does nothing until you `rm -rf ios`. That is how a device build came
-  out under the pre-2026-07-27 identity long after the rename.
-- **Server URL** resolves in `constants.ts` as `extra.serverUrl` → Expo's dev `hostUri` →
-  `localhost:8787`, and `extra.serverUrl` now comes from **`app.config.js`**, not
-  `app.json` (2026-08-01). `app.json` stays canonical for everything else — the wrapper
-  spreads it and computes that one field from `process.env.ORBIT_SERVER_URL`, which
-  `eas.json` sets on `preview` and `production` only. **Both development profiles leave
-  it EMPTY on purpose**: empty falls through to `hostUri`, which is the whole reason a
-  dev build on a device finds your Mac by itself. Setting it there would point every
-  debug export at the deployed box and burn its single render slot. Test against
-  production with a `preview` build, which needs no Metro at all. A dev build on a physical device therefore reaches your Mac
-  automatically. Note `hostUri` reflects HOW the dev client connected: launch the
-  simulator against `localhost` and it resolves to `127.0.0.1`, which is correct but does
-  NOT exercise the device path — relaunch against the LAN IP to test that.
-- **`expo run:ios` needs a UTF-8 locale.** Without `LANG`/`LC_ALL` set, CocoaPods
-  crashes in its own error reporter with `Unicode Normalization not appropriate for
-  ASCII-8BIT`, which reads like a broken CocoaPods install and is not — it prints the
-  real cause ("CocoaPods requires your terminal to be using UTF-8") one line above the
-  stack. Run `LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 npx expo run:ios`.
-- **Builds**: `eas.json` has `development` (simulator), `development-device`, `preview`
-  (internal, Android APK) and `production` profiles.
-  `ios/` is gitignored (CNG; `app.json` is canonical), so **new native modules need a rebuild**.
-  Screenshot with `xcrun simctl io <UDID> screenshot out.png` — computer-use screenshots fail
-  here (SCContentFilter) and sim taps don't register. To reach a specific screen/sheet, drive
-  `useEditor.getState()` from a `// TEMP-VERIFY` mount effect in `App.tsx`, relaunch
-  (`simctl terminate` + `launch`), then **`grep -rn TEMP-VERIFY` and revert before committing**.
+**The mobile editor's rules moved with it** to `~/Github/orbit-mobile/CLAUDE.md`:
+the vendored-model discipline, the parity tests, Vela, VIcon, the simulator
+verification workflow. If you are changing `@orbit/video` in a way that touches an
+effect that app mirrors, that file names the mirrors.
 
 ## The web app (`apps/web`)
 
@@ -813,7 +238,7 @@ pnpm --filter @orbit/studio dev # v2 demo
 ## Known gaps / deliberate non-features
 
 - **Not production-ready**, but most of the blockers closed 2026-07-28/29:
-  - **Storage has a seam** — `apps/render-service/src/storage.ts`. Local disk (serve
+  - **Storage has a seam** — `services/render/src/storage.ts`. Local disk (serve
     from `/files`) is still the default; set `ORBIT_S3_BUCKET` + keys and BOTH uploads and
     rendered output go to any S3-compatible bucket instead. SigV4 is hand-rolled (no 2MB
     AWS SDK for one PUT) and pinned to AWS's own published example in `storage.test.ts`.
@@ -838,10 +263,18 @@ pnpm --filter @orbit/studio dev # v2 demo
     Polling, not LISTEN/NOTIFY — a notification is lost if nobody is listening at that
     instant. Tested against a real Postgres; the suite skips without
     `ORBIT_TEST_DATABASE_URL` rather than passing on a stub.
+  - **Operated through `scripts/orbit-render`** — `caps` (what the box's ffmpeg can do,
+    as a verdict rather than a dump), `health`, `deploy` (pull, rebuild, wait, print the
+    build that answered), `verify`, `logs`, `sh`. It resolves the compose file from its
+    OWN path, through symlinks, so it works from anywhere: `docker compose -f
+    services/render/compose.vps.yaml …` is relative and failed twice for exactly that
+    reason. `caps` excludes `custom` from its count for the same reason
+    `parseXfadeTokens` does, so it cannot disagree with `/health` by one. Symlink it into
+    `/usr/local/bin` on the box and the path prefix goes too.
   - **Deployable** — `Dockerfile` + `compose.yaml` (Postgres + MinIO). Built from the repo
     root because it is a pnpm workspace. Note `Dockerfile.dockerignore`: Docker reads
     `<context>/.dockerignore` and the context is the repo root, so a `.dockerignore` inside
-    `apps/render-service/` is silently ignored and `.env` lands in the image.
+    `services/render/` is silently ignored and `.env` lands in the image.
     `pnpm prune --prod` does NOT work here — it strips the per-package `node_modules` a
     workspace resolves through; install with `--prod --filter` a second time instead.
   - **Shutdown is a real shutdown** (2026-07-29) — `main.ts` owns SIGTERM/SIGINT and
@@ -870,7 +303,7 @@ pnpm --filter @orbit/studio dev # v2 demo
     indistinguishable from one a device has never synced. Both clients reconcile with the
     SAME rules — divergent clients against one server is a data-loss bug waiting to happen.
     **Three rules the first pass got wrong** (fixed 2026-07-29, regression-tested in
-    `apps/mobile/src/net/__tests__/syncClient.test.ts` against a fake server reproducing
+    orbit-mobile's `src/net/__tests__/syncClient.test.ts` against a fake server reproducing
     the store's LWW semantics; each fix mutation-checked):
       1. **Never push back what the pull just wrote.** `since` is still the OLD watermark
          while the push runs, so a freshly-pulled project looked like a local edit and went
@@ -899,7 +332,46 @@ pnpm --filter @orbit/studio dev # v2 demo
     `syncDelete` used to catch only a THROWN error, so a 500 or an expired session answered
     it successfully; and an absent tombstone is indistinguishable from a project the server
     was never told about, so the next full pull handed it straight back.
-  - Still open: purchase config, social login.
+  - **Password reset is a link to a page the SERVICE serves** (2026-08-03). Register and
+    login were always fine; reset was built, tested and unreachable — the deployed box
+    answered `503 email-unconfigured`, so anyone who forgot a password lost their account
+    and its credits. Three things were wrong and only one was the missing API key.
+    `compose.vps.yaml` **never forwarded the email variables at all**, so a key in `.env`
+    would have changed nothing (compose passes through only what a service names); and
+    once forwarded, `${EMAIL_PROVIDER:-}` passes the EMPTY STRING, which `??` does not
+    fire on — `env.EMAIL_PROVIDER ?? …` resolved to `""`, missed the `resend` branch and
+    returned null on a box whose `.env` plainly contained the key. Every read in
+    `emailSenderFromEnv` is truthiness now, for exactly the reason the byte budgets are.
+    The delivered token is a **~300-character JWT**, so "paste this code in the app" was
+    never really usable: mail clients hard-wrap it and what comes back off the clipboard
+    no longer verifies. So the service serves `GET /reset` itself (`src/reset-page.ts`) —
+    a deep link needs a URL scheme the app does not have, and `apps/web` is not deployed,
+    while the API is already on HTTPS and is the one origin that can hold the form AND
+    answer it. Five things about it are deliberate:
+      - **The token is never interpolated into the markup.** It is read client-side out of
+        `location.search`, which makes the response a CONSTANT — `RESET_PAGE_HTML` is a
+        plain `const`, not a function, so nobody can pass it the token later. Same rule as
+        the SVG builder, same reason.
+      - **`Referrer-Policy: no-referrer` and `connect-src 'self'`.** The token rides in the
+        URL, so any outbound request would carry it in `Referer`; the CSP means even an
+        injected script could not post it off-origin. Plus `frame-ancestors 'none'` — a
+        reset form is a clickjacking target. `replaceState` strips the token from the
+        address bar so it stays out of history and out of anything the user copies.
+      - **The reset link's base is STATED (`ORBIT_PUBLIC_URL`), never derived from the
+        request.** Building it from the `Host` header is the classic reset-poisoning hole:
+        POST to `/v1/auth/forgot` with a `Host` of your choosing and a VALID token is
+        mailed to someone else's user, aimed at your box.
+      - **A send failure never reaches the caller.** It used to 500, which was an
+        enumeration oracle — a send is only ATTEMPTED when the account exists, so 500 vs
+        200 named the registered addresses and defeated the identical-response rule
+        directly above it. It logs `reset-email-failed` and answers 200.
+      - **`/v1/auth/forgot` returns `delivery: 'link' | 'code'`**, and both clients read it.
+        That is a property of the SERVER, not of the account, so saying it leaks nothing —
+        and without it the app sent everyone to a paste-a-code screen after mailing a
+        link, which is a working flow that reads as broken. A server predating this omits
+        the field and only ever mailed the token, so absent means `code`.
+  - Still open: purchase config, social login. Both are credential-dependent, and the
+    Apple/Google buttons in `AuthSheet` are still dead controls that answer "coming soon".
 - Per-clip audio: the **legacy concat path drops it** (`buildFFmpegArgs` concats with `a=0`,
   `ffmpeg.ts:254`) — only a lone clip's original audio plus `project.audio` mix there. The
   **multi-track path does NOT**: `buildMultiTrackArgs` gives every visual clip's stream its
@@ -910,7 +382,7 @@ pnpm --filter @orbit/studio dev # v2 demo
   tempo, no faithful preview — constant per-clip speed IS shipped), **keyframe
   scale/rotation** (scale can't animate per-frame in ffmpeg).
 - **Captions export as `.srt`** (2026-07-29) — `packages/video/src/srt.ts`, mirrored into
-  `apps/mobile/src/model/editor-ops.ts` with `__tests__/srt.test.ts` comparing the two
+  orbit-mobile's `src/model/editor-ops.ts` with `__tests__/srt.test.ts` comparing the two
   OUTPUTS. EVERY text overlay travels, not just the `caption-` prefixed ones: the prefix is
   bookkeeping so a re-transcription knows what it may replace, not a category anyone chose.
   Cues are sorted by TIME (overlays are stored in layer order, which runs backwards), blank
@@ -919,6 +391,59 @@ pnpm --filter @orbit/studio dev # v2 demo
   rounding the parts separately prints `00:00:60,000`. Overlaps are left alone: SRT permits
   them and silently retiming someone's captions is worse than a player stacking two lines.
 - Story and some editor preferences are incomplete.
+
+## The repo split (mobile done 2026-08-08; publishing next)
+
+**Orbit is the SDK repo.** The mobile editor left on 2026-08-08 and Shortspilot
+will follow. What stays is packages, the render service, the web app and examples.
+
+### What already happened
+
+`apps/mobile` was extracted with `git subtree split` — all 182 of its commits —
+into `~/Github/orbit-mobile`, then **purged from this repo's history** with
+`git filter-repo --path apps/mobile --invert-paths`. That was deliberate and it
+was the right moment: the repo had never been public, so no clone or fork existed
+to break, and the alternative (deleting from HEAD only) would have left the whole
+app recoverable by anyone with `git log` the instant the repo opened.
+
+A backup of the pre-purge repo, all refs, is at
+`~/Github/orbit-backup-before-mobile-purge.bundle`. Keep it until publishing is
+done.
+
+### The cost, measured rather than predicted
+
+**The move happened BEFORE publishing, which is the order this file previously
+argued against.** That was the user's call, made knowingly, and the price is real
+and now quantified: `orbit-mobile` runs **275 of 309 tests green, with 34 failing
+in 12 files** — precisely the parity tests that reached
+`../../../../../packages/video/src/…` to prove the vendored mirrors still match
+the engine.
+
+So **the dual-render invariant is currently unenforced on the mobile side.** A
+change to an effect here can silently diverge from that app's preview, and nothing
+will say so. That is a live risk with a known fix, not a mystery:
+
+**When `@orbit/video` is published, re-point those 12 files at
+`@orbit/video/browser` in orbit-mobile.** It is the first thing publishing
+unblocks, and it should happen the same day.
+
+### Still to do
+
+1. **Publish `@orbit/*`** — `private: true` audit (18 of 20 manifests still have no
+   flag), versions aligned, `publishConfig`, React 19 peers checked rather than
+   claimed, `npm pack` installed into a scratch Vite app and a scratch Next app.
+2. **Restore orbit-mobile's 12 parity tests** against the published package.
+3. **Beta-open this repo.**
+4. **Shortspilot as its own repo**, consuming published `@orbit/*` like any other
+   customer. This REVERSES `shortspilot-build-plan.md` §2, which recommends
+   in-monorepo — soundly, because that recommendation rested on "every `@orbit/*`
+   package is private and unpublished" and publishing removes its premise. Do not
+   re-litigate §2 without noticing that.
+5. Then multiple products on one published SDK, which is the actual goal.
+
+**What this makes non-negotiable:** a breaking change to `@orbit/video` is now a
+release, not a refactor. Semver starts mattering at step 3, not when someone
+complains.
 
 ## Working style
 

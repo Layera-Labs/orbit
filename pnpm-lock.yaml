@@ -33,184 +33,6 @@ importers:
         specifier: 3.1.3
         version: 3.1.3(@types/node@20.19.39)(jsdom@29.0.2)(lightningcss@1.33.0)(terser@5.48.0)
 
-  apps/demo:
-    dependencies:
-      '@orbit/assets':
-        specifier: workspace:*
-        version: link:../../packages/assets
-      '@orbit/react':
-        specifier: workspace:*
-        version: link:../../packages/react
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-    devDependencies:
-      '@types/react':
-        specifier: ^18.2.0
-        version: 18.3.28
-      '@types/react-dom':
-        specifier: ^18.2.0
-        version: 18.3.7(@types/react@18.3.28)
-      '@vitejs/plugin-react':
-        specifier: ^4.2.0
-        version: 4.7.0(vite@5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0))
-      autoprefixer:
-        specifier: ^10.4.0
-        version: 10.5.0(postcss@8.5.10)
-      postcss:
-        specifier: ^8.4.0
-        version: 8.5.10
-      tailwindcss:
-        specifier: ^3.4.0
-        version: 3.4.19(yaml@2.9.0)
-      typescript:
-        specifier: ^5.4.0
-        version: 5.9.3
-      vite:
-        specifier: ^5.2.0
-        version: 5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0)
-
-  apps/demo-next:
-    dependencies:
-      '@orbit/assets':
-        specifier: workspace:*
-        version: link:../../packages/assets
-      '@orbit/next':
-        specifier: workspace:*
-        version: link:../../packages/next
-      next:
-        specifier: ^14.0.0
-        version: 14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-    devDependencies:
-      '@types/node':
-        specifier: ^20.12.0
-        version: 20.19.39
-      '@types/react':
-        specifier: ^18.2.0
-        version: 18.3.28
-      '@types/react-dom':
-        specifier: ^18.2.0
-        version: 18.3.7(@types/react@18.3.28)
-      autoprefixer:
-        specifier: ^10.4.0
-        version: 10.5.0(postcss@8.5.10)
-      postcss:
-        specifier: ^8.4.0
-        version: 8.5.10
-      tailwindcss:
-        specifier: ^3.4.0
-        version: 3.4.19(yaml@2.9.0)
-      typescript:
-        specifier: ^5.4.0
-        version: 5.9.3
-
-  apps/render-service:
-    dependencies:
-      '@orbit/auth':
-        specifier: workspace:*
-        version: link:../../packages/auth
-      '@orbit/billing':
-        specifier: workspace:*
-        version: link:../../packages/billing
-      '@orbit/video':
-        specifier: workspace:*
-        version: link:../../packages/video
-      '@orbit/video-gen':
-        specifier: workspace:*
-        version: link:../../packages/video-gen
-      cors:
-        specifier: ^2.8.6
-        version: 2.8.6
-      express:
-        specifier: ^4.19.2
-        version: 4.22.2
-      multer:
-        specifier: ^2.2.0
-        version: 2.2.0
-      pg:
-        specifier: ^8.13.1
-        version: 8.22.0
-    devDependencies:
-      '@types/cors':
-        specifier: ^2.8.19
-        version: 2.8.19
-      '@types/express':
-        specifier: ^4.17.21
-        version: 4.17.25
-      '@types/multer':
-        specifier: ^2.1.0
-        version: 2.1.0
-      '@types/node':
-        specifier: ^20.11.0
-        version: 20.19.39
-      '@types/pg':
-        specifier: ^8.11.10
-        version: 8.20.0
-      typescript:
-        specifier: ^5.4.0
-        version: 5.9.3
-
-  apps/studio:
-    dependencies:
-      '@orbit/editor':
-        specifier: workspace:*
-        version: link:../../packages/editor
-      '@orbit/model':
-        specifier: workspace:*
-        version: link:../../packages/model
-      '@orbit/providers':
-        specifier: workspace:*
-        version: link:../../packages/providers
-      '@orbit/render':
-        specifier: workspace:*
-        version: link:../../packages/render
-      framer-motion:
-        specifier: ^12.40.0
-        version: 12.40.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      jspdf:
-        specifier: ^2.5.2
-        version: 2.5.2
-      konva:
-        specifier: ^9.3.16
-        version: 9.3.22
-      react:
-        specifier: ^18.2.0
-        version: 18.3.1
-      react-dom:
-        specifier: ^18.2.0
-        version: 18.3.1(react@18.3.1)
-      react-konva:
-        specifier: ^18.2.10
-        version: 18.2.16(@types/react@18.3.28)(konva@9.3.22)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
-      valtio:
-        specifier: ^2.1.2
-        version: 2.3.2(@types/react@18.3.28)(react@18.3.1)
-    devDependencies:
-      '@types/react':
-        specifier: ^18.2.0
-        version: 18.3.28
-      '@types/react-dom':
-        specifier: ^18.2.0
-        version: 18.3.7(@types/react@18.3.28)
-      '@vitejs/plugin-react':
-        specifier: ^4.2.0
-        version: 4.7.0(vite@5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0))
-      typescript:
-        specifier: ^5.4.0
-        version: 5.9.3
-      vite:
-        specifier: ^5.2.0
-        version: 5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0)
-
   apps/web:
     dependencies:
       '@orbit/editor':
@@ -275,7 +97,139 @@ importers:
         specifier: 3.1.3
         version: 3.1.3(@types/node@20.19.39)(jsdom@29.0.2)(lightningcss@1.33.0)(terser@5.48.0)
 
-  apps/webview-host:
+  examples/demo:
+    dependencies:
+      '@orbit/assets':
+        specifier: workspace:*
+        version: link:../../packages/assets
+      '@orbit/react':
+        specifier: workspace:*
+        version: link:../../packages/react
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.2.0
+        version: 18.3.1(react@18.3.1)
+    devDependencies:
+      '@types/react':
+        specifier: ^18.2.0
+        version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.2.0
+        version: 18.3.7(@types/react@18.3.28)
+      '@vitejs/plugin-react':
+        specifier: ^4.2.0
+        version: 4.7.0(vite@5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0))
+      autoprefixer:
+        specifier: ^10.4.0
+        version: 10.5.0(postcss@8.5.20)
+      postcss:
+        specifier: ^8.4.0
+        version: 8.5.20
+      tailwindcss:
+        specifier: ^3.4.0
+        version: 3.4.19(yaml@2.9.0)
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vite:
+        specifier: ^5.2.0
+        version: 5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0)
+
+  examples/demo-next:
+    dependencies:
+      '@orbit/assets':
+        specifier: workspace:*
+        version: link:../../packages/assets
+      '@orbit/next':
+        specifier: workspace:*
+        version: link:../../packages/next
+      next:
+        specifier: ^14.0.0
+        version: 14.2.35(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.2.0
+        version: 18.3.1(react@18.3.1)
+    devDependencies:
+      '@types/node':
+        specifier: ^20.12.0
+        version: 20.19.39
+      '@types/react':
+        specifier: ^18.2.0
+        version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.2.0
+        version: 18.3.7(@types/react@18.3.28)
+      autoprefixer:
+        specifier: ^10.4.0
+        version: 10.5.0(postcss@8.5.20)
+      postcss:
+        specifier: ^8.4.0
+        version: 8.5.20
+      tailwindcss:
+        specifier: ^3.4.0
+        version: 3.4.19(yaml@2.9.0)
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+
+  examples/studio:
+    dependencies:
+      '@orbit/editor':
+        specifier: workspace:*
+        version: link:../../packages/editor
+      '@orbit/model':
+        specifier: workspace:*
+        version: link:../../packages/model
+      '@orbit/providers':
+        specifier: workspace:*
+        version: link:../../packages/providers
+      '@orbit/render':
+        specifier: workspace:*
+        version: link:../../packages/render
+      framer-motion:
+        specifier: ^12.40.0
+        version: 12.40.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      jspdf:
+        specifier: ^2.5.2
+        version: 2.5.2
+      konva:
+        specifier: ^9.3.16
+        version: 9.3.22
+      react:
+        specifier: ^18.2.0
+        version: 18.3.1
+      react-dom:
+        specifier: ^18.2.0
+        version: 18.3.1(react@18.3.1)
+      react-konva:
+        specifier: ^18.2.10
+        version: 18.2.16(@types/react@18.3.28)(konva@9.3.22)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      valtio:
+        specifier: ^2.1.2
+        version: 2.3.2(@types/react@18.3.28)(react@18.3.1)
+    devDependencies:
+      '@types/react':
+        specifier: ^18.2.0
+        version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.2.0
+        version: 18.3.7(@types/react@18.3.28)
+      '@vitejs/plugin-react':
+        specifier: ^4.2.0
+        version: 4.7.0(vite@5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0))
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vite:
+        specifier: ^5.2.0
+        version: 5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0)
+
+  examples/webview-host:
     dependencies:
       '@orbit/editor':
         specifier: workspace:*
@@ -489,6 +443,28 @@ importers:
         specifier: ^3.8.0
         version: 3.9.1(@types/node@20.19.39)(rollup@4.60.2)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0))
 
+  packages/formats:
+    dependencies:
+      '@orbit/pipeline':
+        specifier: workspace:*
+        version: link:../pipeline
+      '@orbit/video':
+        specifier: workspace:*
+        version: link:../video
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.39
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vite:
+        specifier: ^5.2.0
+        version: 5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0)
+      vite-plugin-dts:
+        specifier: ^3.8.0
+        version: 3.9.1(@types/node@20.19.39)(rollup@4.60.2)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0))
+
   packages/model:
     dependencies:
       valtio:
@@ -526,6 +502,31 @@ importers:
       react-dom:
         specifier: ^18.2.0
         version: 18.3.1(react@18.3.1)
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
+      vite:
+        specifier: ^5.2.0
+        version: 5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0)
+      vite-plugin-dts:
+        specifier: ^3.8.0
+        version: 3.9.1(@types/node@20.19.39)(rollup@4.60.2)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0))
+
+  packages/pipeline:
+    dependencies:
+      '@orbit/shared':
+        specifier: workspace:*
+        version: link:../shared
+      '@orbit/video':
+        specifier: workspace:*
+        version: link:../video
+      '@orbit/video-gen':
+        specifier: workspace:*
+        version: link:../video-gen
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.39
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -775,6 +776,67 @@ importers:
       vite-plugin-dts:
         specifier: ^3.8.0
         version: 3.9.1(@types/node@20.19.39)(rollup@4.60.2)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0))
+
+  services/render:
+    dependencies:
+      '@orbit/assets':
+        specifier: workspace:*
+        version: link:../../packages/assets
+      '@orbit/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
+      '@orbit/billing':
+        specifier: workspace:*
+        version: link:../../packages/billing
+      '@orbit/formats':
+        specifier: workspace:*
+        version: link:../../packages/formats
+      '@orbit/pipeline':
+        specifier: workspace:*
+        version: link:../../packages/pipeline
+      '@orbit/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@orbit/video':
+        specifier: workspace:*
+        version: link:../../packages/video
+      '@orbit/video-gen':
+        specifier: workspace:*
+        version: link:../../packages/video-gen
+      cors:
+        specifier: ^2.8.6
+        version: 2.8.6
+      express:
+        specifier: ^4.19.2
+        version: 4.22.2
+      multer:
+        specifier: ^2.2.0
+        version: 2.2.0
+      pg:
+        specifier: ^8.13.1
+        version: 8.22.0
+    devDependencies:
+      '@electric-sql/pglite':
+        specifier: ^0.5.4
+        version: 0.5.4
+      '@types/cors':
+        specifier: ^2.8.19
+        version: 2.8.19
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      '@types/multer':
+        specifier: ^2.1.0
+        version: 2.1.0
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.39
+      '@types/pg':
+        specifier: ^8.11.10
+        version: 8.20.0
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
 
 packages:
 
@@ -1030,6 +1092,9 @@ packages:
         optional: true
       search-insights:
         optional: true
+
+  '@electric-sql/pglite@0.5.4':
+    resolution: {integrity: sha512-yYZUyyXrHU7tPlCjwZQJ6hIG9DscdCCn7Uk0mYKwC1FeHX286AbcmFveMiRBEak8e9iPupjsoVImN3yJZVed2g==}
 
   '@esbuild/aix-ppc64@0.21.5':
     resolution: {integrity: sha512-1SDgH6ZSPTlggy1yI6+Dbkiz8xzpHJEVAlF/AM1tHPLsf5STom9rwtjE4hKAF20FfXXNTFqEYXyJNWh1GiZedQ==}
@@ -3702,10 +3767,6 @@ packages:
     resolution: {integrity: sha512-PS08Iboia9mts/2ygV3eLpY5ghnUcfLV/EXTOW1E2qYxJKGGBUtNjN76FYHnMs36RmARn41bC0AZmn+rR0OVpQ==}
     engines: {node: ^10 || ^12 || >=14}
 
-  postcss@8.5.10:
-    resolution: {integrity: sha512-pMMHxBOZKFU6HgAZ4eyGnwXF/EvPGGqUr0MnZ5+99485wwW41kW91A4LOGxSHhgugZmSChL5AlElNdwlNgcnLQ==}
-    engines: {node: ^10 || ^12 || >=14}
-
   postcss@8.5.20:
     resolution: {integrity: sha512-lW616l85ucIQL+FocMmL7pQFPqBmwejrCMg+iPxyImlrANNJG9NHq/RkyCZopDhd8C3LA03PHRJDjkbGu8vvug==}
     engines: {node: ^10 || ^12 || >=14}
@@ -5003,6 +5064,8 @@ snapshots:
     transitivePeerDependencies:
       - '@algolia/client-search'
 
+  '@electric-sql/pglite@0.5.4': {}
+
   '@esbuild/aix-ppc64@0.21.5':
     optional: true
 
@@ -5833,7 +5896,7 @@ snapshots:
       '@vue/shared': 3.5.33
       estree-walker: 2.0.2
       magic-string: 0.30.21
-      postcss: 8.5.10
+      postcss: 8.5.20
       source-map-js: 1.2.1
 
   '@vue/compiler-ssr@3.5.33':
@@ -6039,13 +6102,13 @@ snapshots:
 
   atob@2.1.2: {}
 
-  autoprefixer@10.5.0(postcss@8.5.10):
+  autoprefixer@10.5.0(postcss@8.5.20):
     dependencies:
       browserslist: 4.28.2
       caniuse-lite: 1.0.30001790
       fraction.js: 5.3.4
       picocolors: 1.1.1
-      postcss: 8.5.10
+      postcss: 8.5.20
       postcss-value-parser: 4.2.0
 
   babel-plugin-syntax-hermes-parser@0.36.0:
@@ -7598,8 +7661,7 @@ snapshots:
 
   nanoid@3.3.11: {}
 
-  nanoid@3.3.16:
-    optional: true
+  nanoid@3.3.16: {}
 
   negotiator@0.6.3: {}
 
@@ -7791,29 +7853,29 @@ snapshots:
 
   pirates@4.0.7: {}
 
-  postcss-import@15.1.0(postcss@8.5.10):
+  postcss-import@15.1.0(postcss@8.5.20):
     dependencies:
-      postcss: 8.5.10
+      postcss: 8.5.20
       postcss-value-parser: 4.2.0
       read-cache: 1.0.0
       resolve: 1.22.12
 
-  postcss-js@4.1.0(postcss@8.5.10):
+  postcss-js@4.1.0(postcss@8.5.20):
     dependencies:
       camelcase-css: 2.0.1
-      postcss: 8.5.10
+      postcss: 8.5.20
 
-  postcss-load-config@6.0.1(jiti@1.21.7)(postcss@8.5.10)(yaml@2.9.0):
+  postcss-load-config@6.0.1(jiti@1.21.7)(postcss@8.5.20)(yaml@2.9.0):
     dependencies:
       lilconfig: 3.1.3
     optionalDependencies:
       jiti: 1.21.7
-      postcss: 8.5.10
+      postcss: 8.5.20
       yaml: 2.9.0
 
-  postcss-nested@6.2.0(postcss@8.5.10):
+  postcss-nested@6.2.0(postcss@8.5.20):
     dependencies:
-      postcss: 8.5.10
+      postcss: 8.5.20
       postcss-selector-parser: 6.1.2
 
   postcss-selector-parser@6.1.2:
@@ -7829,18 +7891,11 @@ snapshots:
       picocolors: 1.1.1
       source-map-js: 1.2.1
 
-  postcss@8.5.10:
-    dependencies:
-      nanoid: 3.3.11
-      picocolors: 1.1.1
-      source-map-js: 1.2.1
-
   postcss@8.5.20:
     dependencies:
       nanoid: 3.3.16
       picocolors: 1.1.1
       source-map-js: 1.2.1
-    optional: true
 
   postgres-array@2.0.0: {}
 
@@ -8362,11 +8417,11 @@ snapshots:
       normalize-path: 3.0.0
       object-hash: 3.0.0
       picocolors: 1.1.1
-      postcss: 8.5.10
-      postcss-import: 15.1.0(postcss@8.5.10)
-      postcss-js: 4.1.0(postcss@8.5.10)
-      postcss-load-config: 6.0.1(jiti@1.21.7)(postcss@8.5.10)(yaml@2.9.0)
-      postcss-nested: 6.2.0(postcss@8.5.10)
+      postcss: 8.5.20
+      postcss-import: 15.1.0(postcss@8.5.20)
+      postcss-js: 4.1.0(postcss@8.5.20)
+      postcss-load-config: 6.0.1(jiti@1.21.7)(postcss@8.5.20)(yaml@2.9.0)
+      postcss-nested: 6.2.0(postcss@8.5.20)
       postcss-selector-parser: 6.1.2
       resolve: 1.22.12
       sucrase: 3.35.1
@@ -8647,7 +8702,7 @@ snapshots:
   vite@5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0):
     dependencies:
       esbuild: 0.21.5
-      postcss: 8.5.10
+      postcss: 8.5.20
       rollup: 4.60.2
     optionalDependencies:
       '@types/node': 20.19.39

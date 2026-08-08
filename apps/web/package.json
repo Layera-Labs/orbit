@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start -p 3100",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
+    "test": "vitest run --passWithNoTests"
   },
   "//versions": "next/react/react-dom are pinned EXACTLY. Every v2 package peers react ^18.2.0 and react-konva@18.2.x is the React-18 line; two React copies is a hard crash in Konva's reconciler, not a warning. These exact versions are already in the lockfile, so this app adds no new resolutions.",
   "dependencies": {
