@@ -58,6 +58,7 @@ export type {
   AudioTrack,
   Track,
   VideoProject,
+  WordHighlight,
   WordTiming,
 } from './types';
 export { FULL_FRAME, FULL_SOURCE, textOverlaysOf } from './types';

@@ -137,7 +137,10 @@ describe('the registry', () => {
 
   /* Not a fallback to the default: see the note on `formatById`. */
   it('returns nothing for an id it does not have', () => {
-    expect(formatById('listicle')).toBeUndefined();
+    // Deliberately a name no archetype will ever take. It used to be
+    // 'listicle', which passed only until the countdown format existed — a
+    // negative test aimed at something on the roadmap expires without warning.
+    expect(formatById('not-a-format')).toBeUndefined();
   });
 
   it('gives every format a distinct id', () => {

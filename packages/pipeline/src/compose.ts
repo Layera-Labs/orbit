@@ -11,7 +11,16 @@
  * format, written out here for the spike so the seam is real before the package
  * that holds a library of them exists.
  */
-import { createProject, type CaptionLine, type TextOverlay, type VideoProject, type VisualTrackClip, type AudioTrackClip } from '@orbit/video/browser';
+import {
+  createProject,
+  type AudioTrackClip,
+  type CaptionLine,
+  type TextOverlay,
+  type Track,
+  type VideoProject,
+  type VisualTrackClip,
+  type WordHighlight,
+} from '@orbit/video/browser';
 import { captionTextOf, frameSize, type ScenePlan } from './scene-plan.ts';
 
 /** What one scene turned into once the voice had said it. */
@@ -47,6 +56,20 @@ export interface ComposeInput {
   /** Music under the whole thing. */
   music?: string;
   musicVolume?: number;
+  /**
+   * One continuous video shown alongside the scenes, for formats that split
+   * the frame.
+   *
+   * Deliberately shaped like `music`: a single source for the WHOLE video
+   * rather than one per scene. That is what the thing actually is — the
+   * gameplay or satisfying-loop footage under a split-screen short is one long
+   * clip, not a per-beat decision — and it keeps `visuals` at exactly one entry
+   * per scene, which every format and the resolver already depend on.
+   *
+   * Silent by construction: it is never given an audio clip, so it cannot talk
+   * over the narration.
+   */
+  filler?: string;
 }
 
 /**
@@ -58,29 +81,145 @@ export interface ComposeInput {
  */
 const CAPTION_Y = 0.78;
 
-export function composeStory(input: ComposeInput): VideoProject {
-  const { plan, spoken, visuals } = input;
-  if (spoken.length !== plan.scenes.length)
-    throw new Error(`expected ${plan.scenes.length} spoken scenes, got ${spoken.length}`);
-  if (visuals.length !== plan.scenes.length)
-    throw new Error(`expected ${plan.scenes.length} visuals, got ${visuals.length}`);
+/**
+ * The parts every archetype needs, so four formats cannot each invent them.
+ *
+ * `composeStory` was the only composition when this file was written, so its
+ * arithmetic lived inline. It is now the shared floor: a format decides what
+ * the frame LOOKS like, and everything below decides when things happen, which
+ * is the same answer for all of them. A listicle that computed its own scene
+ * starts would be a second implementation of the one rule this whole pipeline
+ * is built on — that the voice decides the length.
+ */
 
-  const { width, height } = frameSize(plan.aspect);
-  const fps = input.fps ?? 30;
-
-  /*
-   * Scene starts come from the MEASURED durations, accumulated. Not from a
-   * per-scene number in the plan, and not from a nominal length — this is the
-   * one place the "voice decides the length" rule becomes arithmetic, and
-   * every start after the first depends on every measurement before it.
-   */
+/** Scene starts, accumulated from the MEASURED durations. Never from the plan. */
+export function sceneClock(spoken: readonly SpokenScene[]): {
+  startAt: number[];
+  total: number;
+} {
   const startAt: number[] = [];
   let clock = 0;
   for (const s of spoken) {
     startAt.push(clock);
     clock += s.durationSec;
   }
-  const total = clock;
+  return { startAt, total: clock };
+}
+
+/** Both per-scene arrays must line up with the plan, or the video is silently wrong. */
+export function assertSceneArrays(input: ComposeInput): void {
+  const n = input.plan.scenes.length;
+  if (input.spoken.length !== n)
+    throw new Error(`expected ${n} spoken scenes, got ${input.spoken.length}`);
+  if (input.visuals.length !== n)
+    throw new Error(`expected ${n} visuals, got ${input.visuals.length}`);
+}
+
+export function narrationClips(
+  spoken: readonly SpokenScene[],
+  startAt: readonly number[],
+): AudioTrackClip[] {
+  return spoken.map((s, i) => ({
+    id: `vo-${i}`,
+    src: s.audioSrc,
+    start: startAt[i],
+    duration: s.durationSec,
+  }));
+}
+
+/** The music bed, or nothing. Returned as a list so it spreads into `tracks`. */
+export function musicTracks(input: ComposeInput, total: number): Track[] {
+  if (!input.music) return [];
+  return [
+    {
+      id: 'music',
+      kind: 'audio',
+      clips: [
+        {
+          id: 'bed',
+          src: input.music,
+          start: 0,
+          duration: total,
+          // Under the voice, and faded so it does not start or stop abruptly
+          // against narration that already has.
+          volume: input.musicVolume ?? 0.18,
+          volumeCurve: { fadeIn: 0.8, fadeOut: 1.2 },
+        },
+      ],
+    },
+  ];
+}
+
+/** How a format wants its captions drawn. */
+export interface CaptionStyle {
+  fontSize: number;
+  /** Project width, for `maxWidth`. */
+  width: number;
+  /** Vertical anchor, 0..1. */
+  y: number;
+  /** Fraction of the width a caption may occupy before it wraps. */
+  widthFraction?: number;
+  color?: string;
+  /** Light the word being spoken. Needs per-word timings to do anything. */
+  highlight?: WordHighlight;
+  layer?: number;
+}
+
+/**
+ * One overlay per transcribed line, or one per scene when alignment was skipped.
+ *
+ * Where the words came from decides what can be drawn: with `lines` the
+ * per-word timings are shifted onto the timeline (absolute seconds, which is
+ * what `setAutoCaptions` established and what `karaoke.ts` reads), so a
+ * word-level effect has what it needs. Without them a scene-level caption reads
+ * fine and simply cannot animate per word — which is why `highlight` is safe to
+ * set unconditionally: the engine ignores it when the timings are not there.
+ */
+export function captionOverlays(
+  plan: ScenePlan,
+  spoken: readonly SpokenScene[],
+  startAt: readonly number[],
+  style: CaptionStyle,
+): TextOverlay[] {
+  const out: TextOverlay[] = [];
+  plan.scenes.forEach((scene, i) => {
+    const base = startAt[i];
+    const lines = spoken[i].lines;
+    if (lines?.length) {
+      lines.forEach((line, j) => {
+        out.push(
+          caption(`caption-${i}-${j}`, line.text, base + line.start, base + line.end, {
+            ...style,
+            words: line.words?.map((w: { text: string; start: number; end: number }) => ({
+              text: w.text,
+              start: base + w.start,
+              end: base + w.end,
+            })),
+          }),
+        );
+      });
+    } else {
+      out.push(
+        caption(
+          `caption-${i}`,
+          captionTextOf(scene),
+          base,
+          base + spoken[i].durationSec,
+          style,
+        ),
+      );
+    }
+  });
+  return out;
+}
+
+export function composeStory(input: ComposeInput): VideoProject {
+  const { plan, spoken, visuals } = input;
+  assertSceneArrays(input);
+
+  const { width, height } = frameSize(plan.aspect);
+  const fps = input.fps ?? 30;
+  const { startAt, total } = sceneClock(spoken);
 
   const visualClips: VisualTrackClip[] = plan.scenes.map((_, i) => ({
     id: `scene-${i}`,
@@ -93,47 +232,12 @@ export function composeStory(input: ComposeInput): VideoProject {
     motion: { type: i % 2 === 0 ? 'zoomIn' : 'zoomOut', intensity: 0.35 },
   }));
 
-  const narration: AudioTrackClip[] = plan.scenes.map((_, i) => ({
-    id: `vo-${i}`,
-    src: spoken[i].audioSrc,
-    start: startAt[i],
-    duration: spoken[i].durationSec,
-  }));
+  const narration = narrationClips(spoken, startAt);
 
-  /*
-   * Captions. Where the words came from decides what we can draw:
-   *
-   *  - with `lines`, one overlay per transcribed line, its per-word timings
-   *    shifted onto the timeline by `setAutoCaptions`' own rule (absolute
-   *    seconds), so a word-level effect has what it needs later;
-   *  - without, one overlay for the whole scene, which reads fine and simply
-   *    cannot animate per word.
-   */
-  const overlays: TextOverlay[] = [];
-  const fontSize = Math.round(height * 0.045);
-  plan.scenes.forEach((scene, i) => {
-    const base = startAt[i];
-    const lines = spoken[i].lines;
-    if (lines?.length) {
-      lines.forEach((line, j) => {
-        overlays.push(caption(`caption-${i}-${j}`, line.text, base + line.start, base + line.end, {
-          fontSize,
-          width,
-          words: line.words?.map((w: { text: string; start: number; end: number }) => ({
-            text: w.text,
-            start: base + w.start,
-            end: base + w.end,
-          })),
-        }));
-      });
-    } else {
-      overlays.push(
-        caption(`caption-${i}`, captionTextOf(scene), base, base + spoken[i].durationSec, {
-          fontSize,
-          width,
-        }),
-      );
-    }
+  const overlays = captionOverlays(plan, spoken, startAt, {
+    fontSize: Math.round(height * 0.045),
+    width,
+    y: CAPTION_Y,
   });
 
   return createProject({
@@ -144,26 +248,7 @@ export function composeStory(input: ComposeInput): VideoProject {
     tracks: [
       { id: 'visual', kind: 'visual', clips: visualClips },
       { id: 'voice', kind: 'audio', clips: narration },
-      ...(input.music
-        ? [
-            {
-              id: 'music',
-              kind: 'audio' as const,
-              clips: [
-                {
-                  id: 'bed',
-                  src: input.music,
-                  start: 0,
-                  duration: total,
-                  // Under the voice, and faded so it does not start or stop
-                  // abruptly against narration that already has.
-                  volume: input.musicVolume ?? 0.18,
-                  volumeCurve: { fadeIn: 0.8, fadeOut: 1.2 },
-                } as AudioTrackClip,
-              ],
-            },
-          ]
-        : []),
+      ...musicTracks(input, total),
     ],
     overlays,
   });
@@ -174,7 +259,7 @@ function caption(
   text: string,
   start: number,
   end: number,
-  o: { fontSize: number; width: number; words?: { text: string; start: number; end: number }[] },
+  o: CaptionStyle & { words?: { text: string; start: number; end: number }[] },
 ): TextOverlay {
   return {
     id,
@@ -183,9 +268,11 @@ function caption(
     start,
     end,
     x: 0.5,
-    y: CAPTION_Y,
+    y: o.y,
+    ...(o.layer != null ? { layer: o.layer } : {}),
     fontSize: o.fontSize,
-    color: '#ffffff',
+    color: o.color ?? '#ffffff',
+    ...(o.highlight ? { highlight: o.highlight } : {}),
     align: 'center',
     bold: true,
     /*
@@ -194,7 +281,7 @@ function caption(
      * bound on length, so leaving this off is how a hook renders off both
      * edges. Every format must set it — this is that rule, honoured.
      */
-    maxWidth: Math.round(o.width * 0.86),
+    maxWidth: Math.round(o.width * (o.widthFraction ?? 0.86)),
     // Over footage of unknown brightness, a caption carries its own legibility.
     stroke: { color: '#000000', width: Math.max(2, Math.round(o.fontSize * 0.09)) },
     ...(o.words?.length ? { words: o.words } : {}),

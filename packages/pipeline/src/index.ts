@@ -24,7 +24,15 @@ export {
   captionTextOf,
 } from './scene-plan.ts';
 export type { ScenePlan, Scene, Aspect } from './scene-plan.ts';
-export { composeStory } from './compose.ts';
+export {
+  assertSceneArrays,
+  captionOverlays,
+  composeStory,
+  musicTracks,
+  narrationClips,
+  sceneClock,
+} from './compose.ts';
+export type { CaptionStyle } from './compose.ts';
 export {
   InMemoryStepLog,
   runSequence,
