@@ -120,7 +120,24 @@ services:
 
       RUNWAY_API_TOKEN: ${RUNWAY_API_TOKEN:-}
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+
+      # The language model behind /v1/generate, and the rest of that pipeline.
+      # Named here for the same reason the email block above is: compose passes
+      # through only what a service lists, so a key sitting in .env alone leaves
+      # the container without it — and the symptom is a box that reports
+      # generation unconfigured while its .env plainly contains the key.
+      ORBIT_LLM_BASE_URL: ${ORBIT_LLM_BASE_URL:-}
+      ORBIT_LLM_MODEL: ${ORBIT_LLM_MODEL:-}
+      ORBIT_LLM_API_KEY: ${ORBIT_LLM_API_KEY:-}
+      ORBIT_LLM_JSON_MODE: ${ORBIT_LLM_JSON_MODE:-}
+      ORBIT_LLM_TIMEOUT_MS: ${ORBIT_LLM_TIMEOUT_MS:-}
+      PEXELS_API_KEY: ${PEXELS_API_KEY:-}
+      ORBIT_GENERATION_WORKER: ${ORBIT_GENERATION_WORKER:-}
+
       ORBIT_RENDER_COST: ${ORBIT_RENDER_COST:-0}
+      # What one generated video costs. Unset is FREE, deliberately — metering
+      # is opt-in here exactly as it is for rendering.
+      ORBIT_GENERATION_COST: ${ORBIT_GENERATION_COST:-0}
       ORBIT_BUILD_SHA: ${ORBIT_BUILD_SHA:-}
     volumes:
       - orbit-data:/data
