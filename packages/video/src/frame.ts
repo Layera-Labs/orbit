@@ -38,19 +38,27 @@ import {
   resolveTransitions,
   xfadeMapOf,
   xfadeStateFor,
+  xfadeVeilAt,
   type XfState,
 } from './xfade';
 import { elementFadeAt, resolveAnim, slideOffsetAt } from './element-anim';
 import { blendToFFmpeg } from './blend';
 import { backgroundToSVG } from './background-svg';
 import { canvasFrameToSVG, hasCanvasFrame } from './canvas-frame';
-import { overlayToSVG } from './overlay-svg';
+import { overlayFontOptions, overlayToSVG, type FontMap } from './overlay-svg';
+import { imageOverlayAsClip } from './overlay-clip';
 
 /** How a source fills its destination box. Mirrors the export's scale/crop. */
 export type Fit = 'cover' | 'stretch';
 
 export interface DrawOp {
-  kind: 'background' | 'clip' | 'overlay' | 'frame';
+  /**
+   * `veil` is the solid a `fadeblack`/`fadewhite` transition dips through. It
+   * is its own kind rather than an overlay because it belongs to NEITHER clip
+   * and has to land between them, and it is drawn from `svg` so a compositor
+   * that already resolves vector ops needs no new branch to paint it.
+   */
+  kind: 'background' | 'clip' | 'overlay' | 'frame' | 'veil';
   /** Clip / overlay id. The background op is always `'background'`. */
   id: string;
   /** Media source, for ops backed by a file (`background` image, `clip`). */
@@ -128,6 +136,31 @@ function visualClipsOf(p: VideoProject): VisualTrackClip[] {
   });
 }
 
+/**
+ * A full-canvas solid, for the dip families.
+ *
+ * The alpha rides on the op rather than on the markup so the SVG is CONSTANT
+ * per colour — compositors cache rasterized vector ops by their markup, and a
+ * per-frame alpha baked into the string would miss that cache on every single
+ * frame of the transition. The colour comes from `xfadeVeilAt` and is one of
+ * two module constants, so there is nothing here to escape.
+ */
+function veilOp(veil: { color: string; alpha: number }, W: number, H: number): DrawOp {
+  return {
+    kind: 'veil',
+    id: `veil:${veil.color}`,
+    svg:
+      `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" ` +
+      `viewBox="0 0 ${W} ${H}"><rect width="${W}" height="${H}" fill="${veil.color}"/></svg>`,
+    dst: { x: 0, y: 0, w: W, h: H },
+    fit: 'stretch',
+    alpha: veil.alpha,
+    blend: 'normal',
+    filter: resolveFilter(undefined),
+    blurSigma: 0,
+  };
+}
+
 function backgroundOp(bg: Background | undefined, W: number, H: number): DrawOp {
   const base: DrawOp = {
     kind: 'background',
@@ -151,7 +184,26 @@ function backgroundOp(bg: Background | undefined, W: number, H: number): DrawOp 
  * Ops are emitted only while their window is live, matching the export's
  * `enable='between(t,S,E)'` gate.
  */
-export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
+export interface FrameOptions {
+  /**
+   * Font bytes by family, for captions.
+   *
+   * Optional, and the fallback is deliberate: with no fonts a caption is sized
+   * by the flat `0.58em` approximation and its SVG carries no `@font-face`,
+   * which is exactly what this function did before fonts were plumbed. So a
+   * caller that has not wired fonts yet — or whose font fetch failed — still
+   * gets a frame, just a slightly wider caption box.
+   *
+   * The EXPORT and the WEB PREVIEW must pass the same map, because the caption
+   * box is baked into the SVG string both of them consume. Passing it on one
+   * side only would size the box from real metrics in one renderer and from the
+   * approximation in the other, which is a worse divergence than the one this
+   * whole change set exists to remove.
+   */
+  fonts?: FontMap;
+}
+
+export function frameStateAt(p: VideoProject, t: number, opts?: FrameOptions): DrawOp[] {
   const { width: W, height: H } = p;
   const ops: DrawOp[] = [backgroundOp(p.background, W, H)];
   const fades = projectEdgeFadeMap(p);
@@ -229,6 +281,16 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
         ? { ...base, x: base.x + slide.dx, y: base.y + slide.dy }
         : base;
 
+    /*
+     * The dip's solid goes in HERE, immediately under the incoming clip, which
+     * is the only place it can go: it has to cover the outgoing clip and be
+     * covered by the incoming one, and the ops array is draw order.
+     */
+    if (xf?.role === 'to') {
+      const veil = xfadeVeilAt(xf.name, xf.p);
+      if (veil && veil.alpha > 0) ops.push(veilOp(veil, W, H));
+    }
+
     const filter = resolveFilter(c.filter);
     ops.push({
       kind: 'clip',
@@ -255,23 +317,53 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
        * of undefineds would answer that question wrongly.
        */
       xf:
-        xf && (xf.clip || xf.dx || xf.dy)
+        xf &&
+        (xf.clip ||
+          xf.dx ||
+          xf.dy ||
+          xf.scale ||
+          xf.mask ||
+          xf.hole ||
+          xf.block ||
+          xf.blurX)
           ? {
               ...(xf.clip ? { clip: xf.clip } : {}),
               ...(xf.dx ? { dx: xf.dx } : {}),
               ...(xf.dy ? { dy: xf.dy } : {}),
+              ...(xf.scale ? { scale: xf.scale } : {}),
+              ...(xf.mask ? { mask: xf.mask } : {}),
+              ...(xf.hole ? { hole: xf.hole } : {}),
+              ...(xf.block ? { block: xf.block } : {}),
+              ...(xf.blurX ? { blurX: xf.blurX } : {}),
             }
           : undefined,
     });
   }
 
-  // Text overlays composite last, in layer order. The caption is rasterized
-  // full-frame with the text baked at its anchor, so keyframed position moves
-  // the whole layer by the DELTA from that anchor — matching the export's
-  // `overlay=(kf_x)-(o.x*W)`.
+  /*
+   * Overlays composite last, in ONE pass ordered by layer.
+   *
+   * One pass, not "pictures then captions", because `layer` has to mean the
+   * same thing for every kind — a sticker with a higher layer than a caption
+   * belongs over it. `buildMultiTrackArgs` walks this same sorted array with
+   * the same per-kind branch, so the two cannot end up in different z-orders
+   * without the difference being visible side by side in the two files.
+   *
+   * A caption is rasterized full-frame with the text baked at its anchor, so
+   * keyframed position moves the whole layer by the DELTA from that anchor —
+   * matching the export's `overlay=(kf_x)-(o.x*W)`. A picture is a sized box,
+   * so its keyframes replace the origin outright, exactly as a clip's do.
+   *
+   * A `shape` overlay has no renderer yet and is SKIPPED — by this loop and by
+   * the export alike, so both agree about the absence. It is never handed to
+   * `overlayToSVG`, which would read a `text` that is not there and paint an
+   * empty caption box across the frame; a wrong picture is worse than a
+   * missing one.
+   */
   const overlays = [...p.overlays].sort((a, b) => (a.layer ?? 0) - (b.layer ?? 0));
   for (const o of overlays) {
     if (t < o.start || t > o.end) continue;
+    if (o.type !== 'text' && o.type !== 'image') continue;
     const dur = Math.max(0.001, o.end - o.start);
     const p01 = progressAt(o.start, dur, t);
     const kfs = o.keyframes;
@@ -288,6 +380,46 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
     const anim = resolveAnim(o);
     if (!kfOpacity) alpha *= elementFadeAt(anim, o.start, o.end, t);
 
+    const slide = slideOffsetAt(anim, o.start, o.end, t, W, H);
+
+    if (o.type === 'image') {
+      /*
+       * A picture goes down the CLIP path: `imageOverlayAsClip` turns it into
+       * the `VisualTrackClip` this renderer and the export already agree on,
+       * so a sticker is placed by the same arithmetic a picture-in-picture is
+       * rather than by a second copy of it.
+       */
+      const c = imageOverlayAsClip(o);
+      const box = clipRectPx(c.rect, W, H);
+      // Keyframes REPLACE a clip's origin (they are a delta only for a caption,
+      // whose PNG is full-frame). `imageOverlayAsClip` has already shifted them
+      // out of centre space into corner space for exactly this read.
+      const base = kfPosition
+        ? (() => {
+            const k = sampleKeyframes(c.keyframes!, p01);
+            return { x: Math.round(k.x * W), y: Math.round(k.y * H), w: box.w, h: box.h };
+          })()
+        : box;
+      ops.push({
+        kind: 'clip',
+        id: o.id,
+        src: c.src,
+        dst:
+          slide.dx || slide.dy
+            ? { ...base, x: base.x + slide.dx, y: base.y + slide.dy }
+            : base,
+        fit: 'cover',
+        alpha: Math.max(0, Math.min(1, alpha)),
+        blend: 'normal',
+        filter: resolveFilter(undefined),
+        blurSigma: 0,
+        motion: hasMotion(c.motion) ? motionStateAt(c.motion, p01) : undefined,
+        mask: c.mask,
+        rotation: normalizeRotation(c.rotation) || undefined,
+      });
+      continue;
+    }
+
     let dx = 0;
     let dy = 0;
     if (kfPosition) {
@@ -297,14 +429,13 @@ export function frameStateAt(p: VideoProject, t: number): DrawOp[] {
     }
     // A caption's dst is already a delta from its baked anchor, so a slide
     // composes by addition — no special case.
-    const slide = slideOffsetAt(anim, o.start, o.end, t, W, H);
     dx += slide.dx;
     dy += slide.dy;
 
     ops.push({
       kind: 'overlay',
       id: o.id,
-      svg: overlayToSVG(o, W, H),
+      svg: overlayToSVG(o, W, H, overlayFontOptions(o, opts?.fonts)),
       dst: { x: dx, y: dy, w: W, h: H },
       fit: 'stretch',
       alpha: Math.max(0, Math.min(1, alpha)),

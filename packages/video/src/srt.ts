@@ -1,4 +1,4 @@
-import type { TextOverlay, VideoProject } from "./types.js";
+import { textOverlaysOf, type TextOverlay, type VideoProject } from "./types.js";
 
 /**
  * The captions, as a subtitle file.
@@ -84,7 +84,7 @@ export function captionCues(overlays: readonly TextOverlay[]): Cue[] {
 
 /** The whole file. Empty string when there is nothing to write. */
 export function toSRT(p: VideoProject): string {
-  const cues = captionCues(p.overlays ?? []);
+  const cues = captionCues(textOverlaysOf(p.overlays ?? []));
   if (!cues.length) return "";
   return (
     cues
@@ -95,7 +95,7 @@ export function toSRT(p: VideoProject): string {
 
 /** Is there anything a subtitle file could contain? */
 export function hasCaptionText(p: VideoProject): boolean {
-  return captionCues(p.overlays ?? []).length > 0;
+  return captionCues(textOverlaysOf(p.overlays ?? [])).length > 0;
 }
 
 /**

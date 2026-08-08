@@ -168,6 +168,49 @@ export const TRANSITIONS: TransitionFamily[] = [
     ],
   },
   {
+    /*
+     * AUTHORED, not an `xfade` token — the whole frame jitters while the two
+     * clips cross-fade. `xfade` has no shake at all, and the editors this app
+     * is modelled on all ship one.
+     *
+     * Two intensities because VN's list pairs them that way throughout (Zoom
+     * 1/2, Dissolve 1/2, Rotate 1/2): the numbered sibling is the same idea
+     * harder, not a different one.
+     */
+    key: 'shake',
+    label: 'Shake',
+    variants: [
+      { type: 'shakeleft', dir: 'left', label: 'Shake left' },
+      { type: 'shakeright', dir: 'right', label: 'Shake right' },
+      { type: 'shakeup', dir: 'up', label: 'Shake up' },
+      { type: 'shakedown', dir: 'down', label: 'Shake down' },
+    ],
+  },
+  {
+    /*
+     * AUTHORED. A sharp flash through a colour, where `fadeblack`/`fadewhite`
+     * are a slow asymmetric DIP — different enough to be worth both. The veil
+     * is confined to the middle half of the overlap, so the cut lands inside a
+     * bloom rather than under a long wash.
+     */
+    key: 'flash',
+    label: 'Flash',
+    variants: [
+      { type: 'light', label: 'Light' },
+      { type: 'blink', label: 'Blink' },
+    ],
+  },
+  {
+    key: 'shake2',
+    label: 'Shake 2',
+    variants: [
+      { type: 'shake2left', dir: 'left', label: 'Shake left 2' },
+      { type: 'shake2right', dir: 'right', label: 'Shake right 2' },
+      { type: 'shake2up', dir: 'up', label: 'Shake up 2' },
+      { type: 'shake2down', dir: 'down', label: 'Shake down 2' },
+    ],
+  },
+  {
     key: 'circle',
     label: 'Circle',
     variants: [
@@ -203,10 +246,54 @@ export const TRANSITIONS: TransitionFamily[] = [
       { type: 'squeezev', dir: 'v', label: 'Squeeze down' },
     ],
   },
-  { key: 'zoom', label: 'Zoom', variants: [{ type: 'zoomin', label: 'Zoom' }] },
+  { key: 'zoom', label: 'Zoom', variants: [{ type: 'zoomin', label: 'Zoom rush' }] },
+  {
+    /*
+     * AUTHORED. A punch: the frame magnifies into the cut and settles out of
+     * it, so the two clips meet at the top of the move.
+     *
+     * Distinct from `zoomin` above, which is ffmpeg's and is not a punch at
+     * all — it magnifies the OUTGOING clip alone, without bound, and only
+     * brings the incoming one up over the second half. Hence the label there:
+     * three things called Zoom in one picker is worse than one of them saying
+     * what it does.
+     */
+    key: 'zoom1',
+    label: 'Zoom 1',
+    variants: [
+      { type: 'zoom1in', dir: 'in', label: 'Zoom in' },
+      { type: 'zoom1out', dir: 'out', label: 'Zoom out' },
+    ],
+  },
+  {
+    key: 'zoom2',
+    label: 'Zoom 2',
+    variants: [
+      { type: 'zoom2in', dir: 'in', label: 'Zoom in 2' },
+      { type: 'zoom2out', dir: 'out', label: 'Zoom out 2' },
+    ],
+  },
   { key: 'pixelate', label: 'Pixelate', variants: [{ type: 'pixelize', label: 'Pixelate' }] },
   { key: 'radial', label: 'Radial', variants: [{ type: 'radial', label: 'Radial' }] },
-  { key: 'blur', label: 'Blur', variants: [{ type: 'hblur', label: 'Blur' }] },
+  { key: 'blur', label: 'Blur', variants: [{ type: 'hblur', label: 'Blur wide' }] },
+  {
+    /*
+     * AUTHORED. The frame defocuses into the cut and comes back sharp, so the
+     * two clips meet at the softest point.
+     *
+     * A GAUSSIAN, where ffmpeg's `hblur` above is a one-axis forward box. That
+     * is the whole reason this family exists: a gaussian is a primitive all
+     * three renderers have natively (`gblur`, `filter: blur()`, Skia's `Blur`),
+     * so none of them has to fake it — and `hblur` is the one family Skia
+     * cannot draw, which left the picker with no blur at all.
+     */
+    key: 'defocus',
+    label: 'Blur',
+    variants: [
+      { type: 'blur1', label: 'Blur' },
+      { type: 'blur2', label: 'Blur 2' },
+    ],
+  },
 ];
 
 /** Every token the catalogue can produce, for validating stored data. */
@@ -260,6 +347,34 @@ export function isAlphaOnly(name: string): boolean {
 }
 
 /**
+ * Whether this transition is performed by the clips themselves rather than by
+ * an `xfade` filter joining them.
+ *
+ * True for `fade` (see `isAlphaOnly`) and for every AUTHORED family, and the
+ * consequences run further than the filtergraph. Such a transition **cannot be
+ * missing from a build**, because it names no `xfade` token — so it is never
+ * subtracted by the server capability gate, never refused by `renderProject`,
+ * and works against an ffmpeg that has no `xfade` filter whatsoever. It is also
+ * the one kind that survives on a blended clip, whose export branch reads the
+ * canvas underneath it and therefore cannot live inside a run.
+ */
+export function ridesOverlayPath(name: string): boolean {
+  return isAlphaOnly(name) || isAuthoredTransition(name);
+}
+
+/**
+ * Whether this transition is ours rather than ffmpeg's.
+ *
+ * Distinct from `ridesOverlayPath`, and the difference is not pedantry: `fade`
+ * rides the overlay path too, but it IS an `xfade` token and
+ * `xfade-probe.test.ts` measures it as one. Only an authored family has nothing
+ * for that file to point ffmpeg at.
+ */
+export function isAuthoredTransition(name: string): boolean {
+  return !!SHAKES[name] || !!FLASHES[name] || !!ZOOMS[name] || !!BLURS[name];
+}
+
+/**
  * Whether BOTH previews render this transition, and therefore whether a picker
  * may offer it.
  *
@@ -273,18 +388,110 @@ export function isAlphaOnly(name: string): boolean {
 export function xfadeHasPreview(type: TransitionType): boolean {
   if (type === 'cut') return true;
   const name = xfadeName({ type, duration: 1 });
-  return !!name && (isAlphaOnly(name) || !!WIPES[name] || !!SLIDES[name]);
+  return !!name && (isAlphaOnly(name) || PREVIEWED.has(name));
+}
+
+/**
+ * The transition tokens an `ffmpeg -hide_banner -h filter=xfade` listing says
+ * this build accepts.
+ *
+ * Needed because **a token is not a property of ffmpeg, it is a property of the
+ * build in front of you**. `cover*` and `reveal*` — this editor's Push and
+ * Reveal — did not exist before ffmpeg 6.1, and the render service's image
+ * installs Debian bookworm's 5.1. Naming one there does not render something
+ * slightly wrong; the filtergraph fails to BUILD and takes the whole render with
+ * it, several minutes after the user pressed Export.
+ *
+ * Parses the enum CONSTANTS out of the option dump, which is why the integer
+ * column is what the pattern keys on:
+ *
+ *     transition        <int>        ..FV....... set cross fade transition
+ *       fade            0            ..FV....... fade transition
+ *       wipeleft        1            ..FV....... wipe left transition
+ *
+ * A real option carries `<int>`/`<duration>`/`<string>` in that column and a
+ * constant carries a bare number, so `transition` itself and the `duration`,
+ * `offset` and `expr` options fall out without needing to be named — which
+ * matters, because a future ffmpeg may add options here but will keep listing
+ * its constants this way.
+ */
+export function parseXfadeTokens(help: string): string[] {
+  const out = new Set<string>();
+  for (const line of help.split('\n')) {
+    const m = /^\s+([A-Za-z][\w]*)\s+-?\d+\s/.exec(line);
+    // `custom` is an escape hatch taking a per-pixel expression, not a
+    // transition anyone can pick, and counting it would make an ffmpeg that has
+    // it look like it has the family it cannot do.
+    if (m && m[1] !== 'custom') out.add(m[1]);
+  }
+  return [...out];
 }
 
 /**
  * The catalogue, filtered to what a picker may show, with empty families
  * dropped.
+ *
+ * `supported` is the render server's answer from `parseXfadeTokens`. Pass it and
+ * a family whose token that ffmpeg cannot parse disappears from the picker;
+ * pass `undefined` and nothing is subtracted.
+ *
+ * **Unknown means offer it, which is the opposite of the HDR gate, and
+ * deliberately.** HDR is hidden when unprobed because offering it produces a
+ * file whose tags lie — the cost of hiding is one checkbox. Here the editor has
+ * to work with no server at all: a phone on a plane still lays out a project,
+ * and a rule that hid every transition whenever `/health` was unreachable would
+ * do far more damage than the case it prevents. So the client subtracts only
+ * what it has been TOLD is missing, and `renderProject` refuses by name if a
+ * project reaches an ffmpeg that cannot do it anyway. Two lines of defence, and
+ * neither one silently changes what the file contains.
  */
-export function previewableTransitions(): TransitionFamily[] {
+export function previewableTransitions(
+  supported?: readonly string[] | null,
+): TransitionFamily[] {
+  const ok = supported && supported.length ? new Set(supported) : null;
   return TRANSITIONS.map((f) => ({
     ...f,
-    variants: f.variants.filter((v) => xfadeHasPreview(v.type)),
+    variants: f.variants.filter((v) => {
+      if (!xfadeHasPreview(v.type)) return false;
+      if (!ok) return true;
+      const name = xfadeName({ type: v.type, duration: 1 });
+      // A cut names no filter, and a fade is drawn by the compositor rather
+      // than by `xfade` (see `isAlphaOnly`) — neither can be missing from a
+      // build, so neither is ever subtracted.
+      return !name || ridesOverlayPath(name) || ok.has(name);
+    }),
   })).filter((f) => f.variants.length > 0);
+}
+
+/**
+ * The `xfade` tokens a project needs that this ffmpeg does not have.
+ *
+ * Distinct in shape from the picker filter above: that one asks "may this be
+ * offered", this one asks "can this project be rendered", and the answer has to
+ * come from the resolved boundaries rather than the catalogue — a project can
+ * carry a transition no current picker offers, because it was authored against
+ * a different build or synced from another device.
+ */
+export function unsupportedTransitions(
+  boundaries: readonly TransitionBoundary[],
+  supported: readonly string[],
+): string[] {
+  if (!supported.length) return [];
+  const ok = new Set(supported);
+  const missing = new Set<string>();
+  for (const b of boundaries) {
+    if (b.name && !ridesOverlayPath(b.name) && !ok.has(b.name)) missing.add(b.name);
+  }
+  return [...missing];
+}
+
+/** What to tell someone whose ffmpeg is too old for the transitions they used. */
+export function transitionUnsupportedMessage(missing: readonly string[]): string {
+  return (
+    `This server's ffmpeg cannot do ${missing.join(', ')}. ` +
+    `Push and Reveal need ffmpeg 6.1 or newer; this build is older. ` +
+    `Change those transitions, or run the render service on a newer ffmpeg.`
+  );
 }
 
 /** Whether a clip's compositing forbids joining it into an xfade run. */
@@ -421,7 +628,7 @@ export function planMainRuns(
   const runs: MainRun[] = [];
   let cur: MainRun | null = null;
   for (const b of boundaries) {
-    if (isAlphaOnly(b.name)) {
+    if (ridesOverlayPath(b.name)) {
       cur = null;
       continue;
     }
@@ -487,6 +694,93 @@ export interface XfState {
    */
   dx?: number;
   dy?: number;
+  /**
+   * Scale about the CENTRE of the canvas, `1` meaning none.
+   *
+   * A whole-canvas scale for the same reason `dx`/`dy` are a whole-canvas
+   * translation: the export scales the transparent-padded full-canvas frame, so
+   * a picture-in-picture shrinks toward the canvas centre rather than its own.
+   */
+  scale?: { x: number; y: number };
+  /**
+   * A per-pixel alpha mask over this side's picture, sampled with
+   * `xfadeMaskAt`.
+   *
+   * Eleven of ffmpeg's families are one shape — the incoming clip drawn over
+   * the outgoing one through a `smoothstep` of some scalar field — so this is a
+   * described field rather than a family name, and the renderers stay
+   * executors. A new family that fits the shape costs a table entry here and
+   * nothing at all in the two compositors.
+   */
+  mask?: XfMask;
+  /**
+   * Paint everywhere EXCEPT this rect, in the units of `clip`.
+   *
+   * The squeeze families put the outgoing clip on TOP of the incoming one,
+   * which the compositors cannot do — they always draw the incoming clip over
+   * the outgoing. Punching the band out of the incoming side is the same
+   * picture with the layers in the order everything else uses, and both
+   * renderers already have the primitive from the canvas mat (`evenodd` in SVG,
+   * `<DiffRect>` in Skia).
+   */
+  hole?: { x: number; y: number; w: number; h: number };
+  /** Quantize this side to blocks this many canvas units across. */
+  block?: number;
+  /**
+   * Gaussian-blur this side, at this sigma in canvas units.
+   *
+   * The authored `blur1`/`blur2`. A gaussian, unlike `blurX` below, because all
+   * three renderers have one natively and none has to approximate it.
+   */
+  blur?: number;
+  /**
+   * Box-blur this side horizontally, this many canvas units wide.
+   *
+   * The width of ffmpeg's box, not a gaussian sigma — see `hblurState` for why
+   * that distinction is the whole difficulty of this one family.
+   */
+  blurX?: number;
+}
+
+/** The scalar field a mask family's `smoothstep` is taken over. */
+export type XfMaskField =
+  /** Distance from the canvas centre, over the half-diagonal. */
+  | 'radius'
+  /** Distance from the vertical centre line, over the half-width. */
+  | 'absx'
+  /** Distance from the horizontal centre line, over the half-height. */
+  | 'absy'
+  /** `x/W * y/H`, with either factor optionally mirrored — picks a corner. */
+  | 'prod'
+  /** `atan2(x - W/2, y - H/2)`, in radians. Note the argument order. */
+  | 'angle';
+
+/**
+ * A per-pixel alpha for the incoming clip: `smoothstep(0, 1, sign*field + bias)`,
+ * optionally inverted.
+ *
+ * Every constant here is lifted from `libavfilter/vf_xfade.c` rather than
+ * matched by eye against probe output, and two details in it are the reason
+ * that mattered. **ffmpeg's `mix(a, b, t)` is `a*t + b*(1-t)`, the REVERSE of
+ * GLSL's**, and **its internal `progress` runs 1 → 0** — so a formula ported
+ * from habit comes out inverted while still looking like a transition, which is
+ * the hardest kind of wrong to notice.
+ */
+export interface XfMask {
+  field: XfMaskField;
+  sign: 1 | -1;
+  bias: number;
+  /** `prod` only: mirror the x and/or y factor. Together they pick the corner. */
+  flipX?: boolean;
+  flipY?: boolean;
+  /** Take `1 - alpha`, which is `circleopen` against `circleclose`. */
+  invert?: boolean;
+}
+
+/** A full-canvas solid drawn BETWEEN the two clips. See `xfadeVeilAt`. */
+export interface XfVeil {
+  color: string;
+  alpha: number;
 }
 
 /**
@@ -668,6 +962,544 @@ export function xfadeStateFor(
  * there rather than on a scaled fraction of one. Same rule, resolved twice, at
  * each surface's own resolution.
  */
+/**
+ * The shake families: amplitude as a fraction of the short edge, and how many
+ * times the frame swings across the transition.
+ *
+ * `sign` is the direction the FIRST swing goes, which is the only thing that
+ * separates `shakeleft` from `shakeright` — an oscillation is symmetric, so a
+ * direction can only mean which way it starts.
+ */
+const SHAKES: Record<
+  string,
+  { axis: 'x' | 'y'; sign: 1 | -1; amp: number; freq: number }
+> = {
+  shakeleft: { axis: 'x', sign: -1, amp: 0.03, freq: 3 },
+  shakeright: { axis: 'x', sign: 1, amp: 0.03, freq: 3 },
+  shakeup: { axis: 'y', sign: -1, amp: 0.03, freq: 3 },
+  shakedown: { axis: 'y', sign: 1, amp: 0.03, freq: 3 },
+  shake2left: { axis: 'x', sign: -1, amp: 0.06, freq: 5 },
+  shake2right: { axis: 'x', sign: 1, amp: 0.06, freq: 5 },
+  shake2up: { axis: 'y', sign: -1, amp: 0.06, freq: 5 },
+  shake2down: { axis: 'y', sign: 1, amp: 0.06, freq: 5 },
+};
+
+/**
+ * The flash families: which colour the frame blooms through.
+ *
+ * `blink` is black — an eye-blink — and `light` is white. They differ in
+ * nothing else, because what separates a flash from `fadeblack` is the CURVE,
+ * and both share it.
+ */
+const FLASHES: Record<string, string> = {
+  blink: '#000000',
+  light: '#ffffff',
+};
+
+/** The colour a flash blooms through, or `null` when this is not a flash. */
+export function flashColor(name: string): string | null {
+  return FLASHES[name] ?? null;
+}
+
+/** Where the veil starts and stops, as a fraction of the overlap. */
+const FLASH_EDGE = 0.25;
+
+/**
+ * The veil's alpha through a flash: a triangle over the middle half.
+ *
+ * Linear, and deliberately so — the export samples this same shape per frame,
+ * so an eased curve would have to be eased identically there or it becomes a
+ * curve only the previews have. Zero at `p <= 0.25` and `p >= 0.75`, so the
+ * frame is untouched at both ends of the overlap.
+ *
+ * Written twice, as `shakeOffsetAt`/`shakeExpr` are: once here for the previews
+ * and once as an ffmpeg expression in `flashExpr`, with a test asserting the
+ * two agree numerically rather than by inspection.
+ */
+export function flashAlphaAt(p: number): number {
+  const a = 1 - Math.abs(p - 0.5) / FLASH_EDGE;
+  return Math.min(1, Math.max(0, a));
+}
+
+/**
+ * The same triangle as an ffmpeg expression over absolute time, for `geq`.
+ *
+ * **Not `fade`, and that is the whole point of this function.** The obvious
+ * spelling — a pair of chained `fade` filters on the colour source — was tried,
+ * shipped behind a gate, and measured wrong by up to **64/255**. `fade` does
+ * not ramp on the clock: it counts FRAMES. It starts at the first frame at or
+ * after `st` (giving that frame a factor of exactly 0, not the fraction a
+ * continuous ramp would), and steps by `1/round(d*fps)` from there. So the
+ * whole ramp is displaced by however far `st` happens to sit from a frame
+ * boundary — measured against ffmpeg 8.1.2 at `st=0.25:d=0.25` on a 30fps
+ * source, half a frame, which is a quarter of a four-frame ramp.
+ *
+ * An expression has none of that: `T` is the frame's own time, so this is the
+ * function above evaluated at exactly the instant the preview would evaluate
+ * it. Measured back the same way: **1/255**, and the one byte is `geq`
+ * truncating where the sampler rounds.
+ */
+export function flashExpr(at: number, overlap: number): string {
+  const r = (n: number) => Number(n.toFixed(4));
+  return `clip(1-abs((T-${r(at)})/${r(overlap)}-0.5)/${FLASH_EDGE},0,1)`;
+}
+
+const r4 = (n: number) => Number(n.toFixed(4));
+
+/**
+ * The zoom families: how far the frame magnifies, and which way.
+ *
+ * `k` is the FULL travel — the factor a clip reaches at the far end of its own
+ * half of the transition. The frame never actually gets there, because the two
+ * clips meet at the midpoint: the visible peak is `(1+k)^0.5`, so 1.15 and 1.38
+ * here. Two tiers for the reason the shakes have two, which is that VN's list
+ * pairs them that way throughout.
+ */
+const ZOOMS: Record<string, { k: number; sign: 1 | -1 }> = {
+  zoom1in: { k: 0.32, sign: 1 },
+  zoom1out: { k: 0.32, sign: -1 },
+  zoom2in: { k: 0.9, sign: 1 },
+  zoom2out: { k: 0.9, sign: -1 },
+};
+
+/**
+ * How far the frame is magnified, at progress `p`, for one side of the cut.
+ *
+ * Geometric rather than linear, which is what makes the two directions exact
+ * mirrors: `out` is `in` with a negated exponent, so a zoom out undoes a zoom
+ * in of the same tier instead of merely looking like it might.
+ *
+ * The outgoing clip travels from 1 outward and the incoming one arrives out
+ * there and settles back to 1, so each is at 1 on the side of the cut where it
+ * stands alone — the same property the shake envelope is built around, and for
+ * the same reason: a clip that is not at its own scale on the first or last
+ * frame of the transition reads as the picture JUMPING, which is a different
+ * and much worse effect.
+ *
+ * **`out` shows the canvas.** Below 1 the frame no longer fills the output, so
+ * the background appears as a border through the middle of the transition —
+ * 6.5% of the frame at tier 1. That is the effect and not a bug: the honest
+ * mirror of a punch in is a pull back, and cropping to hide it would make the
+ * two directions different moves. Both previews and the export all draw it.
+ */
+export function zoomScaleAt(name: string, p: number, role: XfRole): number {
+  const z = ZOOMS[name];
+  if (!z) return 1;
+  const u = Math.min(1, Math.max(0, role === 'from' ? p : 1 - p));
+  return Math.pow(1 + z.k, z.sign * u);
+}
+
+/**
+ * The same curve as an ffmpeg expression over absolute time.
+ *
+ * Written twice, like `shakeExpr` and `flashExpr`, with a test comparing the
+ * two numerically. `1` when this clip carries no zoom on that side, so a caller
+ * can multiply the two sides together unconditionally: each side's progress
+ * clamps to its own window, so the side that is not transitioning contributes
+ * exactly nothing.
+ */
+export function zoomExpr(
+  name: string,
+  at: number,
+  overlap: number,
+  role: XfRole,
+): string {
+  const z = ZOOMS[name];
+  if (!z) return '1';
+  const p = `clip((t-${r4(at)})/${r4(overlap)},0,1)`;
+  const u = role === 'from' ? p : `(1-${p})`;
+  return `pow(${r4(1 + z.k)},${z.sign < 0 ? '-' : ''}${u})`;
+}
+
+
+/**
+ * The blur families: how far out of focus the frame goes.
+ *
+ * A fraction of the frame's SHORT side, so the same transition reads the same
+ * on a portrait phone export and a landscape one — a sigma in absolute pixels
+ * would be four times as strong at 4K as at 540p.
+ */
+const BLURS: Record<string, number> = { blur1: 0.012, blur2: 0.03 };
+
+/**
+ * The gaussian sigma at progress `p`, in canvas units.
+ *
+ * `sin(PI*p)` is the envelope, and it is the load-bearing half exactly as it is
+ * for a shake: zero at both ends, so the frame is perfectly sharp on the first
+ * and last frame of the transition. A blur that started or stopped mid-ramp
+ * would pop into and out of focus on a single frame.
+ *
+ * Snapped, because `Math.sin(Math.PI)` is 1.22e-16 rather than 0 and a sigma
+ * that small is a filter the export would still have to run.
+ */
+export function blurSigmaAt(name: string, p: number, W: number, H: number): number {
+  const k = BLURS[name];
+  if (!k) return 0;
+  const s = k * Math.min(W, H) * Math.sin(Math.PI * Math.min(1, Math.max(0, p)));
+  return s < 1e-6 ? 0 : s;
+}
+
+/**
+ * The same envelope as a list of `sendcmd` commands, one per output frame.
+ *
+ * **`gblur` takes no expression**, which is the whole difficulty: `sigma` is a
+ * plain option, settable at runtime but not evaluated per frame. `sendcmd` is
+ * the only way to move it, and it fires a command on the first frame at or
+ * after its timestamp — the same rule `fade` follows, and the same trap.
+ * Measured against ffmpeg 8.1.2: a command written at `0.0667` on a 30fps
+ * stream lands on frame 3, not the frame at `0.06667`, because the printed
+ * decimal is a hair LARGER than the frame's own time.
+ *
+ * So each command is stamped half a frame EARLY. Any time strictly inside
+ * `((n-1)/fps, n/fps]` selects frame `n` whatever the rounding does, and the
+ * midpoint is as far from both edges as it is possible to be.
+ */
+/**
+ * What to multiply a true-gaussian sigma by to get `gblur`'s nominal one.
+ *
+ * MEASURED, against ffmpeg 8.1.2, by blurring a step edge and fitting the
+ * gaussian that best reproduces the profile. `gblur` is an IIR approximation,
+ * not a convolution, and it comes out consistently NARROW: nominal 1, 2, 4, 8
+ * and 16 fit effective 0.80, 1.50, 3.20, 6.50 and 12.95 — a ratio of 0.80 flat
+ * across four doublings, and `steps` does not move it.
+ *
+ * Both previews take a real gaussian sigma (`filter: blur()` and Skia's `Blur`
+ * are the same number), so the calibration lives HERE, in the one emitter that
+ * needs it, and `blurSigmaAt` stays the honest width everything else works in.
+ * Uncompensated the export came out a quarter less blurred than the picture the
+ * user watched, which is small enough to look like a codec artefact and is not.
+ *
+ * What remains after the width is matched is ~8/255 on a hard black-to-white
+ * edge — the shape difference between an IIR approximation and a convolution.
+ * Recorded rather than chased, the same way the grade's residual is.
+ */
+const GBLUR_NOMINAL = 1.25;
+
+export function blurCommands(
+  name: string,
+  at: number,
+  overlap: number,
+  fps: number,
+  W: number,
+  H: number,
+): { t: number; sigma: number }[] {
+  if (!BLURS[name] || overlap <= 0 || fps <= 0) return [];
+  const out: { t: number; sigma: number }[] = [];
+  const first = Math.ceil(at * fps);
+  const last = Math.floor((at + overlap) * fps);
+  for (let n = first; n <= last; n++) {
+    const p = (n / fps - at) / overlap;
+    out.push({ t: (n - 0.5) / fps, sigma: blurSigmaAt(name, p, W, H) * GBLUR_NOMINAL });
+  }
+  return out;
+}
+
+/**
+ * How far the frame is displaced, at progress `p`.
+ *
+ * `sin(PI*p)` is the ENVELOPE and it is the load-bearing half: it is zero at
+ * both ends, so the frame is exactly where it belongs on the first and last
+ * frame of the transition. An oscillation without it would start and stop
+ * mid-swing and read as the picture jumping, which is a different and much
+ * worse effect than a shake.
+ *
+ * Written twice, as `element-anim.ts` writes its ramps — once here for the
+ * previews and once as an ffmpeg expression in `shakeExpr` — with a test
+ * asserting the two agree numerically rather than by inspection.
+ */
+export function shakeOffsetAt(
+  name: string,
+  p: number,
+  W: number,
+  H: number,
+): { dx: number; dy: number } {
+  const s = SHAKES[name];
+  if (!s) return { dx: 0, dy: 0 };
+  const d =
+    s.sign *
+      s.amp *
+      Math.min(W, H) *
+      Math.sin(Math.PI * p) *
+      Math.sin(2 * Math.PI * s.freq * p);
+  /*
+   * Snap trig noise to a true zero, the way `rotatedBoxPx` does for the same
+   * reason. `Math.sin(Math.PI)` is 1.22e-16, not 0, so the envelope never quite
+   * closes and the displacement at `p = 1` comes out around 1e-30 with a
+   * NEGATIVE sign on the leftward variants. Neither is visible; both are
+   * corrosive. A negative zero survives JSON and `Object.is(-0, 0)` is false,
+   * so two identical frames compare unequal — and "the frame is exactly where
+   * it belongs on the last frame of the transition" stops being something that
+   * can be asserted at all.
+   */
+  const snapped = Math.abs(d) < 1e-6 ? 0 : d;
+  return s.axis === 'x' ? { dx: snapped, dy: 0 } : { dx: 0, dy: snapped };
+}
+
+/**
+ * The same displacement as an ffmpeg `overlay=x:y` expression, or `'0'` when
+ * this axis does not move.
+ *
+ * `'0'` rather than an expression that evaluates to zero, because
+ * `emitClipLayer` tests for exactly that literal to decide whether to compose a
+ * term at all — which is what keeps the filtergraph byte-identical for every
+ * clip that has no shake.
+ *
+ * `at` is in the SAME frame of reference as the `t` the expression will be
+ * evaluated in. On the ordinary overlay path that is timeline seconds; the
+ * caller is what knows which, so it is not assumed here.
+ */
+export function shakeExpr(
+  name: string,
+  at: number,
+  overlap: number,
+  W: number,
+  H: number,
+  axis: 'x' | 'y',
+): string {
+  const s = SHAKES[name];
+  if (!s || s.axis !== axis || !(overlap > 0)) return '0';
+  const a = r3(s.sign * s.amp * Math.min(W, H));
+  const prog = `clip((t-${r3(at)})/${r3(overlap)},0,1)`;
+  return `${a}*sin(PI*${prog})*sin(${r3(2 * s.freq)}*PI*${prog})`;
+}
+
+/** ffmpeg's own `smoothstep`, cubic and clamped (`vf_xfade.c:290`). */
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - edge0) / (edge1 - edge0)));
+  return t * t * (3 - 2 * t);
+}
+
+/**
+ * The mask families, as `p ↦ XfMask`.
+ *
+ * `P` is ffmpeg's internal progress and runs the other way — `1 - p` — which is
+ * why every bias below is written in terms of it rather than being pre-flipped.
+ * Keeping the source's own variable makes each line diffable against the C, and
+ * that is worth more here than an expression one step shorter.
+ */
+const MASKS: Record<string, (p: number) => XfMask> = {
+  // `mix(A, B, ss)` — A where the field is large, so the incoming clip arrives
+  // in the CENTRE and grows. The 3x ramp means it is over by p ≈ 0.83 and has
+  // not begun before p ≈ 0.17.
+  circleopen: (p) => ({ field: 'radius', sign: 1, bias: (1 - p - 0.5) * 3, invert: true }),
+  circleclose: (p) => ({ field: 'radius', sign: 1, bias: (p - 0.5) * 3 }),
+  vertopen: (p) => ({ field: 'absx', sign: -1, bias: 2 - (1 - p) * 2 }),
+  vertclose: (p) => ({ field: 'absx', sign: 1, bias: 1 - (1 - p) * 2 }),
+  horzopen: (p) => ({ field: 'absy', sign: -1, bias: 2 - (1 - p) * 2 }),
+  horzclose: (p) => ({ field: 'absy', sign: 1, bias: 1 - (1 - p) * 2 }),
+  diagtl: (p) => ({ field: 'prod', sign: 1, bias: 1 - (1 - p) * 2 }),
+  diagtr: (p) => ({ field: 'prod', sign: 1, bias: 1 - (1 - p) * 2, flipX: true }),
+  diagbl: (p) => ({ field: 'prod', sign: 1, bias: 1 - (1 - p) * 2, flipY: true }),
+  diagbr: (p) => ({
+    field: 'prod',
+    sign: 1,
+    bias: 1 - (1 - p) * 2,
+    flipX: true,
+    flipY: true,
+  }),
+  radial: (p) => ({ field: 'angle', sign: 1, bias: -(1 - p - 0.5) * Math.PI * 2.5 }),
+};
+
+/**
+ * The incoming clip's alpha at one canvas pixel, in `[0, 1]`.
+ *
+ * Callable at fractional coordinates so a renderer can sample a small grid and
+ * scale it up — every one of these fields ramps over a whole unit of its
+ * normalized coordinate, so they are all low-frequency and a coarse grid costs
+ * almost nothing. The exception is `angle`, which is singular at the exact
+ * centre; that is a handful of pixels and a recorded tolerance.
+ *
+ * The integer divisions are ffmpeg's and are reproduced rather than tidied:
+ * `radius` and `angle` take `width / 2` on an `int` (so a half-pixel offset on
+ * an odd dimension) while `absx`/`absy` take `width / 2.0` on a float. The
+ * difference is sub-pixel and invisible, but the fixture compares numbers.
+ */
+export function xfadeMaskAt(m: XfMask, x: number, y: number, W: number, H: number): number {
+  let f: number;
+  switch (m.field) {
+    case 'radius': {
+      const cx = Math.floor(W / 2);
+      const cy = Math.floor(H / 2);
+      const z = Math.hypot(cx, cy);
+      f = z > 0 ? Math.hypot(x - cx, y - cy) / z : 0;
+      break;
+    }
+    case 'absx': {
+      const w2 = W / 2;
+      f = w2 > 0 ? Math.abs((x - w2) / w2) : 0;
+      break;
+    }
+    case 'absy': {
+      const h2 = H / 2;
+      f = h2 > 0 ? Math.abs((y - h2) / h2) : 0;
+      break;
+    }
+    case 'prod': {
+      const fx = m.flipX ? (W - 1 - x) / W : x / W;
+      const fy = m.flipY ? (H - 1 - y) / H : y / H;
+      f = fx * fy;
+      break;
+    }
+    case 'angle':
+      // atan2(dx, dy), NOT the usual atan2(dy, dx) — ffmpeg passes them in this
+      // order, which rotates where the sweep starts by a quarter turn.
+      f = Math.atan2(x - Math.floor(W / 2), y - Math.floor(H / 2));
+      break;
+  }
+  const a = smoothstep(0, 1, m.sign * f + m.bias);
+  return m.invert ? 1 - a : a;
+}
+
+/**
+ * The same field sampled onto an `n x n` lattice, row-major.
+ *
+ * For the picker tiles, which are ~34px of SVG and have no per-pixel shader to
+ * run the field through. Both of them build a mask out of this — a grid of
+ * cells at the sampled opacity — so a circle reads as a circle and the four
+ * diagonals read as four different corners, where before all eleven mask
+ * families drew an identical cross-fade.
+ *
+ * Sampled at cell CENTRES, and it matters: at the edges of a 34px tile the
+ * corner cell of `circleopen` is the difference between the ring having closed
+ * and not, and taking the top-left corner of each cell biases the whole field
+ * half a cell toward the origin.
+ *
+ * Shared rather than written twice for the same reason `xfadeMaskAt` is: the
+ * tile's claim is that it is the transition, and a tile sampling its own idea
+ * of the field would quietly stop being one.
+ */
+export function xfadeMaskGrid(m: XfMask, n: number, W: number, H: number): number[] {
+  const out: number[] = [];
+  for (let j = 0; j < n; j++)
+    for (let i = 0; i < n; i++)
+      out.push(xfadeMaskAt(m, ((i + 0.5) / n) * W, ((j + 0.5) / n) * H, W, H));
+  return out;
+}
+
+/**
+ * The solid drawn between the two clips, for the families that dip through a
+ * colour.
+ *
+ * `fadeblack` is a NESTED mix, not a sum — the earlier note here recorded a
+ * two-term sum guessed from probe output and it was simply wrong:
+ *
+ *     mix(mix(A, bg, ss(1-phase, 1, P)), mix(bg, B, ss(phase, 1, P)), P)
+ *
+ * with `phase = 0.2`. Expanded, the three weights are `A = P*s1`,
+ * `B = p*(1-s2)` and whatever is left for the background, and they sum to 1.
+ * Note how asymmetric that is: at `p = 0.5` it is already 34% B against 66%
+ * black, nowhere near the halfway point it looks like it should be.
+ *
+ * A compositor draws in layers rather than weighting three sources at once, so
+ * the veil's own alpha is solved backwards from the weights: after A at 1 and
+ * the veil at `t1`, the surface holds `(1-t1)*A + t1*bg`, and B at `t2` on top
+ * leaves A at `(1-t2)(1-t1)`. Setting that equal to `P*s1` gives `t1`.
+ */
+export function xfadeVeilAt(name: string, p: number): XfVeil | null {
+  const flash = FLASHES[name];
+  if (flash) return { color: flash, alpha: flashAlphaAt(p) };
+  const color = name === 'fadeblack' ? '#000000' : name === 'fadewhite' ? '#ffffff' : null;
+  if (!color) return null;
+  const P = 1 - p;
+  const wA = P * smoothstep(0.8, 1, P);
+  const wB = p * (1 - smoothstep(0.2, 1, P));
+  // `wB >= 1` is exactly `p = 1`, where A carries no weight at all and any veil
+  // would be painting under an opaque incoming clip.
+  const alpha = wB >= 1 ? 0 : Math.min(1, Math.max(0, 1 - wA / (1 - wB)));
+  return { color, alpha };
+}
+
+/** `squeezeh` squeezes vertically, `squeezev` horizontally — ffmpeg's naming. */
+const SQUEEZES: Record<string, 'x' | 'y'> = { squeezeh: 'y', squeezev: 'x' };
+
+/**
+ * `zoomin`: the outgoing clip magnifies about the centre while the incoming one
+ * fades up over the SECOND half only.
+ *
+ * ffmpeg samples A at `0.5 + (u - 0.5) * zf`, so contracting the sampling
+ * coordinate magnifies the picture by `1/zf` — and `zf` reaches 0 at `p = 0.5`,
+ * which is a magnification of infinity. `MAX_ZOOM` is where that is truncated:
+ * past it every pixel on the canvas is already the same one pixel of A, so a
+ * larger number cannot change what is drawn and a smaller one visibly can.
+ */
+const MAX_ZOOM = 4096;
+
+/**
+ * The squeeze families: the outgoing clip is compressed to a band across the
+ * canvas centre, and the incoming one fills what is left.
+ *
+ * ffmpeg draws A on TOP of B here, which is the one place its layering
+ * disagrees with the compositors'. Rather than teach both of them to reorder,
+ * the band is punched out of B — the same picture, drawn the way everything
+ * else in this engine is drawn.
+ *
+ * ffmpeg resamples with `lrintf`, nearest-neighbour, where both previews
+ * interpolate, so this family carries a recorded tolerance rather than being
+ * exact. It is the same trade the grade makes and for the same reason: matching
+ * a nearest-neighbour resample would mean giving up filtering everywhere else.
+ */
+function squeezeState(
+  axis: 'x' | 'y',
+  p: number,
+  role: XfRole,
+  W: number,
+  H: number,
+): XfState {
+  const P = 1 - p;
+  if (role === 'from') {
+    return { alpha: 1, scale: axis === 'y' ? { x: 1, y: P } : { x: P, y: 1 } };
+  }
+  const hole =
+    axis === 'y'
+      ? { x: 0, y: ((1 - P) / 2) * H, w: W, h: P * H }
+      : { x: ((1 - P) / 2) * W, y: 0, w: P * W, h: H };
+  return { alpha: 1, hole };
+}
+
+/**
+ * The families BOTH previews draw, and therefore the ones a picker may offer.
+ *
+ * A single set rather than a condition per family, because it is the list that
+ * has to advance in step with two compositors: the maths for every family below
+ * lives in this file already and the export renders all of them, so what gates
+ * a name here is whether the canvas-2D AND the Skia preview have landed it. Add
+ * a name the moment the second one does, never before — a picker offering
+ * something one preview shows as a cut is exactly the drift this engine exists
+ * to refuse, and the drift is invisible until someone exports.
+ */
+const PREVIEWED = new Set<string>([
+  ...Object.keys(WIPES),
+  ...Object.keys(SLIDES),
+  ...Object.keys(MASKS),
+  ...Object.keys(SQUEEZES),
+  ...Object.keys(SHAKES),
+  ...Object.keys(FLASHES),
+  ...Object.keys(ZOOMS),
+  ...Object.keys(BLURS),
+  'fadeblack',
+  'fadewhite',
+  'zoomin',
+  'pixelize',
+  /*
+   * `hblur` is deliberately absent, and this is the honest half of the rule
+   * rather than a TODO. It renders in the export and the canvas-2D preview
+   * draws it; Skia does not, and measuring says it cannot at a viable cost.
+   *
+   * ffmpeg's is a FORWARD box filter whose width here reaches `1 + W/2` — HALF
+   * THE FRAME, 541px at 1080. The canvas preview affords that by downscaling to
+   * 640 and running an exact running-sum box on the CPU. Skia's declarative
+   * tree has no equivalent: a `RuntimeEffect` would need a loop of hundreds of
+   * taps per pixel, and Skia's own blur is a centred gaussian, which is the
+   * wrong shape twice over — a forward box also DISPLACES the picture by half
+   * its width, so a gaussian of the same width sits visibly in the wrong place
+   * beside the file.
+   *
+   * So it stays export-only and unreachable from the pickers. `blur1`/`blur2`
+   * are what a user actually gets, and being ours rather than ffmpeg's they are
+   * a gaussian, which all three renderers do natively and none has to fake.
+   */
+]);
+
 export function xfadeStateAt(
   name: string,
   p: number,
@@ -684,11 +1516,83 @@ export function xfadeStateAt(
    * this one is exact where the colour grade is not.
    */
   if (name === 'fade') return { alpha: role === 'to' ? p : 1 };
+  if (FLASHES[name]) return { alpha: role === 'to' ? p : 1 };
+  if (SHAKES[name]) {
+    /*
+     * BOTH sides carry the same displacement, because it is the frame that
+     * shakes and not one picture inside it — offsetting only the incoming clip
+     * would read as that clip sliding around on top of a steady one.
+     */
+    const { dx, dy } = shakeOffsetAt(name, p, W, H);
+    return { alpha: role === 'to' ? p : 1, ...(dx ? { dx } : {}), ...(dy ? { dy } : {}) };
+  }
+  if (BLURS[name]) {
+    // BOTH sides, because it is the frame that goes soft and not one picture
+    // inside it — blurring only the incoming clip would read as it arriving out
+    // of focus over a sharp one, which is a different effect entirely.
+    const b = blurSigmaAt(name, p, W, H);
+    return { alpha: role === 'to' ? p : 1, ...(b > 0 ? { blur: b } : {}) };
+  }
+  if (ZOOMS[name]) {
+    // Unlike a shake, the two sides carry DIFFERENT scales: each travels from
+    // its own end of the move, and they meet at the midpoint. That crossover is
+    // the punch, and it is why neither side is at 1 when the other is.
+    const s = zoomScaleAt(name, p, role);
+    return { alpha: role === 'to' ? p : 1, scale: { x: s, y: s } };
+  }
+  /*
+   * The dip families. The outgoing clip is left alone and the incoming one
+   * carries the weight solved in `xfadeVeilAt`; the solid between them is a
+   * third op, emitted by `frame.ts`, because it belongs to neither side.
+   */
+  if (name === 'fadeblack' || name === 'fadewhite') {
+    if (role === 'from') return { alpha: 1 };
+    const P = 1 - p;
+    return { alpha: p * (1 - smoothstep(0.2, 1, P)) };
+  }
   if (W > 0 && H > 0) {
     const wipe = WIPES[name];
     if (wipe) return wipeState(wipe, p, role, W, H);
     const slide = SLIDES[name];
     if (slide) return slideState(slide, p, role, W, H);
+    const mask = MASKS[name];
+    if (mask) {
+      /*
+       * Only the INCOMING side is masked. ffmpeg blends the two padded
+       * full-canvas frames, so where the incoming clip does not cover the
+       * canvas — a picture-in-picture, a keyed or masked clip — it blends the
+       * outgoing one toward transparency, and drawing over the top the way a
+       * compositor does leaves it alone instead. That divergence is confined to
+       * a main-track clip with its own `rect`, which the geometric families
+       * already refuse for the same underlying reason, and the alternative is
+       * compositing both sides additively into a shared scratch. Exact for a
+       * full-frame clip, which is what the main track carries.
+       */
+      if (role === 'from') return { alpha: 1 };
+      return { alpha: 1, mask: mask(p) };
+    }
+    const axis = SQUEEZES[name];
+    if (axis) return squeezeState(axis, p, role, W, H);
+    if (name === 'zoomin') {
+      const P = 1 - p;
+      if (role === 'to') return { alpha: 1 - smoothstep(0, 0.5, P) };
+      const zf = smoothstep(0.5, 1, P);
+      const s = zf > 1 / MAX_ZOOM ? 1 / zf : MAX_ZOOM;
+      return { alpha: 1, scale: { x: s, y: s } };
+    }
+    if (name === 'pixelize') {
+      // `dist` is quantized to fiftieths by ffmpeg, so the block size STEPS
+      // rather than sliding. Reproducing the quantization matters more than it
+      // looks: the steps are visible, and a smooth ramp reads as a different
+      // effect even where the average error is small.
+      const dist = Math.ceil(Math.min(p, 1 - p) * 50) / 50;
+      const block = (2 * dist * Math.min(W, H)) / 20;
+      return { alpha: role === 'to' ? p : 1, ...(block > 0 ? { block } : {}) };
+    }
+    if (name === 'hblur') {
+      const blurX = 1 + (W / 2) * (Math.min(p, 1 - p) * 2);
+      return { alpha: role === 'to' ? p : 1, blurX };
+    }
   }
   /*
    * The families that have not landed yet, plus any wipe asked for without a

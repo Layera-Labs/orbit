@@ -31,10 +31,33 @@ function konvaFontStyle(weight: number, style?: string): string {
   return parts.join(' ') || 'normal';
 }
 
-function shadowProps(el: Element): Record<string, unknown> {
+/**
+ * The paint properties every content node needs: its shadow, and its blend.
+ *
+ * **The blend has to go on the drawn node, not on the wrapping `Group`.** Konva
+ * sets the canvas composite operation per SHAPE at draw time, from that shape's
+ * own `globalCompositeOperation` — which defaults to `source-over` — so a value
+ * on the parent is overwritten by the first child that draws. Setting it on the
+ * group looks right, reads right in the node tree, and does nothing; measured
+ * against a `screen`-blended rectangle over a white page, which stayed its own
+ * colour instead of going white.
+ *
+ * It matters because `svg-export.ts` has always written `mix-blend-mode` and
+ * the editor has always offered the control, so the canvas was showing one
+ * thing and the exported file another.
+ *
+ * `normal` is left undefined rather than written as `source-over`, so an
+ * element that has never been blended does not opt into a path Konva can skip.
+ */
+function paintProps(el: Element): Record<string, unknown> {
+  const blend =
+    el.blendMode && el.blendMode !== 'normal'
+      ? { globalCompositeOperation: el.blendMode }
+      : {};
   const s = el.shadow;
-  if (!s) return {};
+  if (!s) return blend;
   return {
+    ...blend,
     shadowColor: s.color,
     shadowBlur: s.blur,
     shadowOpacity: s.opacity,
@@ -126,6 +149,9 @@ function ElementNodeImpl({ id, nested = false }: ElementNodeProps) {
     y: el.y,
     rotation: el.rotation,
     opacity: el.opacity,
+    // The blend deliberately does NOT go here — see `paintProps`. Konva reads
+    // the composite operation off each SHAPE as it draws, so a value on this
+    // group is overwritten by the first child and silently does nothing.
     draggable: !nested && !el.locked,
     listening: !el.locked,
     onMouseDown: handleSelect,
@@ -184,7 +210,7 @@ function ElementContent({
           onDblClick={onTextDblClick}
           onDblTap={onTextDblClick}
           perfectDrawEnabled={false}
-          {...shadowProps(el)}
+          {...paintProps(el)}
         />
       );
     case 'image':
@@ -207,12 +233,18 @@ function ElementContent({
               : undefined
           }
           perfectDrawEnabled={false}
-          {...shadowProps(el)}
+          {...paintProps(el)}
         />
       );
     case 'svg':
       return (
-        <KonvaImage image={image} width={el.width} height={el.height} perfectDrawEnabled={false} />
+        <KonvaImage
+          image={image}
+          width={el.width}
+          height={el.height}
+          perfectDrawEnabled={false}
+          {...paintProps(el)}
+        />
       );
     case 'shape':
       return <ShapeContent el={el} />;
@@ -226,7 +258,7 @@ function ElementContent({
           pointerLength={Math.max(8, el.strokeWidth * 3)}
           pointerWidth={Math.max(8, el.strokeWidth * 3)}
           perfectDrawEnabled={false}
-          {...shadowProps(el)}
+          {...paintProps(el)}
         />
       ) : (
         <Line
@@ -236,7 +268,7 @@ function ElementContent({
           dash={el.dash}
           lineCap="round"
           perfectDrawEnabled={false}
-          {...shadowProps(el)}
+          {...paintProps(el)}
         />
       );
     case 'group':
@@ -265,7 +297,7 @@ function ShapeContent({ el }: { el: Extract<Element, { type: 'shape' }> }) {
     stroke: el.stroke,
     strokeWidth: el.strokeWidth,
     perfectDrawEnabled: false,
-    ...shadowProps(el),
+    ...paintProps(el),
   };
   switch (el.shape) {
     case 'ellipse':

@@ -1,0 +1,217 @@
+# A single-box deployment: the service, a database, and TLS. For one VPS.
+#
+#   cd /opt/orbit
+#   docker compose -f services/render/compose.vps.yaml up -d --build
+#
+# Run it from the REPO ROOT — the build context is `../..` because the service
+# imports workspace packages by source and cannot be built from its own
+# directory alone.
+#
+# BUT THE ENV FILE LIVES NEXT TO THIS FILE, at services/render/.env, not at
+# the repo root. Compose reads `.env` from its PROJECT DIRECTORY, which defaults
+# to the directory holding the compose file — not the directory you ran the
+# command from. A root .env is silently ignored and the stack fails on the first
+# required variable, naming a file that exists and looks correct. Pass
+# `--env-file` if you want it somewhere else.
+#
+# How this differs from `compose.yaml`, which is the reference for what the
+# service NEEDS rather than a deployment:
+#
+#   - Postgres, so credits and accounts survive a restart. Without a
+#     DATABASE_URL the ledger is in memory and every restart wipes it.
+#   - A named volume for media and renders. The service writes to the OS temp
+#     dir and that is NOT configurable — but `os.tmpdir()` honours TMPDIR, so
+#     pointing TMPDIR at a mounted volume is what makes uploads and finished
+#     MP4s outlive the container. Skip this and a `docker compose up --build`
+#     deletes every render in flight.
+#   - Caddy in front, which obtains and renews a certificate on its own. HTTPS
+#     is not optional here: iOS App Transport Security blocks plain HTTP, so a
+#     device build simply cannot reach an http:// service.
+#
+# Storage stays on local disk on purpose. It is correct for one box, and the
+# shared Postgres job queue REFUSES to enable on it — which is the right
+# outcome, since a second worker would be handed an upload token naming a file
+# only the first box has. Moving to S3/R2 is what unlocks a second machine; see
+# docs/guide/deploying.md.
+services:
+  render:
+    build:
+      context: ../..
+      dockerfile: services/render/Dockerfile
+    # Bound to LOOPBACK, not 0.0.0.0. A proxy on this box reaches it; the
+    # internet cannot, so nobody can skip TLS by asking for port 8787 directly.
+    # The `:8787:8787` form without the address prefix would publish it to the
+    # world and, on most setups, punch through ufw as well — docker writes its
+    # own iptables rules ahead of ufw's.
+    #
+    # This is also the seam for an existing web panel (aaPanel, Plesk, cPanel)
+    # or a hand-rolled nginx: leave the caddy profile off and point the panel's
+    # reverse proxy at http://127.0.0.1:8787.
+    ports:
+      - "127.0.0.1:8787:8787"
+    environment:
+      # REQUIRED — signs every session and guest token, and the service refuses
+      # to boot without it under NODE_ENV=production. Generate once:
+      #   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+      # Treat it as PERMANENT. Changing it signs everybody out including guests,
+      # who have no password to sign back in with and so lose their credits.
+      ORBIT_JWT_SECRET: ${ORBIT_JWT_SECRET:?set ORBIT_JWT_SECRET in .env — the service will not start without it}
+
+      # `sslmode=disable` is REQUIRED here and is not a weakening.
+      #
+      # makePgPool treats any host that is not localhost as a managed database
+      # and turns SSL on, which is right for Neon or Supabase and wrong for
+      # this: `db` is a compose service name on a private bridge network that
+      # never leaves the host, and the postgres image does not serve SSL at
+      # all. Without this the pool throws "The server does not support SSL
+      # connections" — AFTER the service has logged that it is listening, so it
+      # looks like the app started and then died for no reason.
+      DATABASE_URL: postgres://orbit:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db:5432/orbit?sslmode=disable
+
+      # Where media and finished renders live. `os.tmpdir()` reads this, and the
+      # volume below is mounted at the same path.
+      TMPDIR: /data
+
+      ORBIT_ALLOWED_ORIGINS: ${ORBIT_ALLOWED_ORIGINS:-}
+
+      # Match this to the CPU limit below, not to the host's core count —
+      # ffmpeg will use every core it is given, and starving the event loop
+      # makes the health check fail while the box is merely busy.
+      ORBIT_MAX_CONCURRENT_RENDERS: ${ORBIT_MAX_CONCURRENT_RENDERS:-2}
+      ORBIT_MAX_QUEUED_RENDERS: ${ORBIT_MAX_QUEUED_RENDERS:-8}
+
+      # Byte budgets for the two directories on the volume. Both evict
+      # oldest-first; set them under the disk you actually have, or the volume
+      # fills and renders start failing on write.
+      #
+      # Stated with a REAL default rather than `${X:-}`. That idiom passes the
+      # EMPTY STRING when the variable is unset, and the service used to read
+      # these with `Number(process.env.X ?? default)` — `??` does not fire on
+      # "" and `Number("")` is 0, so the budget silently became zero bytes and
+      # eviction deleted every upload the instant it landed. `envNumber` now
+      # rejects an empty value on the server side too, but there is no reason
+      # to hand it one.
+      ORBIT_MAX_MEDIA_BYTES: ${ORBIT_MAX_MEDIA_BYTES:-5368709120}
+      ORBIT_MAX_OUTPUT_BYTES: ${ORBIT_MAX_OUTPUT_BYTES:-5368709120}
+
+      # The service's own public address, e.g. https://orbit-api.example.com.
+      # Set it and password-reset emails link to the reset page this service
+      # serves at /reset; leave it unset and the raw token is emailed instead,
+      # for the user to paste into the app.
+      #
+      # It has to be STATED. The obvious shortcut — build the link from the
+      # request's Host header — is the classic reset-poisoning hole: anyone can
+      # post to /v1/auth/forgot with a Host of their choosing and have a valid
+      # token mailed to your user pointing at their box.
+      ORBIT_PUBLIC_URL: ${ORBIT_PUBLIC_URL:-}
+
+      # Transactional email, which is what makes password reset work at all.
+      # Without RESEND_API_KEY, /v1/auth/forgot answers 503 and the app tells
+      # the user reset is unavailable. These MUST be listed here: compose passes
+      # through only the variables a service names, so putting them in .env
+      # alone leaves the container without them and the symptom is a 503 from a
+      # server whose .env plainly contains the key.
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      # Optional override — a deep link or a page of your own. Unset, the reset
+      # link is built from ORBIT_PUBLIC_URL above.
+      EMAIL_RESET_URL_BASE: ${EMAIL_RESET_URL_BASE:-}
+
+      RUNWAY_API_TOKEN: ${RUNWAY_API_TOKEN:-}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+
+      # The language model behind /v1/generate, and the rest of that pipeline.
+      # Named here for the same reason the email block above is: compose passes
+      # through only what a service lists, so a key sitting in .env alone leaves
+      # the container without it — and the symptom is a box that reports
+      # generation unconfigured while its .env plainly contains the key.
+      ORBIT_LLM_BASE_URL: ${ORBIT_LLM_BASE_URL:-}
+      ORBIT_LLM_MODEL: ${ORBIT_LLM_MODEL:-}
+      ORBIT_LLM_API_KEY: ${ORBIT_LLM_API_KEY:-}
+      ORBIT_LLM_JSON_MODE: ${ORBIT_LLM_JSON_MODE:-}
+      ORBIT_LLM_TIMEOUT_MS: ${ORBIT_LLM_TIMEOUT_MS:-}
+      PEXELS_API_KEY: ${PEXELS_API_KEY:-}
+      ORBIT_GENERATION_WORKER: ${ORBIT_GENERATION_WORKER:-}
+
+      ORBIT_RENDER_COST: ${ORBIT_RENDER_COST:-0}
+      # What one generated video costs. Unset is FREE, deliberately — metering
+      # is opt-in here exactly as it is for rendering.
+      ORBIT_GENERATION_COST: ${ORBIT_GENERATION_COST:-0}
+      ORBIT_BUILD_SHA: ${ORBIT_BUILD_SHA:-}
+    volumes:
+      - orbit-data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: ${ORBIT_CPUS:-2.0}
+          memory: ${ORBIT_MEMORY:-2g}
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: orbit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: orbit
+    volumes:
+      - orbit-db:/var/lib/postgresql/data
+    # `depends_on: service_healthy` is what makes this useful: without it the
+    # service starts while Postgres is still initialising, fails its first
+    # connection and restarts in a loop until the timing happens to work.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orbit -d orbit"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # OPT-IN, because it wants ports 80 and 443 and a box often already has
+  # something on them — aaPanel, Plesk, an existing nginx. Enable it only on a
+  # box with nothing else serving HTTP:
+  #
+  #   docker compose -f services/render/compose.vps.yaml --profile caddy up -d --build
+  #
+  # Otherwise leave it off and point the existing proxy at 127.0.0.1:8787. Two
+  # of its settings are not optional there: a body limit of at least 512 MB
+  # (uploads go to 500 MB) and a proxy read timeout in the thousands of seconds
+  # (an export holds its connection for as long as ffmpeg runs, and nginx's
+  # 60-second default kills a 4K render at the finish line). See
+  # docs/guide/deploying.md.
+  caddy:
+    profiles: ["caddy"]
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # The domain pointed at this box, and the address Let's Encrypt mails
+      # about expiry. Caddy fetches and renews the certificate itself.
+      #
+      # NOT declared required (`:?`), even though Caddy cannot work without it:
+      # compose interpolates every service in the file regardless of which
+      # profiles are active, so a required variable here would demand a domain
+      # from everyone running WITHOUT this profile — the common case, where an
+      # existing panel owns the certificate and this container never starts.
+      # Enable the profile without setting it and Caddy fails on an empty site
+      # address at startup, which is loud enough.
+      ORBIT_DOMAIN: ${ORBIT_DOMAIN:-}
+      ORBIT_ACME_EMAIL: ${ORBIT_ACME_EMAIL:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates live here. Lose this volume and every restart re-issues,
+      # which runs into Let's Encrypt's rate limit after five tries in a week.
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - render
+    restart: unless-stopped
+
+volumes:
+  orbit-data:
+  orbit-db:
+  caddy-data:
+  caddy-config:

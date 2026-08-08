@@ -11,6 +11,7 @@
  */
 import {
   FULL_FRAME,
+  textOverlaysOf,
   type AudioTrack,
   type ExportOutput,
   type VideoProject,
@@ -18,12 +19,13 @@ import {
   type VisualTrackClip,
 } from "./types";
 import { projectDuration, transitionDuration } from "./project";
+import { imageOverlayAsClip, imageOverlaysOf } from "./overlay-clip";
 import { atempoChain, filterToFFmpeg } from "./filters";
 import { hasMotion, motionToZoompan } from "./motion";
 import { chromaToFFmpeg } from "./cutout";
 import { maskToFFmpeg } from "./mask";
 import { blendToFFmpeg } from "./blend";
-import { hasVolumeCurve, volumeCurveExpr } from "./curve";
+import { curvePoints, volumeCurveExpr } from "./curve";
 import {
   animatesOpacity,
   animatesPosition,
@@ -45,7 +47,12 @@ import {
 } from "./transform";
 import { buildEdgeFadeMap } from "./transitions";
 import {
-  isAlphaOnly,
+  flashColor,
+  flashExpr,
+  ridesOverlayPath,
+  blurCommands,
+  shakeExpr,
+  zoomExpr,
   type MainRun,
   planMainRuns,
   resolveTransitions,
@@ -274,7 +281,17 @@ export function buildFFmpegArgs(
     throw new Error("VideoProject has no clips or base image to render");
   }
   const duration = projectDuration(project);
-  const overlays = project.overlays.filter((o) => images[o.id]);
+  /*
+   * Captions, and ONLY captions.
+   *
+   * This used to select on `images[o.id]` alone — whether the rasterizer had
+   * produced a PNG — which picked the right overlays only because `render.ts`
+   * happened to rasterize text and nothing else. A rule spanning two files that
+   * nothing asserted. Selecting by TYPE says what is meant, and the `images`
+   * check stays because a caption whose PNG failed to write has no input to
+   * point an `overlay` filter at.
+   */
+  const overlays = textOverlaysOf(project.overlays).filter((o) => images[o.id]);
   const xfade = transitionDuration(project);
 
   const scaleChain = `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,fps=${fps},format=yuv420p`;
@@ -373,8 +390,21 @@ export function buildFFmpegArgs(
   project.audio.forEach((a, i) => {
     if (!hasAudio(resolve(a.src))) return; // skip an audio file with no audio stream
     const label = `a${i}`;
+    /*
+     * The legacy path honours an envelope too. It used to emit a bare
+     * `volume=<n>`, which made a template's music the one audio in the product
+     * that could not be faded or ducked — all three templates write here.
+     *
+     * No `adelay` on this path, so the expression is in the clip's OWN time
+     * from zero, not the timeline's: `atrim`+`asetpts` have already rebased it.
+     */
+    const aDur = a.duration ?? duration;
+    const aPts = curvePoints(a.volumeCurve, aDur, a.volume ?? 1);
+    const aGain = aPts
+      ? `volume='${volumeCurveExpr(aPts, 0, aDur)}':eval=frame`
+      : `volume=${a.volume ?? 1}`;
     segments.push(
-      `[${audioBase + i}:a]atrim=start=${a.trimIn ?? 0}:duration=${a.duration ?? duration},asetpts=PTS-STARTPTS,volume=${a.volume ?? 1}[${label}]`,
+      `[${audioBase + i}:a]atrim=start=${a.trimIn ?? 0}:duration=${aDur},asetpts=PTS-STARTPTS,${aGain}[${label}]`,
     );
     aLabels.push(`[${label}]`);
   });
@@ -481,7 +511,26 @@ function buildMultiTrackArgs(
   const audioClips = tracks
     .filter((t): t is AudioTrack => t.kind === "audio")
     .flatMap((t) => t.clips);
-  const textOverlays = project.overlays.filter((o) => images[o.id]);
+  // Selected by TYPE, not by "did the rasterizer make a PNG" — see the note
+  // on the same line in `buildFFmpegArgs`.
+  const textOverlays = textOverlaysOf(project.overlays).filter((o) => images[o.id]);
+  /*
+   * A picture on the overlay stack is a `VisualTrackClip` in every respect that
+   * matters to this builder, so it becomes one — see `overlay-clip.ts`. It then
+   * runs through `emitClipLayer`/`placeClip`, the same two functions a
+   * picture-in-picture goes through, rather than through a second filter chain
+   * that would have to be kept in step with them by hand.
+   *
+   * They are appended AFTER the track clips so every existing index is
+   * unchanged: `runOf` is keyed by position in this array, and inserting
+   * earlier would point an xfade run at the wrong clip.
+   */
+  const overlayClips = imageOverlaysOf(project.overlays).map(imageOverlayAsClip);
+  const allVisual = [...visualClips, ...overlayClips];
+  const imgIdx = new Map(
+    overlayClips.map((c, k) => [c.id, visualClips.length + k] as const),
+  );
+  const capIdx = new Map(textOverlays.map((o, i) => [o.id, i] as const));
 
   /*
    * Transitions on the MAIN (first visual) track. Clips OVERLAP by the
@@ -502,12 +551,12 @@ function buildMultiTrackArgs(
   const xfades = xfadeMapOf(resolved.boundaries);
   const fadeMap = buildEdgeFadeMap(mainTrack?.clips ?? []);
 
-  // ---- inputs: base(0), visual clips, text overlays, audio clips ----
+  // ---- inputs: base(0), visual clips + image overlays, captions, audio ----
   const inputs: string[] = [];
   let idx = 0;
   inputs.push("-loop", "1", "-t", String(duration), "-i", opts.baseImage);
   const baseIdx = idx++;
-  const vIn = visualClips.map((c) => {
+  const vIn = allVisual.map((c) => {
     if (c.type === "image")
       inputs.push("-loop", "1", "-t", String(c.duration), "-i", resolve(c.src));
     else inputs.push("-i", resolve(c.src));
@@ -595,7 +644,75 @@ function buildMultiTrackArgs(
      */
     const xfIn = (() => {
       const b = xfades.get(c.id)?.asTo;
-      return b && isAlphaOnly(b.name) ? b : undefined;
+      return b && ridesOverlayPath(b.name) ? b : undefined;
+    })();
+    /*
+     * The shake this clip is inside, on EITHER side of it — a shake displaces
+     * the whole frame, so the outgoing clip moves exactly as far as the
+     * incoming one. `asTo` wins when a clip is between two of them, matching
+     * `frameStateAt`, which resolves the boundary the playhead is actually in.
+     *
+     * `at` is rebased into this chain's frame of reference: `T0` is `c.start`
+     * on the ordinary path and 0 inside a run, and the expression is evaluated
+     * against whichever `t` that chain runs on.
+     */
+    const shakeB = (() => {
+      const x = xfades.get(c.id);
+      for (const b of [x?.asTo, x?.asFrom]) {
+        if (b && shakeExpr(b.name, 0, b.overlap, W, H, 'x') !== '0') return b;
+        if (b && shakeExpr(b.name, 0, b.overlap, W, H, 'y') !== '0') return b;
+      }
+      return undefined;
+    })();
+    const shakeAt = shakeB ? T0 + (shakeB.at - c.start) : 0;
+    const kx = shakeB ? shakeExpr(shakeB.name, shakeAt, shakeB.overlap, W, H, 'x') : '0';
+    const ky = shakeB ? shakeExpr(shakeB.name, shakeAt, shakeB.overlap, W, H, 'y') : '0';
+    /*
+     * The zoom, from BOTH sides at once — the product, not a pick.
+     *
+     * Where a shake chooses one boundary because both would displace the frame
+     * identically, the two ends of a clip magnify by different amounts, and a
+     * clip between two zooms is inside neither for most of its length. Each
+     * side's expression clamps its own progress and so returns exactly 1
+     * outside its window, which makes multiplying them the whole answer: the
+     * side that is not transitioning contributes nothing, and the resolver's
+     * half-clip clamp means the two windows can never overlap anyway.
+     */
+    /*
+     * The authored blur, as `sendcmd` commands — one per output frame of the
+     * transition, from either side of the clip.
+     *
+     * `gblur`'s sigma is a plain option: settable at runtime, but not an
+     * expression, so unlike every other animated thing here it cannot be
+     * written as a function of `t`. Commands are the only lever, and
+     * `blurCommands` stamps each one half a frame early for the reason it
+     * explains at length.
+     *
+     * The filter instance is NAMED. `sendcmd`'s target matches a filter's type
+     * unless you give it one, and a clip carrying its own `c.blur` has a second
+     * `gblur` in this same chain — an untargeted command would drive both, so a
+     * clip the user had blurred would snap to the transition's sigma and back.
+     */
+    const blurCmds = (() => {
+      const x = xfades.get(c.id);
+      return ([['asTo'], ['asFrom']] as const).flatMap(([k]) => {
+        const b = x?.[k];
+        return b
+          ? blurCommands(b.name, T0 + (b.at - c.start), b.overlap, fps, W, H).map(
+              (cmd) => ({ ...cmd, at: T0 + (b.at - c.start), overlap: b.overlap }),
+            )
+          : [];
+      });
+    })();
+    const zoom = (() => {
+      const x = xfades.get(c.id);
+      const parts = ([['asTo', 'to'], ['asFrom', 'from']] as const)
+        .map(([k, role]) => {
+          const b = x?.[k];
+          return b ? zoomExpr(b.name, T0 + (b.at - c.start), b.overlap, role) : '1';
+        })
+        .filter((e) => e !== '1');
+      return parts.length ? parts.join('*') : null;
     })();
     const key = chromaToFFmpeg(c.cutout);
     const kfs = c.keyframes;
@@ -667,6 +784,19 @@ function buildMultiTrackArgs(
     let chain = `${prep}${srcCrop}${grade}scale=${rw}:${rh}:force_original_aspect_ratio=increase,crop=${rw}:${rh},setsar=1,fps=${fps},format=${fmt}`;
     if (key) chain += `,${key}`;
     if (c.blur && c.blur > 0) chain += `,gblur=sigma=${r3(c.blur * 20)}`;
+    if (blurCmds.length) {
+      // Gated to the transition's own window: at sigma 0 `gblur` still runs a
+      // pass over every frame of the clip, and this one is only ever wanted for
+      // the fraction of a second the two clips overlap. `+` rather than `or`
+      // because the windows are disjoint and any non-zero value enables.
+      const on = [...new Set(blurCmds.map((c2) => `${r3(c2.at)},${r3(c2.at + c2.overlap)}`))]
+        .map((w) => `between(t,${w})`)
+        .join("+");
+      const cmds = blurCmds
+        .map((c2) => `${r3(c2.t)} gblur@xf${i} sigma ${r3(c2.sigma)}`)
+        .join(";");
+      chain += `,sendcmd=c='${cmds}',gblur@xf${i}=sigma=0:enable='${on}'`;
+    }
     if (hasMotion(c.motion)) {
       // zoompan re-times to a 0-based PTS, so re-anchor the clip's timeline start.
       const zp = motionToZoompan(
@@ -714,7 +844,15 @@ function buildMultiTrackArgs(
      * rotating. When there is no rotation `preRot` IS `v${i}`, so the emitted
      * graph for every existing project is byte-for-byte what it was.
      */
-    const preRot = deg === 0 ? `v${i}` : `vq${i}`;
+    /*
+     * The zoom is the LAST thing done to the picture, after the rotation, which
+     * is the order `frameStateAt` resolves it in and the order the compositors
+     * draw it in: decode → crop → grade → cover-fit → effects → rotate → the
+     * transition's own transform → composite. So it gets its own stage rather
+     * than joining the clip's chain, exactly as the rotation does.
+     */
+    const postRot = zoom ? `vz${i}` : `v${i}`;
+    const preRot = deg === 0 ? postRot : `vq${i}`;
     const rawLabel = hasLocalFx ? `vr${i}` : preRot;
     segments.push(`[${vIn[i]}:v]${chain}[${rawLabel}]`);
     // Keep a copy of the clip's own alpha; it is merged back after every region
@@ -796,7 +934,22 @@ function buildMultiTrackArgs(
       segments.push(`${localFxLabel}[fxam${i}]alphamerge[${preRot}]`);
     }
     const { ow, oh, dx, dy } = rotatedBoxPx({ w: rw, h: rh }, deg);
-    if (deg !== 0) segments.push(`[${preRot}]${rotateChain(deg, rw, rh)}[v${i}]`);
+    if (deg !== 0) segments.push(`[${preRot}]${rotateChain(deg, rw, rh)}[${postRot}]`);
+    if (zoom) {
+      /*
+       * `eval=frame` is what makes `scale` re-read its expressions per frame;
+       * without it they are evaluated once at init and the clip renders at a
+       * constant size, which looks like a plausible transition and is a still.
+       *
+       * Rounded to EVEN, and clamped to 2. The stream is 4:2:0 by this point,
+       * where an odd dimension is not a rounding difference but an error that
+       * aborts the render — and a scale that reaches zero is the same.
+       */
+      const dim = (n: number) => `max(2,2*round(${n}*(${zoom})/2))`;
+      segments.push(
+        `[${postRot}]scale=w='${dim(ow)}':h='${dim(oh)}':eval=frame[v${i}]`,
+      );
+    }
     /*
      * Where the clip lands. Rotation grows the box symmetrically, so pulling
      * the origin back by half the growth pins the rotation to the CENTRE of the
@@ -814,17 +967,43 @@ function buildMultiTrackArgs(
      */
     const sx = slideExpr(anim, S, E, W, H, "x");
     const sy = slideExpr(anim, S, E, W, H, "y");
+    /**
+     * A zoom about the CANVAS centre, applied to wherever the clip already sat.
+     *
+     * The magnification is a whole-canvas move, the way `dx`/`dy` are: a
+     * picture-in-picture travels toward or away from the centre of the frame
+     * rather than swelling in place, which is what makes the punch read as the
+     * camera moving instead of one layer growing. So the clip's own centre is
+     * pushed out from the canvas centre by the same factor its size grew by,
+     * and `w`/`h` — `overlay`'s live size for the layer, which `eval=frame`
+     * keeps in step with the `scale` above — put the box back around it.
+     *
+     * `round`, because `overlay` truncates a fractional offset. Left to
+     * truncation an offset that should be 3 arrives as 2 whenever the arithmetic
+     * lands a hair under, which is a whole pixel of jitter on a move that is
+     * supposed to be smooth.
+     */
+    const zoomAbout = (core: string, half: number, centre: number, dim: 'w' | 'h') =>
+      `round(${centre}+((${core})+${half}-${centre})*(${zoom})-${dim}/2)`;
     const place = (
       base: string,
       kfExpr: string | null,
       anchor: number,
       slide: string,
+      shake: string,
+      half: number,
+      centre: number,
+      dim: 'w' | 'h',
     ) => {
       const parts: string[] = [];
-      if (kfExpr) parts.push(anchor ? `(${kfExpr})-${anchor}` : kfExpr);
-      else parts.push(String(base));
+      let core = kfExpr ? (anchor ? `(${kfExpr})-${anchor}` : kfExpr) : String(base);
+      if (zoom) core = zoomAbout(core, half, centre, dim);
+      parts.push(core);
       if (slide !== "0") parts.push(`(${slide})`);
-      return parts.length === 1 && !kfExpr ? `${base}` : `'${parts.join("+")}'`;
+      // A shake is a DELTA like a slide, so it composes with the rect, a
+      // keyframed position and a slide rather than replacing any of them.
+      if (shake !== "0") parts.push(`(${shake})`);
+      return parts.length === 1 && !kfExpr && !zoom ? `${base}` : `'${parts.join("+")}'`;
     };
     return {
       label: `[v${i}]`,
@@ -833,12 +1012,20 @@ function buildMultiTrackArgs(
         kfPosition ? keyframeExpr(kfs!, "x", S, c.duration, "t", W) : null,
         dx,
         sx,
+        kx,
+        ow / 2,
+        W / 2,
+        'w',
       ),
       oy: place(
         `${py}`,
         kfPosition ? keyframeExpr(kfs!, "y", S, c.duration, "t", H) : null,
         dy,
         sy,
+        ky,
+        oh / 2,
+        H / 2,
+        'h',
       ),
       px,
       py,
@@ -992,6 +1179,47 @@ function buildMultiTrackArgs(
       runOf.set(i, r);
     }
 
+  /*
+   * The flash families draw a full-canvas solid BETWEEN the two clips, so it
+   * goes in at the incoming clip's turn — after the outgoing clip's overlay and
+   * before its own. That is the same slot `frameStateAt` emits its `veil` op
+   * in, and it is the only one that works: over the clip being left and under
+   * the clip arriving.
+   *
+   * The colour source starts at t=0, so its frames land on the same `n/fps`
+   * grid the output does and `overlay`'s frame sync pairs them exactly — which
+   * is why `T` inside the expression is timeline time and can be written in
+   * absolute seconds like every other expression here. It is cut off at the end
+   * of the flash rather than run to the end of the project, since `eof_action`
+   * already passes the main stream through once a secondary ends.
+   *
+   * It is generated 2x2 and scaled up with `flags=neighbor`. The alpha ramp is
+   * a per-pixel `geq` expression, which is far too slow to run over a 4K frame;
+   * on a flat colour the upscale is exact, so the expensive filter runs over
+   * four pixels instead of eight million.
+   *
+   * Its input index comes from `idx++` at the point of use, which appends it
+   * after every clip — inserting an input earlier would repoint every clip at
+   * the wrong file.
+   */
+  const placeFlash = (c: VisualTrackClip) => {
+    const b = xfades.get(c.id)?.asTo;
+    if (!b || !flashColor(b.name)) return;
+    inputs.push("-f", "lavfi", "-t", String(r3(b.at + b.overlap)), "-i",
+      `color=c=${flashColor(b.name)!.replace('#', '0x')}:s=2x2:r=${fps}`);
+    const fi = idx++;
+    const lab = `fl${fi}`;
+    segments.push(
+      `[${fi}:v]format=rgba,` +
+        `geq=r='r(X,Y)':g='g(X,Y)':b='b(X,Y)':a='255*${flashExpr(b.at, b.overlap)}',` +
+        `scale=${W}:${H}:flags=neighbor,format=rgba[${lab}]`,
+    );
+    segments.push(
+      `${prev}[${lab}]overlay=0:0:enable='between(t,${r3(b.at)},${r3(b.at + b.overlap)})':eof_action=pass[${lab}o]`,
+    );
+    prev = `[${lab}o]`;
+  };
+
   visualClips.forEach((c, i) => {
     const run = runOf.get(i);
     if (run) {
@@ -999,15 +1227,42 @@ function buildMultiTrackArgs(
       if (run.clipIdx[0] === i) emitRun(run);
       return;
     }
+    placeFlash(c);
     placeClip(i, emitClipLayer(c, i, c.start));
   });
 
-  // ---- text overlays on top ----
-  // The caption PNG is full-frame (WxH) with the text baked at its anchor, so it
-  // reuses the same motion/keyframe machinery as visual clips: motion zoom/pans
-  // the whole layer, keyframed opacity bakes per-frame alpha, keyframed position
-  // translates the layer by the delta from the baked anchor.
-  textOverlays.forEach((o, i) => {
+  /*
+   * ---- overlays on top, in ONE pass ordered by layer ----
+   *
+   * One pass, not "pictures then captions", because `layer` has to mean the
+   * same thing for every kind — a sticker with a higher layer than a caption
+   * belongs over it. `frameStateAt` sorts the SAME array with the same
+   * comparator and dispatches on the same discriminant, which is what stops the
+   * preview and the file landing on different z-orders.
+   *
+   * A picture is emitted through `emitClipLayer`/`placeClip`, exactly as a
+   * picture-in-picture is. A caption's PNG is full-frame (WxH) with the text
+   * baked at its anchor, so it reuses the same motion/keyframe machinery a
+   * different way: motion zoom/pans the whole layer, keyframed opacity bakes
+   * per-frame alpha, keyframed position translates the layer by the delta from
+   * the baked anchor.
+   *
+   * A `shape` overlay has no renderer here and falls out of the filter below —
+   * as it does in `frameStateAt`, so both agree about the absence.
+   */
+  const drawableOverlays = [...project.overlays]
+    .filter((o) => (o.type === "text" && capIdx.has(o.id)) || o.type === "image")
+    .sort((a, b) => (a.layer ?? 0) - (b.layer ?? 0));
+
+  drawableOverlays.forEach((ov) => {
+    if (ov.type === "image") {
+      const k = imgIdx.get(ov.id)!;
+      const c = allVisual[k];
+      placeClip(k, emitClipLayer(c, k, c.start));
+      return;
+    }
+    const o = ov;
+    const i = capIdx.get(o.id)!;
     const S = o.start;
     const E = o.end;
     const dur = Math.max(0.001, E - S);
@@ -1097,16 +1352,25 @@ function buildMultiTrackArgs(
 
   // ---- audio: positioned audio clips + each video clip's own audio, mixed ----
   const aLabels: string[] = [];
-  // gain: a per-frame volume expression when a curve is set, else a constant.
+  /*
+   * gain: a per-frame volume expression when a curve is set, else a constant.
+   *
+   * `curvePoints` is what turns a stored envelope into the points this
+   * expression is built from, and it needs the PLATEAU — a curve overrides
+   * `volume`, so the level the envelope is drawn against is the clip's own.
+   * Passing 1 here would render every ducked clip at unity.
+   */
   const gain = (
     curve: (typeof audioClips)[number]["volumeCurve"],
     vol: number | undefined,
     start: number,
     duration: number,
-  ) =>
-    hasVolumeCurve(curve)
-      ? `volume='${volumeCurveExpr(curve!, start, duration)}':eval=frame`
+  ) => {
+    const pts = curvePoints(curve, duration, vol ?? 1);
+    return pts
+      ? `volume='${volumeCurveExpr(pts, start, duration)}':eval=frame`
       : `volume=${vol ?? 1}`;
+  };
   audioClips.forEach((a, i) => {
     if (!hasAudio(resolve(a.src))) return;
     const ms = Math.max(0, Math.round(a.start * 1000));

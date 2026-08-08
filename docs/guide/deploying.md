@@ -7,7 +7,7 @@ There are three deployable pieces and they are independent:
 
 | Piece | What it is | Where it runs |
 |---|---|---|
-| `apps/render-service` | Express + ffmpeg. Auth, credits, uploads, renders, AI. | A container. Not serverless — see below. |
+| `services/render` | Express + ffmpeg. Auth, credits, uploads, renders, AI. | A container. Not serverless — see below. |
 | `apps/web` | Next 14. The editor and AI studio. | Vercel, or `next start` anywhere. |
 | `apps/mobile` | Expo / React Native. | EAS build → TestFlight / Play internal. |
 
@@ -28,7 +28,7 @@ function platform survives any of those. Use a container.
 # From the REPO ROOT — the service imports workspace packages by source and
 # needs the whole pnpm workspace to install.
 ORBIT_JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))") \
-  docker compose -f apps/render-service/compose.yaml up --build
+  docker compose -f services/render/compose.yaml up --build
 ```
 
 That compose file is the **reference for what the service needs**, not a
@@ -38,10 +38,10 @@ a public IP) use `compose.vps.yaml` instead, which adds Postgres, a volume for
 media and renders, and Caddy for automatic HTTPS:
 
 ```bash
-docker compose -f apps/render-service/compose.vps.yaml up -d --build
+docker compose -f services/render/compose.vps.yaml up -d --build
 ```
 
-Its variables go in **`apps/render-service/.env`**, next to the compose file —
+Its variables go in **`services/render/.env`**, next to the compose file —
 *not* the repo root, even though that is where you run the command. Compose
 reads `.env` from its project directory, which defaults to wherever the compose
 file lives. A root `.env` is silently ignored, and the failure names a variable
@@ -157,9 +157,48 @@ deployed?" — during an incident that is the first question, not the fifth.
 `ok` stays `true` while the service is merely busy. That is deliberate: a load
 balancer pulling the one box that is doing the work is precisely wrong.
 
+### Password reset needs two more variables
+
+Register and sign in work out of the box. **Reset does not**, and the way it
+fails is quiet: `POST /v1/auth/forgot` answers `503 email-unconfigured` and the
+apps tell the user reset is unavailable. Someone who forgets their password then
+has no route back to their account or their credits.
+
+```
+RESEND_API_KEY=re_…                       # resend.com → API Keys
+EMAIL_FROM=Orbit <no-reply@yourdomain>    # a verified Resend sender or domain
+ORBIT_PUBLIC_URL=https://your-service     # this service's own public address
+```
+
+`ORBIT_PUBLIC_URL` is what turns the mail into a **link** to the reset page the
+service serves at `/reset`. Without it the raw token is emailed instead, to be
+pasted into the app — which works, but the token is a ~300-character JWT and
+mail clients wrap it, so what comes back off the clipboard often no longer
+verifies. Set it.
+
+It has to be **stated**, never inferred from the request's `Host` header. That
+shortcut is the classic reset-poisoning hole: anyone can POST to
+`/v1/auth/forgot` with a `Host` of their choosing and have a valid reset token
+mailed to your user, pointed at their box.
+
+Two failure modes worth knowing, because neither says what it is:
+
+- **Compose passes through only the variables a service names.** Putting these
+  in `.env` alone is not enough — `compose.vps.yaml` lists them, so a hand-rolled
+  compose file must too. The symptom is a 503 from a server whose `.env` plainly
+  contains the key.
+- **A send failure is deliberately invisible to the caller.** `/v1/auth/forgot`
+  answers `200` whether or not the mail went out, because a send is only
+  attempted when the account exists — surfacing the error would turn the route
+  into an oracle for which addresses are registered. Grep the logs for
+  `reset-email-failed`; that is where a bad key or an unverified sender shows up.
+
+Check it end to end with an address you own: request a reset in the app, and the
+mail should carry `https://your-service/reset?token=…`.
+
 ### Everything else
 
-`apps/render-service/.env.example` documents every variable with the reasoning.
+`services/render/.env.example` documents every variable with the reasoning.
 The ones most often wanted:
 
 - `RUNWAY_API_TOKEN`, `ELEVENLABS_API_KEY` — generation and voice. Absent, those
@@ -167,6 +206,15 @@ The ones most often wanted:
 - `ORBIT_FREE_CREDITS` (default 100) — granted once per account, guests included.
 - `ORBIT_RENDER_COST` (default 0) — leaves export unmetered, which is the
   guest-first default the apps are built around.
+- `ORBIT_LLM_BASE_URL`, `ORBIT_LLM_MODEL`, `ORBIT_LLM_API_KEY` — any
+  OpenAI-compatible `chat/completions` endpoint. All three, or `/v1/generate`
+  reports itself unconfigured and the generation worker does not start.
+- `ORBIT_GENERATION_COST` (default 0) — what one generated video costs. Worth
+  setting to something even on a private box: a generation spends real money at
+  a language model, a TTS provider and a stock search before the encoder runs,
+  so it is the one route where unmetered means an open tab on someone else's
+  bill. The credits are HELD when the job is accepted and settled only when a
+  file exists; a generation that fails gives them back.
 - `ORBIT_ALLOWED_ORIGINS` — unset means any origin, because Orbit is an
   embeddable SDK called from customers' own pages. Safe here specifically
   because auth is a bearer token the client attaches itself, not a cookie the

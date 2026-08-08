@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { captionReel, lyricVideo, quoteCard } from '../templates';
 import { projectDuration } from '../project';
+import { textOverlaysOf } from '../types';
 
 describe('captionReel', () => {
   it('sequences captions over a video clip', () => {
@@ -29,8 +30,13 @@ describe('quoteCard', () => {
   it('renders a quote and author over a background', () => {
     const p = quoteCard({ quote: 'Be water', author: 'Bruce Lee', duration: 5 });
     expect(p.clips).toHaveLength(0);
-    expect(p.overlays[0].text).toContain('Be water');
-    expect(p.overlays[1].text).toContain('Bruce Lee');
+    // Narrowed rather than asserted: `Overlay` is a union now, and a template
+    // that started emitting an image where a caption was expected should fail
+    // here rather than be cast past.
+    const captions = textOverlaysOf(p.overlays);
+    expect(captions).toHaveLength(2);
+    expect(captions[0].text).toContain('Be water');
+    expect(captions[1].text).toContain('Bruce Lee');
     expect(projectDuration(p)).toBe(5);
   });
 });

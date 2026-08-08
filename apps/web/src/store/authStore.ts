@@ -23,6 +23,7 @@ import {
   requestPasswordReset,
   resetPassword as resetPasswordReq,
   type AuthUser,
+  type ResetDelivery,
 } from '@/net/authClient';
 import { currentUser, setSession } from '@/net/session';
 import { resetSyncMark } from '@/db/sync';
@@ -36,7 +37,7 @@ interface AuthState {
   hydrate(): void;
   register(email: string, password: string): Promise<void>;
   login(email: string, password: string): Promise<void>;
-  requestReset(email: string): Promise<void>;
+  requestReset(email: string): Promise<ResetDelivery>;
   resetPassword(token: string, password: string): Promise<void>;
   logout(): void;
 }

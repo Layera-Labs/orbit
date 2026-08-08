@@ -27,3 +27,8 @@ apps/mobile/android
 
 # TypeScript incremental build artifacts — build output, not source.
 *.tsbuildinfo
+
+# Simulator captures dropped at the repo root while verifying mobile work.
+# Untracked AND unignored is the bad combination: `git add -A` eventually
+# swallows them, and 14MB of PNGs is not source.
+orbit-video-editor/

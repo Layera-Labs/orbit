@@ -151,11 +151,17 @@ export const generateVideo = (
 export const speak = (body: { text: string; voice?: string }, signal?: AbortSignal) =>
   post<GenResult>('v1/tts', body, TIMEOUT.tts, signal).then(located);
 
-export interface CaptionLine {
-  text: string;
-  start: number;
-  end: number;
-}
+/*
+ * Re-exported, not re-declared.
+ *
+ * This was a third hand-copy of a shape the package already owns, kept in step
+ * by nobody. Web can simply import it: the dependency is already there, and a
+ * type-only import erases entirely, so the bundle is unchanged. Mobile still
+ * needs its own copy — it installs outside the workspace and cannot resolve the
+ * package at all — which is exactly why this one should not have existed.
+ */
+export type { CaptionLine } from '@orbit/video/browser';
+import type { CaptionLine } from '@orbit/video/browser';
 
 /**
  * Speech to timed caption lines.

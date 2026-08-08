@@ -1,0 +1,32 @@
+{
+  "topic": "Why deep-sea creatures glow",
+  "format": "story",
+  "aspect": "9:16",
+  "scenes": [
+    {
+      "narration": "Three quarters of the animals in the deep ocean make their own light.",
+      "onScreen": "3/4 of deep-sea animals glow",
+      "visual": "dark ocean water, shafts of light fading into black"
+    },
+    {
+      "narration": "Down there, sunlight never arrives. The last of it gives out around a thousand metres.",
+      "onScreen": "Sunlight stops at 1,000m",
+      "visual": "a depth gauge descending past a thousand metres"
+    },
+    {
+      "narration": "So they built their own. A chemical reaction in their skin, cold and blue, burning almost no energy.",
+      "onScreen": "So they built their own",
+      "visual": "close-up of blue bioluminescence in dark water"
+    },
+    {
+      "narration": "Some use it to hunt. Some use it to vanish, lighting their bellies to erase their shadow from below.",
+      "onScreen": "Some light up to disappear",
+      "visual": "a silhouetted fish seen from below against faint light"
+    },
+    {
+      "narration": "The most common signal in the ocean is not a sound. It is a flash.",
+      "onScreen": "The ocean's loudest signal is light",
+      "visual": "a single bright flash in total darkness"
+    }
+  ]
+}

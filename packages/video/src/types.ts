@@ -52,10 +52,23 @@ export interface TextStroke {
   width: number;
 }
 
-export interface TextOverlay {
+/**
+ * What every overlay has, whatever it draws.
+ *
+ * The split is deliberate and it is not just tidiness: `frameStateAt`'s overlay
+ * loop is almost entirely timing and animation — the window, the fade, the
+ * keyframe delta, the slide, the Ken-Burns move — and NONE of that cares what
+ * the layer contains. Keeping those fields in one place is what lets a second
+ * and third kind of overlay arrive without a second and third copy of that
+ * arithmetic, which is exactly how two surfaces start disagreeing.
+ *
+ * `x`/`y` are on the base for the same reason. They are the overlay's ANCHOR,
+ * the point a keyframe or a slide displaces it from; what the anchor means is
+ * the member's business (for text, where the glyphs sit under `align`; for an
+ * image or a shape, the centre of its box).
+ */
+export interface OverlayBase {
   id: ID;
-  type: "text";
-  text: string;
   /** Appear / disappear time on the timeline, seconds. */
   start: number;
   end: number;
@@ -66,24 +79,8 @@ export interface TextOverlay {
   opacity?: number;
   /** Optional shape mask in normalized project coordinates. */
   mask?: ClipMask;
-  /** Font size in px at the output resolution. */
-  fontSize: number;
-  color: string;
-  fontFamily?: string;
-  align?: TextAlign;
-  bold?: boolean;
-  /** Letter spacing (tracking) in px at the output resolution. */
-  letterSpacing?: number;
-  /** Line height as a multiple of the font size (default 1.25). */
-  lineHeight?: number;
   /** Stacking lane / z-order (higher = on top). Overlays are kept sorted by it. */
   layer?: number;
-  /** Drop shadow behind the caption (preview + export). */
-  shadow?: TextShadow;
-  /** Outline stroke around the glyphs (preview + export). */
-  stroke?: TextStroke;
-  /** Optional caption background box. */
-  box?: { color: string; opacity?: number; padding?: number };
   /**
    * @deprecated Superseded by `animateIn`/`animateOut`. Still READ, never
    * written: `resolveAnim` maps a stored `"fade"` to the 0.3s fade the export
@@ -94,13 +91,136 @@ export interface TextOverlay {
   animateIn?: ElementAnim;
   /** Exit animation. */
   animateOut?: ElementAnim;
-  /** Ken-Burns camera move animated over the caption window (preview + export). */
+  /** Ken-Burns camera move animated over the overlay's window (preview + export). */
   motion?: Motion;
-  /** Keyframes animating opacity + position over the caption (≥2 to animate). */
+  /** Keyframes animating opacity + position over the window (≥2 to animate). */
   keyframes?: Keyframe[];
 }
 
-export type Overlay = TextOverlay;
+/**
+ * One word of a transcript, timed.
+ *
+ * Speech-to-text returns these; `groupWords` folds them into readable lines and
+ * keeps the array, because the line's own start and end cannot be taken apart
+ * again. Nothing RENDERS a word timing today — this is the data a word-level
+ * effect (a karaoke highlight, a word-by-word reveal) would need, landed
+ * separately from the effect so the effect does not also have to invent a
+ * transcript format.
+ */
+export interface WordTiming {
+  text: string;
+  start: number;
+  end: number;
+}
+
+export interface TextOverlay extends OverlayBase {
+  type: "text";
+  text: string;
+  /**
+   * Per-word timings for `text`, in the SAME units as this overlay's `start`
+   * and `end` — absolute timeline seconds, not offsets into the transcribed
+   * audio. The transcript is relative to the clip; `setAutoCaptions` is the one
+   * place that knows where that clip sits, so it resolves the words there
+   * rather than storing an offset a later reader would have to find again.
+   *
+   * Present only on auto-captions, and only while the words still spell the
+   * text: retyping a caption leaves the array describing something nobody is
+   * saying any more. Ask `captionWordsValid` before trusting it — a stale
+   * array is worse than an absent one, because it highlights the wrong word
+   * confidently.
+   */
+  words?: WordTiming[];
+  /** Font size in px at the output resolution. */
+  fontSize: number;
+  color: string;
+  fontFamily?: string;
+  align?: TextAlign;
+  bold?: boolean;
+  /** Letter spacing (tracking) in px at the output resolution. */
+  letterSpacing?: number;
+  /** Line height as a multiple of the font size (default 1.25). */
+  lineHeight?: number;
+  /**
+   * Wrap width in px at the output resolution — the same pixels as `fontSize`,
+   * so a caption breaks in the same place however large the preview is.
+   *
+   * Absent means no wrapping: only an explicit `\n` breaks a line, which is
+   * what every project written before this field did and still does. See
+   * `linesOf` in `font-metrics.ts`, which is the one place that decides.
+   */
+  maxWidth?: number;
+  /** Drop shadow behind the caption (preview + export). */
+  shadow?: TextShadow;
+  /** Outline stroke around the glyphs (preview + export). */
+  stroke?: TextStroke;
+  /** Optional caption background box. */
+  box?: { color: string; opacity?: number; padding?: number };
+}
+
+/**
+ * A picture on the overlay stack — a sticker, a watermark, a logo.
+ *
+ * `width`/`height` are fractions of the frame and `x`/`y` is the CENTRE of the
+ * box, not its corner. Centre because that is the point everything else here
+ * displaces: a keyframe, a slide and a Ken-Burns move all move the anchor, and
+ * a rotation turns about it. Storing a corner would mean converting at every
+ * one of those, and getting it wrong in one place is a drift nobody sees until
+ * an export comes back with the sticker somewhere else.
+ */
+export interface ImageOverlay extends OverlayBase {
+  type: "image";
+  /** Media reference, resolved the same way a clip's `src` is. */
+  src: string;
+  /** Size as a fraction of the frame (1 = full width / full height). */
+  width: number;
+  height: number;
+  /** Clockwise degrees about the anchor. Same convention as `ClipTransform`. */
+  rotation?: number;
+}
+
+/** Shapes an overlay can draw. Deliberately few; each is exact in all three renderers. */
+export type OverlayShape = "rect" | "ellipse";
+
+/**
+ * A flat shape on the overlay stack — a scrim behind a caption, a colour band,
+ * a lower-third plate.
+ *
+ * Geometry matches `ImageOverlay` exactly, so the two share every placement
+ * rule and neither can drift from the other.
+ */
+export interface ShapeOverlay extends OverlayBase {
+  type: "shape";
+  shape: OverlayShape;
+  /** Size as a fraction of the frame. */
+  width: number;
+  height: number;
+  rotation?: number;
+  fill?: string;
+  /** Fill opacity (0..1), multiplied by the layer's own `opacity`. */
+  fillOpacity?: number;
+  stroke?: string;
+  /** Stroke width in px at the output resolution. */
+  strokeWidth?: number;
+  /** Corner radius in px at the output resolution. Ignored by `ellipse`. */
+  cornerRadius?: number;
+}
+
+/**
+ * Everything that can sit on the overlay stack.
+ *
+ * Consumers MUST branch on `type` rather than assume text. Before this union
+ * existed, `ffmpeg.ts` selected overlays by `images[o.id]` — whether the
+ * rasterizer had produced a PNG for it — which was correct only because
+ * `render.ts` happened to rasterize text and nothing else. That is a rule
+ * spanning two files that nothing asserted, and the kind that survives right up
+ * until someone adds a second kind of overlay.
+ */
+export type Overlay = TextOverlay | ImageOverlay | ShapeOverlay;
+
+/** Narrow an overlay list to captions — the one kind that carries words. */
+export function textOverlaysOf(overlays: readonly Overlay[]): TextOverlay[] {
+  return overlays.filter((o): o is TextOverlay => o.type === "text");
+}
 
 export interface AudioClip {
   id: ID;
@@ -114,6 +234,14 @@ export interface AudioClip {
   duration?: number;
   /** 0..1 gain. */
   volume?: number;
+  /**
+   * Volume envelope over the clip (overrides `volume` when set).
+   *
+   * On the LEGACY clip too, because all three templates write their music here
+   * — so without it a template's output is the one thing in the product that
+   * cannot be faded or ducked, and that is not a decision anybody made.
+   */
+  volumeCurve?: VolumeCurve;
 }
 
 export type Background =
@@ -191,6 +319,31 @@ export interface ElementAnim {
 export type TransitionType =
   | "cut"
   | "fade"
+  /*
+   * The AUTHORED families, below. Every other value here is an ffmpeg `xfade`
+   * token verbatim; these are not, because `xfade` has nothing like them — VN
+   * and CapCut ship a shake and ffmpeg does not. They are still exact in the
+   * export: a shake is a crossfade plus a whole-frame jitter, and the per-clip
+   * `overlay=x:y` already takes a time-varying expression, so nothing new has
+   * to run. `ridesOverlayPath` is what keeps them off the `xfade` chain, and
+   * off the server capability gate — there is no token for a build to lack.
+   */
+  | "shakeleft"
+  | "shakeright"
+  | "shakeup"
+  | "shakedown"
+  | "shake2left"
+  | "shake2right"
+  | "shake2up"
+  | "shake2down"
+  | "zoom1in"
+  | "zoom1out"
+  | "zoom2in"
+  | "zoom2out"
+  | "blur1"
+  | "blur2"
+  | "light"
+  | "blink"
   | "fadeblack"
   | "fadewhite"
   | "wipeleft"
@@ -340,6 +493,65 @@ export interface VolumePoint {
 }
 
 /**
+ * A dip in the level — music stepping back under a voice.
+ *
+ * `depth` is a FRACTION of the clip's plateau, not an absolute gain, so moving
+ * the volume slider moves the duck with it. An absolute value would make a duck
+ * that was -12 dB under the music become -12 dB under silence the moment
+ * someone turned the clip down.
+ */
+export interface VolumeDuck {
+  /** Start, in seconds from the clip's own start. */
+  at: number;
+  /** Total length in seconds, both ramps included. */
+  dur: number;
+  /** Gain during the dip as a fraction of the plateau, 0..1. */
+  depth: number;
+  /** Seconds of ramp at each end. Defaults to `DUCK_RAMP`, clamped to `dur/2`. */
+  ramp?: number;
+  /** Who put it there. An automatic pass may replace its own; never a manual one. */
+  source?: "manual" | "auto";
+}
+
+/**
+ * A volume envelope stored as INTENT rather than as the points it becomes.
+ *
+ * The problem this exists for: there is one envelope slot per clip and a curve
+ * OVERRIDES `volume`, so with points alone a duck and a pair of fades cannot
+ * coexist — writing a duck makes the shape unrecognisable as fades, the sliders
+ * stop reading back, and the UI has to fall to "custom curve" on a clip whose
+ * fades the user set thirty seconds ago.
+ *
+ * Storing what was asked for rather than the result means `fadesOf` reads a
+ * number instead of trying to recognise a shape, and the renderers materialize
+ * to points at the last moment (`curvePoints`). `points` remains the escape
+ * hatch for a genuinely hand-drawn curve, which no combination of fields can
+ * describe.
+ */
+export interface VolumeEnvelope {
+  /** Seconds ramping up from silence at the head. */
+  fadeIn?: number;
+  /** Seconds ramping down to silence at the tail. */
+  fadeOut?: number;
+  ducks?: VolumeDuck[];
+  /** A hand-drawn shape, when the fields above cannot express it. */
+  points?: VolumePoint[];
+}
+
+/**
+ * What a clip's `volumeCurve` may hold.
+ *
+ * The bare array is the ORIGINAL form and is still written for anything a plain
+ * point list can express — which is every fade-only clip, so no existing
+ * document changes and no existing filtergraph moves. The object form appears
+ * only when something needs the structure, i.e. when there is a duck; a
+ * renderer that predates it degrades to the clip's plain `volume` rather than
+ * crashing, which is the right way round for a capability it could not have
+ * performed anyway.
+ */
+export type VolumeCurve = VolumePoint[] | VolumeEnvelope;
+
+/**
  * Layer blend mode. Composited by blending the clip with the layer(s) below it
  * within its rect + time window. Preview uses the Skia blend mode; export blends
  * the base region under the clip via ffmpeg `blend=all_mode` then overlays it
@@ -453,7 +665,7 @@ export interface VisualTrackClip {
   /** 0..1 gain on the clip's own audio. */
   volume?: number;
   /** Volume envelope over the clip (≥2 points; overrides `volume` when set). */
-  volumeCurve?: VolumePoint[];
+  volumeCurve?: VolumeCurve;
   muted?: boolean;
   /** Colour grade applied to this clip (preview + export). */
   filter?: ClipFilter;
@@ -504,7 +716,7 @@ export interface AudioTrackClip {
   trimIn?: number;
   volume?: number;
   /** Volume envelope over the clip (≥2 points; overrides `volume` when set). */
-  volumeCurve?: VolumePoint[];
+  volumeCurve?: VolumeCurve;
 }
 
 export interface VisualTrack {

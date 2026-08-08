@@ -1,7 +1,7 @@
 /**
  * The exhaustive list of project fields the render service validates.
  *
- * Mirrors `collectClientSrcs` in `apps/render-service/src/resolve.ts`. It is
+ * Mirrors `collectClientSrcs` in `services/render/src/resolve.ts`. It is
  * duplicated rather than imported because the service is a Node app outside this
  * app's bundle graph; if a new src-bearing field is ever added to the model,
  * BOTH copies have to learn about it or an export will fail validation.

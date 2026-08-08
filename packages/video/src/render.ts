@@ -1,15 +1,73 @@
 import { spawn } from 'node:child_process';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildFFmpegArgs, type BuildFFmpegOptions } from './ffmpeg';
 import { backgroundToSVG } from './background-svg';
+import { projectDuration } from './project';
 import { canvasFrameToSVG, hasCanvasFrame } from './canvas-frame';
-import { overlayToSVG } from './overlay-svg';
+import { overlayFontOptions, overlayToSVG } from './overlay-svg';
 import { rasterizeSVG } from './raster';
-import { fontFilesFor } from './google-fonts';
+import { resolveFonts } from './google-fonts';
 import { HDR_UNSUPPORTED_MESSAGE, supportsHdr } from './hdr';
-import type { VideoProject } from './types';
+import {
+  parseXfadeTokens,
+  resolveTransitions,
+  transitionUnsupportedMessage,
+  unsupportedTransitions,
+} from './xfade';
+import type { VideoProject, VisualTrackClip } from './types';
+
+/**
+ * What a finished render is.
+ *
+ * `renderProject` used to resolve with the output path — which every caller
+ * already had, because they passed it in. So the return value carried no
+ * information at all, and both real callers discarded it.
+ *
+ * The two facts a caller cannot get for free are here instead. `durationSec`
+ * comes from the timeline model, which is what DECIDED the length, so it is
+ * exact and free. `bytes` is one `stat` on a file that was just written.
+ *
+ * Deliberately NOT here: width, height, codec, real container duration. Those
+ * need an `ffprobe` of the output, which puts a process spawn in the hot path
+ * of every render and adds a failure mode to a job that has already succeeded —
+ * and it would go untested in ordinary CI, where the probe suites are gated
+ * behind `ORBIT_FFMPEG_PROBE=1`. If a caller ever needs them, they belong
+ * behind an opt-in flag, so the cost lands on whoever asked for it.
+ */
+export interface RenderResult {
+  /** The file that was written — `opts.outputPath`, echoed for convenience. */
+  path: string;
+  /** Timeline length in seconds, from the project model. */
+  durationSec: number;
+  /** Size of the written file on disk. */
+  bytes: number;
+  /**
+   * The poster frame, if `opts.thumbnail` asked for one AND it was produced.
+   *
+   * Absent on failure rather than throwing: the video exists and is worth
+   * having, and losing a completed render over a still nobody has looked at yet
+   * would be the tail wagging the dog. A `thumbnail-failed` warning says so.
+   */
+  thumbnailPath?: string;
+}
+
+/** Ask for a poster frame alongside the video. */
+export interface ThumbnailOptions {
+  /** Where to write it. The extension picks the format — `.jpg` or `.png`. */
+  path: string;
+  /**
+   * When to grab it, in seconds. Defaults to a tenth of the way in, capped at
+   * 3s.
+   *
+   * Not frame zero, which is the obvious choice and usually wrong: a fade-in
+   * starts black, and a black thumbnail is indistinguishable from a broken one.
+   * A tenth clears a typical fade proportionally, and the cap keeps a long
+   * video's poster near the opening rather than minutes into it.
+   */
+  atSec?: number;
+}
 
 export interface RenderOptions extends Omit<BuildFFmpegOptions, 'overlayImages' | 'hasAudio'> {
   /** ffmpeg binary path (default: `ffmpeg` on PATH). Production ships its own. */
@@ -34,6 +92,35 @@ export interface RenderOptions extends Omit<BuildFFmpegOptions, 'overlayImages' 
   timeoutMs?: number;
   /** Hard cap on each ffprobe, ms (default 30s). */
   probeTimeoutMs?: number;
+  /**
+   * Receives conditions that did not fail the render but DID change the output.
+   *
+   * There is exactly one today and it is the reason this exists: a caption
+   * whose font could not be resolved is rendered by resvg in a substitute face,
+   * so the file no longer matches the preview. That used to happen in complete
+   * silence — an unreachable Google produced a different-looking video and
+   * nothing anywhere admitted it. A warning is not an error (the render is
+   * still worth having), but it must not be invisible.
+   */
+  onWarning?: (warning: RenderWarning) => void;
+  /**
+   * Produce a poster frame too. OPT-IN, deliberately.
+   *
+   * It is a second ffmpeg spawn, which is exactly the cost this file already
+   * refused to pay unconditionally for an output `ffprobe` — see `RenderResult`.
+   * The callers that want one (a library grid, a batch dashboard, the cover
+   * frame every publishing platform asks for) know they want it; a render that
+   * nobody will look at should not pay for it.
+   */
+  thumbnail?: ThumbnailOptions;
+}
+
+/** Something that changed the output without failing the render. */
+export interface RenderWarning {
+  code: 'font-missing' | 'thumbnail-failed';
+  message: string;
+  /** The families that could not be resolved. Only on `font-missing`. */
+  families?: string[];
 }
 
 const DEFAULT_RENDER_TIMEOUT_MS = 10 * 60_000;
@@ -136,10 +223,72 @@ export function ffmpegSupportsHdr(bin: string): Promise<boolean> {
 }
 
 /**
- * Render a project to `opts.outputPath`: rasterize each text overlay to a PNG,
- * then spawn ffmpeg to composite + encode. Resolves with the output path.
+ * Which `xfade` transitions this ffmpeg accepts, cached per binary.
+ *
+ * Same shape and same discipline as `ffmpegSupportsHdr` — a completed probe is
+ * a property of the install and is remembered; a probe that timed out because
+ * the box was wedged is not, since caching that would disable every geometric
+ * transition for the life of the service.
+ *
+ * It asks `-h filter=xfade` rather than `-filters`, because `xfade` being
+ * PRESENT says nothing: it has shipped since 4.3 and has gained transitions
+ * since. What varies, and what breaks a render, is the enum inside it.
  */
-export async function renderProject(project: VideoProject, opts: RenderOptions): Promise<string> {
+const xfadeTokens = new Map<string, Promise<string[]>>();
+
+export function ffmpegXfadeTokens(bin: string): Promise<string[]> {
+  const cached = xfadeTokens.get(bin);
+  if (cached) return cached;
+  const probe = new Promise<string[]>((resolve) => {
+    let settled = false;
+    const done = (value: string[], remember: boolean) => {
+      if (settled) return;
+      settled = true;
+      if (!remember) xfadeTokens.delete(bin);
+      resolve(value);
+    };
+    let proc: ReturnType<typeof spawn>;
+    try {
+      proc = spawn(bin, ['-hide_banner', '-h', 'filter=xfade'], {
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+    } catch {
+      done([], true); // no such binary — not transient
+      return;
+    }
+    let out = '';
+    const cancel = killAfter(proc, 10_000, () => done([], false));
+    proc.stdout?.on('data', (d: Buffer) => {
+      out += String(d);
+    });
+    proc.on('error', () => {
+      cancel();
+      done([], true);
+    });
+    proc.on('close', () => {
+      cancel();
+      /*
+       * An empty parse is treated as UNKNOWN, not as "supports nothing" — a
+       * build with no xfade at all, or a help format we cannot read, must not
+       * make every export refuse itself. Both readers take the empty array to
+       * mean "do not subtract anything", which keeps a parser failure to a
+       * missing safety net rather than an outage.
+       */
+      done(parseXfadeTokens(out), true);
+    });
+  });
+  xfadeTokens.set(bin, probe);
+  return probe;
+}
+
+/**
+ * Render a project to `opts.outputPath`: rasterize each text overlay to a PNG,
+ * then spawn ffmpeg to composite + encode. Resolves with a `RenderResult`.
+ */
+export async function renderProject(
+  project: VideoProject,
+  opts: RenderOptions,
+): Promise<RenderResult> {
   /*
    * Refuse HDR this ffmpeg cannot actually produce, before doing any work.
    * Without the check the encode succeeds and hands back a file whose tags lie
@@ -148,6 +297,32 @@ export async function renderProject(project: VideoProject, opts: RenderOptions):
    */
   if (opts.output?.hdr && !(await ffmpegSupportsHdr(opts.ffmpegPath ?? 'ffmpeg'))) {
     throw new Error(HDR_UNSUPPORTED_MESSAGE);
+  }
+  /*
+   * And refuse a transition this ffmpeg has never heard of, for the same
+   * reason and one step earlier.
+   *
+   * Left alone this does not degrade, it detonates: an unknown `transition=`
+   * token fails to PARSE, so ffmpeg rejects the entire filtergraph and the
+   * error names an option rather than the clip or the effect that caused it.
+   * The client cannot act on that, and the user finds out minutes into an
+   * export. `cover*`/`reveal*` — Push and Reveal — are the live case: they
+   * arrived in ffmpeg 6.1 and the service image ships Debian's 5.1.
+   *
+   * Refused rather than substituted. A push is not a slide (a slide moves both
+   * pictures), so quietly swapping one would hand back a file that does not
+   * match the timeline the user was watching — the same class of lie as an HDR
+   * tag on SDR pixels.
+   */
+  {
+    const mainTrack = project.tracks?.find((t) => t.kind === 'visual');
+    if (mainTrack?.clips?.length) {
+      const missing = unsupportedTransitions(
+        resolveTransitions(mainTrack.clips as VisualTrackClip[]).boundaries,
+        await ffmpegXfadeTokens(opts.ffmpegPath ?? 'ffmpeg'),
+      );
+      if (missing.length) throw new Error(transitionUnsupportedMessage(missing));
+    }
   }
   const dir = await mkdtemp(join(tmpdir(), 'orbit-video-'));
   try {
@@ -183,14 +358,60 @@ export async function renderProject(project: VideoProject, opts: RenderOptions):
         ),
       );
     }
-    // Download any Google fonts the captions use so resvg embeds them.
+    /*
+     * Resolve the fonts the captions use so resvg embeds them — disk first,
+     * network last, never silently.
+     *
+     * A family we cannot find is not fatal: resvg substitutes and the render
+     * still completes. But the substituted file no longer matches the preview,
+     * which is the one divergence this engine is built to prevent, so it is
+     * reported rather than swallowed.
+     */
     const families = project.overlays.flatMap((o) => (o.type === 'text' && o.fontFamily ? [o.fontFamily] : []));
-    const fontFiles = await fontFilesFor(families);
+    const fonts_ = await resolveFonts(families);
+    const fontFiles = fonts_.files;
+    if (fonts_.missing.length) {
+      opts.onWarning?.({
+        code: 'font-missing',
+        families: fonts_.missing,
+        message:
+          `could not resolve ${fonts_.missing.length} font ${fonts_.missing.length === 1 ? 'family' : 'families'} ` +
+          `(${fonts_.missing.join(', ')}) — the export will use a substitute face and will not match the preview`,
+      });
+    }
+
+    /*
+     * The font bytes, keyed by family, so a caption is MEASURED from real
+     * advance widths instead of the flat `0.58em` guess.
+     *
+     * The same map the web preview builds from `/v1/fonts/:family`, and it has
+     * to be: the caption's background box is computed here and baked into the
+     * SVG string BOTH renderers consume, so measuring from real metrics on one
+     * side and from the approximation on the other would size that box
+     * differently in the preview and the file.
+     *
+     * A family we could not read is simply absent, which falls back to the
+     * approximation — the same behaviour as before any of this existed, and it
+     * is already reported through `onWarning` above.
+     */
+    const fonts = new Map<string, Uint8Array>();
+    await Promise.all(
+      [...fonts_.byFamily].map(async ([family, path]) => {
+        try {
+          fonts.set(family, new Uint8Array(await readFile(path)));
+        } catch {
+          /* reported as missing already; the approximation still draws it */
+        }
+      }),
+    );
 
     const overlayImages: Record<string, string> = {};
     for (const overlay of project.overlays) {
       if (overlay.type !== 'text') continue;
-      const png = rasterizeSVG(overlayToSVG(overlay, project.width, project.height), fontFiles);
+      const png = rasterizeSVG(
+        overlayToSVG(overlay, project.width, project.height, overlayFontOptions(overlay, fonts)),
+        fontFiles,
+      );
       const path = join(dir, `${overlay.id}.png`);
       await writeFile(path, png);
       overlayImages[overlay.id] = path;
@@ -245,7 +466,34 @@ export async function renderProject(project: VideoProject, opts: RenderOptions):
       : opts.onProgress;
 
     await runFFmpeg(opts.ffmpegPath ?? 'ffmpeg', args, onChunk, opts.timeoutMs);
-    return opts.outputPath;
+    /*
+     * The length comes from the `-t` the builder just wrote — the number that
+     * DECIDED how long to encode for — and falls back to the timeline model.
+     * Not a re-measurement of the file: that would mean an ffprobe spawn per
+     * render to answer a question we already answered. `-t` is preferred over
+     * `projectDuration` for the same reason the progress fraction prefers it,
+     * so an audio-only export or an output override is reported as what was
+     * actually encoded.
+     *
+     * A failed `stat` reports 0 rather than throwing. ffmpeg exited 0 and the
+     * file is written; losing the render over a size we only report would be
+     * the tail wagging the dog.
+     */
+    const bytes = await stat(opts.outputPath).then(
+      (st) => st.size,
+      () => 0,
+    );
+    const durationSec =
+      Number.isFinite(total) && total > 0 ? total : projectDuration(project);
+    const thumbnailPath = opts.thumbnail
+      ? await writeThumbnail(opts, durationSec)
+      : undefined;
+    return {
+      path: opts.outputPath,
+      durationSec,
+      bytes,
+      ...(thumbnailPath ? { thumbnailPath } : {}),
+    };
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
@@ -317,6 +565,73 @@ export function ffmpegErrorTail(stderr: string, max = 2000): string {
   while (i < lines.length && FFMPEG_BANNER.test(lines[i])) i++;
   const body = lines.slice(i).join('\n').trim() || stderr.trim();
   return body.length > max ? body.slice(-max) : body;
+}
+
+/** A tenth of the way in, capped, and never past the end of a very short clip. */
+export function thumbnailTime(durationSec: number, atSec?: number): number {
+  if (atSec != null) return Math.max(0, Math.min(atSec, Math.max(0, durationSec - 0.05)));
+  // The cap matters more than the fraction: on a ten-minute render a tenth is a
+  // minute in, which is nowhere near what the video is about.
+  const tenth = Math.min(durationSec * 0.1, 3);
+  return Math.max(0, Math.min(tenth, Math.max(0, durationSec - 0.05)));
+}
+
+/**
+ * Grab one frame out of the file that was just written.
+ *
+ * Returns the path, or undefined and a warning. It never throws, because the
+ * render has already succeeded by the time this runs: the encode is done, the
+ * file is on disk, and the caller is about to be charged for it. Failing the
+ * whole thing over a still would be the tail wagging the dog.
+ *
+ * `-ss` goes BEFORE `-i` — an input seek, which jumps rather than decoding
+ * everything up to the timestamp. It can land on the nearest keyframe instead
+ * of the exact frame, which for a poster is a difference nobody can see and a
+ * difference of seconds on a long file.
+ */
+async function writeThumbnail(
+  opts: RenderOptions,
+  durationSec: number,
+): Promise<string | undefined> {
+  const thumb = opts.thumbnail!;
+  const at = thumbnailTime(durationSec, thumb.atSec);
+  try {
+    await runFFmpeg(
+      opts.ffmpegPath ?? 'ffmpeg',
+      [
+        '-nostdin',
+        '-ss',
+        at.toFixed(3),
+        '-i',
+        opts.outputPath,
+        '-frames:v',
+        '1',
+        // Without this, a single-image output makes ffmpeg treat the filename as
+        // a sequence pattern and warn about it on every render.
+        '-update',
+        '1',
+        '-q:v',
+        '2',
+        '-y',
+        thumb.path,
+      ],
+      undefined,
+      DEFAULT_PROBE_TIMEOUT_MS,
+    );
+    // ffmpeg can exit 0 having written nothing — a seek past the last frame is
+    // the way that happens. An empty file is not a thumbnail.
+    const st = await stat(thumb.path).catch(() => null);
+    if (!st || st.size === 0) throw new Error('no frame was written');
+    return thumb.path;
+  } catch (e) {
+    opts.onWarning?.({
+      code: 'thumbnail-failed',
+      message: `could not extract a poster frame at ${at.toFixed(3)}s: ${
+        e instanceof Error ? e.message : String(e)
+      }`,
+    });
+    return undefined;
+  }
 }
 
 function runFFmpeg(
