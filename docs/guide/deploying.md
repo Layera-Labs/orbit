@@ -206,6 +206,15 @@ The ones most often wanted:
 - `ORBIT_FREE_CREDITS` (default 100) — granted once per account, guests included.
 - `ORBIT_RENDER_COST` (default 0) — leaves export unmetered, which is the
   guest-first default the apps are built around.
+- `ORBIT_LLM_BASE_URL`, `ORBIT_LLM_MODEL`, `ORBIT_LLM_API_KEY` — any
+  OpenAI-compatible `chat/completions` endpoint. All three, or `/v1/generate`
+  reports itself unconfigured and the generation worker does not start.
+- `ORBIT_GENERATION_COST` (default 0) — what one generated video costs. Worth
+  setting to something even on a private box: a generation spends real money at
+  a language model, a TTS provider and a stock search before the encoder runs,
+  so it is the one route where unmetered means an open tab on someone else's
+  bill. The credits are HELD when the job is accepted and settled only when a
+  file exists; a generation that fails gives them back.
 - `ORBIT_ALLOWED_ORIGINS` — unset means any origin, because Orbit is an
   embeddable SDK called from customers' own pages. Safe here specifically
   because auth is a bearer token the client attaches itself, not a cookie the

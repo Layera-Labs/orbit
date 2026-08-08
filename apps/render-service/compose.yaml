@@ -52,9 +52,28 @@ services:
       RUNWAY_API_TOKEN: ${RUNWAY_API_TOKEN:-}
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
 
+      # The language model behind /v1/generate. Any OpenAI-compatible
+      # chat/completions endpoint; without all three the route reports itself
+      # unconfigured and the worker does not start.
+      ORBIT_LLM_BASE_URL: ${ORBIT_LLM_BASE_URL:-}
+      ORBIT_LLM_MODEL: ${ORBIT_LLM_MODEL:-}
+      ORBIT_LLM_API_KEY: ${ORBIT_LLM_API_KEY:-}
+      ORBIT_LLM_JSON_MODE: ${ORBIT_LLM_JSON_MODE:-}
+      ORBIT_LLM_TIMEOUT_MS: ${ORBIT_LLM_TIMEOUT_MS:-}
+      # Stock footage. Unset, generation searches Openverse for CC0 stills,
+      # which needs no key at all.
+      PEXELS_API_KEY: ${PEXELS_API_KEY:-}
+      # Set to 0 on a box that should accept generations but not run them.
+      ORBIT_GENERATION_WORKER: ${ORBIT_GENERATION_WORKER:-}
+
       # What an export costs against the ledger. 0 leaves rendering unmetered,
       # which is the guest-first default the app is built around.
       ORBIT_RENDER_COST: ${ORBIT_RENDER_COST:-0}
+
+      # What one generated video costs. Far more than a render, because it
+      # spends real money at a language model, a TTS provider and a stock
+      # search before the encoder ever runs. 0 leaves it unmetered.
+      ORBIT_GENERATION_COST: ${ORBIT_GENERATION_COST:-0}
 
       # Stamped into /health so a running box can be identified. Set it in CI:
       #   ORBIT_BUILD_SHA=$(git rev-parse --short HEAD) docker compose up
