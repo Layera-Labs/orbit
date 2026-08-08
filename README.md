@@ -9,7 +9,7 @@ render service that does the actual encoding with ffmpeg.
 >
 > The engine and both editors work end to end — you can cut a multi-track video on
 > a phone and export a real MP4 — and **1,911 tests** pass (1,583 in the workspace,
-> 328 in the mobile app).
+> 328 in the mobile app, which now lives in its own repo).
 >
 > **Nothing is on npm yet.** `npm install @orbit/react` does not work today; the
 > packages are consumed from source in this workspace. Publishing is the next
@@ -51,7 +51,6 @@ small demos.
 | `packages/core` · `react` · `next` · `ui` · `shared` · `assets` · `effects` · `agentic` | The v1 SDK. Legacy, still builds, still used by the demos. |
 | `services/render` | Express: upload, render, generation, auth, billing, storage. |
 | `apps/web` | The web product — one editor over the SDK, plus an AI studio. Next.js 14. |
-| `apps/mobile` | Native video editor. Expo SDK 55 / RN 0.83 / React 19 / Skia. **Outside the pnpm workspace** — see below. |
 | `examples/studio` · `demo` · `demo-next` · `webview-host` | SDK demos. |
 
 ## The one idea worth knowing
@@ -139,8 +138,6 @@ Legend: ✅ done · ◐ partial, with the gap named · ○ not built.
 
 | Feature | | Notes |
 |---|:--:|---|
-| Mobile video editor | ✅ | Multi-track timeline, trim, effects, audio, export to Photos |
-| Mobile "topic → video" screen | ✅ | Needs an LLM configured on the server |
 | Web editor (image + video, one shell) | ✅ | `/design/[id]` |
 | Web AI studio | ✅ | |
 | Social login (Apple / Google) | ○ | Credential-dependent |
@@ -178,23 +175,6 @@ pnpm --filter @orbit/studio dev
 ```bash
 pnpm --filter @orbit/render-service dev
 ```
-
-### The mobile app
-
-`apps/mobile` is deliberately **outside** the pnpm workspace and installs with npm.
-Mixing the two corrupts Metro's module resolution. It also needs a development
-build rather than Expo Go, because it renders through Skia.
-
-```bash
-cd apps/mobile && npm install
-```
-
-```bash
-LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 npx expo run:ios
-```
-
-The UTF-8 locale is not optional — without it CocoaPods crashes inside its own
-error reporter with a message that looks like a broken install and is not.
 
 ### ffmpeg
 
@@ -344,20 +324,19 @@ stating up front.
 3. **Never gate content on an animation.** Nothing may start at `opacity: 0` and
    rely on a reveal firing. If the animation never runs, the content must still be
    fully there.
-4. **`apps/mobile` is standalone npm.** Never run `pnpm add` inside it. It hand-
-   mirrors modules from `packages/video` and **12 test files keep those mirrors
-   honest** by importing the canonical copy by relative path. Land the package
-   change, its test, the mirror and its parity test in *one* commit — the pattern
-   only works because the two copies are never simultaneously in motion.
-5. **No emoji in mobile UI.** They render as tofu in the simulator. Use
-   `src/components/VIcon.tsx`.
+4. **Never import the default `@orbit/video` entry from a browser bundle.** Use
+   `@orbit/video/browser` (pure) or `@orbit/video/node` (ffmpeg, resvg, fs).
+   `browser-safety.test.ts` walks the import graph and fails on a `node:` builtin.
+5. **An Expo app under `examples/` installs with npm, never pnpm** — pnpm's
+   symlinked store corrupts Metro's module resolution, which is why such an app
+   sits outside the workspace.
 
 ### Getting a change in
 
 ```bash
 pnpm install && pnpm build
 pnpm test && pnpm typecheck        # workspace
-cd apps/mobile && npx vitest run   # mobile is outside the workspace
+cd examples/mobile && npx vitest run   # Expo examples are outside the workspace
 ```
 
 - Branch from `staging`. `main` is the release branch.
@@ -390,11 +369,10 @@ Near-term, in order:
 1. **Publish `@orbit/*` to a registry.** This is the current milestone and it
    gates everything below. Today 18 of 20 manifests have no `private` flag and no
    package is on npm.
-2. **Split the repo.** Orbit becomes the SDK; `apps/mobile` and the Shortspilot
-   product move to their own repos; `examples/` here gets one small app per
-   feature instead of a 40k-line product. Publishing must come first — it is what
-   lets the mobile parity tests survive the move. See the TODO section in
-   [CLAUDE.md](CLAUDE.md) for why the ordering is forced.
+2. **Finish the repo split.** The mobile editor already left (2026-08-08) for its
+   own repo. Shortspilot follows. Publishing is what lets the mobile app's parity
+   tests — the mirror checks on the dual-render invariant — point at the published
+   package instead of a relative path, so it is the first thing that unblocks.
 3. Then: the shape renderer, the karaoke caption effect, and the rest of the
    format library.
 

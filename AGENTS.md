@@ -9,10 +9,11 @@ than by what it is made of:
 |---|---|
 | `packages/*` | The SDK. Everything published, or about to be. |
 | `services/*` | Long-running servers. Deployed, not imported. |
-| `apps/*` | Shipped products built on the SDK — `web`, and `mobile`. |
+| `apps/*` | Shipped products built on the SDK. |
 | `examples/*` | Small demos, one idea each. Not products. |
 
-`apps/mobile` is excluded from the pnpm workspace and installs with npm.
+An Expo app under `examples/` installs with npm, never pnpm — pnpm's symlinked
+store corrupts Metro's module resolution.
 
 - `packages/core`: canvas engine, scene graph, renderer, history, audio/video utilities.
 - `packages/react` and `packages/next`: React and Next.js editor wrappers.
