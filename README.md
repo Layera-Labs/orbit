@@ -51,7 +51,8 @@ small demos.
 | `packages/core` · `react` · `next` · `ui` · `shared` · `assets` · `effects` · `agentic` | The v1 SDK. Legacy, still builds, still used by the demos. |
 | `services/render` | Express: upload, render, generation, auth, billing, storage. |
 | `apps/web` | The web product — one editor over the SDK, plus an AI studio. Next.js 14. |
-| `examples/studio` · `demo` · `demo-next` · `webview-host` | SDK demos. |
+| `examples/studio` · `demo` · `demo-next` · `webview-host` | SDK demos, one idea each. |
+| `examples/mobile` | A small React Native client: AI studio, editor timeline, export. Installs with **npm**, outside the workspace. |
 
 ## The one idea worth knowing
 
