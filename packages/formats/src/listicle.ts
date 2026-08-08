@@ -268,6 +268,7 @@ export function composeListicle(input: ComposeInput): VideoProject {
 }
 
 export const listicle: Format = {
+  needs: { visualKind: 'video' },
   id: 'listicle',
   title: 'Countdown',
   description: 'A numbered list, counted down to the best one.',

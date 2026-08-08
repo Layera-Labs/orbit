@@ -223,6 +223,13 @@ export function composeSplit(input: ComposeInput): VideoProject {
 }
 
 export const split: Format = {
+  /*
+   * The top half is footage and the bottom half is the loop the format exists
+   * for. The query is deliberately generic and calm — it is under a caption and
+   * beside the real subject, so anything with a story of its own competes with
+   * the thing somebody is meant to be watching.
+   */
+  needs: { visualKind: 'video', filler: 'satisfying looping abstract motion background' },
   id: 'split',
   title: 'Split screen',
   description: 'The subject on top, something moving underneath.',

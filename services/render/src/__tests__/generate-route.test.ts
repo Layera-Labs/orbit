@@ -146,7 +146,11 @@ describe('POST /v1/generate', () => {
      * accepts, queues, and then fails for a reason nobody sees until they poll.
      */
     it('refuses an unknown format up front', async () => {
-      const res = await post({ topic: 'x', format: 'listicle' });
+      // A name no archetype will ever take. It used to be 'listicle', which
+      // held right up until the countdown format shipped — a negative test
+      // aimed at something on the roadmap expires without saying so, and this
+      // is the second one in this repo to do exactly that.
+      const res = await post({ topic: 'x', format: 'not-a-format' });
       expect(res.status).toBe(400);
       expect((await res.json()).error).toMatch(/no such format/);
     });

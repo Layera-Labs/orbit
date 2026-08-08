@@ -249,6 +249,10 @@ export function composeChat(input: ComposeInput): VideoProject {
 }
 
 export const chat: Format = {
+  // Stills, deliberately. The background is dimmed to 45% and desaturated
+  // behind a wall of bubbles; paying to fetch and encode footage nobody can
+  // make out is cost with no picture to show for it.
+  needs: { visualKind: 'image' },
   id: 'chat',
   title: 'Message thread',
   description: 'A conversation, arriving one bubble at a time.',
