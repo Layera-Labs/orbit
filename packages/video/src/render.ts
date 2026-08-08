@@ -7,6 +7,7 @@ import { backgroundToSVG } from './background-svg';
 import { projectDuration } from './project';
 import { canvasFrameToSVG, hasCanvasFrame } from './canvas-frame';
 import { overlayFontOptions, overlayToSVG, shapeToSVG } from './overlay-svg';
+import { plateSegmentsOf } from './karaoke';
 import { rasterizeSVG } from './raster';
 import { resolveFonts } from './google-fonts';
 import { HDR_UNSUPPORTED_MESSAGE, supportsHdr } from './hdr';
@@ -406,7 +407,14 @@ export async function renderProject(
     );
 
     const overlayImages: Record<string, string> = {};
-    for (const overlay of project.overlays) {
+    /*
+     * SEGMENTS, not overlays. A karaoke caption is several plates — one per
+     * word window — and each needs its own PNG with a different word lit. A
+     * caption with no highlight yields exactly one segment keyed by its own id,
+     * so every other project rasterizes precisely what it did before.
+     */
+    for (const seg of plateSegmentsOf(project.overlays)) {
+      const overlay = seg.overlay;
       /*
        * Text and shapes both become a full-frame PNG here; an IMAGE overlay
        * does not, because it goes down the clip path instead (see
@@ -420,12 +428,10 @@ export async function renderProject(
       let svg: string;
       switch (overlay.type) {
         case 'text':
-          svg = overlayToSVG(
-            overlay,
-            project.width,
-            project.height,
-            overlayFontOptions(overlay, fonts),
-          );
+          svg = overlayToSVG(overlay, project.width, project.height, {
+            ...overlayFontOptions(overlay, fonts),
+            activeWord: seg.activeWord,
+          });
           break;
         case 'shape':
           // No fonts: a shape has no glyphs, so it needs no subsetting and no
@@ -437,9 +443,15 @@ export async function renderProject(
           continue;
       }
       const png = rasterizeSVG(svg, fontFiles);
-      const path = join(dir, `${overlay.id}.png`);
+      /*
+       * Keyed by the SEGMENT, and so is the filename. A karaoke caption writes
+       * `cap#0.png`, `cap#1.png` … and the builder looks each up by the same
+       * key `plateSegmentsOf` gave it, so neither side has to know how the
+       * other spells it.
+       */
+      const path = join(dir, `${seg.key.replace(/[^A-Za-z0-9_.-]/g, '_')}.png`);
       await writeFile(path, png);
-      overlayImages[overlay.id] = path;
+      overlayImages[seg.key] = path;
     }
     // Probe which sources actually carry audio so the builder only wires audio
     // that exists (silent clips / images would otherwise break the filtergraph).

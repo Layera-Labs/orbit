@@ -11,7 +11,6 @@
  */
 import {
   FULL_FRAME,
-  plateOverlaysOf,
   type AudioTrack,
   type ExportOutput,
   type VideoProject,
@@ -20,6 +19,7 @@ import {
 } from "./types";
 import { projectDuration, transitionDuration } from "./project";
 import { imageOverlayAsClip, imageOverlaysOf } from "./overlay-clip";
+import { plateSegmentsOf, type PlateSegment } from "./karaoke";
 import { atempoChain, filterToFFmpeg } from "./filters";
 import { hasMotion, motionToZoompan } from "./motion";
 import { chromaToFFmpeg } from "./cutout";
@@ -291,7 +291,10 @@ export function buildFFmpegArgs(
    * check stays because a caption whose PNG failed to write has no input to
    * point an `overlay` filter at.
    */
-  const overlays = plateOverlaysOf(project.overlays).filter((o) => images[o.id]);
+  // Segments, for the same reason the multi-track builder uses them: a karaoke
+  // caption is one plate per word window. Keyed by segment, so a caption with
+  // no highlight is still exactly one entry under its own id.
+  const overlays = plateSegmentsOf(project.overlays).filter((s) => images[s.key]);
   const xfade = transitionDuration(project);
 
   const scaleChain = `scale=${W}:${H}:force_original_aspect_ratio=increase,crop=${W}:${H},setsar=1,fps=${fps},format=yuv420p`;
@@ -315,7 +318,7 @@ export function buildFFmpegArgs(
       else inputs.push("-i", resolve(c.src));
     }
   }
-  overlays.forEach((o) => inputs.push("-loop", "1", "-i", images[o.id]));
+  overlays.forEach((s) => inputs.push("-loop", "1", "-i", images[s.key]));
   project.audio.forEach((a) => inputs.push("-i", resolve(a.src)));
   const overlayBase = clipCount;
   const audioBase = clipCount + overlays.length;
@@ -367,7 +370,8 @@ export function buildFFmpegArgs(
     segments.push(`${baseLabel}null[v]`);
   } else {
     let last = baseLabel;
-    overlays.forEach((o, i) => {
+    overlays.forEach((seg, i) => {
+      const o = seg.overlay;
       const fade: string[] = ["format=rgba"];
       if (o.animation === "fade") {
         const d = 0.3;
@@ -379,7 +383,7 @@ export function buildFFmpegArgs(
       segments.push(`[${overlayBase + i}:v]${fade.join(",")}[ov${i}]`);
       const out = i === overlays.length - 1 ? "[v]" : `[t${i}]`;
       segments.push(
-        `${last}[ov${i}]overlay=0:0:enable='between(t,${o.start},${o.end})'${out}`,
+        `${last}[ov${i}]overlay=0:0:enable='between(t,${seg.start},${seg.end})'${out}`,
       );
       last = out;
     });
@@ -513,7 +517,14 @@ function buildMultiTrackArgs(
     .flatMap((t) => t.clips);
   // Selected by TYPE, not by "did the rasterizer make a PNG" — see the note
   // on the same line in `buildFFmpegArgs`.
-  const plateOverlays = plateOverlaysOf(project.overlays).filter((o) => images[o.id]);
+  /*
+   * SEGMENTS, not overlays: a karaoke caption is one plate per word window.
+   * Everything below still computes its animation from `seg.overlay`, so a
+   * slice narrows only WHEN the plate is drawn, never what it is. A caption
+   * with no highlight yields one segment keyed by its own id, so the argv for
+   * every existing project is unchanged.
+   */
+  const plateSegs = plateSegmentsOf(project.overlays).filter((s) => images[s.key]);
   /*
    * A picture on the overlay stack is a `VisualTrackClip` in every respect that
    * matters to this builder, so it becomes one — see `overlay-clip.ts`. It then
@@ -530,7 +541,7 @@ function buildMultiTrackArgs(
   const imgIdx = new Map(
     overlayClips.map((c, k) => [c.id, visualClips.length + k] as const),
   );
-  const capIdx = new Map(plateOverlays.map((o, i) => [o.id, i] as const));
+  const capIdx = new Map(plateSegs.map((s, i) => [s.key, i] as const));
 
   /*
    * Transitions on the MAIN (first visual) track. Clips OVERLAP by the
@@ -562,8 +573,8 @@ function buildMultiTrackArgs(
     else inputs.push("-i", resolve(c.src));
     return idx++;
   });
-  const oIn = plateOverlays.map((o) => {
-    inputs.push("-loop", "1", "-i", images[o.id]);
+  const oIn = plateSegs.map((s) => {
+    inputs.push("-loop", "1", "-i", images[s.key]);
     return idx++;
   });
   const aIn = audioClips.map((a) => {
@@ -1250,21 +1261,43 @@ function buildMultiTrackArgs(
    * A `shape` overlay has no renderer here and falls out of the filter below —
    * as it does in `frameStateAt`, so both agree about the absence.
    */
-  const drawableOverlays = [...project.overlays]
-    .filter((o) => (o.type !== "image" && capIdx.has(o.id)) || o.type === "image")
-    .sort((a, b) => (a.layer ?? 0) - (b.layer ?? 0));
+  type Drawable =
+    | { kind: "clip"; id: string; layer: number }
+    | { kind: "plate"; seg: PlateSegment; layer: number };
 
-  drawableOverlays.forEach((ov) => {
-    if (ov.type === "image") {
-      const k = imgIdx.get(ov.id)!;
+  /*
+   * One list, sorted once, so `layer` means the same thing across all three
+   * kinds — a sticker above a caption is above it, and so is a scrim below.
+   * A karaoke caption contributes several entries at the SAME layer; they never
+   * overlap in time, so their relative order among themselves does not matter.
+   */
+  const drawables: Drawable[] = [
+    ...project.overlays
+      .filter((o) => o.type === "image" && imgIdx.has(o.id))
+      .map((o) => ({ kind: "clip", id: o.id, layer: o.layer ?? 0 }) as Drawable),
+    ...plateSegs.map(
+      (seg) => ({ kind: "plate", seg, layer: seg.overlay.layer ?? 0 }) as Drawable,
+    ),
+  ].sort((a, b) => a.layer - b.layer);
+
+  drawables.forEach((d) => {
+    if (d.kind === "clip") {
+      const k = imgIdx.get(d.id)!;
       const c = allVisual[k];
       placeClip(k, emitClipLayer(c, k, c.start));
       return;
     }
-    const o = ov;
-    const i = capIdx.get(o.id)!;
+    const o = d.seg.overlay;
+    const i = capIdx.get(d.seg.key)!;
+    /*
+     * The animation window is the OVERLAY's; only `enable=` uses the slice.
+     * A fade that restarted on every word would strobe the caption, and a
+     * Ken-Burns move that re-anchored per word would jump.
+     */
     const S = o.start;
     const E = o.end;
+    const onFrom = d.seg.start;
+    const onTo = d.seg.end;
     const dur = Math.max(0.001, E - S);
     const kfs = o.keyframes;
     const kfOpacity = hasKeyframes(kfs) && animatesOpacity(kfs!);
@@ -1321,7 +1354,7 @@ function buildMultiTrackArgs(
       sy,
     );
     segments.push(
-      `${prev}[t${i}]overlay=${ox}:${oy}:enable='between(t,${r3(S)},${r3(E)})'[tc${i}]`,
+      `${prev}[t${i}]overlay=${ox}:${oy}:enable='between(t,${r3(onFrom)},${r3(onTo)})'[tc${i}]`,
     );
     prev = `[tc${i}]`;
   });

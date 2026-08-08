@@ -46,6 +46,7 @@ import { blendToFFmpeg } from './blend';
 import { backgroundToSVG } from './background-svg';
 import { canvasFrameToSVG, hasCanvasFrame } from './canvas-frame';
 import { overlayFontOptions, overlayToSVG, shapeToSVG, type FontMap } from './overlay-svg';
+import { activeWordAt } from './karaoke';
 import { imageOverlayAsClip } from './overlay-clip';
 
 /** How a source fills its destination box. Mirrors the export's scale/crop. */
@@ -441,7 +442,15 @@ export function frameStateAt(p: VideoProject, t: number, opts?: FrameOptions): D
       svg:
         o.type === 'shape'
           ? shapeToSVG(o, W, H)
-          : overlayToSVG(o, W, H, overlayFontOptions(o, opts?.fonts)),
+          : overlayToSVG(o, W, H, {
+              ...overlayFontOptions(o, opts?.fonts),
+              // Which word is lit comes from `karaoke.ts`, the same module that
+              // slices the export's plates. One boundary, read two ways: the
+              // export asks "what are the windows", the preview asks "which
+              // window is `t` in". A second answer to that question here is
+              // precisely how a highlight ends up a word ahead in the file.
+              activeWord: activeWordAt(o, t),
+            }),
       dst: { x: dx, y: dy, w: W, h: H },
       fit: 'stretch',
       alpha: Math.max(0, Math.min(1, alpha)),

@@ -155,6 +155,39 @@ export interface TextOverlay extends OverlayBase {
   stroke?: TextStroke;
   /** Optional caption background box. */
   box?: { color: string; opacity?: number; padding?: number };
+  /**
+   * Pick out the word being spoken, using `words`.
+   *
+   * **The style is what opts in**, not the presence of timings. Auto-captions
+   * carry `words` whether or not anyone wants the effect, so keying off the
+   * array would turn karaoke on for every transcribed project ever saved and
+   * silently multiply its render cost. Absent means the caption draws as one
+   * static plate, exactly as it always has.
+   *
+   * Ignored when `words` no longer spells `text` — see `captionWordsValid`.
+   */
+  highlight?: WordHighlight;
+}
+
+/**
+ * How the word being spoken is picked out.
+ *
+ * Deliberately only ink and a plate behind it, which is what the look actually
+ * is. **Scaling the active word is not offered and should not be added
+ * casually:** a wider word re-measures its line, which re-wraps it, which
+ * re-flows every line after it — so the caption would twitch its whole layout
+ * once per word. If a size change is ever wanted it has to be a transform that
+ * does not feed back into measurement.
+ */
+export interface WordHighlight {
+  /** Ink for the active word. Absent means the caption's own `color`. */
+  color?: string;
+  /** Filled plate behind the active word. Absent means none. */
+  background?: string;
+  /** Corner radius of that plate, px at the output resolution. */
+  radius?: number;
+  /** Space around the word inside its plate, px at the output resolution. */
+  padding?: number;
 }
 
 /**
