@@ -92,6 +92,7 @@ import {
   InMemoryStepLog,
   generate,
   startGenerationWorker,
+  type GenerationQueue,
   type StepLog,
 } from "@orbit/pipeline";
 import { formatById } from "@orbit/formats";
@@ -1028,14 +1029,29 @@ export function createServer(): Express {
   if (projects) pending.push({ name: "projects", ready: projects.whenReady() });
   if (queue) pending.push({ name: "render_jobs", ready: queue.whenReady() });
   /*
+   * Postgres when there is one, memory otherwise. The in-memory pair is not a
+   * stub: a single-box deployment with no database still generates, it just
+   * loses queued jobs on a restart — which is the same trade `JobRegistry`
+   * already makes for renders, and the same one a shared queue exists to undo.
+   *
+   * Built HERE, hundreds of lines before the route that uses it, so that the
+   * instance serving traffic is the one whose schema is awaited below. It was
+   * briefly two instances — one constructed purely to report readiness and
+   * thrown away, one for the routes — which reported the readiness of an object
+   * nobody used and, worse, left the live one's `init()` rejection with nothing
+   * attached to it. An unhandled rejection terminates the process on Node 22,
+   * so a bad DATABASE_URL took the service down by the least controlled route
+   * available instead of failing the deploy where someone is watching.
+   */
+  const pgGen = pgPool ? new PgGenerationQueue(pgPool) : null;
+  const genQueue: GenerationQueue = pgGen ?? new InMemoryGenerationQueue();
+  const genLog: StepLog =
+    pgGen && pgPool ? new PgStepLog(pgGen, pgPool) : new InMemoryStepLog();
+  /*
    * Same gate as every other table: a broken schema fails the DEPLOY, where
    * somebody is watching, rather than the first user request that touches it.
    */
-  if (pgPool)
-    pending.push({
-      name: "generation_jobs",
-      ready: new PgGenerationQueue(pgPool).whenReady(),
-    });
+  if (pgGen) pending.push({ name: "generation_jobs", ready: pgGen.whenReady() });
   if (ledgerStore instanceof PgLedgerStore)
     pending.push({ name: "ledger_entries", ready: ledgerStore.whenReady() });
   if (userStore instanceof PgUserStore)
@@ -1739,17 +1755,6 @@ export function createServer(): Express {
   const brain = brainFromEnv();
   const ELEVEN_KEY = process.env.ELEVENLABS_API_KEY?.trim();
   const generationReady = Boolean(brain && ELEVEN_KEY);
-
-  /*
-   * Postgres when there is one, memory otherwise. The in-memory pair is not a
-   * stub: a single-box deployment with no database still generates, it just
-   * loses queued jobs on a restart — which is the same trade `JobRegistry`
-   * already makes for renders, and the same one a shared queue exists to undo.
-   */
-  const pgGen = pgPool ? new PgGenerationQueue(pgPool) : null;
-  const genQueue = pgGen ?? new InMemoryGenerationQueue();
-  const genLog: StepLog =
-    pgGen && pgPool ? new PgStepLog(pgGen, pgPool) : new InMemoryStepLog();
 
   app.post(
     "/v1/generate",
