@@ -1,7 +1,18 @@
 {
   "name": "@orbit/react",
-  "version": "0.0.1",
+  "version": "1.0.0-beta.1",
   "description": "React wrapper for Orbit SDK",
+  "license": "MIT",
+  "author": "Layera Labs",
+  "homepage": "https://github.com/Layera-Labs/orbit/tree/main/packages/react#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Layera-Labs/orbit.git",
+    "directory": "packages/react"
+  },
+  "bugs": {
+    "url": "https://github.com/Layera-Labs/orbit/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -18,9 +29,9 @@
     "./headless": {
       "types": "./dist/headless/index.d.ts",
       "import": "./dist/headless/index.js"
-    },
-    "./styles.css": "./dist/styles.css"
+    }
   },
+  "//exports": "`./styles.css` was promised here and pointed at `dist/styles.css`, which the build has never emitted — this package contains no .css file at all. Following the docs got you ERR_MODULE_NOT_FOUND. Removed rather than stubbed: an empty stylesheet is a worse lie than an absent one.",
   "files": [
     "dist",
     "!dist/**/*.map"
@@ -32,8 +43,8 @@
     "clean": "rm -rf dist",
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
+  "//dependencies": "@orbit/assets was declared here and imported by nothing in src (0 hits); it survived only in the rollup `external` list. Publishing @orbit/react with it would have forced @orbit/assets onto the registry to satisfy an install that never uses it.",
   "dependencies": {
-    "@orbit/assets": "workspace:*",
     "@orbit/core": "workspace:*",
     "@orbit/effects": "workspace:*",
     "@orbit/shared": "workspace:*",
@@ -61,5 +72,6 @@
       "optional": true
     }
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "//publishConfig": "REGISTRY AND ACCESS ARE NOT DECIDED YET, so publishConfig is deliberately absent rather than guessed. Public npm needs {\"access\":\"public\"} (a scoped package defaults to restricted and the publish fails without it). GitHub Packages needs {\"registry\":\"https://npm.pkg.github.com\"} and the @orbit scope would have to become @layera-labs. Add exactly one of those here before the first publish."
 }

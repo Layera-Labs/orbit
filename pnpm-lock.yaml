@@ -555,9 +555,6 @@ importers:
 
   packages/react:
     dependencies:
-      '@orbit/assets':
-        specifier: workspace:*
-        version: link:../assets
       '@orbit/core':
         specifier: workspace:*
         version: link:../core

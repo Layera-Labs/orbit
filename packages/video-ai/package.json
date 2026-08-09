@@ -1,6 +1,7 @@
 {
   "name": "@orbit/video-ai",
   "version": "0.0.1",
+  "private": true,
   "description": "AI wedge: turn a natural-language prompt into a rendered Orbit video via templates",
   "type": "module",
   "main": "./dist/index.js",
@@ -31,5 +32,6 @@
     "vite": "^5.2.0",
     "vite-plugin-dts": "^3.8.0"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "//private": "The AI wedge. Carries @google/genai and is tied to the hosted service, not to an embeddable editor."
 }

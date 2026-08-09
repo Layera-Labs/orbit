@@ -1,6 +1,7 @@
 {
   "name": "@orbit/auth",
   "version": "0.0.1",
+  "private": true,
   "description": "Pluggable end-user auth — verify a bearer token to an endUserId, via self-hosted (JWT) or Clerk / Supabase / Firebase",
   "type": "module",
   "main": "./dist/index.js",
@@ -29,5 +30,6 @@
     "vite": "^5.2.0",
     "vite-plugin-dts": "^3.8.0"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "//private": "Server-side token verification for the render service. Not something an SDK consumer mounts, and its stores are in-memory by default."
 }
