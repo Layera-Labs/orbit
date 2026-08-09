@@ -428,9 +428,11 @@ was the right moment: the repo had never been public, so no clone or fork existe
 to break, and the alternative (deleting from HEAD only) would have left the whole
 app recoverable by anyone with `git log` the instant the repo opened.
 
-A backup of the pre-purge repo, all refs, is at
-`~/Github/orbit-backup-before-mobile-purge.bundle`. Keep it until publishing is
-done.
+A backup bundle of the pre-purge repo was kept until publishing was done, then
+**deleted on 2026-08-09**. Nothing unique went with it: its only reason to exist
+was the `apps/mobile` history, and all 186 of those commits live in
+`~/Github/orbit-mobile`, which is now a private GitHub repo of its own. What is
+gone is the pre-purge hashes of THIS repo, which is what purging them meant.
 
 ### The cost, measured rather than predicted
 
