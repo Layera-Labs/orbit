@@ -24,10 +24,23 @@ export default defineConfig({
       },
       formats: ['es'],
     },
+    /*
+     * Everything this package DECLARES is external. It used to list only four
+     * names, so `@orbit/shared`, `@orbit/effects`, `jspdf` and `zustand` were
+     * bundled into `dist` while ALSO being declared dependencies — a consumer
+     * downloaded each twice, and the copies were not the same module. That is
+     * merely wasteful for jspdf (2.6MB of it, most of the tarball) and an
+     * actual bug for `@orbit/shared`, which `@orbit/core` imports as a real
+     * external: two copies means two sets of module state behind one name.
+     *
+     * Regexes rather than bare names, for the reason `packages/video-ai`
+     * records: an exact-match external matches the specifier STRING, so a
+     * subpath import slips past it and drags the whole package in.
+     */
     rollupOptions: {
-      external: ['react', 'react-dom', '@orbit/core', '@orbit/ui', '@orbit/agentic', '@orbit/assets'],
+      external: [/^react($|\/)/, /^react-dom($|\/)/, /^@orbit\//, /^jspdf($|\/)/, /^zustand($|\/)/],
     },
     sourcemap: true,
   },
-  plugins: [dts({ include: ['src'] })],
+  plugins: [dts({ include: ['src'], exclude: ['src/__tests__'] })],
 });
