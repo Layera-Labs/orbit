@@ -2,6 +2,16 @@
   "name": "@layera-labs/model",
   "version": "1.0.0-beta.1",
   "description": "Headless reactive document model for the Orbit canvas editor SDK",
+  "keywords": [
+    "canvas",
+    "document-model",
+    "valtio",
+    "editor",
+    "headless",
+    "state",
+    "undo-redo",
+    "design"
+  ],
   "license": "MIT",
   "author": "Layera Labs",
   "homepage": "https://github.com/Layera-Labs/orbit/tree/main/packages/model#readme",

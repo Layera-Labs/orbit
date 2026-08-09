@@ -2,6 +2,14 @@
   "name": "@layera-labs/shared",
   "version": "1.0.0-beta.1",
   "description": "Shared utilities and types for Orbit SDK",
+  "keywords": [
+    "types",
+    "utils",
+    "shared",
+    "canvas",
+    "editor",
+    "legacy"
+  ],
   "license": "MIT",
   "author": "Layera Labs",
   "homepage": "https://github.com/Layera-Labs/orbit/tree/main/packages/shared#readme",

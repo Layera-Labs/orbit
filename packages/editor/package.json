@@ -2,6 +2,16 @@
   "name": "@layera-labs/editor",
   "version": "1.0.0-beta.1",
   "description": "Orbit canvas editor React UI (new architecture)",
+  "keywords": [
+    "canvas",
+    "editor",
+    "design",
+    "react",
+    "konva",
+    "image-editor",
+    "white-label",
+    "sdk"
+  ],
   "license": "MIT",
   "author": "Layera Labs",
   "homepage": "https://github.com/Layera-Labs/orbit/tree/main/packages/editor#readme",

@@ -2,6 +2,15 @@
   "name": "@layera-labs/react",
   "version": "1.0.0-beta.1",
   "description": "React wrapper for Orbit SDK",
+  "keywords": [
+    "react",
+    "canvas",
+    "editor",
+    "design",
+    "image-editor",
+    "sdk",
+    "legacy"
+  ],
   "license": "MIT",
   "author": "Layera Labs",
   "homepage": "https://github.com/Layera-Labs/orbit/tree/main/packages/react#readme",

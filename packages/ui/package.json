@@ -1,7 +1,16 @@
 {
   "name": "@layera-labs/ui",
   "version": "1.0.0-beta.1",
-  "description": "Orbit UI Component Library - Shadcn-style registry",
+  "description": "React component library for the Orbit v1 editor (Tailwind + Radix)",
+  "keywords": [
+    "react",
+    "components",
+    "ui",
+    "tailwind",
+    "radix",
+    "design-system",
+    "legacy"
+  ],
   "license": "MIT",
   "author": "Layera Labs",
   "homepage": "https://github.com/Layera-Labs/orbit/tree/main/packages/ui#readme",
@@ -29,12 +38,9 @@
   },
   "files": [
     "dist",
-    "!dist/**/*.map",
-    "cli"
+    "!dist/**/*.map"
   ],
-  "bin": {
-    "orbit-ui": "./cli/index.js"
-  },
+  "//bin": "An `orbit-ui` bin pointed at ./cli/index.js, a shadcn-style `add <component>` copier. It was removed rather than fixed because it had never run even once as packaged, and was broken twice over: (1) it was CommonJS `require` in a file named .js inside a \"type\": \"module\" package, so EVERY invocation — including `help` — died with ReferenceError before parsing an argument; (2) `add` copies from ../src/components/<name>.tsx, and `files` ships only `dist`, so a published install had no source to copy from. Reviving it would mean shipping src/ purely to feed a copier that duplicates what `import { OrbitButton } from '@layera-labs/ui'` already does.",
   "scripts": {
     "build": "tsc && vite build",
     "dev": "vite build --watch --emptyOutDir false",

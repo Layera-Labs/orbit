@@ -2,6 +2,15 @@
   "name": "@layera-labs/next",
   "version": "1.0.0-beta.1",
   "description": "Next.js wrapper for Orbit SDK",
+  "keywords": [
+    "nextjs",
+    "react",
+    "canvas",
+    "editor",
+    "ssr",
+    "dynamic-import",
+    "legacy"
+  ],
   "license": "MIT",
   "author": "Layera Labs",
   "homepage": "https://github.com/Layera-Labs/orbit/tree/main/packages/next#readme",

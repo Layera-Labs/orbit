@@ -2,6 +2,15 @@
   "name": "@layera-labs/effects",
   "version": "1.0.0-beta.1",
   "description": "Orbit WebGL Effects and Shaders",
+  "keywords": [
+    "webgl",
+    "shaders",
+    "image-effects",
+    "adjustments",
+    "lighting",
+    "canvas",
+    "legacy"
+  ],
   "license": "MIT",
   "author": "Layera Labs",
   "homepage": "https://github.com/Layera-Labs/orbit/tree/main/packages/effects#readme",

@@ -2,6 +2,15 @@
   "name": "@layera-labs/providers",
   "version": "1.0.0-beta.1",
   "description": "Pluggable template/font/background/photo provider interfaces for Orbit",
+  "keywords": [
+    "providers",
+    "templates",
+    "fonts",
+    "stock-photos",
+    "backgrounds",
+    "editor",
+    "plugin"
+  ],
   "license": "MIT",
   "author": "Layera Labs",
   "homepage": "https://github.com/Layera-Labs/orbit/tree/main/packages/providers#readme",

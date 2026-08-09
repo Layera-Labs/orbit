@@ -2,6 +2,15 @@
   "name": "@layera-labs/core",
   "version": "1.0.0-beta.1",
   "description": "Orbit Canvas Engine - Vanilla TypeScript core",
+  "keywords": [
+    "canvas",
+    "fabricjs",
+    "scene-graph",
+    "editor",
+    "engine",
+    "design",
+    "legacy"
+  ],
   "license": "MIT",
   "author": "Layera Labs",
   "homepage": "https://github.com/Layera-Labs/orbit/tree/main/packages/core#readme",

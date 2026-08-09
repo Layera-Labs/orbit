@@ -2,6 +2,18 @@
   "name": "@layera-labs/video",
   "version": "1.0.0-beta.1",
   "description": "Headless video timeline model + server-side FFmpeg render pipeline for Orbit",
+  "keywords": [
+    "video",
+    "ffmpeg",
+    "timeline",
+    "video-editing",
+    "render",
+    "transitions",
+    "captions",
+    "srt",
+    "mp4",
+    "headless"
+  ],
   "license": "MIT",
   "author": "Layera Labs",
   "homepage": "https://github.com/Layera-Labs/orbit/tree/main/packages/video#readme",

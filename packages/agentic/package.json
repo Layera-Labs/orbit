@@ -2,6 +2,15 @@
   "name": "@layera-labs/agentic",
   "version": "1.0.0-beta.1",
   "description": "Orbit AI Agentic Pipeline - Backend adapters",
+  "keywords": [
+    "ai",
+    "image-generation",
+    "inpainting",
+    "outpainting",
+    "canvas-agent",
+    "editor",
+    "optional"
+  ],
   "license": "MIT",
   "author": "Layera Labs",
   "homepage": "https://github.com/Layera-Labs/orbit/tree/main/packages/agentic#readme",

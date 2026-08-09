@@ -2,6 +2,15 @@
   "name": "@layera-labs/render",
   "version": "1.0.0-beta.1",
   "description": "Konva-based renderer for the Orbit canvas editor (canvas = pure function of model)",
+  "keywords": [
+    "canvas",
+    "konva",
+    "react-konva",
+    "renderer",
+    "editor",
+    "design",
+    "react"
+  ],
   "license": "MIT",
   "author": "Layera Labs",
   "homepage": "https://github.com/Layera-Labs/orbit/tree/main/packages/render#readme",
