@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react';
-import type { CanvasAgentParams, CanvasAgentResponse } from '@orbit/agentic';
 import type { AiBackend } from '../backends/types';
-import type { GeneratedAsset } from '@orbit/shared';
+import type { CanvasAgentParams, CanvasAgentResponse, GeneratedAsset } from '@orbit/shared';
 import type { OrbitEngine } from '@orbit/core';
 
 

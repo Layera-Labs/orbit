@@ -15,12 +15,29 @@
  * `dist/` for the same reasons — it runs with no build step and it names the
  * file that introduced the edge.
  *
- * The one difference from that walker, and the whole subtlety here: `import
- * type` is FINE. Three modules still type-import agentic's own domain types
- * (`backends/types.ts`, `agentic/actions.ts`, `hooks/useOrbitAgentic.ts`)
- * because copying a twelve-member action union would drift. Those erase
- * entirely at build time and cost a consumer nothing at runtime. A value import
- * of the same specifier does not. This file has to tell them apart.
+ * That is HALF the boundary, and for a while it was the only half we had.
+ *
+ * The other half is the TYPES. `import type` costs a consumer nothing at
+ * runtime — it erases from the bundle entirely — but it does NOT erase from the
+ * `.d.ts` TypeScript emits. `backends/types.ts` used to type-import
+ * `CanvasAgentParams` from `@orbit/agentic`, `AiBackend` is named by
+ * `OrbitEditorProps.aiBackend`, and so `dist/backends/types.d.ts` shipped
+ * `import { CanvasAgentParams } from '@orbit/agentic'` on the MAIN entry's
+ * declaration graph. A host who declined the optional peer and ran `tsc` with
+ * `skipLibCheck: false` got `TS2307: Cannot find module '@orbit/agentic'` —
+ * measured, not theorised — which is the editing SDK failing to typecheck over
+ * an AI package they deliberately did not install.
+ *
+ * So this file now walks the graph TWICE, with two different definitions of an
+ * edge:
+ *   - runtime edges only (type imports stripped) — what a bundler pulls in;
+ *   - every edge including type-only ones — what the emitted `.d.ts` names.
+ * The main entry must be clean under BOTH. The `./agentic` subpath is held to
+ * the runtime rule only: naming the AI package is the entire point of that
+ * entry, and a host reaching for it has installed the peer by definition.
+ *
+ * The canvas-agent shapes now live in `@orbit/shared`, which both packages
+ * depend on unconditionally, so nothing is copied and nothing drifts.
  */
 import { describe, expect, it } from 'vitest';
 import { readFileSync, existsSync, mkdtempSync, writeFileSync } from 'node:fs';
@@ -91,8 +108,18 @@ function resolveRelative(fromFile: string, spec: string): string | null {
   return null;
 }
 
-/** Every file reachable from `entry` at runtime, plus every bare specifier seen. */
-function walk(entry: string): { files: Set<string>; bare: Map<string, string[]> } {
+/**
+ * Every file reachable from `entry`, plus every bare specifier seen.
+ *
+ * `mode: 'runtime'` strips type-only statements first, so the graph is what a
+ * bundler keeps. `mode: 'types'` keeps them, so the graph is what the emitted
+ * `.d.ts` files name — a superset, and the one that decides whether a consumer
+ * without the optional peer can run `tsc`.
+ */
+function walk(
+  entry: string,
+  mode: 'runtime' | 'types' = 'runtime',
+): { files: Set<string>; bare: Map<string, string[]> } {
   const files = new Set<string>();
   const bare = new Map<string, string[]>();
   const queue = [entry];
@@ -101,7 +128,10 @@ function walk(entry: string): { files: Set<string>; bare: Map<string, string[]> 
     const file = queue.pop()!;
     if (files.has(file)) continue;
     files.add(file);
-    const source = runtimeSource(readFileSync(file, 'utf8'));
+    const raw = readFileSync(file, 'utf8');
+    // Comments come out either way: a doc comment quoting an import must never
+    // trip the rule it is documenting.
+    const source = mode === 'runtime' ? runtimeSource(raw) : raw.replace(BLOCK_COMMENT, '');
     for (const match of source.matchAll(SPECIFIER)) {
       const spec = match[1];
       if (spec.startsWith('.')) {
@@ -137,14 +167,14 @@ describe('the main entry never needs the AI package at runtime', () => {
     expect(offenders(bare)).toEqual([]);
   });
 
-  it('still reaches the modules that type-import it, so this is not passing by absence', () => {
+  it('still reaches the AI-adjacent modules, so this is not passing by absence', () => {
     /*
      * `OrbitEditor` renders `AgenticPanel`, which imports both of these for
      * their VALUES. So they are genuinely in the main entry's runtime graph
-     * while type-importing `@orbit/agentic`, which is the exact configuration
-     * this test exists to keep honest: if a refactor cut them out, the
-     * assertion above would go green for the wrong reason and stay green the
-     * day someone put a value import back.
+     * while being the modules most likely to reach for the AI package, which is
+     * the configuration this test exists to keep honest: if a refactor cut them
+     * out, the assertion above would go green for the wrong reason and stay
+     * green the day someone put a value import back.
      */
     for (const typed of ['/agentic/actions.ts', '/hooks/useOrbitAgentic.ts']) {
       expect([...files].some((f) => f.endsWith(typed))).toBe(true);
@@ -153,17 +183,50 @@ describe('the main entry never needs the AI package at runtime', () => {
 
   it('does not reach `backends/types.ts` at all, because every edge to it is type-only', () => {
     /*
-     * Worth stating rather than leaving implicit. That module is the one whose
-     * `.d.ts` names `@orbit/agentic`, and it is imported ONLY as
-     * `import type` — by `index.ts`, `OrbitEditor.tsx` and three components.
-     * Its absence from this graph is the walker agreeing with the compiler,
-     * not the walker losing an edge: the file exists and the type import in it
-     * is real.
+     * Worth stating rather than leaving implicit: that module is imported ONLY
+     * as `import type` — by `index.ts`, `OrbitEditor.tsx` and three components.
+     * Its absence from THIS graph is the walker agreeing with the compiler, not
+     * the walker losing an edge — the suite below reaches it, from the same
+     * entry, once type edges count.
      */
     expect([...files].some((f) => f.endsWith('/backends/types.ts'))).toBe(false);
+  });
+});
+
+/**
+ * The type half, which the runtime walk above cannot see.
+ *
+ * This is the assertion that would have caught the gap that shipped: every edge
+ * counts here, type-only included, because every one of them survives into the
+ * `.d.ts` the consumer's `tsc` reads.
+ */
+describe("the main entry's TYPES never name the AI package either", () => {
+  const { files, bare } = walk(resolve(SRC, 'index.ts'), 'types');
+
+  it('reaches strictly more than the runtime walk, including `backends/types.ts`', () => {
+    // Without this the assertion below could pass because the walk found
+    // nothing — and `backends/types.ts` specifically is the module whose
+    // `.d.ts` named `@orbit/agentic`, so it MUST be in scope here.
+    const runtimeFiles = walk(resolve(SRC, 'index.ts')).files;
+    expect(files.size).toBeGreaterThan(runtimeFiles.size);
+    expect([...files].some((f) => f.endsWith('/backends/types.ts'))).toBe(true);
+  });
+
+  it('names @orbit/agentic in no import form at all', () => {
+    expect(offenders(bare)).toEqual([]);
+  });
+
+  it('gets the canvas-agent shapes from @orbit/shared, a real dependency', () => {
+    /*
+     * The positive half of the claim. `@orbit/shared` is a `dependencies` entry,
+     * not an optional peer, so naming it in a `.d.ts` always resolves — which is
+     * the whole reason the shapes were moved there rather than copied here.
+     */
     const types = readFileSync(resolve(SRC, 'backends/types.ts'), 'utf8');
-    expect(types).toMatch(/import type \{[^}]*\} from '@orbit\/agentic'/);
-    expect(offenders(walk(resolve(SRC, 'backends/types.ts')).bare)).toEqual([]);
+    expect(types).toMatch(/CanvasAgentParams[\s\S]*?\} from '@orbit\/shared'/);
+    expect(types).not.toMatch(/@orbit\/agentic'/);
+    const pkg = JSON.parse(readFileSync(resolve(SRC, '../package.json'), 'utf8'));
+    expect(pkg.dependencies['@orbit/shared']).toBeDefined();
   });
 });
 
@@ -228,14 +291,36 @@ describe('the walker would catch a runtime import if one were added', () => {
     expect(offenders(graph.bare)).toHaveLength(1);
   });
 
-  it('passes on the same graph once the import is type-only', () => {
+  it('passes on the same graph once the import is type-only — and the TYPE walk still fails it', () => {
     const dir = mkdtempSync(join(tmpdir(), 'orbit-ai-optional-'));
     writeFileSync(join(dir, 'entry.ts'), `export * from './leaf';\n`);
     writeFileSync(
       join(dir, 'leaf.ts'),
       `import type { CanvasAgentParams } from '@orbit/agentic';\nexport type P = CanvasAgentParams;\n`,
     );
+    // The bundler is happy...
     expect(offenders(walk(join(dir, 'entry.ts')).bare)).toEqual([]);
+    // ...and the consumer's `tsc` is not. This is exactly the shape of the gap
+    // that shipped in `backends/types.ts`, and the reason for the second mode.
+    expect(offenders(walk(join(dir, 'entry.ts'), 'types').bare)).toHaveLength(1);
+  });
+
+  it("the type walk follows edges the runtime walk drops, so it cannot miss a hop", () => {
+    /*
+     * A type-only edge to a module that itself names the AI package. The
+     * runtime walk never even opens `leaf.ts`; the type walk must.
+     */
+    const dir = mkdtempSync(join(tmpdir(), 'orbit-ai-optional-'));
+    writeFileSync(join(dir, 'entry.ts'), `export type { P } from './leaf';\n`);
+    writeFileSync(
+      join(dir, 'leaf.ts'),
+      `import type { CanvasAgentParams } from '@orbit/agentic';\nexport type P = CanvasAgentParams;\n`,
+    );
+    expect([...walk(join(dir, 'entry.ts')).files].some((f) => f.endsWith('/leaf.ts'))).toBe(false);
+    expect([...walk(join(dir, 'entry.ts'), 'types').files].some((f) => f.endsWith('/leaf.ts'))).toBe(
+      true,
+    );
+    expect(offenders(walk(join(dir, 'entry.ts'), 'types').bare)).toHaveLength(1);
   });
 
   it('sees every form of runtime import', () => {

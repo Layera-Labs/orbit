@@ -408,6 +408,112 @@ export interface AudioGenerateParams {
   options?: Record<string, unknown>;
 }
 
+// ===== Canvas agent =====
+/**
+ * What a canvas agent may do to a scene, and the request/response around it.
+ *
+ * These live HERE rather than in `@orbit/agentic` for the same reason
+ * `GenerateParams` and `ExportJob` do: `@orbit/react` has to NAME them — its
+ * `AiBackend.runCanvasAgent` is part of `OrbitEditorProps` — while
+ * `@orbit/agentic` is an OPTIONAL peer of that package. A type-only import
+ * erases from the bundle but not from the emitted `.d.ts`, so anchoring them in
+ * the AI package left `@orbit/react`'s main entry declaring a module a consumer
+ * who declined the AI layer cannot resolve. Both packages depend on this one
+ * unconditionally, so this is the only place both can point at.
+ *
+ * Every member is expressed in terms this package already owns (`ShapeContent`,
+ * `BlendMode`, `SceneGraph`), which is what makes the move a relocation rather
+ * than a duplication.
+ */
+export type AgenticCanvasAction =
+  | {
+      type: 'addText';
+      text: string;
+      fontSize?: number;
+      fontWeight?: number;
+      fontFamily?: string;
+      color?: string;
+    }
+  | {
+      type: 'updateText';
+      layerId?: string;
+      text?: string;
+      fontSize?: number;
+      fontWeight?: number;
+      fontFamily?: string;
+      color?: string;
+    }
+  | {
+      type: 'addImage';
+      src: string;
+      width?: number;
+      height?: number;
+      name?: string;
+    }
+  | {
+      type: 'addVideo';
+      src: string;
+      width?: number;
+      height?: number;
+      duration?: number;
+      name?: string;
+    }
+  | {
+      type: 'addShape';
+      shape?: ShapeContent['shape'];
+      fill?: string;
+      stroke?: string;
+      strokeWidth?: number;
+      width?: number;
+      height?: number;
+      name?: string;
+    }
+  | {
+      type: 'addBackgroundLayer';
+      value: string;
+      name?: string;
+    }
+  | {
+      type: 'updateLayerStyle';
+      layerId?: string;
+      opacity?: number;
+      blendMode?: BlendMode;
+      fill?: string;
+      stroke?: string;
+      strokeWidth?: number;
+      color?: string;
+      fontSize?: number;
+      fontWeight?: number;
+      fontFamily?: string;
+    }
+  | {
+      type: 'moveResizeLayer';
+      layerId?: string;
+      x?: number;
+      y?: number;
+      width?: number;
+      height?: number;
+      rotation?: number;
+    }
+  | {
+      type: 'deleteLayer';
+      layerId?: string;
+    };
+
+export interface CanvasAgentParams {
+  prompt: string;
+  scene: SceneGraph;
+  selectedLayerIds?: string[];
+  model?: string;
+  imageBase64?: string | null;
+  selectionImageBase64?: string | null;
+}
+
+export interface CanvasAgentResponse {
+  actions: AgenticCanvasAction[];
+  message?: string;
+}
+
 // ===== Export =====
 export type ExportFormat = 'png' | 'jpg' | 'svg' | 'pdf' | 'gif' | 'mp4' | 'mp3' | 'png-sequence';
 

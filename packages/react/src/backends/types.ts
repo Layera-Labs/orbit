@@ -13,10 +13,22 @@
  * nominal link, and both sides are anchored to the same `@orbit/shared` types,
  * which is what actually keeps them from drifting.
  *
- * The one exception is `CanvasAgentParams`/`CanvasAgentResponse` below: those
- * are agentic's own domain types, `@orbit/react`'s `agentic/actions.ts` already
- * type-imports from that package, and copying a twelve-member action union here
- * WOULD drift. They stay a type-only import, and they sit on the AI half only.
+ * `CanvasAgentParams`/`CanvasAgentResponse` used to be the one exception —
+ * type-imported straight from `@orbit/agentic`, on the argument that copying a
+ * twelve-member action union here would drift. That argument was right and the
+ * conclusion was wrong: a type-only import erases from the BUNDLE but survives
+ * in the emitted `.d.ts`, so this module's declaration still named the AI
+ * package, and `AiBackend` is reachable from `OrbitEditorProps.aiBackend`. A
+ * consumer who declined the optional peer and ran `tsc` with
+ * `skipLibCheck: false` therefore failed on a specifier resolving to nothing —
+ * the editing SDK refusing to typecheck over an AI package they deliberately
+ * did not install. The shapes now live in `@orbit/shared` alongside
+ * `GenerateParams` and `ExportJob`, which both packages depend on
+ * unconditionally, so nothing is copied and nothing can drift. `@orbit/agentic`
+ * re-exports them, so its own public surface is unchanged.
+ *
+ * NOTHING in this file may name `@orbit/agentic`, in any import form.
+ * `ai-optional.test.ts` asserts it.
  */
 
 import type {
@@ -32,8 +44,9 @@ import type {
   ExportJob,
   ExportInitResponse,
   ExportListResponse,
+  CanvasAgentParams,
+  CanvasAgentResponse,
 } from '@orbit/shared';
-import type { CanvasAgentParams, CanvasAgentResponse } from '@orbit/agentic';
 
 /**
  * Rendering a project to a file. Core editing, not AI: it is what the
