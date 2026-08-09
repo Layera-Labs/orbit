@@ -57,9 +57,18 @@ is still the repo root, so nothing about the Dockerfile's depth changed.
 2. **Measure ffmpeg; do not reason about it.** Probe the filter with known RGB
    bytes and read the output. That method has caught several shipping bugs that
    looked obviously correct on paper.
-3. **Never import the default `@orbit/video` entry from a browser bundle.** Use
-   `@orbit/video/browser` (pure) or `@orbit/video/node` (ffmpeg, resvg, fs).
-   `browser-safety.test.ts` walks the import graph and fails on a `node:` builtin.
+3. **`node:` and the native addon live behind `@orbit/video/node`, and nowhere else.**
+   The DEFAULT entry is browser-safe — `src/index.ts` is `export * from './browser'`
+   and nothing more, so `@orbit/video` and `@orbit/video/browser` are the same 31
+   modules with zero `node:` imports. `@orbit/video/node` is the superset: 34
+   modules, reaching `@resvg/resvg-js`, `node:child_process`, `node:fs`,
+   `node:fs/promises`, `node:os` and `node:path`. (Measured against the packed
+   tarball, 2026-08-09.) It used to be the other way round — the default was
+   `browser + node`, which made the SAFE thing the thing you had to know to ask
+   for — and this rule still read that way long after the entry was flipped.
+   `browser-safety.test.ts` walks BOTH the default and `./browser` and fails on a
+   `node:` builtin; keep it that way, because the default's safety is now a
+   promise to consumers rather than a convention.
 4. **Any Expo app in `examples/` installs with npm, never pnpm** — pnpm's symlinked
    store corrupts Metro's module resolution. That is why `examples/mobile` is
    outside the workspace.
@@ -212,8 +221,9 @@ Next 14 App Router. **One editor** over the v2 SDK plus a browser video engine.
   actionable. It also must not cache a rejected promise — that turned one transient
   failure into a permanently dead database for the life of the page.
 
-`packages/video` now has subpath exports: `@orbit/video/browser` (pure, browser-safe) and
-`@orbit/video` (adds ffmpeg/resvg/fs). Never import the default entry from a web bundle.
+`packages/video` has subpath exports: `@orbit/video` and `@orbit/video/browser` are both
+pure and browser-safe (the default entry re-exports `./browser` and nothing else);
+`@orbit/video/node` is the superset that adds ffmpeg, resvg and fs. See hard rule 3.
 
 **Hand-built SVG is an injection surface** (2026-07-29). A `VideoProject` arrives as JSON
 and is cast, never validated, so every field TypeScript calls a `number` is whatever the
@@ -429,9 +439,15 @@ unblocks, and it should happen the same day.
 
 ### Still to do
 
-1. **Publish `@orbit/*`** — `private: true` audit (18 of 20 manifests still have no
-   flag), versions aligned, `publishConfig`, React 19 peers checked rather than
-   claimed, `npm pack` installed into a scratch Vite app and a scratch Next app.
+1. ~~**Publish prep**~~ — done 2026-08-09, everything except the publish itself.
+   See "The publishable set" below. What remains before `pnpm publish` is ONE
+   decision, and it is a business decision, not an engineering one: **which
+   registry, and at what access level.** Every published manifest carries a
+   `//publishConfig` note stating the two options and what each requires;
+   `publishConfig` itself is deliberately absent rather than guessed, because
+   guessing public npm and being wrong publishes source to the world, and
+   guessing GitHub Packages means renaming the `@orbit` scope to `@layera-labs`
+   (a scope on GitHub Packages must match the owning org). Fill exactly one in.
 2. **Restore orbit-mobile's 12 parity tests** against the published package.
 3. **Beta-open this repo.**
 4. **Shortspilot as its own repo**, consuming published `@orbit/*` like any other
@@ -444,6 +460,48 @@ unblocks, and it should happen the same day.
 **What this makes non-negotiable:** a breaking change to `@orbit/video` is now a
 release, not a refactor. Semver starts mattering at step 3, not when someone
 complains.
+
+### The publishable set (decided 2026-08-09)
+
+**12 packages publish, at `1.0.0-beta.1`** — the version root and `services/render`
+already carried, so the repo has one number rather than a `0.0.1` SDK inside a
+`1.0.0-beta.1` product:
+
+`video` · `model` · `render` · `providers` · `editor` — the engine and the v2 SDK.
+`core` · `react` · `next` · `ui` · `shared` · `effects` · `agentic` — v1. It is
+legacy and maintenance-only, but it is feature-complete, it is what `docs/guide/`
+documents, and the AI layer was JUST put behind an optional peer (3ff9f20) for
+exactly this. `agentic` has to publish or `@orbit/react/agentic` is a subpath no
+external consumer could ever satisfy.
+
+**8 stay private, with the reason in each manifest's `//private`:** `assets`
+(dead to both products; only the private render service and the demos use it),
+`auth` · `billing` · `video-gen` · `video-ai` (render-service internals and the
+hosted AI wedge, not something a consumer mounts), `pipeline` · `formats`
+(already private), `react-native` (a bridge to a WebView-hosted build that is
+neither published nor hosted, and the roadmap deprioritized that path).
+
+**Known, deliberate:** `@orbit/react` — the name a newcomer reaches for first — is
+v1. If v2 ever wants that name it cannot have it. Flagged, not decided.
+
+### React 18 only, and this was measured rather than assumed
+
+Every published peer stays `^18`. Installing the packed tarballs against React
+19.2.0 is a hard `ERESOLVE`, not a warning.
+
+What an attempt actually costs, run end to end in a scratch copy of the repo:
+`react-konva@19.2.5` (its peer is `react ^19.2.0` exclusively, so this is a swap,
+not a widening) plus **three source lines** — one `useRef<T>()` needing an explicit
+`undefined` in `packages/ui/src/components/tooltip.tsx`, and `RefObject<HTMLDivElement>`
+→ `| null` in `packages/react/src/components/{PageControls,RulerOverlay}.tsx`.
+With those, the build goes 20/20 and **the whole suite passes, 1148/1148**.
+
+That is a real result and it is still not enough to widen the range, because the
+suite is overwhelmingly non-DOM unit tests: **nothing in it mounts the Konva
+reconciler**, which is the one thing CLAUDE.md's React-18 pin exists to protect.
+Supporting both would also mean peering `react-konva` as `^18.2.10 || ^19.2.0`
+and asking a consumer to install the matching pair — a matrix nobody has run an
+editor in. Say "React 18 only" until `apps/web` moves and proves it.
 
 ## Working style
 

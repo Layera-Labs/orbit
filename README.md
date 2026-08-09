@@ -15,6 +15,21 @@ render service that does the actual encoding with ffmpeg.
 > packages are consumed from source in this workspace. Publishing is the next
 > milestone — see [Roadmap](#roadmap). Until then the APIs move without notice.
 >
+> Prep is done as of 2026-08-09: 12 packages are marked publishable at
+> `1.0.0-beta.1`, the other 8 are `private: true`, and the tarballs have been
+> packed and installed into a scratch Vite app and a scratch Next app outside
+> this repo — both build, both typecheck under `skipLibCheck: false`, and neither
+> browser bundle contains a `node:` builtin. The one thing left is choosing a
+> registry and an access level, which is why `publishConfig` is absent rather
+> than guessed.
+>
+> **React 18 only.** Every peer is `^18` and that is not conservatism: the packed
+> tarballs fail `ERESOLVE` outright against React 19, because `react-konva@18.2.x`
+> is the React-18 line and two React copies is a hard crash in Konva's reconciler.
+> React 19 was actually attempted — it needs `react-konva@19` plus three source
+> lines, after which the full suite passes — but the suite does not mount the
+> reconciler, so that is not yet evidence. See CLAUDE.md for the measurement.
+>
 > Some guides under `docs/guide/` were written ahead of that and describe
 > registry installs and an API key. Treat this README as the accurate one.
 
