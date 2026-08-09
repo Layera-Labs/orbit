@@ -2,12 +2,14 @@
 
 ## `OrbitBackendAdapter`
 
-Connects to `api.orbit.ai` with injected system prompts.
+An HTTP client for a backend **you host**, with Orbit's system prompts injected on
+the way out. Both arguments are required — there is no Layera-operated service and
+no default URL, and the constructor throws if you omit one.
 
 ```ts
 import { OrbitBackendAdapter } from '@layera-labs/agentic';
 
-const adapter = new OrbitBackendAdapter(apiKey, 'https://api.orbit.ai');
+const adapter = new OrbitBackendAdapter(apiKey, 'https://api.example.com');
 ```
 
 ### Methods

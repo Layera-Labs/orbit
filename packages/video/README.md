@@ -11,7 +11,7 @@ canvas, no DOM. It computes what a frame should look like; something else draws 
 npm i @layera-labs/video@beta
 ```
 
-> **Beta.** `1.0.0-beta.2`, published under the `beta` tag. The API moves without
+> **Beta.** `1.0.0-beta.3`, published under the `beta` tag. The API moves without
 > notice until 1.0.0. Nothing in this package needs React.
 
 ## The one idea

@@ -1,6 +1,8 @@
 /**
  * AI Backend Adapter
- * Routes to api.orbit.ai with system prompts
+ *
+ * An HTTP client for a backend YOU host, with Orbit's system prompts attached
+ * on the way out. It has no address of its own — see the constructor.
  */
 
 import type {
@@ -72,10 +74,28 @@ export interface AiBackend {
 export type AIBackendAdapter = AiBackend & ExportBackend;
 
 export class OrbitBackendAdapter implements AiBackend, ExportBackend {
+  /**
+   * `backendUrl` used to default to `https://api.orbit.ai`, which nobody runs.
+   * Omitting it therefore produced a client that looked configured, constructed
+   * without complaint, and failed at the first request with a network error
+   * naming a host the caller had never heard of. There is no Layera-operated
+   * backend to default to, so the argument is required and checked here: the
+   * failure belongs at construction, where the missing configuration is, not
+   * inside a fetch several layers away.
+   */
   constructor(
     private apiKey: string,
-    private backendUrl: string = 'https://api.orbit.ai'
-  ) {}
+    private backendUrl: string
+  ) {
+    if (typeof backendUrl !== 'string' || backendUrl.trim() === '') {
+      throw new Error(
+        'OrbitBackendAdapter: backendUrl is required — pass the URL of the service you host ' +
+          '(e.g. "https://api.example.com"). There is no default; Layera Labs does not operate ' +
+          'a backend for this SDK. See services/render in the Orbit repository for an implementation.'
+      );
+    }
+    this.backendUrl = backendUrl.replace(/\/+$/, '');
+  }
 
   private async request(endpoint: string, body: unknown, systemPrompt?: string): Promise<GeneratedAsset> {
     const payload = systemPrompt

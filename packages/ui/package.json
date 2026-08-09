@@ -1,6 +1,6 @@
 {
   "name": "@layera-labs/ui",
-  "version": "1.0.0-beta.2",
+  "version": "1.0.0-beta.3",
   "description": "React component library for the Orbit v1 editor (Tailwind + Radix)",
   "keywords": [
     "react",
@@ -34,10 +34,15 @@
     "./themes": {
       "types": "./dist/themes/index.d.ts",
       "import": "./dist/themes/index.js"
-    }
+    },
+    "./tailwind.preset": "./tailwind.preset.cjs",
+    "./tailwind.preset.cjs": "./tailwind.preset.cjs",
+    "./package.json": "./package.json"
   },
+  "//tailwind.preset": "The components emit `bg-orbit-accent`, `rounded-orbit-md` and ~50 other class names in this design system's own namespace; Tailwind emits nothing for a name it has no theme entry for, so before this preset shipped an install produced correctly-structured, entirely unstyled components. It is CJS because this package is \"type\": \"module\" and a `tailwind.config.js` still needs to `require()` it. It sits at the package root rather than in dist/ because it is authored, not built, and `files` therefore names it explicitly — `dist` alone would have shipped everything except the one file that makes dist usable.",
   "files": [
     "dist",
+    "tailwind.preset.cjs",
     "!dist/**/*.map"
   ],
   "//bin": "An `orbit-ui` bin pointed at ./cli/index.js, a shadcn-style `add <component>` copier. It was removed rather than fixed because it had never run even once as packaged, and was broken twice over: (1) it was CommonJS `require` in a file named .js inside a \"type\": \"module\" package, so EVERY invocation — including `help` — died with ReferenceError before parsing an argument; (2) `add` copies from ../src/components/<name>.tsx, and `files` ships only `dist`, so a published install had no source to copy from. Reviving it would mean shipping src/ purely to feed a copier that duplicates what `import { OrbitButton } from '@layera-labs/ui'` already does.",

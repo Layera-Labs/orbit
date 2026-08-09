@@ -1,6 +1,7 @@
 # AI Tools
 
-Orbit's agentic system connects to `api.orbit.ai` to generate and edit media using AI models.
+Orbit's agentic system posts to a backend **you host** to generate and edit media using
+AI models. There is no Layera-operated service.
 
 It is **opt-in**. `@layera-labs/agentic` is an optional peer of `@layera-labs/react`: install
 it, build a backend, and hand that backend to the editor. Skip all of it and the
@@ -11,7 +12,7 @@ editor still runs — including video export, which is core editing, not AI.
 ```tsx
 import { OrbitBackendAdapter } from '@layera-labs/agentic';
 
-const backend = new OrbitBackendAdapter('orbit_sk_your_key', 'https://api.orbit.ai');
+const backend = new OrbitBackendAdapter('orbit_sk_your_key', 'https://api.example.com');
 
 <OrbitEditor aiBackend={backend} exportBackend={backend} />;
 ```

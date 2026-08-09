@@ -27,5 +27,9 @@ export default defineConfig({
     },
     sourcemap: true,
   },
-  plugins: [dts({ include: ['src'] })],
+  plugins: [
+    // Tests are source, not surface: without the exclude the dts plugin emits a
+    // .d.ts for every file under src/__tests__ and the tarball ships them.
+    dts({ include: ['src'], exclude: ['src/__tests__'] }),
+  ],
 });

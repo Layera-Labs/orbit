@@ -478,9 +478,9 @@ complains.
 
 ### The publishable set (decided 2026-08-09)
 
-**12 packages publish, at `1.0.0-beta.2`** — the version root, `services/render`
+**12 packages publish, at `1.0.0-beta.3`** — the version root, `services/render`
 and `apps/web` also carry, so the repo has one number rather than a `0.0.1` SDK
-inside a `1.0.0-beta.2` product:
+inside a `1.0.0-beta.3` product:
 
 `video` · `model` · `render` · `providers` · `editor` — the engine and the v2 SDK.
 `core` · `react` · `next` · `ui` · `shared` · `effects` · `agentic` — v1. It is

@@ -16,7 +16,7 @@ This is **v2**, the current line, alongside `@layera-labs/model`,
 npm i @layera-labs/render@beta konva react-konva
 ```
 
-> **Beta.** `1.0.0-beta.2` under the `beta` tag; the API moves without notice.
+> **Beta.** `1.0.0-beta.3` under the `beta` tag; the API moves without notice.
 
 ## React 18 only, and this is the package that makes it non-negotiable
 

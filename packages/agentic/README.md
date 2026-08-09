@@ -25,7 +25,7 @@ nothing but the AI features:
 Editing, exporting and the whole v2 stack (`@layera-labs/editor` and friends) work with
 this package absent from the tree entirely.
 
-> **Beta.** `1.0.0-beta.2` under the `beta` tag; the API moves without notice.
+> **Beta.** `1.0.0-beta.3` under the `beta` tag; the API moves without notice.
 >
 > **v1 line, which is legacy.** There is no v2 equivalent yet; the v2 editor has no AI
 > layer at all.
@@ -57,11 +57,18 @@ list cannot do something the editor has no way to undo.
 ## You have to run the backend
 
 `OrbitBackendAdapter` is an HTTP client and nothing more. It posts to endpoints that
-you host; there is no Layera-operated service behind a default URL, and the
-`ORBIT_BACKEND_URL` constant in `@layera-labs/shared` points at a host that is not
-running. The render service in this repository (`services/render`) implements the
-generation endpoints, or you can implement `AiBackend` yourself against any provider —
-the interface is the contract, not this class.
+you host; there is no Layera-operated service behind a default URL. The render service
+in this repository (`services/render`) implements the generation endpoints, or you can
+implement `AiBackend` yourself against any provider — the interface is the contract, not
+this class.
+
+The backend URL is a **required** constructor argument as of `1.0.0-beta.3`, and the
+adapter throws if it is empty. It used to default to `https://api.orbit.ai`, which
+nobody runs, so omitting it produced a client that constructed without complaint, looked
+configured, and failed at the first request with a network error naming a host the
+caller had never chosen. The missing configuration is at construction; that is where it
+is now reported. (The matching `ORBIT_BACKEND_URL` constant in `@layera-labs/shared` is
+gone for the same reason.)
 
 The API key is passed to the constructor and travels in the client. Do not put a
 provider key there; put your own service's token, and let the service hold the

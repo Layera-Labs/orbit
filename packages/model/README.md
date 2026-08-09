@@ -12,7 +12,7 @@ bottom before you pick.
 npm i @layera-labs/model@beta
 ```
 
-> **Beta.** `1.0.0-beta.2` under the `beta` tag; the API moves without notice. The
+> **Beta.** `1.0.0-beta.3` under the `beta` tag; the API moves without notice. The
 > package itself has no React dependency, but the stack it belongs to is **React 18
 > only** — see [`@layera-labs/render`](https://github.com/Layera-Labs/orbit/tree/main/packages/render#readme)
 > for why.

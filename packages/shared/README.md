@@ -13,7 +13,7 @@ name those types — your own `AiBackend`, your own asset provider, your own pan
 npm i @layera-labs/shared@beta
 ```
 
-> **Beta.** `1.0.0-beta.2` under the `beta` tag; the API moves without notice.
+> **Beta.** `1.0.0-beta.3` under the `beta` tag; the API moves without notice.
 >
 > **v1 line, which is legacy.** The v2 stack has its own document types in
 > [`@layera-labs/model`](https://github.com/Layera-Labs/orbit/tree/main/packages/model#readme)
@@ -65,11 +65,25 @@ the package is not safe to import wholesale on a server.
 `EXPORT_QUALITY`, `EXPORT_SCALE`, `DEFAULT_FEATURE_FLAGS`, `TOOL_CONFIG`,
 `AI_MODELS`, and canvas/zoom defaults.
 
-Two of these are stale and you should not read them as configuration:
-`ORBIT_VERSION` still says `"0.0.1"` while the package is `1.0.0-beta.2`, and
-`ORBIT_BACKEND_URL` / `API_ENDPOINTS` point at a hosted service that is not running.
-The v1 editor no longer reads a backend URL from anywhere — backends are injected into
-`@layera-labs/react` as objects. These constants survive as defaults nothing consults.
+`ORBIT_VERSION` is also exported, and as of `1.0.0-beta.3` it is **generated from this
+package's `package.json`** at the front of the build rather than typed by hand. It had
+been typed by hand, and it said `"0.0.1"` in a package published at `1.0.0-beta.3` —
+two orders of release out of date, because a constant kept in step with a manifest by
+remembering to is not a constant. A test fails the suite if the generated copy falls
+behind the manifest, so the two cannot disagree again.
+
+`ORBIT_BACKEND_URL` has been **removed**. It defaulted to `https://api.orbit.ai`, a host
+nobody operates, and nothing in the SDK ever read it — so its only effect was to imply
+that a hosted Layera backend exists and that this is its address. A default aimed at a
+dead host is worse than none: it converts "you have not configured a backend" into a
+connection error thrown from inside a `fetch`, at request time, naming a domain the
+caller has never heard of. There is no Layera-operated backend. The URL of yours is now
+a required argument to `@layera-labs/agentic`'s `OrbitBackendAdapter`, which throws at
+construction if it is missing.
+
+`API_ENDPOINTS` stays, because it is not an address: it is the set of route shapes
+(`/v1/generate`, `/v1/inpaint`, …) that adapter posts to, relative to whatever base URL
+you give it — which is to say, what you implement if you are writing the service.
 
 ## Links
 

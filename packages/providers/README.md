@@ -16,7 +16,7 @@ This is **v2**, alongside `@layera-labs/model`, `@layera-labs/render` and
 npm i @layera-labs/providers@beta
 ```
 
-> **Beta.** `1.0.0-beta.2` under the `beta` tag; the API moves without notice.
+> **Beta.** `1.0.0-beta.3` under the `beta` tag; the API moves without notice.
 
 ## An absent provider hides its panel
 

@@ -11,7 +11,7 @@ export default function Home() {
     <main className="h-[100dvh] min-h-[100dvh] w-screen bg-slate-100">
       <OrbitEditor
         apiKey="orbit_sk_demo_key"
-        backendUrl="https://api.orbit.ai"
+        backendUrl="https://api.example.com"
         theme="orbit-light"
         config={{ width: 1080, height: 1080 }}
         providers={{

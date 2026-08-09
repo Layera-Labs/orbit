@@ -15,7 +15,7 @@ not this — see the bottom of this file.
 npm i @layera-labs/editor@beta konva react-konva
 ```
 
-> **Beta.** `1.0.0-beta.2` under the `beta` tag; the API moves without notice.
+> **Beta.** `1.0.0-beta.3` under the `beta` tag; the API moves without notice.
 >
 > **React 18 only.** `react`, `react-dom`, `konva` and `react-konva` are peers pinned
 > to the React-18 line, because `react-konva@18.2.x` is that line and two React copies

@@ -48,7 +48,7 @@ for `exportBackend`, `aiBackend` and the rest — including the fact that `apiKe
 
 ## Status
 
-> **Beta.** `1.0.0-beta.2` under the `beta` tag; the API moves without notice.
+> **Beta.** `1.0.0-beta.3` under the `beta` tag; the API moves without notice.
 >
 > **This is the v1 line, which is legacy.** The current architecture is
 > [`@layera-labs/editor`](https://github.com/Layera-Labs/orbit/tree/main/packages/editor#readme),

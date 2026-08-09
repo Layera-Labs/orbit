@@ -46,7 +46,7 @@ export default function EditorPage() {
     <div style={{ height: '100vh' }}>
       <OrbitEditor
         apiKey="orbit_sk_your_key"
-        backendUrl="https://api.orbit.ai"
+        backendUrl="https://api.example.com"
         config={{ width: 1080, height: 1080 }}
         callbacks={{
           onExport: (blob, format) => {

@@ -2,7 +2,9 @@
  * Orbit SDK Constants
  */
 
-export const ORBIT_VERSION = '0.0.1';
+// `ORBIT_VERSION` used to live here as a hand-typed string. It is now generated
+// from package.json into ./version.ts at build time, and re-exported from the
+// package root, so it cannot say something the manifest does not.
 
 // Canvas defaults
 export const DEFAULT_CANVAS_WIDTH = 1080;
@@ -13,8 +15,14 @@ export const MIN_ZOOM = 0.1;
 export const MAX_ZOOM = 5;
 export const DEFAULT_ZOOM = 1;
 
-// Backend
-export const ORBIT_BACKEND_URL = 'https://api.orbit.ai';
+// `ORBIT_BACKEND_URL` used to live here, defaulting to `https://api.orbit.ai` —
+// a host nobody operates. Nothing in the SDK read it, so its only effect was to
+// tell a reader that a hosted backend exists and that this is its address. A
+// default aimed at a dead host is worse than no default: it turns "you have not
+// configured a backend" into a DNS or connection error thrown from inside a
+// fetch, at request time, with the real cause nowhere in the message. There is
+// no Layera-operated backend; the URL of yours is a required argument to
+// `OrbitBackendAdapter`, and it fails loudly at construction if it is missing.
 
 // Asset APIs
 export const UNSPLASH_API_URL = 'https://api.unsplash.com';
@@ -104,7 +112,10 @@ export const KEYBOARD_SHORTCUTS = {
   toggleTheme: { key: 'l', modifiers: ['ctrl', 'meta'], description: 'Toggle theme' },
 } as const;
 
-// API endpoints
+// The paths `OrbitBackendAdapter` posts to, relative to whatever backend URL you
+// hand it. These are ROUTE SHAPES, not addresses — there is no host in them and
+// they name nothing hosted, so unlike the removed `ORBIT_BACKEND_URL` they stay:
+// they are what you implement if you are writing the service yourself.
 export const API_ENDPOINTS = {
   edit: '/v1/edit',
   generate: '/v1/generate',

@@ -8,7 +8,7 @@ GLSL source for both.
 npm i @layera-labs/effects@beta
 ```
 
-> **Beta.** `1.0.0-beta.2` under the `beta` tag; the API moves without notice.
+> **Beta.** `1.0.0-beta.3` under the `beta` tag; the API moves without notice.
 >
 > **v1 line, which is legacy.** It exists because `@layera-labs/core` uses it.
 
