@@ -78,11 +78,16 @@ const { activeTool, setTool } = useOrbitTool(engine);
 
 ### `useOrbitAgentic`
 
+Ships from `@orbit/react/agentic`, not from the package name — it is the one
+hook whose types come from `@orbit/agentic`, which is an optional peer. It takes
+an `AiBackend` you construct; it builds no client of its own.
+
 ```ts
+import { useOrbitAgentic } from '@orbit/react/agentic';
+
 const { generate, isGenerating, results, error } = useOrbitAgentic({
   engine,
-  apiKey,
-  backendUrl,
+  backend, // an AiBackend — e.g. @orbit/agentic's OrbitBackendAdapter
 });
 ```
 

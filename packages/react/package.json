@@ -11,6 +11,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./agentic": {
+      "types": "./dist/agentic/index.d.ts",
+      "import": "./dist/agentic/index.js"
+    },
     "./headless": {
       "types": "./dist/headless/index.d.ts",
       "import": "./dist/headless/index.js"
@@ -29,7 +33,6 @@
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "@orbit/agentic": "workspace:*",
     "@orbit/assets": "workspace:*",
     "@orbit/core": "workspace:*",
     "@orbit/effects": "workspace:*",
@@ -39,6 +42,7 @@
     "zustand": "^4.5.7"
   },
   "devDependencies": {
+    "@orbit/agentic": "workspace:*",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "react": "^18.2.0",
@@ -48,8 +52,14 @@
     "vite-plugin-dts": "^3.8.0"
   },
   "peerDependencies": {
+    "@orbit/agentic": "workspace:*",
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@orbit/agentic": {
+      "optional": true
+    }
   },
   "sideEffects": false
 }
