@@ -1,5 +1,5 @@
-import { OrbitEditor } from '@orbit/react';
-import { UnsplashProvider, PexelsProvider } from '@orbit/assets';
+import { OrbitEditor } from '@layera-labs/react';
+import { UnsplashProvider, PexelsProvider } from '@layera-labs/assets';
 
 // Set these in your .env file:
 // VITE_UNSPLASH_KEY=your_unsplash_key

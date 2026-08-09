@@ -7,7 +7,7 @@
  * fifths of a paid-for job away.
  */
 import { describe, expect, it, vi } from 'vitest';
-import type { Asset, AssetProvider } from '@orbit/shared';
+import type { Asset, AssetProvider } from '@layera-labs/shared';
 import { generate, mapLimit } from '../generate.ts';
 import { InMemoryStepLog } from '../steps.ts';
 import type { Format } from '../format.ts';

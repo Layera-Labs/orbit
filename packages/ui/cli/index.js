@@ -2,7 +2,7 @@
 
 /**
  * Orbit UI CLI
- * Usage: npx @orbit/ui add <component>
+ * Usage: npx @layera-labs/ui add <component>
  */
 
 const fs = require('fs');
@@ -30,9 +30,9 @@ function showHelp() {
 Orbit UI CLI
 
 Usage:
-  npx @orbit/ui add <component>     Add a component to your project
-  npx @orbit/ui list                List all available components
-  npx @orbit/ui help                Show this help message
+  npx @layera-labs/ui add <component>     Add a component to your project
+  npx @layera-labs/ui list                List all available components
+  npx @layera-labs/ui help                Show this help message
 
 Available components:
 ${COMPONENTS.map((c) => `  - ${c}`).join('\n')}
@@ -97,7 +97,7 @@ switch (command) {
   case 'add':
     if (!args[0]) {
       console.error('❌ Please specify a component name.');
-      console.log('Usage: npx @orbit/ui add <component>');
+      console.log('Usage: npx @layera-labs/ui add <component>');
       process.exit(1);
     }
     addComponent(args[0]);

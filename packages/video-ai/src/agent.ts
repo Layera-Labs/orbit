@@ -12,7 +12,7 @@ import {
   quoteCard,
   renderProject,
   type VideoProject,
-} from '@orbit/video/node';
+} from '@layera-labs/video/node';
 
 export type TemplateName = 'lyric_video' | 'caption_reel' | 'quote_card';
 

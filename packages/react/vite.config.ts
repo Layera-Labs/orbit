@@ -7,7 +7,7 @@ export default defineConfig({
     /*
      * THREE entries, because the package's `exports` map already promised
      * three. With a single `src/index.ts` entry nothing ever emitted
-     * `dist/headless/index.js`, so `@orbit/react/headless` resolved to types
+     * `dist/headless/index.js`, so `@layera-labs/react/headless` resolved to types
      * with no runtime behind them — a pre-existing break, fixed here because
      * `./agentic` needed exactly the same mechanism and shipping a second
      * subpath the build does not produce would have repeated it.
@@ -26,11 +26,11 @@ export default defineConfig({
     },
     /*
      * Everything this package DECLARES is external. It used to list only four
-     * names, so `@orbit/shared`, `@orbit/effects`, `jspdf` and `zustand` were
+     * names, so `@layera-labs/shared`, `@layera-labs/effects`, `jspdf` and `zustand` were
      * bundled into `dist` while ALSO being declared dependencies — a consumer
      * downloaded each twice, and the copies were not the same module. That is
      * merely wasteful for jspdf (2.6MB of it, most of the tarball) and an
-     * actual bug for `@orbit/shared`, which `@orbit/core` imports as a real
+     * actual bug for `@layera-labs/shared`, which `@layera-labs/core` imports as a real
      * external: two copies means two sets of module state behind one name.
      *
      * Regexes rather than bare names, for the reason `packages/video-ai`
@@ -38,7 +38,7 @@ export default defineConfig({
      * subpath import slips past it and drags the whole package in.
      */
     rollupOptions: {
-      external: [/^react($|\/)/, /^react-dom($|\/)/, /^@orbit\//, /^jspdf($|\/)/, /^zustand($|\/)/],
+      external: [/^react($|\/)/, /^react-dom($|\/)/, /^@layera-labs\//, /^jspdf($|\/)/, /^zustand($|\/)/],
     },
     sourcemap: true,
   },

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ExportJobPoller } from '../video-export/job-poller';
-import type { ExportJob } from '@orbit/shared';
+import type { ExportJob } from '@layera-labs/shared';
 
 describe('ExportJobPoller', () => {
   let onStatus: ReturnType<typeof vi.fn>;

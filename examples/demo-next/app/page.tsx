@@ -1,7 +1,7 @@
 'use client';
 
-import { OrbitEditor } from '@orbit/next';
-import { UnsplashProvider, PexelsProvider } from '@orbit/assets';
+import { OrbitEditor } from '@layera-labs/next';
+import { UnsplashProvider, PexelsProvider } from '@layera-labs/assets';
 
 const unsplashKey = process.env.NEXT_PUBLIC_UNSPLASH_KEY;
 const pexelsKey = process.env.NEXT_PUBLIC_PEXELS_KEY;

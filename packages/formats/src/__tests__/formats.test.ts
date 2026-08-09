@@ -15,8 +15,8 @@ import {
   type ScenePlan,
   type SceneVisual,
   type SpokenScene,
-} from '@orbit/pipeline';
-import { textOverlaysOf } from '@orbit/video/browser';
+} from '@layera-labs/pipeline';
+import { textOverlaysOf } from '@layera-labs/video/browser';
 import { FORMATS, chat, formatById, isOwn, itemNumbers, listicle, split, story } from '../index';
 
 /** Spoken scenes of a known length, so every start is arithmetic we can check. */

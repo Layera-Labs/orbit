@@ -2,8 +2,8 @@
  * Scene Graph - Manages the hierarchical layer tree
  */
 
-import { generateId } from '@orbit/shared';
-import type { Layer, SceneGraph as SceneGraphType, BackgroundProps, CanvasBorder } from '@orbit/shared';
+import { generateId } from '@layera-labs/shared';
+import type { Layer, SceneGraph as SceneGraphType, BackgroundProps, CanvasBorder } from '@layera-labs/shared';
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;

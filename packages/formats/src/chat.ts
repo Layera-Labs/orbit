@@ -13,8 +13,8 @@ import {
   type Format,
   type FormatBrief,
   type ScenePlan,
-} from '@orbit/pipeline';
-import { createProject, type Overlay, type VideoProject, type VisualTrackClip } from '@orbit/video/browser';
+} from '@layera-labs/pipeline';
+import { createProject, type Overlay, type VideoProject, type VisualTrackClip } from '@layera-labs/video/browser';
 
 /**
  * The message thread: a conversation, arriving one bubble at a time.

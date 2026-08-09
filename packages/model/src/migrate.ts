@@ -10,7 +10,7 @@ import type {
 } from './types';
 
 /**
- * Migration adapter from the legacy @orbit/core SceneGraph shape to the new
+ * Migration adapter from the legacy @layera-labs/core SceneGraph shape to the new
  * Document model, so designs saved by the old editor survive the cutover.
  *
  * The legacy shape is described structurally (not imported) to keep the model

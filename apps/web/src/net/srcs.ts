@@ -6,7 +6,7 @@
  * app's bundle graph; if a new src-bearing field is ever added to the model,
  * BOTH copies have to learn about it or an export will fail validation.
  */
-import type { VideoProject } from '@orbit/video/browser';
+import type { VideoProject } from '@layera-labs/video/browser';
 
 export function collectClientSrcs(project: VideoProject): unknown[] {
   return [

@@ -16,14 +16,14 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
-import type { VideoProject } from '@orbit/video/browser';
+import type { VideoProject } from '@layera-labs/video/browser';
 import { bearer, guestToken } from './guest.js';
 
 /** Every project that reached the encoder, in order. */
 const rendered: VideoProject[] = [];
 
-vi.mock('@orbit/video/node', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@orbit/video/node')>();
+vi.mock('@layera-labs/video/node', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@layera-labs/video/node')>();
   return {
     ...actual,
     renderProject: async (project: VideoProject) => {
@@ -35,7 +35,7 @@ vi.mock('@orbit/video/node', async (importOriginal) => {
 
 /* The language model: the split format's own worked example, always. */
 vi.mock('../brain.js', async () => {
-  const { split } = await import('@orbit/formats');
+  const { split } = await import('@layera-labs/formats');
   return {
     brainFromEnv: () => ({
       complete: async () => JSON.stringify({ ...split.brief.example, topic: 'Faked' }),

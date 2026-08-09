@@ -232,7 +232,7 @@ without changing editor behavior.
 | AI history                         | **Partial**                                   | History is stored locally. Provider URLs or local files can become unavailable, and there is no account-level durable generation library.    |
 | AI music generation                | **Not implemented**                           | The audio AI entry opens AI Studio, but there is no music-generation provider or endpoint.                                                   |
 | Automatic captions/transcription   | **Not implemented**                           | Advertised in the AI Studio feature list only.                                                                                               |
-| AI script/template agent           | **Library exists, mobile flow not connected** | `@orbit/video-ai` can create a limited template specification, but the current mobile AI path does not expose it through the render service. |
+| AI script/template agent           | **Library exists, mobile flow not connected** | `@layera-labs/video-ai` can create a limited template specification, but the current mobile AI path does not expose it through the render service. |
 
 ### Required AI configuration
 
@@ -249,8 +249,8 @@ dependencies.
 
 ## 7. Render service status
 
-The render service is an Express application using the `@orbit/video` FFmpeg
-renderer, `@orbit/video-gen` providers, `@orbit/auth`, and `@orbit/billing`.
+The render service is an Express application using the `@layera-labs/video` FFmpeg
+renderer, `@layera-labs/video-gen` providers, `@layera-labs/auth`, and `@layera-labs/billing`.
 
 ### 7.1 Implemented endpoints
 
@@ -488,10 +488,10 @@ The following commands completed successfully:
 
 | Check                                           | Result                                                                                                                      |
 | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm --filter @orbit/video test`               | **83 tests passed** (was 81; +2 for local-FX alpha and NaN guards).                                                         |
-| `pnpm --filter @orbit/video-gen test`           | **26 tests passed** across 4 files.                                                                                         |
-| `pnpm --filter @orbit/render-service test`      | **15 tests passed** (was 10; +5 for `collectClientSrcs`); 3 Postgres tests skipped because `TEST_DATABASE_URL` was not set. |
-| `pnpm --filter @orbit/render-service typecheck` | **Passed**.                                                                                                                 |
+| `pnpm --filter @layera-labs/video test`               | **83 tests passed** (was 81; +2 for local-FX alpha and NaN guards).                                                         |
+| `pnpm --filter @layera-labs/video-gen test`           | **26 tests passed** across 4 files.                                                                                         |
+| `pnpm --filter @layera-labs/render-service test`      | **15 tests passed** (was 10; +5 for `collectClientSrcs`); 3 Postgres tests skipped because `TEST_DATABASE_URL` was not set. |
+| `pnpm --filter @layera-labs/render-service typecheck` | **Passed**.                                                                                                                 |
 | `pnpm --dir apps/mobile exec tsc --noEmit`      | **Passed**.                                                                                                                 |
 | Mobile editor-operation test                    | **24 tests passed** (was 6), covering split-with-speed, ripple insert, track ordering, reorder, the title card, and notes.  |
 | Metro iOS bundle                                | **HTTP 200**, ~13.9 MB — the whole app resolves and compiles.                                                               |

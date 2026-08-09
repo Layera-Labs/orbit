@@ -6,7 +6,7 @@
  * the client can `await` it. Everything is plain JSON so it survives
  * `postMessage`/`injectJavaScript`.
  */
-import type { CanvasAction, Document, ID, Viewport } from '@orbit/model';
+import type { CanvasAction, Document, ID, Viewport } from '@layera-labs/model';
 
 export const ORBIT_BRIDGE_PROTOCOL = 1;
 

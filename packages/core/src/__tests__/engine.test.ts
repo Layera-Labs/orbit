@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { OrbitEngine } from '../engine';
-import type { Layer } from '@orbit/shared';
+import type { Layer } from '@layera-labs/shared';
 
 describe('OrbitEngine (without init)', () => {
   let engine: OrbitEngine;

@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useCallback } from 'react';
 import { useOrbitLayers } from '../../hooks/useOrbitEngine';
-import type { OrbitEngine } from '@orbit/core';
+import type { OrbitEngine } from '@layera-labs/core';
 import { createCenteredTextLayer } from '../../utils/layerPlacement';
 
 interface TextPanelProps {

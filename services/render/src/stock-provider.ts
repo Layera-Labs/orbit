@@ -1,5 +1,5 @@
-import { PexelsProvider } from "@orbit/assets";
-import type { AssetProvider } from "@orbit/shared";
+import { PexelsProvider } from "@layera-labs/assets";
+import type { AssetProvider } from "@layera-labs/shared";
 import { openverseProvider } from "./openverse.js";
 
 /**

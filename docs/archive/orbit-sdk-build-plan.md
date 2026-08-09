@@ -24,7 +24,7 @@ A solo-dev roadmap for an embeddable image + video editor with an agentic layer,
 
 ```
                          ┌─────────────────────────────┐
-                         │   @orbit/core  (headless TS) │
+                         │   @layera-labs/core  (headless TS) │
                          │  - JSON document schema       │
                          │  - store / reactivity (MobX)  │
                          │  - layers, timeline, history  │
@@ -34,7 +34,7 @@ A solo-dev roadmap for an embeddable image + video editor with an agentic layer,
             ┌────────────────────────────┼────────────────────────────┐
             ▼                            ▼                            ▼
   ┌───────────────────┐      ┌────────────────────┐      ┌────────────────────┐
-  │ @orbit/web (React)│      │ @orbit/render (Node)│      │ @orbit/agent (Node)│
+  │ @layera-labs/web (React)│      │ @layera-labs/render (Node)│      │ @layera-labs/agent (Node)│
   │ Konva canvas +    │      │ headless Konva →    │      │ Claude orchestrator│
   │ panels/toolbar/   │      │ PNG/JPG (image)     │      │ + fal/Replicate    │
   │ timeline UI       │      │ frames + ffmpeg →   │      │ + schema-ops tool  │
@@ -42,13 +42,13 @@ A solo-dev roadmap for an embeddable image + video editor with an agentic layer,
             │                └────────────────────┘      └────────────────────┘
             ▼
   ┌───────────────────┐
-  │ @orbit/react-native│  ← WebView loads the @orbit/web build
+  │ @layera-labs/react-native│  ← WebView loads the @layera-labs/web build
   │  WebView + JS bridge│     + native file/camera/share
   │  exposes SDK API    │
   └───────────────────┘
 ```
 
-**The core idea:** `@orbit/core` owns a single JSON document schema. The web UI renders it with Konva, the render service rasterizes the *same* schema in Node for pixel-parity exports, the agent *mutates* the same schema, and React Native simply embeds the web build. You design the schema once; everything else consumes it.
+**The core idea:** `@layera-labs/core` owns a single JSON document schema. The web UI renders it with Konva, the render service rasterizes the *same* schema in Node for pixel-parity exports, the agent *mutates* the same schema, and React Native simply embeds the web build. You design the schema once; everything else consumes it.
 
 **Why RN gets a WebView, not a native build:** Konva is web/canvas tech. Porting it natively is months of work you don't have. Embedding the web editor in `react-native-webview` reuses 100% of the editor and still lets you ship native chrome (file picker, camera, share sheet) around it. Nailing this embed is also your differentiator — most editor SDKs are weak on mobile/RN.
 
@@ -80,13 +80,13 @@ Each phase ends with something testable in your own mobile app. Ship vertically,
 **Goal:** the monorepo and the schema exist.
 - Turborepo with packages: `core`, `web`, `react-native`, `render`, `agent`, plus `demo-app` (your dogfood mobile app) and `demo-web`.
 - **Design the JSON document schema first.** Pages → layers (`image`, `text`, `shape`, `video`, `audio`) → per-layer transform, animation keyframes, timeline position. This schema is the contract for the entire product; spend real time here.
-- `@orbit/core`: store, layer CRUD, serialization (`toJSON`/`loadJSON`), undo/redo via transactions.
+- `@layera-labs/core`: store, layer CRUD, serialization (`toJSON`/`loadJSON`), undo/redo via transactions.
 - **Done when:** you can construct a document in code, serialize it, reload it, and undo/redo — with zero UI.
 - **Watch-out:** every shortcut you take in the schema now becomes a breaking change for paying clients later. Version the schema from commit one (`schemaVersion` field + migration hooks).
 
 ### Phase 1 — Image editor (web)
 **Goal:** rough Polotno parity for static design.
-- `@orbit/web`: Konva canvas bound to the core store. Select/move/resize/rotate handles, text editing, shapes, image upload, z-order, snapping/guides.
+- `@layera-labs/web`: Konva canvas bound to the core store. Select/move/resize/rotate handles, text editing, shapes, image upload, z-order, snapping/guides.
 - Side panel + toolbar components, themeable.
 - Client-side PNG/JPG export (canvas → blob) for the web fast path.
 - **Done when:** you can build a multi-layer poster in the browser and export it.
@@ -94,7 +94,7 @@ Each phase ends with something testable in your own mobile app. Ship vertically,
 
 ### Phase 2 — React Native embedding (delivers the "RN-first" promise)
 **Goal:** the image editor runs well *inside* your Expo app.
-- `@orbit/react-native`: a component that loads the `@orbit/web` build in `react-native-webview`.
+- `@layera-labs/react-native`: a component that loads the `@layera-labs/web` build in `react-native-webview`.
 - **JS bridge:** a typed message protocol (RN ↔ WebView) that exposes the public SDK API — `loadDocument`, `export`, `onChange`, `applyOps`, etc. RN devs only ever touch this surface.
 - Native integrations RN should own: image/video picker, camera, share sheet, file save.
 - **Done when:** you edit a design on a real mid-range Android (test a ₹12–15k phone), not just the simulator.
@@ -102,7 +102,7 @@ Each phase ends with something testable in your own mobile app. Ship vertically,
 
 ### Phase 3 — Server render service + the billing spine
 **Goal:** consistent server exports, and the meter exists before anything costs money.
-- `@orbit/render` on NestJS: run the **same Konva renderer headless in Node** (via `canvas`) to rasterize a document to PNG/JPG. This guarantees server output matches the editor.
+- `@layera-labs/render` on NestJS: run the **same Konva renderer headless in Node** (via `canvas`) to rasterize a document to PNG/JPG. This guarantees server output matches the editor.
 - Queue exports with BullMQ; store results in R2; return signed URLs.
 - **Billing/license spine (start now, not later):**
   - License keys per SDK customer (gate the editor like Polotno's key).
@@ -120,7 +120,7 @@ Each phase ends with something testable in your own mobile app. Ship vertically,
 
 ### Phase 5 — Agentic system (the wedge)
 **Goal:** natural-language create-and-edit, built as a standalone service portable into both the app and the SDK.
-- `@orbit/agent` on NestJS, Claude API with tool use. Core tools:
+- `@layera-labs/agent` on NestJS, Claude API with tool use. Core tools:
   - `apply_document_ops` — the killer tool. Claude reads the current Orbit JSON and emits **structured edit operations** (add layer, set property, reorder, animate). This is how "make this more festive" becomes real canvas edits. Validate every op against the schema before applying.
   - `generate_image` / `generate_video` — call fal/Replicate, store result in R2, insert as a layer.
   - `edit_image` — inpaint, background removal, upscale via fal/Replicate.
@@ -132,7 +132,7 @@ Each phase ends with something testable in your own mobile app. Ship vertically,
 
 ### Phase 6 — SDK packaging (developer experience)
 **Goal:** something a stranger can integrate without talking to you.
-- Clean public API surface for all three targets: `@orbit/react-native`, and web usage in Next.js (SSR-safe, dynamic import for the canvas) and plain React.
+- Clean public API surface for all three targets: `@layera-labs/react-native`, and web usage in Next.js (SSR-safe, dynamic import for the canvas) and plain React.
 - White-label theming (colors, fonts, layout slots), event hooks, controlled/uncontrolled modes.
 - License key validation, semantic versioning, schema migrations, changelog.
 - Docs site: quickstart per framework, API reference, live playground, recipes.

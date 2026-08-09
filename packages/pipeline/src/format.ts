@@ -10,7 +10,7 @@
  *
  * ## The interface is here and the formats are not, deliberately
  *
- * Same seam as `StepLog` and `GenerationQueue`. `@orbit/formats` depends on
+ * Same seam as `StepLog` and `GenerationQueue`. `@layera-labs/formats` depends on
  * this package; this package must never depend on it, or the runner ends up
  * coupled to the library of archetypes it is supposed to be indifferent to. The
  * package boundary is what makes that structural rather than a convention
@@ -30,7 +30,7 @@
  */
 import { ScenePlanError, type ScenePlan } from './scene-plan.ts';
 import type { ComposeInput } from './compose.ts';
-import type { VideoProject } from '@orbit/video/browser';
+import type { VideoProject } from '@layera-labs/video/browser';
 
 /** Inclusive on both ends. */
 export interface Bounds {

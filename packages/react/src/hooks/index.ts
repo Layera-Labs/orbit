@@ -7,6 +7,6 @@ export { useOrbitTool } from './useOrbitEngine';
  * `useOrbitAgentic` is deliberately NOT here. It is the one hook that is pure
  * AI surface — it does nothing but call an `AiBackend` — and this barrel is
  * re-exported wholesale by `src/index.ts`, so listing it put that surface on
- * the package name for everyone. It ships from `@orbit/react/agentic` instead.
+ * the package name for everyone. It ships from `@layera-labs/react/agentic` instead.
  */
 export { useEngineBridge } from './useEngineBridge';

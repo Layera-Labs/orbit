@@ -1,6 +1,6 @@
 import { useState, type MutableRefObject } from 'react';
 import type Konva from 'konva';
-import { dataURLToBlob, exportPageToSVG, exportStageToDataURL, svgStringToBlob } from '@orbit/render';
+import { dataURLToBlob, exportPageToSVG, exportStageToDataURL, svgStringToBlob } from '@layera-labs/render';
 import { useStore } from '../context';
 import { Icon } from './Icon';
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OrbitEngine } from '@orbit/core';
+import { OrbitEngine } from '@layera-labs/core';
 import {
   createBackgroundLayer,
   createCenteredTextLayer,

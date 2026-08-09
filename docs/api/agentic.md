@@ -5,7 +5,7 @@
 Connects to `api.orbit.ai` with injected system prompts.
 
 ```ts
-import { OrbitBackendAdapter } from '@orbit/agentic';
+import { OrbitBackendAdapter } from '@layera-labs/agentic';
 
 const adapter = new OrbitBackendAdapter(apiKey, 'https://api.orbit.ai');
 ```

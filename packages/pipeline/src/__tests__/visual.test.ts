@@ -11,7 +11,7 @@
  * every one given up is reported rather than swallowed.
  */
 import { describe, expect, it, vi } from 'vitest';
-import type { Asset, AssetProvider } from '@orbit/shared';
+import type { Asset, AssetProvider } from '@layera-labs/shared';
 import {
   NoVisualError,
   aspectMismatch,

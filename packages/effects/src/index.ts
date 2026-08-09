@@ -1,5 +1,5 @@
 /**
- * @orbit/effects - Orbit WebGL Effects and Shaders
+ * @layera-labs/effects - Orbit WebGL Effects and Shaders
  */
 
 export * from './shaders';

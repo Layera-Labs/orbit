@@ -1,9 +1,9 @@
 import * as React from 'react';
 import { useState, useCallback } from 'react';
-import { OrbitButton, OrbitSlider } from '@orbit/ui';
-import type { OrbitEngine } from '@orbit/core';
-import type { AdjustmentValues } from '@orbit/effects';
-import { DEFAULT_ADJUSTMENTS } from '@orbit/effects';
+import { OrbitButton, OrbitSlider } from '@layera-labs/ui';
+import type { OrbitEngine } from '@layera-labs/core';
+import type { AdjustmentValues } from '@layera-labs/effects';
+import { DEFAULT_ADJUSTMENTS } from '@layera-labs/effects';
 import { useOrbitLayers } from '../../hooks/useOrbitEngine';
 import { useToast } from '../ToastProvider';
 

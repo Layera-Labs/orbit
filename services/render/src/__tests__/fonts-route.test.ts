@@ -15,8 +15,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { bearer, guestToken } from './guest.js';
 
-vi.mock('@orbit/video/node', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@orbit/video/node')>();
+vi.mock('@layera-labs/video/node', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@layera-labs/video/node')>();
   return { ...actual, renderProject: async () => {} };
 });
 

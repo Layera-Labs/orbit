@@ -2,12 +2,12 @@
  * ScenePlan + what the voice actually did → a renderable `VideoProject`.
  *
  * The handoff. Everything before this is decisions and provider calls; from
- * here on it is `@orbit/video`'s problem, and the SAME project the editor opens
+ * here on it is `@layera-labs/video`'s problem, and the SAME project the editor opens
  * and the SAME call the export path already makes. That is the property worth
  * protecting: an automatic video and a hand-made one are the same document, so
  * "edit it afterwards" costs nothing to support and cannot drift.
  *
- * `@orbit/formats` will own one of these per archetype. This is the story
+ * `@layera-labs/formats` will own one of these per archetype. This is the story
  * format, written out here for the spike so the seam is real before the package
  * that holds a library of them exists.
  */
@@ -21,7 +21,7 @@ import {
   type VideoProject,
   type VisualTrackClip,
   type WordHighlight,
-} from '@orbit/video/browser';
+} from '@layera-labs/video/browser';
 import { captionTextOf, frameSize, type ScenePlan } from './scene-plan.ts';
 
 /** What one scene turned into once the voice had said it. */

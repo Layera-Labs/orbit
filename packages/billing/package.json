@@ -1,5 +1,5 @@
 {
-  "name": "@orbit/billing",
+  "name": "@layera-labs/billing",
   "version": "0.0.1",
   "private": true,
   "description": "License keys + credit ledger + usage metering — the spine generation debits before it costs money",

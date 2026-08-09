@@ -18,39 +18,39 @@ Orbit is distributed as a monorepo of scoped npm packages. Install only what you
 
 | Package | Install | Description |
 |---------|---------|-------------|
-| `@orbit/react` | `npm install @orbit/react` | React wrapper + full UI |
-| `@orbit/next` | `npm install @orbit/next` | Next.js wrapper |
-| `@orbit/core` | `npm install @orbit/core` | Vanilla canvas engine |
-| `@orbit/ui` | `npm install @orbit/ui` | UI component library |
-| `@orbit/shared` | `npm install @orbit/shared` | Types & utilities |
-| `@orbit/agentic` | `npm install @orbit/agentic` | AI backend adapter |
-| `@orbit/effects` | `npm install @orbit/effects` | WebGL shaders |
-| `@orbit/assets` | `npm install @orbit/assets` | Asset utilities |
+| `@layera-labs/react` | `npm install @layera-labs/react` | React wrapper + full UI |
+| `@layera-labs/next` | `npm install @layera-labs/next` | Next.js wrapper |
+| `@layera-labs/core` | `npm install @layera-labs/core` | Vanilla canvas engine |
+| `@layera-labs/ui` | `npm install @layera-labs/ui` | UI component library |
+| `@layera-labs/shared` | `npm install @layera-labs/shared` | Types & utilities |
+| `@layera-labs/agentic` | `npm install @layera-labs/agentic` | AI backend adapter |
+| `@layera-labs/effects` | `npm install @layera-labs/effects` | WebGL shaders |
+| `@layera-labs/assets` | `npm install @layera-labs/assets` | Asset utilities |
 
 ## Quick Install (React)
 
 ```bash
-npm install @orbit/react
+npm install @layera-labs/react
 ```
 
-`@orbit/react` includes `@orbit/core`, `@orbit/ui`, `@orbit/shared`, and `@orbit/agentic` as dependencies. You only need this one package for most React projects.
+`@layera-labs/react` includes `@layera-labs/core`, `@layera-labs/ui`, `@layera-labs/shared`, and `@layera-labs/agentic` as dependencies. You only need this one package for most React projects.
 
 ## Framework-Specific
 
 ### Next.js
 
 ```bash
-npm install @orbit/next
+npm install @layera-labs/next
 ```
 
-The Next.js package re-exports everything from `@orbit/react` with additional SSR-safe initialization.
+The Next.js package re-exports everything from `@layera-labs/react` with additional SSR-safe initialization.
 
 ### Vue / Svelte / Angular
 
-Use `@orbit/core` directly:
+Use `@layera-labs/core` directly:
 
 ```bash
-npm install @orbit/core @orbit/ui @orbit/agentic @orbit/shared
+npm install @layera-labs/core @layera-labs/ui @layera-labs/agentic @layera-labs/shared
 ```
 
 Mount the engine in your framework's `onMount` equivalent and bind the state to your reactive store.
@@ -61,7 +61,7 @@ Orbit is not currently distributed via CDN. Use `esm.sh` or `unpkg` at your own 
 
 ```html
 <script type="module">
-  import { OrbitEngine } from 'https://esm.sh/@orbit/core';
+  import { OrbitEngine } from 'https://esm.sh/@layera-labs/core';
 </script>
 ```
 

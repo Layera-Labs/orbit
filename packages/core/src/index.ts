@@ -1,5 +1,5 @@
 /**
- * @orbit/core - Orbit Canvas Engine
+ * @layera-labs/core - Orbit Canvas Engine
  * Vanilla TypeScript canvas engine with Fabric.js v6
  */
 

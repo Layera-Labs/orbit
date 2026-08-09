@@ -1,5 +1,5 @@
 /**
- * HTTP render service: wraps the headless `@orbit/video` engine so any client
+ * HTTP render service: wraps the headless `@layera-labs/video` engine so any client
  * (the iOS app, web, a webhook) can render a video server-side with ffmpeg.
  *
  * Endpoints:
@@ -25,7 +25,7 @@
  * `X-Orbit-Account` header the caller chose, which anyone could set to anyone
  * else's account.
  *
- * Generation is credit-metered via `@orbit/billing`: each account is granted
+ * Generation is credit-metered via `@layera-labs/billing`: each account is granted
  * `ORBIT_FREE_CREDITS` on first touch, and a `generate_image` debits 10 credits
  * — only on a successful generation. This ships
  * an IN-MEMORY ledger for local/dev use. A production deployment swaps
@@ -62,14 +62,14 @@ import {
   type ExportOutput,
   type VideoProject,
   type WordTiming,
-} from "@orbit/video/node";
+} from "@layera-labs/video/node";
 import {
   ElevenLabsProvider,
   GenerationService,
   ProviderError,
   RunwayProvider,
   groupWords,
-} from "@orbit/video-gen";
+} from "@layera-labs/video-gen";
 import {
   InMemoryLedgerStore,
   InsufficientCreditsError,
@@ -77,8 +77,8 @@ import {
   makeAccountId,
   type AccountId,
   type LedgerStore,
-} from "@orbit/billing";
-import { authFromEnv, AuthError, type UserStore } from "@orbit/auth";
+} from "@layera-labs/billing";
+import { authFromEnv, AuthError, type UserStore } from "@layera-labs/auth";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { collectClientSrcs, isClientSrc, makeResolveSrc } from "./resolve.js";
 import { isTerminal, toExportJob } from "./export-job.js";
@@ -94,8 +94,8 @@ import {
   startGenerationWorker,
   type GenerationQueue,
   type StepLog,
-} from "@orbit/pipeline";
-import { formatById } from "@orbit/formats";
+} from "@layera-labs/pipeline";
+import { formatById } from "@layera-labs/formats";
 import { openSse } from "./sse.js";
 import {
   TICKET_TTL_MS,
@@ -830,7 +830,7 @@ export function createServer(): Express {
    *
    * Done HERE, ahead of the render, rather than inside `resolveSrc` — that is
    * the security boundary and it is synchronous, and making it async would push
-   * a promise through `@orbit/video`'s whole argument builder. This keeps the
+   * a promise through `@layera-labs/video`'s whole argument builder. This keeps the
    * boundary exactly as it was: the file is restored to the media dir under its
    * own name, and `resolveSrc` still refuses anything that escapes it.
    *
@@ -1666,7 +1666,7 @@ export function createServer(): Express {
   /*
    * ---- watching a render ----
    *
-   * `ExportJobPoller` in `@orbit/core` has been written against an SSE endpoint
+   * `ExportJobPoller` in `@layera-labs/core` has been written against an SSE endpoint
    * plus a polling fallback since long before either existed. The polling half
    * is the route above; this is the other half.
    *
@@ -2608,8 +2608,8 @@ export function createServer(): Express {
         signal: ac.signal,
       });
       /*
-       * Annotated, not inferred. `groupWords` lives in `@orbit/video-gen` and
-       * `CaptionLine` in `@orbit/video`, two packages that do not depend on
+       * Annotated, not inferred. `groupWords` lives in `@layera-labs/video-gen` and
+       * `CaptionLine` in `@layera-labs/video`, two packages that do not depend on
        * each other — this line is the only place both are in scope, and so the
        * only place a divergence between what the transcriber emits and what the
        * clients parse is catchable at compile time rather than arriving at a

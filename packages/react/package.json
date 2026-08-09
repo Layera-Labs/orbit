@@ -1,5 +1,5 @@
 {
-  "name": "@orbit/react",
+  "name": "@layera-labs/react",
   "version": "1.0.0-beta.1",
   "description": "React wrapper for Orbit SDK",
   "license": "MIT",
@@ -43,17 +43,17 @@
     "clean": "rm -rf dist",
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
-  "//dependencies": "@orbit/assets was declared here and imported by nothing in src (0 hits); it survived only in the rollup `external` list. Publishing @orbit/react with it would have forced @orbit/assets onto the registry to satisfy an install that never uses it.",
+  "//dependencies": "@layera-labs/assets was declared here and imported by nothing in src (0 hits); it survived only in the rollup `external` list. Publishing @layera-labs/react with it would have forced @layera-labs/assets onto the registry to satisfy an install that never uses it.",
   "dependencies": {
-    "@orbit/core": "workspace:*",
-    "@orbit/effects": "workspace:*",
-    "@orbit/shared": "workspace:*",
-    "@orbit/ui": "workspace:*",
+    "@layera-labs/core": "workspace:*",
+    "@layera-labs/effects": "workspace:*",
+    "@layera-labs/shared": "workspace:*",
+    "@layera-labs/ui": "workspace:*",
     "jspdf": "^4.2.1",
     "zustand": "^4.5.7"
   },
   "devDependencies": {
-    "@orbit/agentic": "workspace:*",
+    "@layera-labs/agentic": "workspace:*",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "react": "^18.2.0",
@@ -63,15 +63,15 @@
     "vite-plugin-dts": "^3.8.0"
   },
   "peerDependencies": {
-    "@orbit/agentic": "workspace:*",
+    "@layera-labs/agentic": "workspace:*",
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
   },
   "peerDependenciesMeta": {
-    "@orbit/agentic": {
+    "@layera-labs/agentic": {
       "optional": true
     }
   },
   "sideEffects": false,
-  "//publishConfig": "REGISTRY AND ACCESS ARE NOT DECIDED YET, so publishConfig is deliberately absent rather than guessed. Public npm needs {\"access\":\"public\"} (a scoped package defaults to restricted and the publish fails without it). GitHub Packages needs {\"registry\":\"https://npm.pkg.github.com\"} and the @orbit scope would have to become @layera-labs. Add exactly one of those here before the first publish."
+  "//publishConfig": "REGISTRY AND ACCESS ARE NOT DECIDED YET, so publishConfig is deliberately absent rather than guessed. Public npm needs {\"access\":\"public\"} (a scoped package defaults to restricted and the publish fails without it). GitHub Packages needs {\"registry\":\"https://npm.pkg.github.com\"}; the @layera-labs scope already matches the owning GitHub org, so nothing further has to be renamed. Add exactly one of those here before the first publish."
 }

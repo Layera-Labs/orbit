@@ -4,12 +4,12 @@
  * font files off disk.
  *
  * This is the entry a server imports. It re-exports the browser surface as well
- * so `@orbit/video/node` is a superset — a Node caller wants the timeline model
+ * so `@layera-labs/video/node` is a superset — a Node caller wants the timeline model
  * and the effect math too, and asking it to import from two specifiers to
  * assemble one package would be a papercut with no upside.
  *
  * The default entry (`.`) is browser-SAFE and does not reach any of this. That
- * is the whole point of the split: a bundler following `@orbit/video` must
+ * is the whole point of the split: a bundler following `@layera-labs/video` must
  * never resolve `node:child_process` or `@resvg/resvg-js`, and
  * `__tests__/browser-safety.test.ts` walks both entries to prove it.
  */

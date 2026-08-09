@@ -1,7 +1,7 @@
 /**
  * Orbit video timeline model — headless, JSON-serializable.
  *
- * This is the video counterpart to `@orbit/model`: a project is plain data that
+ * This is the video counterpart to `@layera-labs/model`: a project is plain data that
  * a UI edits, an agent mutates, and the server render pipeline turns into an
  * MP4. v1 is intentionally minimal (a single visual track + text overlays +
  * audio) — the seed of a fuller NLE, not a CapCut-depth multi-track engine.

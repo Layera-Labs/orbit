@@ -1,5 +1,5 @@
 {
-  "name": "@orbit/render",
+  "name": "@layera-labs/render",
   "version": "1.0.0-beta.1",
   "description": "Konva-based renderer for the Orbit canvas editor (canvas = pure function of model)",
   "license": "MIT",
@@ -36,7 +36,7 @@
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "@orbit/model": "workspace:*",
+    "@layera-labs/model": "workspace:*",
     "valtio": "^2.1.2"
   },
   "peerDependencies": {
@@ -57,5 +57,5 @@
     "vite-plugin-dts": "^3.8.0"
   },
   "sideEffects": false,
-  "//publishConfig": "REGISTRY AND ACCESS ARE NOT DECIDED YET, so publishConfig is deliberately absent rather than guessed. Public npm needs {\"access\":\"public\"} (a scoped package defaults to restricted and the publish fails without it). GitHub Packages needs {\"registry\":\"https://npm.pkg.github.com\"} and the @orbit scope would have to become @layera-labs. Add exactly one of those here before the first publish."
+  "//publishConfig": "REGISTRY AND ACCESS ARE NOT DECIDED YET, so publishConfig is deliberately absent rather than guessed. Public npm needs {\"access\":\"public\"} (a scoped package defaults to restricted and the publish fails without it). GitHub Packages needs {\"registry\":\"https://npm.pkg.github.com\"}; the @layera-labs scope already matches the owning GitHub org, so nothing further has to be renamed. Add exactly one of those here before the first publish."
 }

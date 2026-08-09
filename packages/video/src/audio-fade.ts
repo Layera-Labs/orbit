@@ -22,7 +22,7 @@
  * It was written in `apps/mobile/src/model/audio-fade.ts` first, and this is now
  * the canonical copy — the same relationship `canvas-frame.ts`, `transform.ts`
  * and `srt.ts` already have with their mobile mirrors, for the same reason:
- * mobile installs outside the pnpm workspace and cannot import `@orbit/video`,
+ * mobile installs outside the pnpm workspace and cannot import `@layera-labs/video`,
  * so it keeps a vendored copy and a test asserts the two agree. The web imports
  * this one directly. Two hand-written implementations of "the plateau is the
  * volume" is exactly how one client starts exporting a level the other does not

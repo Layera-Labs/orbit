@@ -14,8 +14,8 @@ import {
   type Format,
   type FormatBrief,
   type ScenePlan,
-} from '@orbit/pipeline';
-import { createProject, type VideoProject, type VisualTrackClip } from '@orbit/video/browser';
+} from '@layera-labs/pipeline';
+import { createProject, type VideoProject, type VisualTrackClip } from '@layera-labs/video/browser';
 
 /**
  * Split screen: the subject on top, something to look at underneath.

@@ -5,8 +5,8 @@ import * as React from 'react';
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { useOrbitEngine } from './hooks/useOrbitEngine';
 import { useEngineBridge } from './hooks/useEngineBridge';
-import { OrbitSidebar } from '@orbit/ui';
-import { themeManager } from '@orbit/ui';
+import { OrbitSidebar } from '@layera-labs/ui';
+import { themeManager } from '@layera-labs/ui';
 import { useEditorStore } from './store';
 import { localStorageDesignBackend } from './backends/design';
 import { ToastProvider, useToast } from './components/ToastProvider';
@@ -32,7 +32,7 @@ import {
   TemplatesPanel,
 } from './components/panels';
 import { AgenticPanel } from './components/right-panel/AgenticPanel';
-import type { AssetProvider, SceneGraph as SceneGraphState } from '@orbit/shared';
+import type { AssetProvider, SceneGraph as SceneGraphState } from '@layera-labs/shared';
 import type { UploadConfig, AutoSaveConfig, DesignBackend, DesignData } from './store/types';
 import type { AiBackend, ExportBackend } from './backends/types';
 import { addLayerAndSelect, createImageLayer, createVideoLayer } from './utils/layerPlacement';
@@ -62,7 +62,7 @@ export interface OrbitEditorProps {
   autoSave?: AutoSaveConfig;
   /**
    * Where MP4 / PNG-sequence renders are sent. Injected rather than built here:
-   * the editor used to construct `@orbit/agentic`'s client for this, which made
+   * the editor used to construct `@layera-labs/agentic`'s client for this, which made
    * the AI package a runtime dependency of plain editing. Omit it and export
    * still works, in the browser, as GIF.
    */

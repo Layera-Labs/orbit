@@ -1,5 +1,5 @@
 {
-  "name": "@orbit/next",
+  "name": "@layera-labs/next",
   "version": "1.0.0-beta.1",
   "description": "Next.js wrapper for Orbit SDK",
   "license": "MIT",
@@ -35,7 +35,7 @@
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "@orbit/react": "workspace:*"
+    "@layera-labs/react": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
@@ -53,5 +53,5 @@
     "react-dom": "^18.0.0"
   },
   "sideEffects": false,
-  "//publishConfig": "REGISTRY AND ACCESS ARE NOT DECIDED YET, so publishConfig is deliberately absent rather than guessed. Public npm needs {\"access\":\"public\"} (a scoped package defaults to restricted and the publish fails without it). GitHub Packages needs {\"registry\":\"https://npm.pkg.github.com\"} and the @orbit scope would have to become @layera-labs. Add exactly one of those here before the first publish."
+  "//publishConfig": "REGISTRY AND ACCESS ARE NOT DECIDED YET, so publishConfig is deliberately absent rather than guessed. Public npm needs {\"access\":\"public\"} (a scoped package defaults to restricted and the publish fails without it). GitHub Packages needs {\"registry\":\"https://npm.pkg.github.com\"}; the @layera-labs scope already matches the owning GitHub org, so nothing further has to be renamed. Add exactly one of those here before the first publish."
 }

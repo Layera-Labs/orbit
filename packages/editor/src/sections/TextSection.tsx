@@ -1,4 +1,4 @@
-import type { NewElement } from '@orbit/model';
+import type { NewElement } from '@layera-labs/model';
 import { useStore } from '../context';
 import { defineSection } from './types';
 

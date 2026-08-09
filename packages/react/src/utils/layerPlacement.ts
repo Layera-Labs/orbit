@@ -1,5 +1,5 @@
-import type { OrbitEngine } from '@orbit/core';
-import type { Layer, ShapeContent } from '@orbit/shared';
+import type { OrbitEngine } from '@layera-labs/core';
+import type { Layer, ShapeContent } from '@layera-labs/shared';
 
 const FALLBACK_CANVAS_SIZE = 1080;
 

@@ -76,12 +76,12 @@ because getting them wrong costs real credits.
 ## The one piece of scaffolding
 
 `src/orbit/types.ts` hand-copies the slice of Orbit's video model this app
-touches. **It is temporary.** `@orbit/video` is not published yet, and an Expo
+touches. **It is temporary.** `@layera-labs/video` is not published yet, and an Expo
 app cannot join the pnpm workspace to reach it by source. When the package
 ships, that whole file becomes one line:
 
 ```ts
-export type { VideoProject, VisualTrack, VisualTrackClip } from '@orbit/video/browser';
+export type { VideoProject, VisualTrack, VisualTrackClip } from '@layera-labs/video/browser';
 ```
 
 Every field in it is a copy — same names, same units, same optionality — so the

@@ -3,7 +3,7 @@
  */
 import { useEffect } from 'react';
 import { useEditorStore } from '../store';
-import type { OrbitEngine } from '@orbit/core';
+import type { OrbitEngine } from '@layera-labs/core';
 
 export function useEngineBridge(engine: OrbitEngine | null) {
   const setLayers = useEditorStore((s) => s.setLayers);

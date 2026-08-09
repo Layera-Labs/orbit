@@ -50,7 +50,7 @@ export interface Scene {
 export interface ScenePlan {
   /** One line, for the operator and the library. Never rendered. */
   topic: string;
-  /** Which archetype composes it. `@orbit/formats` will own these. */
+  /** Which archetype composes it. `@layera-labs/formats` will own these. */
   format: string;
   aspect: Aspect;
   scenes: Scene[];

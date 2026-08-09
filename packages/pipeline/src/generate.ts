@@ -25,14 +25,14 @@
  * be tested without a key, a network or an encoder. The service supplies the
  * real ones.
  */
-import type { CaptionLine, VideoProject } from '@orbit/video/browser';
+import type { CaptionLine, VideoProject } from '@layera-labs/video/browser';
 import type { BrandKit, SceneVisual, SpokenScene } from './compose.ts';
 import type { Format } from './format.ts';
 import { planScenes, type Brain } from './planner.ts';
 import { captionTextOf, frameSize, type Aspect, type ScenePlan } from './scene-plan.ts';
 import { runStep, type StepLog } from './steps.ts';
 import { resolveVisual, type AssetStore, type Compromise } from './visual.ts';
-import type { AssetProvider } from '@orbit/shared';
+import type { AssetProvider } from '@layera-labs/shared';
 
 export interface Spoken {
   /** An audio src the renderer understands — a path or an `upload:` token. */

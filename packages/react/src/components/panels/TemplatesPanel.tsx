@@ -2,9 +2,9 @@
  * TemplatesPanel - Preset canvas sizes and template gallery
  */
 import * as React from 'react';
-import { SOCIAL_PRESETS } from '@orbit/shared';
+import { SOCIAL_PRESETS } from '@layera-labs/shared';
 import { useEditorStore } from '../../store';
-import type { OrbitEngine } from '@orbit/core';
+import type { OrbitEngine } from '@layera-labs/core';
 
 interface TemplatesPanelProps {
   engine: OrbitEngine | null;

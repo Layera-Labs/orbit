@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useEffect } from 'react';
-import type { OrbitEngine } from '@orbit/core';
+import type { OrbitEngine } from '@layera-labs/core';
 
 interface KeyboardShortcutsProps {
   engine: OrbitEngine | null;

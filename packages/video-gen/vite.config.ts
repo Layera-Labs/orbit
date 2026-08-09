@@ -10,7 +10,7 @@ export default defineConfig({
       fileName: 'index',
     },
     rollupOptions: {
-      external: [/^node:/, '@orbit/billing'],
+      external: [/^node:/, '@layera-labs/billing'],
     },
     sourcemap: true,
   },

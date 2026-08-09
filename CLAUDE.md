@@ -19,8 +19,20 @@ CLAUDE.md carrying everything that was learned building it.
 names. Naming the SDK **Galaxy was considered and rejected**: Apple's identifier
 namespace is global and another team holds `com.galaxy.*` (see the bundle-id note
 below, which cost a rename), Samsung owns the mark in exactly this space, and the
-codebase is `@orbit/*` down to storage keys, `ORBIT_JWT_SECRET`, the `.orbit` CSS
+codebase is Orbit down to storage keys, `ORBIT_JWT_SECRET`, the `.orbit` CSS
 scope and the bundle id. Don't re-open it.
+
+**The npm SCOPE is `@layera-labs`, and that is not a rebrand** (2026-08-09). Every
+workspace package is `@layera-labs/x`. `@orbit` on npm belongs to the Orbit.js
+project, which already publishes `@orbit/core`, `@orbit/data`, `@orbit/store` and a
+dozen more, so `npm publish` under it returns 403 — the scope was never available
+to take. Nothing of ours had been published, so the rename broke no consumer.
+**Package identity moved; product identity did not.** The `.orbit` / `.orbitEmbedded`
+CSS scope, the `--o-*` and `.o-*` variables, every `ORBIT_*` env var, the
+`orbit-media:` / `orbit.auth` storage keys, the bundle ids and the render service's
+`service: "orbit-render"` all still say Orbit, deliberately — they are runtime
+identity, and renaming them would invalidate stored projects and deployed config.
+When you meet an `orbit` string, ask which of the two it is before touching it.
 
 Source-of-truth docs: [docs/roadmap.md](docs/roadmap.md),
 [docs/architecture-v2.md](docs/architecture-v2.md),
@@ -57,10 +69,10 @@ is still the repo root, so nothing about the Dockerfile's depth changed.
 2. **Measure ffmpeg; do not reason about it.** Probe the filter with known RGB
    bytes and read the output. That method has caught several shipping bugs that
    looked obviously correct on paper.
-3. **`node:` and the native addon live behind `@orbit/video/node`, and nowhere else.**
+3. **`node:` and the native addon live behind `@layera-labs/video/node`, and nowhere else.**
    The DEFAULT entry is browser-safe — `src/index.ts` is `export * from './browser'`
-   and nothing more, so `@orbit/video` and `@orbit/video/browser` are the same 31
-   modules with zero `node:` imports. `@orbit/video/node` is the superset: 34
+   and nothing more, so `@layera-labs/video` and `@layera-labs/video/browser` are the same 31
+   modules with zero `node:` imports. `@layera-labs/video/node` is the superset: 34
    modules, reaching `@resvg/resvg-js`, `node:child_process`, `node:fs`,
    `node:fs/promises`, `node:os` and `node:path`. (Measured against the packed
    tarball, 2026-08-09.) It used to be the other way round — the default was
@@ -75,7 +87,7 @@ is still the repo root, so nothing about the Dockerfile's depth changed.
 
 **The mobile editor's rules moved with it** to `~/Github/orbit-mobile/CLAUDE.md`:
 the vendored-model discipline, the parity tests, Vela, VIcon, the simulator
-verification workflow. If you are changing `@orbit/video` in a way that touches an
+verification workflow. If you are changing `@layera-labs/video` in a way that touches an
 effect that app mirrors, that file names the mirrors.
 
 ## The web app (`apps/web`)
@@ -132,7 +144,7 @@ Next 14 App Router. **One editor** over the v2 SDK plus a browser video engine.
   Sharing one made `pnpm build` corrupt a running dev server into blank pages.
 - **Browser video engine** (`src/video/engine/`): canvas 2D, one rAF loop on a project clock,
   `<video>` elements as decoders, WebAudio for sound. It **computes nothing** — `frameStateAt`
-  in `@orbit/video` returns a `DrawOp[]` and the compositor executes it. Each clip is drawn
+  in `@layera-labs/video` returns a `DrawOp[]` and the compositor executes it. Each clip is drawn
   into a **scratch canvas** first, because `ctx.filter` and `globalCompositeOperation` apply to
   the whole canvas, not the clip rect. Grades use an SVG `feColorMatrix`, not CSS
   `brightness()`, because ffmpeg's `eq=brightness` ADDS and CSS multiplies.
@@ -194,7 +206,7 @@ Next 14 App Router. **One editor** over the v2 SDK plus a browser video engine.
   written onto `<html>` (an inline style the server didn't render warns at hydration).
   Anything constant across themes — a dark scrim over a photograph and its text — uses
   `--w-scrim`/`--w-on-scrim`, which do not flip.
-- **The SDK skin must match the theme selectors explicitly.** `@orbit/editor` ships a
+- **The SDK skin must match the theme selectors explicitly.** `@layera-labs/editor` ships a
   `.orbit[data-theme='light']` block re-declaring ~25 `--o-*` vars, which outranks a
   plain `.orbit`. `orbit-editor-skin.css` therefore declares on
   `.orbit, .orbit[data-theme='light'], .orbit[data-theme='dark']` — drop that and the
@@ -221,9 +233,9 @@ Next 14 App Router. **One editor** over the v2 SDK plus a browser video engine.
   actionable. It also must not cache a rejected promise — that turned one transient
   failure into a permanently dead database for the life of the page.
 
-`packages/video` has subpath exports: `@orbit/video` and `@orbit/video/browser` are both
+`packages/video` has subpath exports: `@layera-labs/video` and `@layera-labs/video/browser` are both
 pure and browser-safe (the default entry re-exports `./browser` and nothing else);
-`@orbit/video/node` is the superset that adds ffmpeg, resvg and fs. See hard rule 3.
+`@layera-labs/video/node` is the superset that adds ffmpeg, resvg and fs. See hard rule 3.
 
 **Hand-built SVG is an injection surface** (2026-07-29). A `VideoProject` arrives as JSON
 and is cast, never validated, so every field TypeScript calls a `number` is whatever the
@@ -242,7 +254,7 @@ Never interpolate a raw value into markup here.
 pnpm install && pnpm build      # turbo
 pnpm test                       # vitest, tests in src/__tests__/*.test.ts
 pnpm typecheck
-pnpm --filter @orbit/studio dev # v2 demo
+pnpm --filter @layera-labs/studio dev # v2 demo
 ```
 
 ## Known gaps / deliberate non-features
@@ -433,8 +445,8 @@ So **the dual-render invariant is currently unenforced on the mobile side.** A
 change to an effect here can silently diverge from that app's preview, and nothing
 will say so. That is a live risk with a known fix, not a mystery:
 
-**When `@orbit/video` is published, re-point those 12 files at
-`@orbit/video/browser` in orbit-mobile.** It is the first thing publishing
+**When `@layera-labs/video` is published, re-point those 12 files at
+`@layera-labs/video/browser` in orbit-mobile.** It is the first thing publishing
 unblocks, and it should happen the same day.
 
 ### Still to do
@@ -445,19 +457,20 @@ unblocks, and it should happen the same day.
    registry, and at what access level.** Every published manifest carries a
    `//publishConfig` note stating the two options and what each requires;
    `publishConfig` itself is deliberately absent rather than guessed, because
-   guessing public npm and being wrong publishes source to the world, and
-   guessing GitHub Packages means renaming the `@orbit` scope to `@layera-labs`
-   (a scope on GitHub Packages must match the owning org). Fill exactly one in.
+   guessing public npm and being wrong publishes source to the world. The scope
+   question that used to sit here is settled: the packages are `@layera-labs/*`,
+   which is both free on public npm and a legal GitHub Packages scope (it matches
+   the owning org). Fill exactly one in.
 2. **Restore orbit-mobile's 12 parity tests** against the published package.
 3. **Beta-open this repo.**
-4. **Shortspilot as its own repo**, consuming published `@orbit/*` like any other
+4. **Shortspilot as its own repo**, consuming published `@layera-labs/*` like any other
    customer. This REVERSES `shortspilot-build-plan.md` §2, which recommends
-   in-monorepo — soundly, because that recommendation rested on "every `@orbit/*`
+   in-monorepo — soundly, because that recommendation rested on "every `@layera-labs/*`
    package is private and unpublished" and publishing removes its premise. Do not
    re-litigate §2 without noticing that.
 5. Then multiple products on one published SDK, which is the actual goal.
 
-**What this makes non-negotiable:** a breaking change to `@orbit/video` is now a
+**What this makes non-negotiable:** a breaking change to `@layera-labs/video` is now a
 release, not a refactor. Semver starts mattering at step 3, not when someone
 complains.
 
@@ -471,7 +484,7 @@ already carried, so the repo has one number rather than a `0.0.1` SDK inside a
 `core` · `react` · `next` · `ui` · `shared` · `effects` · `agentic` — v1. It is
 legacy and maintenance-only, but it is feature-complete, it is what `docs/guide/`
 documents, and the AI layer was JUST put behind an optional peer (3ff9f20) for
-exactly this. `agentic` has to publish or `@orbit/react/agentic` is a subpath no
+exactly this. `agentic` has to publish or `@layera-labs/react/agentic` is a subpath no
 external consumer could ever satisfy.
 
 **8 stay private, with the reason in each manifest's `//private`:** `assets`
@@ -481,7 +494,7 @@ hosted AI wedge, not something a consumer mounts), `pipeline` · `formats`
 (already private), `react-native` (a bridge to a WebView-hosted build that is
 neither published nor hosted, and the roadmap deprioritized that path).
 
-**Known, deliberate:** `@orbit/react` — the name a newcomer reaches for first — is
+**Known, deliberate:** `@layera-labs/react` — the name a newcomer reaches for first — is
 v1. If v2 ever wants that name it cannot have it. Flagged, not decided.
 
 ### React 18 only, and this was measured rather than assumed

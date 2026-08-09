@@ -16,7 +16,7 @@ import type {
   ExportJob,
   ExportInitResponse,
   ExportListResponse,
-} from '@orbit/shared';
+} from '@layera-labs/shared';
 import type { CanvasAgentParams, CanvasAgentResponse } from './types';
 import { SYSTEM_PROMPTS } from './prompts';
 
@@ -26,7 +26,7 @@ import { SYSTEM_PROMPTS } from './prompts';
  * Export is core editing — it is what the transitions and filters an editor
  * already applied get written into. It lives in this file today only because
  * one HTTP client happened to grow both halves, and that accident is why
- * `@orbit/react` cannot be installed without the AI package: `OrbitEditor`
+ * `@layera-labs/react` cannot be installed without the AI package: `OrbitEditor`
  * renders `VideoExportModal`, which reaches for an adapter, which lives here.
  *
  * Named separately as the first step out of that. Nothing an EDITOR needs
@@ -35,8 +35,8 @@ import { SYSTEM_PROMPTS } from './prompts';
  * export without it is not a decision, it is a dependency.
  *
  * The rest of the move — this interface and its implementation leaving the
- * package, `@orbit/react` taking an injected backend rather than constructing
- * one, and `@orbit/agentic` becoming an optional peer — is deliberately NOT
+ * package, `@layera-labs/react` taking an injected backend rather than constructing
+ * one, and `@layera-labs/agentic` becoming an optional peer — is deliberately NOT
  * done in this commit. Splitting the surface is safe and provable on its own;
  * relocating it changes every consumer, and doing both at once would leave no
  * green step in between.

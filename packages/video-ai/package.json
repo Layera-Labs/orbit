@@ -1,5 +1,5 @@
 {
-  "name": "@orbit/video-ai",
+  "name": "@layera-labs/video-ai",
   "version": "0.0.1",
   "private": true,
   "description": "AI wedge: turn a natural-language prompt into a rendered Orbit video via templates",
@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@google/genai": "^2.10.0",
-    "@orbit/video": "workspace:*"
+    "@layera-labs/video": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

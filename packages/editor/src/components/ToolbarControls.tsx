@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useSnapshot } from 'valtio';
-import type { Element, ID, OrbitStore, Shadow } from '@orbit/model';
+import type { Element, ID, OrbitStore, Shadow } from '@layera-labs/model';
 import { useProviders } from '../context';
 import { Icon } from './Icon';
 import { Popover, SliderRow } from './Popover';
