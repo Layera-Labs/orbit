@@ -20,16 +20,28 @@ import type {
 import type { CanvasAgentParams, CanvasAgentResponse } from './types';
 import { SYSTEM_PROMPTS } from './prompts';
 
-export interface AIBackendAdapter {
-  generateImage(params: GenerateParams): Promise<GeneratedAsset>;
-  inpaint(params: InpaintParams): Promise<GeneratedAsset>;
-  outpaint(params: OutpaintParams): Promise<GeneratedAsset>;
-  adjustLighting(params: LightingParams): Promise<GeneratedAsset>;
-  imageToImage(params: ImageToImageParams): Promise<GeneratedAsset>;
-  generateVideo(params: VideoGenerateParams): Promise<GeneratedAsset>;
-  generateAudio(params: AudioGenerateParams): Promise<GeneratedAsset>;
-  runCanvasAgent(params: CanvasAgentParams): Promise<CanvasAgentResponse>;
-  // Video export
+/**
+ * Rendering a project to a file. **Not AI, and the split matters.**
+ *
+ * Export is core editing — it is what the transitions and filters an editor
+ * already applied get written into. It lives in this file today only because
+ * one HTTP client happened to grow both halves, and that accident is why
+ * `@orbit/react` cannot be installed without the AI package: `OrbitEditor`
+ * renders `VideoExportModal`, which reaches for an adapter, which lives here.
+ *
+ * Named separately as the first step out of that. Nothing an EDITOR needs
+ * should be reachable only through a package a developer may have chosen not
+ * to use — using the AI layer is their decision, and an editor that cannot
+ * export without it is not a decision, it is a dependency.
+ *
+ * The rest of the move — this interface and its implementation leaving the
+ * package, `@orbit/react` taking an injected backend rather than constructing
+ * one, and `@orbit/agentic` becoming an optional peer — is deliberately NOT
+ * done in this commit. Splitting the surface is safe and provable on its own;
+ * relocating it changes every consumer, and doing both at once would leave no
+ * green step in between.
+ */
+export interface ExportBackend {
   initVideoExport(params: VideoExportOptions): Promise<ExportInitResponse>;
   markExportReady(jobId: string): Promise<void>;
   getExportStatus(jobId: string): Promise<ExportJob>;
@@ -39,7 +51,27 @@ export interface AIBackendAdapter {
   getExportEventsUrl(jobId: string): string;
 }
 
-export class OrbitBackendAdapter implements AIBackendAdapter {
+/** Generating pictures, video and audio. The half that is genuinely optional. */
+export interface AiBackend {
+  generateImage(params: GenerateParams): Promise<GeneratedAsset>;
+  inpaint(params: InpaintParams): Promise<GeneratedAsset>;
+  outpaint(params: OutpaintParams): Promise<GeneratedAsset>;
+  adjustLighting(params: LightingParams): Promise<GeneratedAsset>;
+  imageToImage(params: ImageToImageParams): Promise<GeneratedAsset>;
+  generateVideo(params: VideoGenerateParams): Promise<GeneratedAsset>;
+  generateAudio(params: AudioGenerateParams): Promise<GeneratedAsset>;
+  runCanvasAgent(params: CanvasAgentParams): Promise<CanvasAgentResponse>;
+}
+
+/**
+ * Both halves, as one client.
+ *
+ * Kept as an alias so nothing that already names this type has to change while
+ * the split is in progress. It is the thing being dismantled, not the target.
+ */
+export type AIBackendAdapter = AiBackend & ExportBackend;
+
+export class OrbitBackendAdapter implements AiBackend, ExportBackend {
   constructor(
     private apiKey: string,
     private backendUrl: string = 'https://api.orbit.ai'
