@@ -476,9 +476,9 @@ complains.
 
 ### The publishable set (decided 2026-08-09)
 
-**12 packages publish, at `1.0.0-beta.1`** — the version root and `services/render`
-already carried, so the repo has one number rather than a `0.0.1` SDK inside a
-`1.0.0-beta.1` product:
+**12 packages publish, at `1.0.0-beta.2`** — the version root, `services/render`
+and `apps/web` also carry, so the repo has one number rather than a `0.0.1` SDK
+inside a `1.0.0-beta.2` product:
 
 `video` · `model` · `render` · `providers` · `editor` — the engine and the v2 SDK.
 `core` · `react` · `next` · `ui` · `shared` · `effects` · `agentic` — v1. It is
@@ -496,6 +496,32 @@ neither published nor hosted, and the roadmap deprioritized that path).
 
 **Known, deliberate:** `@layera-labs/react` — the name a newcomer reaches for first — is
 v1. If v2 ever wants that name it cannot have it. Flagged, not decided.
+
+### `beta.2`: compiled is not exported
+
+`vite` builds every module under `src/` into `dist/`, so a symbol can be present,
+typed and documented in the tarball while being reachable by no specifier at all
+— the exports map admits only `.`, `./browser`, `./node`, `./types`, and a
+bundler rejects a deep `@layera-labs/video/dist/xfade.js` outright. In-workspace
+nothing notices, because every consumer here imports from `src/` through
+`workspace:*`. **It surfaces the moment something installs the package from
+outside**, which is what restoring orbit-mobile's parity tests did: three of them
+had to reach into `node_modules/@layera-labs/video/dist/*.js` by file path,
+because `gradientEnds`, `blurCommands`/`zoomExpr` and the whole `overlay-clip`
+module were re-exported from no entry.
+
+`browser.ts` now names all five. They were already in the browser graph before
+this — `frame.ts` imports `overlay-clip`, `browser.ts` already exported
+`backgroundToSVG` — so `browser-safety.test.ts` is unchanged and its
+"`.` reaches exactly what `./browser` reaches" assertion still holds.
+
+The general rule this leaves: **a mirror in orbit-mobile with no importable
+counterpart here is a parity test that cannot be written.** When a vendored
+module gains a function the mirror needs, export it in the same commit.
+`karaoke.ts`, `hdr.ts` and `svg.ts` are in the same compiled-but-unexported
+position and were deliberately LEFT there — nothing mirrors them, and `svg.ts` in
+particular (`esc`/`num`/`col`/`assertNoExternalRefs`) is the injection guard, not
+a surface to promise.
 
 ### React 18 only, and this was measured rather than assumed
 

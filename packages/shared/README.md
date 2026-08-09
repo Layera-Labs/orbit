@@ -13,7 +13,7 @@ name those types — your own `AiBackend`, your own asset provider, your own pan
 npm i @layera-labs/shared@beta
 ```
 
-> **Beta.** `1.0.0-beta.1` under the `beta` tag; the API moves without notice.
+> **Beta.** `1.0.0-beta.2` under the `beta` tag; the API moves without notice.
 >
 > **v1 line, which is legacy.** The v2 stack has its own document types in
 > [`@layera-labs/model`](https://github.com/Layera-Labs/orbit/tree/main/packages/model#readme)
@@ -66,7 +66,7 @@ the package is not safe to import wholesale on a server.
 `AI_MODELS`, and canvas/zoom defaults.
 
 Two of these are stale and you should not read them as configuration:
-`ORBIT_VERSION` still says `"0.0.1"` while the package is `1.0.0-beta.1`, and
+`ORBIT_VERSION` still says `"0.0.1"` while the package is `1.0.0-beta.2`, and
 `ORBIT_BACKEND_URL` / `API_ENDPOINTS` point at a hosted service that is not running.
 The v1 editor no longer reads a backend URL from anywhere — backends are injected into
 `@layera-labs/react` as objects. These constants survive as defaults nothing consults.

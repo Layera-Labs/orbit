@@ -25,7 +25,7 @@ a render service that does the actual encoding with ffmpeg.
 > milestone — see [Roadmap](#roadmap). Until then the APIs move without notice.
 >
 > Prep is done as of 2026-08-09: 12 packages are marked publishable at
-> `1.0.0-beta.1`, the other 8 are `private: true`, and the tarballs have been
+> `1.0.0-beta.2`, the other 8 are `private: true`, and the tarballs have been
 > packed and installed into a scratch Vite app and a scratch Next app outside
 > this repo — both build, both typecheck under `skipLibCheck: false`, and neither
 > browser bundle contains a `node:` builtin. The one thing left is choosing a
@@ -432,7 +432,7 @@ cd examples/mobile && npx vitest run   # Expo examples are outside the workspace
 Near-term, in order:
 
 1. **Publish `@layera-labs/*` to a registry.** The current milestone, and it gates
-   everything below. The packaging is done — 12 publishable at `1.0.0-beta.1`, 8
+   everything below. The packaging is done — 12 publishable at `1.0.0-beta.2`, 8
    `private: true` — and what is left is one decision nobody should guess:
    **which registry, at what access level.** Public npm needs
    `{"access":"public"}` or a scoped publish fails; GitHub Packages needs its own

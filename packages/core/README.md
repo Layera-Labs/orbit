@@ -23,7 +23,7 @@ npm i @layera-labs/core@beta
 > If you are starting something new, start there. The two lines share no code and do
 > not interoperate.
 
-> **Beta.** `1.0.0-beta.1` under the `beta` tag; the API moves without notice.
+> **Beta.** `1.0.0-beta.2` under the `beta` tag; the API moves without notice.
 
 ## Usage
 

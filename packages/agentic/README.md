@@ -25,7 +25,7 @@ nothing but the AI features:
 Editing, exporting and the whole v2 stack (`@layera-labs/editor` and friends) work with
 this package absent from the tree entirely.
 
-> **Beta.** `1.0.0-beta.1` under the `beta` tag; the API moves without notice.
+> **Beta.** `1.0.0-beta.2` under the `beta` tag; the API moves without notice.
 >
 > **v1 line, which is legacy.** There is no v2 equivalent yet; the v2 editor has no AI
 > layer at all.

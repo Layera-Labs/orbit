@@ -16,7 +16,7 @@ npm i @layera-labs/react@beta
 > Both export a component called `OrbitEditor`; they share no code and do not
 > interoperate. If you are starting something new, install `@layera-labs/editor`.
 
-> **Beta.** `1.0.0-beta.1` under the `beta` tag; the API moves without notice.
+> **Beta.** `1.0.0-beta.2` under the `beta` tag; the API moves without notice.
 >
 > **React 18 only.** `react` and `react-dom` are peers at `^18.0.0`.
 

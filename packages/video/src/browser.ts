@@ -129,7 +129,10 @@ export {
   slideOffsetAt,
 } from './element-anim';
 export type { ElementAnimPair } from './element-anim';
-export { backgroundToSVG } from './background-svg';
+// `gradientEnds` travels with `backgroundToSVG` because a second surface
+// painting the same gradient — the canvas frame here, a Skia preview outside —
+// must derive its endpoints from this arithmetic rather than re-deriving them.
+export { backgroundToSVG, gradientEnds } from './background-svg';
 export {
   canvasFramePx,
   canvasFrameToSVG,
@@ -177,6 +180,7 @@ export {
   MAX_OVERLAP_FRAC,
   TRANSITIONS,
   isAlphaOnly,
+  blurCommands,
   blurSigmaAt,
   flashAlphaAt,
   flashColor,
@@ -201,6 +205,7 @@ export {
   xfadeStateAt,
   xfadeStateFor,
   xfadeVeilAt,
+  zoomExpr,
 } from './xfade';
 export type {
   ClipXfades,
@@ -232,6 +237,12 @@ export type { CaptionLine } from './captions';
 // the video rather than burned into it.
 export { toSRT, hasCaptionText, captionCues, captionFileName, srtTime } from './srt';
 export type { Cue } from './srt';
+
+// A picture on the overlay stack, as the clip every renderer already draws.
+// The export and both previews go through this one conversion rather than
+// implementing an image-overlay path each; a consumer drawing overlays itself
+// needs the same door, and until now there was no specifier that opened it.
+export { imageOverlayAsClip, imageOverlaysOf } from './overlay-clip';
 
 // The declarative frame description a canvas renderer executes.
 export { frameStateAt } from './frame';

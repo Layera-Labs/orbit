@@ -1,6 +1,6 @@
 {
   "name": "@layera-labs/video",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0-beta.2",
   "description": "Headless video timeline model + server-side FFmpeg render pipeline for Orbit",
   "keywords": [
     "video",
@@ -62,6 +62,7 @@
     "clean": "rm -rf dist",
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
+  "//dependencies": "@resvg/resvg-js stays a HARD dependency, evaluated rather than assumed (2026-08-09). It is reached only from ./node (raster.ts), so a browser-only consumer installs ~3.4MB of native addon it never loads — resvg distributes its 12 platform binaries as its OWN optionalDependencies, so that is one binary, not twelve, and vite externalizes it while the exports map keeps ./node out of any browser graph. Moving it to optionalDependencies would change NOTHING: an optional dep still installs whenever it can, and is skipped only when its install fails. An optional PEER would genuinely drop it, and that is the option rejected: it turns the render service's install-time resolution into an unenforced runtime contract, and the failure arrives as ERR_MODULE_NOT_FOUND at import — before any of our code runs, so there is nowhere to say something actionable without restructuring raster.ts and render.ts around a dynamic import. 3.4MB of node_modules disk that is never bundled is the cheaper side of that trade.",
   "dependencies": {
     "@resvg/resvg-js": "^2.6.2"
   },

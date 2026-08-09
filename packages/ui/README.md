@@ -7,7 +7,7 @@ components, six hooks, and a light/dark theme pair expressed as CSS custom prope
 npm i @layera-labs/ui@beta
 ```
 
-> **Beta.** `1.0.0-beta.1` under the `beta` tag; the API moves without notice.
+> **Beta.** `1.0.0-beta.2` under the `beta` tag; the API moves without notice.
 >
 > **This is part of the v1 line, which is legacy.** It exists because
 > `@layera-labs/react` uses it. The v2 editor
