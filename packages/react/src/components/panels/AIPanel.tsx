@@ -7,7 +7,7 @@
 import * as React from 'react';
 import { useState, useCallback } from 'react';
 import { OrbitButton, OrbitSlider, OrbitDropdown } from '@orbit/ui';
-import { OrbitBackendAdapter } from '@orbit/agentic';
+import type { AiBackend } from '../../backends/types';
 import { useEditorStore } from '../../store';
 import { useToast } from '../ToastProvider';
 import type { OrbitEngine } from '@orbit/core';
@@ -17,20 +17,21 @@ type TopTab = 'image' | 'video' | 'audio';
 
 interface AIPanelProps {
   engine: OrbitEngine | null;
-  apiKey: string;
-  backendUrl?: string;
+  /**
+   * REQUIRED, deliberately. Every control in this panel is a generate button;
+   * with nothing to generate against, the whole panel is dead controls. So a
+   * host that has no AI layer does not render `AIPanel` at all — and the type
+   * says so at the callsite, instead of the panel mounting and silently doing
+   * nothing.
+   */
+  backend: AiBackend;
 }
 
-export const AIPanel: React.FC<AIPanelProps> = ({ apiKey, backendUrl }) => {
+export const AIPanel: React.FC<AIPanelProps> = ({ backend }) => {
   const [topTab, setTopTab] = useState<TopTab>('image');
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { addToast } = useToast();
-
-  const adapter = React.useMemo(
-    () => new OrbitBackendAdapter(apiKey, backendUrl),
-    [apiKey, backendUrl]
-  );
 
   const aiMode = useEditorStore((s) => s.aiMode);
   const aiSubMode = useEditorStore((s) => s.aiSubMode);
@@ -91,11 +92,11 @@ export const AIPanel: React.FC<AIPanelProps> = ({ apiKey, backendUrl }) => {
 
       switch (aiSubMode) {
         case 'text-to-image':
-          asset = await adapter.generateImage({ prompt: aiPrompt, model: aiModel });
+          asset = await backend.generateImage({ prompt: aiPrompt, model: aiModel });
           break;
         case 'image-to-image':
           if (!aiReferenceImage) throw new Error('Reference image required');
-          asset = await adapter.imageToImage({
+          asset = await backend.imageToImage({
             prompt: aiPrompt,
             imageBase64: aiReferenceImage,
             strength: aiStrength,
@@ -103,7 +104,7 @@ export const AIPanel: React.FC<AIPanelProps> = ({ apiKey, backendUrl }) => {
           });
           break;
         case 'text-to-video':
-          asset = await adapter.generateVideo({
+          asset = await backend.generateVideo({
             prompt: aiPrompt,
             duration: aiDuration,
             resolution: aiResolution,
@@ -112,7 +113,7 @@ export const AIPanel: React.FC<AIPanelProps> = ({ apiKey, backendUrl }) => {
           break;
         case 'image-to-video':
           if (!aiReferenceImage) throw new Error('Reference image required');
-          asset = await adapter.generateVideo({
+          asset = await backend.generateVideo({
             prompt: aiPrompt,
             imageBase64: aiReferenceImage,
             duration: aiDuration,
@@ -121,7 +122,7 @@ export const AIPanel: React.FC<AIPanelProps> = ({ apiKey, backendUrl }) => {
           });
           break;
         case 'text-to-audio':
-          asset = await adapter.generateAudio({
+          asset = await backend.generateAudio({
             prompt: aiPrompt,
             duration: aiDuration,
             model: aiModel,
@@ -145,7 +146,7 @@ export const AIPanel: React.FC<AIPanelProps> = ({ apiKey, backendUrl }) => {
     } finally {
       setIsGenerating(false);
     }
-  }, [aiPrompt, aiSubMode, aiModel, aiReferenceImage, aiStrength, aiDuration, aiResolution, aiMode, adapter, addAIResult, addToast]);
+  }, [aiPrompt, aiSubMode, aiModel, aiReferenceImage, aiStrength, aiDuration, aiResolution, aiMode, backend, addAIResult, addToast]);
 
   const needsReference = aiSubMode === 'image-to-image' || aiSubMode === 'image-to-video';
   const needsDuration = aiMode === 'video' || aiMode === 'audio';

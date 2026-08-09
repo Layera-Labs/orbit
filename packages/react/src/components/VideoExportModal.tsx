@@ -7,14 +7,19 @@ import { OrbitButton, OrbitDialog, OrbitSlider } from '@orbit/ui';
 import { GifEncoder, PreviewRecorder, VideoFrameCapture, ExportJobPoller } from '@orbit/core';
 import type { OrbitEngine } from '@orbit/core';
 import type { VideoExportOptions } from '@orbit/shared';
-import { OrbitBackendAdapter } from '@orbit/agentic';
+import type { ExportBackend } from '../backends/types';
 
 interface VideoExportModalProps {
   open: boolean;
   onClose: () => void;
   engine: OrbitEngine | null;
-  apiKey: string;
-  backendUrl?: string;
+  /**
+   * Where server-side renders are sent. Optional on purpose: GIF is encoded
+   * entirely in the browser, so an editor with no backend still exports — it
+   * just offers GIF alone, rather than showing an MP4 button that cannot
+   * answer a click.
+   */
+  backend?: ExportBackend;
   onError?: (error: Error) => void;
   onExportStart?: (format: 'mp4' | 'gif' | 'png-sequence') => void;
 }
@@ -23,13 +28,11 @@ const VideoExportModalInner: React.FC<VideoExportModalProps> = ({
   open,
   onClose,
   engine,
-  apiKey,
-  backendUrl,
+  backend,
   onError,
   onExportStart,
 }) => {
-  const adapter = React.useMemo(() => new OrbitBackendAdapter(apiKey, backendUrl), [apiKey, backendUrl]);
-  const [format, setFormat] = useState<'mp4' | 'gif' | 'png-sequence'>('mp4');
+  const [format, setFormat] = useState<'mp4' | 'gif' | 'png-sequence'>(backend ? 'mp4' : 'gif');
   const [quality, setQuality] = useState<'1080p' | '720p' | '480p'>('1080p');
   const resolutionMap: Record<string, { width: number; height: number }> = {
     '1080p': { width: 1920, height: 1080 },
@@ -50,6 +53,17 @@ const VideoExportModalInner: React.FC<VideoExportModalProps> = ({
 
   const canvas = engine?.getCanvasElement();
   const maxDuration = engine?.getMaxVideoDuration?.() || 60;
+
+  // Server formats only exist when there is a server. If the backend is taken
+  // away while the modal is mounted, fall back rather than leaving a selected
+  // format that `handleExport` would have to refuse.
+  const availableFormats: readonly ('mp4' | 'gif' | 'png-sequence')[] = backend
+    ? (['mp4', 'gif', 'png-sequence'] as const)
+    : (['gif'] as const);
+
+  useEffect(() => {
+    if (!backend && format !== 'gif') setFormat('gif');
+  }, [backend, format]);
 
   useEffect(() => {
     if (open && maxDuration) {
@@ -127,7 +141,7 @@ const VideoExportModalInner: React.FC<VideoExportModalProps> = ({
         a.download = `orbit-export-${Date.now()}.gif`;
         a.click();
         URL.revokeObjectURL(url);
-      } else if (format === 'mp4' || format === 'png-sequence') {
+      } else if ((format === 'mp4' || format === 'png-sequence') && backend) {
         const res = resolutionMap[quality];
         const exportScale = Math.min(res.width / canvas.width, res.height / canvas.height);
 
@@ -144,7 +158,7 @@ const VideoExportModalInner: React.FC<VideoExportModalProps> = ({
           quality: 'production',
         };
 
-        const { jobId, uploadUrl } = await adapter.initVideoExport(options);
+        const { jobId, uploadUrl } = await backend.initVideoExport(options);
         setJobStatus('capturing');
 
         // Capture frames and upload
@@ -178,7 +192,7 @@ const VideoExportModalInner: React.FC<VideoExportModalProps> = ({
         setJobStatus('uploading');
 
         // Mark ready
-        await adapter.markExportReady(jobId);
+        await backend.markExportReady(jobId);
         setProgress(50);
         setJobStatus('processing');
 
@@ -206,7 +220,7 @@ const VideoExportModalInner: React.FC<VideoExportModalProps> = ({
           }
         );
 
-        const statusUrl = `${adapter.getExportEventsUrl(jobId)}`; // adapter exposes events URL
+        const statusUrl = `${backend.getExportEventsUrl(jobId)}`; // adapter exposes events URL
         // Use SSE URL from adapter but strip events path for fallback polling
         const baseStatusUrl = statusUrl.replace('/events', '/status');
         poller.start(statusUrl, baseStatusUrl);
@@ -280,7 +294,7 @@ const VideoExportModalInner: React.FC<VideoExportModalProps> = ({
             Format
           </label>
           <div className="flex gap-1">
-            {(['mp4', 'gif', 'png-sequence'] as const).map((f) => (
+            {availableFormats.map((f) => (
               <button
                 key={f}
                 onClick={() => setFormat(f)}
@@ -299,7 +313,9 @@ const VideoExportModalInner: React.FC<VideoExportModalProps> = ({
           </div>
           {format === 'gif' && (
             <p className="text-[10px] text-amber-500">
-              GIF is limited to 5 seconds at 15fps. Use MP4 for longer exports.
+              {backend
+                ? 'GIF is limited to 5 seconds at 15fps. Use MP4 for longer exports.'
+                : 'GIF is limited to 5 seconds at 15fps. MP4 and PNG sequences are rendered on a server; connect an export backend to enable them.'}
             </p>
           )}
         </div>

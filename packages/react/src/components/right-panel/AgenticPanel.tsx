@@ -4,6 +4,7 @@ import { OrbitButton, OrbitDropdown } from '@orbit/ui';
 import type { OrbitEngine } from '@orbit/core';
 import type { GeneratedAsset, Layer } from '@orbit/shared';
 import type { AgenticTool } from '../../hooks/useOrbitAgentic';
+import type { AiBackend } from '../../backends/types';
 import { useOrbitAgentic } from '../../hooks/useOrbitAgentic';
 import { addLayerAndSelect, createImageLayer } from '../../utils/layerPlacement';
 import { createFallbackActionsFromPrompt, executeAgenticActions } from '../../agentic/actions';
@@ -11,8 +12,8 @@ import { useToast } from '../ToastProvider';
 
 interface AgenticPanelProps {
   engine: OrbitEngine | null;
-  apiKey: string;
-  backendUrl?: string;
+  /** Required for the same reason `useOrbitAgentic`'s is: this panel is only calls into it. */
+  backend: AiBackend;
 }
 
 type Workflow = 'canvas-agent' | AgenticTool;
@@ -45,7 +46,7 @@ function getSelectedImageBase64(engine: OrbitEngine | null): string | null {
   return content.src || null;
 }
 
-export const AgenticPanel: React.FC<AgenticPanelProps> = ({ engine, apiKey, backendUrl }) => {
+export const AgenticPanel: React.FC<AgenticPanelProps> = ({ engine, backend }) => {
   const [prompt, setPrompt] = useState('');
   const [model, setModel] = useState('gpt-4o');
   const [workflow, setWorkflow] = useState<Workflow>('canvas-agent');
@@ -57,8 +58,7 @@ export const AgenticPanel: React.FC<AgenticPanelProps> = ({ engine, apiKey, back
 
   const { isGenerating, error, generate, runCanvasAgent, clearResults, results } = useOrbitAgentic({
     engine,
-    apiKey,
-    backendUrl,
+    backend,
   });
 
   const activeWorkflow = WORKFLOWS.find((item) => item.id === workflow) ?? WORKFLOWS[0];
