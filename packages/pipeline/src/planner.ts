@@ -58,7 +58,7 @@ import {
  * JSON mode, because the only contract here is that what comes back contains
  * the JSON that was asked for.
  *
- * NOTE: `@orbit/video-ai` exports an interface with the same name and a
+ * NOTE: `@layera-labs/video-ai` exports an interface with the same name and a
  * different shape — `plan(prompt) => VideoSpec`, which chooses one of three
  * fixed templates. That is the older, narrower thing this supersedes; it is not
  * interchangeable with this one.

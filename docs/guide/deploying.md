@@ -9,10 +9,10 @@ There are three deployable pieces and they are independent:
 |---|---|---|
 | `services/render` | Express + ffmpeg. Auth, credits, uploads, renders, AI. | A container. Not serverless — see below. |
 | `apps/web` | Next 14. The editor and AI studio. | Vercel, or `next start` anywhere. |
-| `apps/mobile` | Expo / React Native. | EAS build → TestFlight / Play internal. |
+| `examples/mobile` | Expo / React Native example. | EAS build, if you want it on a device at all. |
 
-The mobile and web apps are clients of the service. **Deploy the service first**
-— neither client can sign in, export or generate without it.
+Both are clients of the service. **Deploy the service first** — neither can sign
+in, export or generate without it.
 
 ---
 
@@ -244,21 +244,27 @@ the scope note below.
 
 ---
 
-## 3. The mobile app
+## 3. The mobile example
 
-`ios/` is gitignored (CNG; `app.json` is canonical), so **a new native module
-needs a rebuild**, not just a reload.
+There is nothing to deploy here — `examples/mobile` is a demo you run locally,
+not a product. It is worth reading anyway, because it is the shortest complete
+statement of what a native client has to do: mint a guest token, upload media,
+post a render job, poll it, and save the result.
 
 ```bash
-cd apps/mobile          # standalone npm — never `pnpm install` here
-npx eas build --profile preview        # internal / Android APK
-npx eas build --profile production
+cd examples/mobile      # standalone npm — never `pnpm install` here
+npm install
+npx expo run:ios
 ```
 
-Set `extra.serverUrl` in `app.json` to the deployed service. In development it
-falls back to Expo's `hostUri`, which is why a dev build on a physical device
-reaches your Mac automatically — and why that path is not exercised when you
-launch the simulator against `localhost`.
+It finds the service by itself: `extra.serverUrl` in `app.json` if you set one,
+otherwise Expo's dev `hostUri` on port 8787, otherwise `localhost:8787`. That
+middle step is why a dev build on a physical device reaches your Mac with no
+configuration — and why the path is not exercised when you launch the simulator
+against `localhost`.
+
+If you do put it on a device, note that `ios/` is gitignored (CNG; `app.json` is
+canonical), so **a new native module needs a rebuild**, not just a reload.
 
 ---
 

@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import type { VideoProject } from '@orbit/video/browser';
+import type { VideoProject } from '@layera-labs/video/browser';
 import { createNewProject, saveProject } from '@/db/projects';
 import { mediaSrc, type MediaRow } from '@/db/schema';
 import { appendAudio, appendVisual } from '@/store/videoStore';

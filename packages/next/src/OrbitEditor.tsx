@@ -2,10 +2,10 @@
 
 import dynamic from 'next/dynamic';
 import type { ComponentType } from 'react';
-import type { OrbitEditorProps } from '@orbit/react';
+import type { OrbitEditorProps } from '@layera-labs/react';
 
 const OrbitEditorReact: ComponentType<OrbitEditorProps> = dynamic<OrbitEditorProps>(
-  () => import('@orbit/react').then((mod) => mod.OrbitEditor),
+  () => import('@layera-labs/react').then((mod) => mod.OrbitEditor),
   { ssr: false }
 );
 

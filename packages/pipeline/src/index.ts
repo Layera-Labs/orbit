@@ -2,7 +2,7 @@
  * Brief → ScenePlan → VideoProject.
  *
  * The split this package exists to keep clean: anything that RENDERS lives in
- * `@orbit/video`; anything that DECIDES lives here. Shortspilot's needs will
+ * `@layera-labs/video`; anything that DECIDES lives here. Shortspilot's needs will
  * pull on both, and the engine is shared with an editor and an SDK, so the line
  * matters more than it usually would.
  *
@@ -24,7 +24,17 @@ export {
   captionTextOf,
 } from './scene-plan.ts';
 export type { ScenePlan, Scene, Aspect } from './scene-plan.ts';
-export { composeStory } from './compose.ts';
+export {
+  assertSceneArrays,
+  captionOverlays,
+  composeStory,
+  musicTracks,
+  narrationClips,
+  sceneClock,
+  brandOf,
+  logoOverlays,
+} from './compose.ts';
+export type { BrandKit, BrandLogo, CaptionStyle } from './compose.ts';
 export {
   InMemoryStepLog,
   runSequence,

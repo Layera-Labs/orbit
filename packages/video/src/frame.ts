@@ -45,7 +45,8 @@ import { elementFadeAt, resolveAnim, slideOffsetAt } from './element-anim';
 import { blendToFFmpeg } from './blend';
 import { backgroundToSVG } from './background-svg';
 import { canvasFrameToSVG, hasCanvasFrame } from './canvas-frame';
-import { overlayFontOptions, overlayToSVG, type FontMap } from './overlay-svg';
+import { overlayFontOptions, overlayToSVG, shapeToSVG, type FontMap } from './overlay-svg';
+import { activeWordAt } from './karaoke';
 import { imageOverlayAsClip } from './overlay-clip';
 
 /** How a source fills its destination box. Mirrors the export's scale/crop. */
@@ -354,16 +355,15 @@ export function frameStateAt(p: VideoProject, t: number, opts?: FrameOptions): D
    * matching the export's `overlay=(kf_x)-(o.x*W)`. A picture is a sized box,
    * so its keyframes replace the origin outright, exactly as a clip's do.
    *
-   * A `shape` overlay has no renderer yet and is SKIPPED — by this loop and by
-   * the export alike, so both agree about the absence. It is never handed to
-   * `overlayToSVG`, which would read a `text` that is not there and paint an
-   * empty caption box across the frame; a wrong picture is worse than a
-   * missing one.
+   * A `shape` is a PLATE, exactly as a caption is: rasterized full-frame with
+   * the rectangle baked at its anchor, so every line of timing below applies to
+   * it unchanged. That is why it is not special-cased anywhere here — the only
+   * branch is picture-versus-plate, and a shape is on the plate side. See
+   * `plateOverlaysOf`, which is the same split the export selects on.
    */
   const overlays = [...p.overlays].sort((a, b) => (a.layer ?? 0) - (b.layer ?? 0));
   for (const o of overlays) {
     if (t < o.start || t > o.end) continue;
-    if (o.type !== 'text' && o.type !== 'image') continue;
     const dur = Math.max(0.001, o.end - o.start);
     const p01 = progressAt(o.start, dur, t);
     const kfs = o.keyframes;
@@ -435,7 +435,22 @@ export function frameStateAt(p: VideoProject, t: number, opts?: FrameOptions): D
     ops.push({
       kind: 'overlay',
       id: o.id,
-      svg: overlayToSVG(o, W, H, overlayFontOptions(o, opts?.fonts)),
+      // Both plates rasterize full-frame; only the caption needs fonts, and a
+      // shape has no `fontFamily` to hand `overlayFontOptions` in the first
+      // place. The export makes exactly this choice in `render.ts`, and the
+      // dual-render test compares what the two produce.
+      svg:
+        o.type === 'shape'
+          ? shapeToSVG(o, W, H)
+          : overlayToSVG(o, W, H, {
+              ...overlayFontOptions(o, opts?.fonts),
+              // Which word is lit comes from `karaoke.ts`, the same module that
+              // slices the export's plates. One boundary, read two ways: the
+              // export asks "what are the windows", the preview asks "which
+              // window is `t` in". A second answer to that question here is
+              // precisely how a highlight ends up a word ahead in the file.
+              activeWord: activeWordAt(o, t),
+            }),
       dst: { x: dx, y: dy, w: W, h: H },
       fit: 'stretch',
       alpha: Math.max(0, Math.min(1, alpha)),

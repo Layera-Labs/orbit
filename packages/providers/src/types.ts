@@ -1,4 +1,4 @@
-import type { Document } from '@orbit/model';
+import type { Document } from '@layera-labs/model';
 
 export type ProviderKind =
   | 'photo'

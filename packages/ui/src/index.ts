@@ -1,5 +1,5 @@
 /**
- * @orbit/ui - Orbit UI Component Library
+ * @layera-labs/ui - Orbit UI Component Library
  * Shadcn-style component registry
  */
 

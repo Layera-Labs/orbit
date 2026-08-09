@@ -1,7 +1,18 @@
 {
-  "name": "@orbit/next",
-  "version": "0.0.1",
+  "name": "@layera-labs/next",
+  "version": "1.0.0-beta.1",
   "description": "Next.js wrapper for Orbit SDK",
+  "license": "MIT",
+  "author": "Layera Labs",
+  "homepage": "https://github.com/Layera-Labs/orbit/tree/main/packages/next#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Layera-Labs/orbit.git",
+    "directory": "packages/next"
+  },
+  "bugs": {
+    "url": "https://github.com/Layera-Labs/orbit/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -13,7 +24,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "!dist/**/*.map"
   ],
   "scripts": {
     "build": "tsc && vite build",
@@ -23,7 +35,7 @@
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "@orbit/react": "workspace:*"
+    "@layera-labs/react": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
@@ -40,5 +52,6 @@
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "//publishConfig": "REGISTRY AND ACCESS ARE NOT DECIDED YET, so publishConfig is deliberately absent rather than guessed. Public npm needs {\"access\":\"public\"} (a scoped package defaults to restricted and the publish fails without it). GitHub Packages needs {\"registry\":\"https://npm.pkg.github.com\"}; the @layera-labs scope already matches the owning GitHub org, so nothing further has to be renamed. Add exactly one of those here before the first publish."
 }

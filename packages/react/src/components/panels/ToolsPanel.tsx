@@ -1,8 +1,8 @@
 import * as React from 'react';
 import { useCallback } from 'react';
 import { useOrbitLayers } from '../../hooks/useOrbitEngine';
-import { OrbitButton } from '@orbit/ui';
-import type { OrbitEngine } from '@orbit/core';
+import { OrbitButton } from '@layera-labs/ui';
+import type { OrbitEngine } from '@layera-labs/core';
 import { createCenteredTextLayer, createShapeLayer } from '../../utils/layerPlacement';
 
 interface ToolsPanelProps {

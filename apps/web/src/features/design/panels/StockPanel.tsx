@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { PicsumPhotoProvider } from '@orbit/providers';
-import type { Photo } from '@orbit/providers';
+import { PicsumPhotoProvider } from '@layera-labs/providers';
+import type { Photo } from '@layera-labs/providers';
 import { Icon } from '@/brand/Icon';
 import { getMedia, importRemote } from '@/db/media';
 import type { MediaRow } from '@/db/schema';

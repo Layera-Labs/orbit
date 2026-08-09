@@ -10,7 +10,7 @@
  *
  * ## The interface is here and the formats are not, deliberately
  *
- * Same seam as `StepLog` and `GenerationQueue`. `@orbit/formats` depends on
+ * Same seam as `StepLog` and `GenerationQueue`. `@layera-labs/formats` depends on
  * this package; this package must never depend on it, or the runner ends up
  * coupled to the library of archetypes it is supposed to be indifferent to. The
  * package boundary is what makes that structural rather than a convention
@@ -30,7 +30,7 @@
  */
 import { ScenePlanError, type ScenePlan } from './scene-plan.ts';
 import type { ComposeInput } from './compose.ts';
-import type { VideoProject } from '@orbit/video/browser';
+import type { VideoProject } from '@layera-labs/video/browser';
 
 /** Inclusive on both ends. */
 export interface Bounds {
@@ -70,6 +70,34 @@ export interface FormatBrief {
   example: ScenePlan;
 }
 
+/**
+ * What a format needs from the resolver, as opposed to what it writes.
+ *
+ * Editorial, so it lives on the format: whether a countdown wants moving
+ * footage or stills is a decision about the archetype, not about the runner.
+ * The runner's job is to honour it where it can and to say so where it cannot.
+ */
+export interface FormatNeeds {
+  /**
+   * Stock stills or stock footage. Default `'image'`.
+   *
+   * Honoured only when a video provider is configured; without one the runner
+   * falls back to stills and REPORTS it, rather than failing a generation that
+   * has already been paid for. Stock search is per-provider — `pickAsset`
+   * filters on the asset's own type — so asking a photo provider for video
+   * returns nothing at all.
+   */
+  visualKind?: 'image' | 'video';
+  /**
+   * A search query for one continuous clip shown alongside the scenes.
+   *
+   * Only the split-screen shape uses this today. It is a query rather than a
+   * source because the format knows what KIND of footage belongs under it and
+   * nothing else does.
+   */
+  filler?: string;
+}
+
 export interface Format {
   id: string;
   /** For a picker. */
@@ -83,6 +111,8 @@ export interface Format {
    */
   validate(plan: ScenePlan): void;
   compose(input: ComposeInput): VideoProject;
+  /** What it needs from the visual resolver. Absent means stills, no filler. */
+  needs?: FormatNeeds;
 }
 
 /**

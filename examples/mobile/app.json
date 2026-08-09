@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "Orbit Example",
+    "slug": "orbit-example-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "platforms": ["ios", "android"],
+    "newArchEnabled": true,
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "bundleIdentifier": "com.example.orbitexample",
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true
+        },
+        "NSPhotoLibraryUsageDescription": "This example imports videos and images from your library onto a timeline.",
+        "NSPhotoLibraryAddUsageDescription": "This example saves the video it exports to your photo library."
+      }
+    },
+    "android": {
+      "package": "com.example.orbitexample"
+    },
+    "plugins": [
+      "expo-video",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "This example imports videos and images from your library onto a timeline."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "This example reads your photo library.",
+          "savePhotosPermission": "This example saves the video it exports to your library."
+        }
+      ]
+    ],
+    "extra": {
+      "serverUrl": ""
+    }
+  }
+}

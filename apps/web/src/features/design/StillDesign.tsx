@@ -15,13 +15,13 @@ import {
   useSelectedElement,
   useStore,
   type OrbitStore,
-} from '@orbit/editor';
+} from '@layera-labs/editor';
 import {
   GoogleFontProvider,
   PicsumPhotoProvider,
   PresetBackgroundProvider,
-} from '@orbit/providers';
-import { createStore, type Document as OrbitDocument } from '@orbit/model';
+} from '@layera-labs/providers';
+import { createStore, type Document as OrbitDocument } from '@layera-labs/model';
 import { persistProject } from '@/db/persist';
 import { useTheme } from '@/store/themeStore';
 import { mediaSrc, type MediaRow, type ProjectRow } from '@/db/schema';
@@ -44,14 +44,14 @@ const SAVE_DEBOUNCE_MS = 700;
  * `localStorage`/`matchMedia` during state init — which runs during the SSR
  * render, not in an effect — so the canvas cannot be server-rendered.
  */
-const Workspace = dynamic(() => import('@orbit/render').then((m) => m.Workspace), {
+const Workspace = dynamic(() => import('@layera-labs/render').then((m) => m.Workspace), {
   ssr: false,
 });
 const SelectionActions = dynamic(
-  () => import('@orbit/editor').then((m) => m.SelectionActions),
+  () => import('@layera-labs/editor').then((m) => m.SelectionActions),
   { ssr: false },
 );
-const ZoomControl = dynamic(() => import('@orbit/editor').then((m) => m.ZoomControl), {
+const ZoomControl = dynamic(() => import('@layera-labs/editor').then((m) => m.ZoomControl), {
   ssr: false,
 });
 
@@ -236,7 +236,7 @@ function StillShell({
  * looking span that swallows a click — a control that looks ready and does
  * nothing is worse than one that admits it isn't.
  */
-const ExportButton = dynamic(() => import('@orbit/editor').then((m) => m.ExportMenu), {
+const ExportButton = dynamic(() => import('@layera-labs/editor').then((m) => m.ExportMenu), {
   ssr: false,
   loading: () => (
     <button className={styles.primary} disabled>

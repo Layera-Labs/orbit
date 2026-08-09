@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
 import type Konva from 'konva';
-import { Workspace } from '@orbit/render';
-import type { OrbitStore } from '@orbit/model';
-import type { ProviderMap } from '@orbit/providers';
+import { Workspace } from '@layera-labs/render';
+import type { OrbitStore } from '@layera-labs/model';
+import type { ProviderMap } from '@layera-labs/providers';
 import { EditorProvider, useStore, useTheme } from './context';
 import type { ThemeMode } from './context';
 import { TopBar } from './components/TopBar';

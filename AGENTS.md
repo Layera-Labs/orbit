@@ -27,8 +27,8 @@ Use Node `>=20` and pnpm `10.29.2`.
 
 - `pnpm install`: install workspace dependencies.
 - `pnpm dev`: run all package/app development tasks through Turbo.
-- `pnpm --filter @orbit/demo dev`: start the Vite demo.
-- `pnpm --filter @orbit/demo-next dev`: start the Next.js demo.
+- `pnpm --filter @layera-labs/demo dev`: start the Vite demo.
+- `pnpm --filter @layera-labs/demo-next dev`: start the Next.js demo.
 - `pnpm build`: build packages and apps, producing `dist/` and `.next/` outputs.
 - `pnpm typecheck`: run strict TypeScript checks across buildable packages.
 - `pnpm test`: run Vitest suites with the shared root config.
@@ -37,7 +37,7 @@ Use Node `>=20` and pnpm `10.29.2`.
 
 ## Coding Style & Naming Conventions
 
-Code is ESM TypeScript with strict compiler settings. Keep exports typed, avoid unused locals/parameters, and follow nearby file style. Use PascalCase for React components (`OrbitEditor.tsx`), `useX` for hooks, camelCase for utilities, and domain-oriented module names such as `scene-graph.ts` or `layerPlacement.ts`. Prefer workspace imports like `@orbit/shared` over deep relative paths when a package export exists.
+Code is ESM TypeScript with strict compiler settings. Keep exports typed, avoid unused locals/parameters, and follow nearby file style. Use PascalCase for React components (`OrbitEditor.tsx`), `useX` for hooks, camelCase for utilities, and domain-oriented module names such as `scene-graph.ts` or `layerPlacement.ts`. Prefer workspace imports like `@layera-labs/shared` over deep relative paths when a package export exists.
 
 ## Testing Guidelines
 

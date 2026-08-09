@@ -1,5 +1,5 @@
 /**
- * HTTP render service: wraps the headless `@orbit/video` engine so any client
+ * HTTP render service: wraps the headless `@layera-labs/video` engine so any client
  * (the iOS app, web, a webhook) can render a video server-side with ffmpeg.
  *
  * Endpoints:
@@ -25,7 +25,7 @@
  * `X-Orbit-Account` header the caller chose, which anyone could set to anyone
  * else's account.
  *
- * Generation is credit-metered via `@orbit/billing`: each account is granted
+ * Generation is credit-metered via `@layera-labs/billing`: each account is granted
  * `ORBIT_FREE_CREDITS` on first touch, and a `generate_image` debits 10 credits
  * — only on a successful generation. This ships
  * an IN-MEMORY ledger for local/dev use. A production deployment swaps
@@ -62,14 +62,14 @@ import {
   type ExportOutput,
   type VideoProject,
   type WordTiming,
-} from "@orbit/video/node";
+} from "@layera-labs/video/node";
 import {
   ElevenLabsProvider,
   GenerationService,
   ProviderError,
   RunwayProvider,
   groupWords,
-} from "@orbit/video-gen";
+} from "@layera-labs/video-gen";
 import {
   InMemoryLedgerStore,
   InsufficientCreditsError,
@@ -77,8 +77,8 @@ import {
   makeAccountId,
   type AccountId,
   type LedgerStore,
-} from "@orbit/billing";
-import { authFromEnv, AuthError, type UserStore } from "@orbit/auth";
+} from "@layera-labs/billing";
+import { authFromEnv, AuthError, type UserStore } from "@layera-labs/auth";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { collectClientSrcs, isClientSrc, makeResolveSrc } from "./resolve.js";
 import { isTerminal, toExportJob } from "./export-job.js";
@@ -86,7 +86,7 @@ import { brainFromEnv } from "./brain.js";
 import { ElevenLabsVoice, parseGenerationRequest } from "./generation.js";
 import { MediaDirAssetStore } from "./asset-store.js";
 import { PgGenerationQueue, PgStepLog } from "./generation-queue.js";
-import { openverseOrPexels } from "./stock-provider.js";
+import { openverseOrPexels, stockVideoProvider } from "./stock-provider.js";
 import {
   InMemoryGenerationQueue,
   InMemoryStepLog,
@@ -94,8 +94,8 @@ import {
   startGenerationWorker,
   type GenerationQueue,
   type StepLog,
-} from "@orbit/pipeline";
-import { formatById } from "@orbit/formats";
+} from "@layera-labs/pipeline";
+import { formatById } from "@layera-labs/formats";
 import { openSse } from "./sse.js";
 import {
   TICKET_TTL_MS,
@@ -830,7 +830,7 @@ export function createServer(): Express {
    *
    * Done HERE, ahead of the render, rather than inside `resolveSrc` — that is
    * the security boundary and it is synchronous, and making it async would push
-   * a promise through `@orbit/video`'s whole argument builder. This keeps the
+   * a promise through `@layera-labs/video`'s whole argument builder. This keeps the
    * boundary exactly as it was: the file is restored to the media dir under its
    * own name, and `resolveSrc` still refuses anything that escapes it.
    *
@@ -1223,6 +1223,17 @@ export function createServer(): Express {
   };
 
   /*
+   * The two stock slots, built once and shared by `/health` and the worker.
+   *
+   * Hoisted above the health route on purpose: whether this box can fetch
+   * FOOTAGE is a capability, not a detail of the generation worker, and an
+   * operator asking "why does every video come back as a slideshow" should get
+   * the answer from `/health` rather than from a finished job's result.
+   */
+  const stock = openverseOrPexels(process.env);
+  const stockFootage = stockVideoProvider(process.env);
+
+  /*
    * Health, with the numbers you actually need during an incident.
    *
    * `ok` stays true while the queue is merely busy — a load balancer pulling
@@ -1283,7 +1294,19 @@ export function createServer(): Express {
        * and the process plainly is not.
        */
       schema: readyState,
-      capabilities: { hdr, transitions, rasterize: rasterizes },
+      /*
+       * `stockVideo` is a static fact about the configuration, not a probe —
+       * it is here rather than beside `PEXELS_API_KEY` in a log line because
+       * its ABSENCE is silent everywhere else: the formats that want footage
+       * degrade to stills and the video still renders, so nothing fails and
+       * nothing pages. It reports a boolean, never the key.
+       */
+      capabilities: {
+        hdr,
+        transitions,
+        rasterize: rasterizes,
+        stockVideo: Boolean(stockFootage),
+      },
       /*
        * Which build is actually answering. Without this, "is the fix
        * deployed?" is unanswerable from outside the box — and during an
@@ -1643,7 +1666,7 @@ export function createServer(): Express {
   /*
    * ---- watching a render ----
    *
-   * `ExportJobPoller` in `@orbit/core` has been written against an SSE endpoint
+   * `ExportJobPoller` in `@layera-labs/core` has been written against an SSE endpoint
    * plus a polling fallback since long before either existed. The polling half
    * is the route above; this is the other half.
    *
@@ -1857,7 +1880,6 @@ export function createServer(): Express {
   if (generationReady && process.env.ORBIT_GENERATION_WORKER !== "0") {
     const store = new MediaDirAssetStore({ mediaDir });
     const voice = new ElevenLabsVoice(ELEVEN_KEY!, mediaDir);
-    const stock = openverseOrPexels(process.env);
 
     const worker = startGenerationWorker({
       queue: genQueue,
@@ -1876,6 +1898,13 @@ export function createServer(): Express {
               brain: brain!,
               voice,
               provider: stock,
+              /*
+               * Spread rather than passed as `undefined`, so an unconfigured
+               * box leaves the key absent and `Boolean(deps.videoProvider)` in
+               * the pipeline reads what it means. Optional in earnest: without
+               * it the footage formats downgrade to stills and say so.
+               */
+              ...(stockFootage ? { videoProvider: stockFootage } : {}),
               store,
               log: genLog,
               onStep: setStep,
@@ -1906,6 +1935,15 @@ export function createServer(): Express {
             durationSec: projectDuration(out.project),
             compromises: out.compromises,
             ...(out.alignmentSkipped ? { alignmentSkipped: out.alignmentSkipped } : {}),
+            /*
+             * Forwarded for the same reason `alignmentSkipped` is, and they
+             * were missing: the pipeline reports honestly that it served
+             * stills for a format that asked for footage, and the route
+             * dropped both fields on the floor — so over HTTP the downgrade
+             * was exactly as silent as if nothing reported it at all.
+             */
+            ...(out.visualsDowngraded ? { visualsDowngraded: out.visualsDowngraded } : {}),
+            ...(out.fillerSkipped ? { fillerSkipped: out.fillerSkipped } : {}),
           };
         } catch (err) {
           /*
@@ -2570,8 +2608,8 @@ export function createServer(): Express {
         signal: ac.signal,
       });
       /*
-       * Annotated, not inferred. `groupWords` lives in `@orbit/video-gen` and
-       * `CaptionLine` in `@orbit/video`, two packages that do not depend on
+       * Annotated, not inferred. `groupWords` lives in `@layera-labs/video-gen` and
+       * `CaptionLine` in `@layera-labs/video`, two packages that do not depend on
        * each other — this line is the only place both are in scope, and so the
        * only place a divergence between what the transcriber emits and what the
        * clients parse is catchable at compile time rather than arriving at a

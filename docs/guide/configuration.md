@@ -118,7 +118,7 @@ Orbit uses CSS custom properties for theming. Override any token:
 Register a custom theme:
 
 ```ts
-import { registerTheme } from '@orbit/ui';
+import { registerTheme } from '@layera-labs/ui';
 
 registerTheme('my-brand', {
   primary: '#ff6b00',

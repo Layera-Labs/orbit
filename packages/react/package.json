@@ -1,7 +1,18 @@
 {
-  "name": "@orbit/react",
-  "version": "0.0.1",
+  "name": "@layera-labs/react",
+  "version": "1.0.0-beta.1",
   "description": "React wrapper for Orbit SDK",
+  "license": "MIT",
+  "author": "Layera Labs",
+  "homepage": "https://github.com/Layera-Labs/orbit/tree/main/packages/react#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Layera-Labs/orbit.git",
+    "directory": "packages/react"
+  },
+  "bugs": {
+    "url": "https://github.com/Layera-Labs/orbit/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -11,12 +22,16 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./agentic": {
+      "types": "./dist/agentic/index.d.ts",
+      "import": "./dist/agentic/index.js"
+    },
     "./headless": {
       "types": "./dist/headless/index.d.ts",
       "import": "./dist/headless/index.js"
-    },
-    "./styles.css": "./dist/styles.css"
+    }
   },
+  "//exports": "`./styles.css` was promised here and pointed at `dist/styles.css`, which the build has never emitted — this package contains no .css file at all. Following the docs got you ERR_MODULE_NOT_FOUND. Removed rather than stubbed: an empty stylesheet is a worse lie than an absent one.",
   "files": [
     "dist",
     "!dist/**/*.map"
@@ -28,17 +43,17 @@
     "clean": "rm -rf dist",
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
+  "//dependencies": "@layera-labs/assets was declared here and imported by nothing in src (0 hits); it survived only in the rollup `external` list. Publishing @layera-labs/react with it would have forced @layera-labs/assets onto the registry to satisfy an install that never uses it.",
   "dependencies": {
-    "@orbit/agentic": "workspace:*",
-    "@orbit/assets": "workspace:*",
-    "@orbit/core": "workspace:*",
-    "@orbit/effects": "workspace:*",
-    "@orbit/shared": "workspace:*",
-    "@orbit/ui": "workspace:*",
+    "@layera-labs/core": "workspace:*",
+    "@layera-labs/effects": "workspace:*",
+    "@layera-labs/shared": "workspace:*",
+    "@layera-labs/ui": "workspace:*",
     "jspdf": "^4.2.1",
     "zustand": "^4.5.7"
   },
   "devDependencies": {
+    "@layera-labs/agentic": "workspace:*",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "react": "^18.2.0",
@@ -48,8 +63,15 @@
     "vite-plugin-dts": "^3.8.0"
   },
   "peerDependencies": {
+    "@layera-labs/agentic": "workspace:*",
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
   },
-  "sideEffects": false
+  "peerDependenciesMeta": {
+    "@layera-labs/agentic": {
+      "optional": true
+    }
+  },
+  "sideEffects": false,
+  "//publishConfig": "REGISTRY AND ACCESS ARE NOT DECIDED YET, so publishConfig is deliberately absent rather than guessed. Public npm needs {\"access\":\"public\"} (a scoped package defaults to restricted and the publish fails without it). GitHub Packages needs {\"registry\":\"https://npm.pkg.github.com\"}; the @layera-labs scope already matches the owning GitHub org, so nothing further has to be renamed. Add exactly one of those here before the first publish."
 }

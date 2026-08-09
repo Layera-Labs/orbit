@@ -1,6 +1,7 @@
 {
-  "name": "@orbit/assets",
+  "name": "@layera-labs/assets",
   "version": "0.0.1",
+  "private": true,
   "description": "Orbit Asset Providers and Cache",
   "type": "module",
   "main": "./dist/index.js",
@@ -23,12 +24,13 @@
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "@orbit/shared": "workspace:*"
+    "@layera-labs/shared": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.4.0",
     "vite": "^5.2.0",
     "vite-plugin-dts": "^3.8.0"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "//private": "Stock/asset providers. Dead to both products; the only real consumer is the private render service and the demos. Not part of the SDK surface."
 }

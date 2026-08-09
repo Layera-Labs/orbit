@@ -22,7 +22,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { Pool } from 'pg';
 import { PGlite } from '@electric-sql/pglite';
-import { runStep } from '@orbit/pipeline';
+import { runStep } from '@layera-labs/pipeline';
 import { makePgPool } from '../pg-store';
 import { PgGenerationQueue, PgStepLog } from '../generation-queue';
 

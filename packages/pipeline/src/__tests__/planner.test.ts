@@ -17,7 +17,7 @@ import { ScenePlanError, type ScenePlan } from '../scene-plan.ts';
 import { countWords, requireBounds, type Format } from '../format.ts';
 
 /*
- * A format defined here rather than imported. `@orbit/formats` depends on this
+ * A format defined here rather than imported. `@layera-labs/formats` depends on this
  * package, so a test here cannot reach for the story without inverting that —
  * and testing the planner against the INTERFACE is the better test anyway.
  */

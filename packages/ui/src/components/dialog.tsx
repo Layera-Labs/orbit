@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { cn } from '@orbit/shared';
+import { cn } from '@layera-labs/shared';
 
 export interface OrbitDialogProps {
   open: boolean;

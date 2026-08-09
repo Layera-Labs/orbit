@@ -47,14 +47,14 @@ Redesign the Orbit editor around a centered canvas, a polished floating left too
 - No new external UI dependencies.
 - Add internal editor state for `mode: 'manual' | 'agentic'` and `agenticDrawerOpen`.
 - Add reusable internal UI pieces such as `ContextToolbar`, `ToolbarPopover`, and polished sidebar/drawer variants.
-- Add `@orbit/agentic` action types and adapter method for canvas-agent actions if the package owns backend contracts; otherwise keep the types internal to `@orbit/react`.
+- Add `@layera-labs/agentic` action types and adapter method for canvas-agent actions if the package owns backend contracts; otherwise keep the types internal to `@layera-labs/react`.
 
 ## Test Plan
 - Unit-test centered placement for text, image, video, shape, and background layers.
 - Unit-test agentic action executor for add/update layer actions.
 - Verify close/toggle behavior for left drawer.
 - Verify contextual toolbar renders correct controls for no selection, text, image, video, shape, background, and multi-select.
-- Run `pnpm exec vitest run --passWithNoTests`, `pnpm test`, and `pnpm --filter @orbit/demo build`.
+- Run `pnpm exec vitest run --passWithNoTests`, `pnpm test`, and `pnpm --filter @layera-labs/demo build`.
 - Smoke-check desktop and mobile: centered canvas, left glass drawer, close button, centered add actions, toolbar editing, background layer editing, and Agentic prompt action flow.
 
 ## Assumptions

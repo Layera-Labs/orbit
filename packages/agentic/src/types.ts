@@ -1,8 +1,31 @@
 /**
  * Agentic types
+ *
+ * The canvas-agent shapes moved to `@layera-labs/shared` and are re-exported from
+ * here, so this package's public surface is unchanged for anyone already
+ * writing `import type { CanvasAgentParams } from '@layera-labs/agentic'`.
+ *
+ * Why they had to move: `@layera-labs/react` NAMES them — `AiBackend.runCanvasAgent`
+ * is reachable from `OrbitEditorProps` — while this package is only an OPTIONAL
+ * peer of it. A type-only import erases from the bundle but survives in the
+ * emitted `.d.ts`, so a consumer who took the editor and declined the AI layer
+ * failed `tsc` (with `skipLibCheck: false`) on a specifier resolving to
+ * nothing. `@layera-labs/shared` is a real dependency of both packages, which is what
+ * makes it the one place both can point at.
+ *
+ * What deliberately did NOT move is below: `AgenticConfig` and this package's
+ * `ModelProvider`. They configure the AI CLIENT, `@layera-labs/react` never names
+ * either, and moving `ModelProvider` would in fact break things — `@layera-labs/shared`
+ * already exports a DIFFERENT type of that name (a wider union including the
+ * flux models), so relocating this one would either collide on the barrel or
+ * silently widen what this package has always meant by it.
  */
 
-import type { BlendMode, SceneGraph, ShapeContent } from '@orbit/shared';
+export type {
+  AgenticCanvasAction,
+  CanvasAgentParams,
+  CanvasAgentResponse,
+} from '@layera-labs/shared';
 
 export type ModelProvider = 'gpt-4o' | 'gemini-pro';
 
@@ -10,93 +33,4 @@ export interface AgenticConfig {
   apiKey: string;
   backendUrl: string;
   defaultModel?: ModelProvider;
-}
-
-export type AgenticCanvasAction =
-  | {
-      type: 'addText';
-      text: string;
-      fontSize?: number;
-      fontWeight?: number;
-      fontFamily?: string;
-      color?: string;
-    }
-  | {
-      type: 'updateText';
-      layerId?: string;
-      text?: string;
-      fontSize?: number;
-      fontWeight?: number;
-      fontFamily?: string;
-      color?: string;
-    }
-  | {
-      type: 'addImage';
-      src: string;
-      width?: number;
-      height?: number;
-      name?: string;
-    }
-  | {
-      type: 'addVideo';
-      src: string;
-      width?: number;
-      height?: number;
-      duration?: number;
-      name?: string;
-    }
-  | {
-      type: 'addShape';
-      shape?: ShapeContent['shape'];
-      fill?: string;
-      stroke?: string;
-      strokeWidth?: number;
-      width?: number;
-      height?: number;
-      name?: string;
-    }
-  | {
-      type: 'addBackgroundLayer';
-      value: string;
-      name?: string;
-    }
-  | {
-      type: 'updateLayerStyle';
-      layerId?: string;
-      opacity?: number;
-      blendMode?: BlendMode;
-      fill?: string;
-      stroke?: string;
-      strokeWidth?: number;
-      color?: string;
-      fontSize?: number;
-      fontWeight?: number;
-      fontFamily?: string;
-    }
-  | {
-      type: 'moveResizeLayer';
-      layerId?: string;
-      x?: number;
-      y?: number;
-      width?: number;
-      height?: number;
-      rotation?: number;
-    }
-  | {
-      type: 'deleteLayer';
-      layerId?: string;
-    };
-
-export interface CanvasAgentParams {
-  prompt: string;
-  scene: SceneGraph;
-  selectedLayerIds?: string[];
-  model?: string;
-  imageBase64?: string | null;
-  selectionImageBase64?: string | null;
-}
-
-export interface CanvasAgentResponse {
-  actions: AgenticCanvasAction[];
-  message?: string;
 }

@@ -5,7 +5,7 @@
 The main React component.
 
 ```tsx
-import { OrbitEditor } from '@orbit/react';
+import { OrbitEditor } from '@layera-labs/react';
 ```
 
 ### Props (`OrbitEditorProps`)
@@ -78,11 +78,16 @@ const { activeTool, setTool } = useOrbitTool(engine);
 
 ### `useOrbitAgentic`
 
+Ships from `@layera-labs/react/agentic`, not from the package name — it is the one
+hook whose types come from `@layera-labs/agentic`, which is an optional peer. It takes
+an `AiBackend` you construct; it builds no client of its own.
+
 ```ts
+import { useOrbitAgentic } from '@layera-labs/react/agentic';
+
 const { generate, isGenerating, results, error } = useOrbitAgentic({
   engine,
-  apiKey,
-  backendUrl,
+  backend, // an AiBackend — e.g. @layera-labs/agentic's OrbitBackendAdapter
 });
 ```
 

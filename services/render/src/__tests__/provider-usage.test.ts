@@ -132,7 +132,7 @@ describe('the providers report their own usage', () => {
    * one.
    */
   it('ElevenLabs counts characters of INPUT, which is what it bills for', async () => {
-    const { ElevenLabsProvider } = await import('@orbit/video-gen');
+    const { ElevenLabsProvider } = await import('@layera-labs/video-gen');
     const provider = new ElevenLabsProvider({
       apiKey: 'k',
       fetchImpl: (async () =>

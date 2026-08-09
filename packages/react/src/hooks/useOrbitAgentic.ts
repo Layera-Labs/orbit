@@ -1,8 +1,7 @@
-import { useState, useCallback, useMemo } from 'react';
-import { OrbitBackendAdapter } from '@orbit/agentic';
-import type { CanvasAgentParams, CanvasAgentResponse } from '@orbit/agentic';
-import type { GeneratedAsset } from '@orbit/shared';
-import type { OrbitEngine } from '@orbit/core';
+import { useState, useCallback } from 'react';
+import type { AiBackend } from '../backends/types';
+import type { CanvasAgentParams, CanvasAgentResponse, GeneratedAsset } from '@layera-labs/shared';
+import type { OrbitEngine } from '@layera-labs/core';
 
 
 export type AgenticTool =
@@ -14,8 +13,13 @@ export type AgenticTool =
 
 export interface UseOrbitAgenticOptions {
   engine: OrbitEngine | null;
-  apiKey: string;
-  backendUrl?: string;
+  /**
+   * REQUIRED. This hook is nothing but calls into it — an optional backend
+   * would mean every call returning null for a reason the caller cannot see,
+   * and a UI wired to it showing buttons that do nothing. A host without an AI
+   * layer does not call this hook.
+   */
+  backend: AiBackend;
 }
 
 export interface AgenticGenerateState {
@@ -27,12 +31,10 @@ export interface AgenticGenerateState {
 }
 
 export function useOrbitAgentic(options: UseOrbitAgenticOptions) {
-  const { engine, apiKey, backendUrl } = options;
+  const { engine, backend } = options;
   const [isGenerating, setIsGenerating] = useState(false);
   const [results, setResults] = useState<GeneratedAsset[]>([]);
   const [error, setError] = useState<string | null>(null);
-
-  const adapter = useMemo(() => new OrbitBackendAdapter(apiKey, backendUrl), [apiKey, backendUrl]);
 
   const generate = useCallback(
     async (state: AgenticGenerateState): Promise<GeneratedAsset | null> => {
@@ -44,7 +46,7 @@ export function useOrbitAgentic(options: UseOrbitAgenticOptions) {
 
         switch (state.tool) {
           case 'generate':
-            asset = await adapter.generateImage({
+            asset = await backend.generateImage({
               prompt: state.prompt,
               model: state.model,
             });
@@ -53,7 +55,7 @@ export function useOrbitAgentic(options: UseOrbitAgenticOptions) {
             if (!state.imageBase64) {
               throw new Error('Canvas image required for AI Edit');
             }
-            asset = await adapter.imageToImage({
+            asset = await backend.imageToImage({
               prompt: state.prompt,
               imageBase64: state.imageBase64,
               model: state.model,
@@ -63,7 +65,7 @@ export function useOrbitAgentic(options: UseOrbitAgenticOptions) {
             if (!state.imageBase64) {
               throw new Error('Canvas image required for Inpaint');
             }
-            asset = await adapter.inpaint({
+            asset = await backend.inpaint({
               prompt: state.prompt,
               imageBase64: state.imageBase64,
               maskBase64: state.maskBase64 || '',
@@ -74,7 +76,7 @@ export function useOrbitAgentic(options: UseOrbitAgenticOptions) {
             if (!state.imageBase64) {
               throw new Error('Canvas image required for Outpaint');
             }
-            asset = await adapter.outpaint({
+            asset = await backend.outpaint({
               prompt: state.prompt,
               imageBase64: state.imageBase64,
               ratio: '1:1',
@@ -86,7 +88,7 @@ export function useOrbitAgentic(options: UseOrbitAgenticOptions) {
             if (!state.imageBase64) {
               throw new Error('Canvas image required for Lighting');
             }
-            asset = await adapter.adjustLighting({
+            asset = await backend.adjustLighting({
               imageBase64: state.imageBase64,
               lights: [
                 {
@@ -114,7 +116,7 @@ export function useOrbitAgentic(options: UseOrbitAgenticOptions) {
         setIsGenerating(false);
       }
     },
-    [engine, adapter]
+    [engine, backend]
   );
 
   const runCanvasAgent = useCallback(
@@ -123,7 +125,7 @@ export function useOrbitAgentic(options: UseOrbitAgenticOptions) {
       setIsGenerating(true);
       setError(null);
       try {
-        return await adapter.runCanvasAgent(params);
+        return await backend.runCanvasAgent(params);
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Canvas agent failed';
         setError(msg);
@@ -132,7 +134,7 @@ export function useOrbitAgentic(options: UseOrbitAgenticOptions) {
         setIsGenerating(false);
       }
     },
-    [engine, adapter]
+    [engine, backend]
   );
 
   const clearResults = useCallback(() => {

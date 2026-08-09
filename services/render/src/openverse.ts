@@ -1,4 +1,4 @@
-import type { Asset, AssetProvider, SearchOptions } from "@orbit/shared";
+import type { Asset, AssetProvider, SearchOptions } from "@layera-labs/shared";
 
 /**
  * CC0 stock images, with no key at all.

@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useSnapshot } from 'valtio';
-import type { Element, ID, OrbitStore } from '@orbit/model';
+import type { Element, ID, OrbitStore } from '@layera-labs/model';
 import { useEditorState, useStore } from '../context';
 import { Icon } from './Icon';
 import {

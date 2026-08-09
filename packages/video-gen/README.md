@@ -1,13 +1,13 @@
-# @orbit/video-gen
+# @layera-labs/video-gen
 
 Generative media (image / video / TTS) behind a **credit-metered** service.
 Every call checks the account can afford the operation, calls the provider, then
-debits the [`@orbit/billing`](../billing) ledger — so generation can never run
+debits the [`@layera-labs/billing`](../billing) ledger — so generation can never run
 for free (the plan's *billing-before-generation* rule, enforced in code).
 
 ```ts
-import { GenerationService } from '@orbit/video-gen';
-import { Ledger, InMemoryLedgerStore, makeAccountId } from '@orbit/billing';
+import { GenerationService } from '@layera-labs/video-gen';
+import { Ledger, InMemoryLedgerStore, makeAccountId } from '@layera-labs/billing';
 
 const ledger = new Ledger(new InMemoryLedgerStore()); // swap for a DB store in prod
 const account = makeAccountId('orbit_sk_…', 'end-user-1');
@@ -25,7 +25,7 @@ Implement the `MediaProvider` interface against fal.ai / Replicate / ElevenLabs
 the service stays the same:
 
 ```ts
-import type { MediaProvider, GenResult } from '@orbit/video-gen';
+import type { MediaProvider, GenResult } from '@layera-labs/video-gen';
 
 class FalProvider implements MediaProvider {
   constructor(private apiKey: string) {}
@@ -38,7 +38,7 @@ class FalProvider implements MediaProvider {
 
 ## Feeding results back into a video
 
-`GenResult.url` slots straight into `@orbit/video`:
+`GenResult.url` slots straight into `@layera-labs/video`:
 
 - image → an `image` clip, or a base for a lyric/quote video
 - video → a `video` clip

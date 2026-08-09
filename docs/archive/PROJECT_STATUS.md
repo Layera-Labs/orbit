@@ -39,7 +39,7 @@ Orbit is a pnpm/Turbo TypeScript monorepo for an agentic canvas editor SDK. The 
 
 - `phases.plan.md` says 17 test files and 203 tests, but current verification found 19 test files and 212 passing tests.
 - The roadmap says 11 docs pages; the `docs/` directory currently has 17 Markdown files.
-- Some deferred UI items are stale: `OrbitColorPicker`, `OrbitContextMenu`, and `OrbitResizable` now exist in `@orbit/ui`, though context menu/resizable are not clearly integrated into the editor surface.
+- Some deferred UI items are stale: `OrbitColorPicker`, `OrbitContextMenu`, and `OrbitResizable` now exist in `@layera-labs/ui`, though context menu/resizable are not clearly integrated into the editor surface.
 - The left-sidebar AI panel listed in the older Phase 1 status has been replaced by the floating Agentic AI button and right drawer.
 
 ## Recommended Next Priorities

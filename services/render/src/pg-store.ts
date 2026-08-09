@@ -20,8 +20,8 @@ import {
   type RecordGuard,
   type RecordOnceResult,
   type RecordOptions,
-} from '@orbit/billing';
-import type { UserRecord, UserStore } from '@orbit/auth';
+} from '@layera-labs/billing';
+import type { UserRecord, UserStore } from '@layera-labs/auth';
 
 /** The columns every read of `ledger_entries` selects. */
 interface LedgerRow {

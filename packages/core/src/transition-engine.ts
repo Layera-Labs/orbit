@@ -3,7 +3,7 @@
  * Supports fade, slide (4 directions), zoom in/out with easing
  */
 
-import type { TransitionType, EasingType, Layer } from '@orbit/shared';
+import type { TransitionType, EasingType, Layer } from '@layera-labs/shared';
 
 export interface TransitionState {
   opacity?: number;

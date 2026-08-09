@@ -3,7 +3,7 @@
  * Connects an `OrbitStore` to a transport so a remote client (React Native) can
  * drive it (apply ops, export, undo…) and observe it (change/selection/history).
  */
-import type { OrbitStore } from '@orbit/model';
+import type { OrbitStore } from '@layera-labs/model';
 import {
   ORBIT_BRIDGE_PROTOCOL,
   decode,
@@ -15,7 +15,7 @@ import {
 import type { Transport } from './transport';
 
 export interface HostExporters {
-  /** Headless SVG export. Wire to `exportPageToSVG(store.activePage)` from `@orbit/render`. */
+  /** Headless SVG export. Wire to `exportPageToSVG(store.activePage)` from `@layera-labs/render`. */
   svg?: (store: OrbitStore) => string;
   /** Raster export (png/jpeg) using the live Konva stage. */
   raster?: (

@@ -31,7 +31,7 @@ export default defineConfig({
       fileName: 'index',
     },
     rollupOptions: {
-      external: [/^react(\/.*)?$/, /^react-dom(\/.*)?$/, /^next(\/.*)?$/, '@orbit/react'],
+      external: [/^react(\/.*)?$/, /^react-dom(\/.*)?$/, /^next(\/.*)?$/, '@layera-labs/react'],
       output: {
         banner: "'use client';",
       },

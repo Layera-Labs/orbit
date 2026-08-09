@@ -3,8 +3,8 @@
  */
 import * as React from 'react';
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { OrbitInput, OrbitLoading } from '@orbit/ui';
-import type { AssetProvider, Asset } from '@orbit/shared';
+import { OrbitInput, OrbitLoading } from '@layera-labs/ui';
+import type { AssetProvider, Asset } from '@layera-labs/shared';
 
 interface VideosPanelProps {
   videoProvider?: AssetProvider;

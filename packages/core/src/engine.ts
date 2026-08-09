@@ -14,10 +14,10 @@ import { CollaborationManager, type CollaborationConfig } from './collaboration'
 import { AudioManager } from './audio-manager';
 import { AudioMixer } from './audio-mixer';
 import { TransitionEngine } from './transition-engine';
-import { AdjustmentRenderer, type AdjustmentValues } from '@orbit/effects';
+import { AdjustmentRenderer, type AdjustmentValues } from '@layera-labs/effects';
 import { AddLayerCommand, UpdateLayerCommand, MoveLayerCommand, RemoveLayerCommand, DuplicateLayerCommand, GroupLayersCommand, UngroupLayerCommand } from './commands';
-import type { Layer, OrbitTheme, WatermarkOptions, ExportOptions, SceneGraph as SceneGraphState } from '@orbit/shared';
-import { DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT, generateId } from '@orbit/shared';
+import type { Layer, OrbitTheme, WatermarkOptions, ExportOptions, SceneGraph as SceneGraphState } from '@layera-labs/shared';
+import { DEFAULT_CANVAS_WIDTH, DEFAULT_CANVAS_HEIGHT, generateId } from '@layera-labs/shared';
 import * as fabric from 'fabric';
 
 export type ToolType = 'select' | 'brush' | 'highlighter' | 'text' | 'shape' | 'crop' | 'vector';

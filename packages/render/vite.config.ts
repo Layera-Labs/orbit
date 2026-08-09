@@ -11,7 +11,7 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
-        '@orbit/model',
+        '@layera-labs/model',
         'konva',
         'react',
         'react-dom',
@@ -23,5 +23,5 @@ export default defineConfig({
     },
     sourcemap: true,
   },
-  plugins: [dts({ include: ['src'] })],
+  plugins: [dts({ include: ['src'], exclude: ['src/__tests__'] })],
 });

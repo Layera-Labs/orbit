@@ -2,9 +2,9 @@
  * BottomBar - Zoom controls, grid toggles, and canvas info
  */
 import * as React from 'react';
-import { OrbitButton } from '@orbit/ui';
+import { OrbitButton } from '@layera-labs/ui';
 import { useEditorStore } from '../store';
-import type { OrbitEngine } from '@orbit/core';
+import type { OrbitEngine } from '@layera-labs/core';
 
 interface BottomBarProps {
   engine: OrbitEngine | null;

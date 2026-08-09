@@ -11,7 +11,7 @@
  *
  * So the grade is built as a single SVG `feColorMatrix`, which has an additive
  * column and can therefore express the whole of `eq` — including the part CSS
- * cannot reach. The matrix itself comes from `gradeMatrix` in `@orbit/video`,
+ * cannot reach. The matrix itself comes from `gradeMatrix` in `@layera-labs/video`,
  * which models `eq` where it actually runs: on the YUV planes.
  *
  * HOW CLOSE THIS GETS, measured against a real exported MP4 (2026-07-28):
@@ -25,7 +25,7 @@
  * `url()` filters are unavailable we fall back to the CSS approximation rather
  * than showing nothing, and say so through `gradeIsExact`.
  */
-import { gradeMatrix, type FilterParams } from '@orbit/video/browser';
+import { gradeMatrix, type FilterParams } from '@layera-labs/video/browser';
 
 const NS = 'http://www.w3.org/2000/svg';
 const HOST_ID = 'orbit-grade-filters';
@@ -81,7 +81,7 @@ export function filterFor(f: FilterParams): string | null {
   if (registered.has(id)) return id;
 
   /*
-   * The whole grade — eq AND colortemperature — comes from `@orbit/video`.
+   * The whole grade — eq AND colortemperature — comes from `@layera-labs/video`.
    *
    * It lives there rather than here because the mobile Skia preview needs the
    * identical matrix, and the export's arg builder sits beside it. Three

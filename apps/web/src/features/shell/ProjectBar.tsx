@@ -10,7 +10,7 @@ import styles from './ProjectBar.module.css';
 /**
  * The project's identity bar.
  *
- * The host owns the name deliberately: `@orbit/editor`'s own TopBar keeps its
+ * The host owns the name deliberately: `@layera-labs/editor`'s own TopBar keeps its
  * title in local state and never writes it to the document, so the editor is
  * not a place a name can be read back from.
  */

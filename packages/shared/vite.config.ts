@@ -10,9 +10,11 @@ export default defineConfig({
       fileName: 'index',
     },
     rollupOptions: {
-      external: ['react', 'react-dom', 'next'],
+      // `clsx` and `tailwind-merge` are declared dependencies and were being
+      // bundled anyway, so every consumer shipped two copies of each.
+      external: [/^react($|\/)/, /^react-dom($|\/)/, /^next($|\/)/, /^clsx($|\/)/, /^tailwind-merge($|\/)/],
     },
     sourcemap: true,
   },
-  plugins: [dts({ include: ['src'] })],
+  plugins: [dts({ include: ['src'], exclude: ['src/__tests__'] })],
 });

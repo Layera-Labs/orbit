@@ -1,15 +1,15 @@
 import { useEffect, useMemo } from 'react';
 import Konva from 'konva';
-import { OrbitEditor } from '@orbit/editor';
-import { createStore } from '@orbit/model';
+import { OrbitEditor } from '@layera-labs/editor';
+import { createStore } from '@layera-labs/model';
 import {
   DemoTemplateProvider,
   GoogleFontProvider,
   PicsumPhotoProvider,
   PresetBackgroundProvider,
-} from '@orbit/providers';
-import { exportPageToSVG, exportStageToDataURL } from '@orbit/render';
-import { createHostBridge, createWebViewHostTransport } from '@orbit/react-native';
+} from '@layera-labs/providers';
+import { exportPageToSVG, exportStageToDataURL } from '@layera-labs/render';
+import { createHostBridge, createWebViewHostTransport } from '@layera-labs/react-native';
 
 /**
  * The web build that runs INSIDE the React Native WebView. It mounts the v2

@@ -36,10 +36,23 @@ function shim(name: string, payload: string): string {
     path,
     [
       '#!/bin/sh',
-      // The capability probe: any `-h` invocation gets a minimal token dump.
-      'case "$1" in',
-      '  -h) printf \'xfade AVOptions:\\n   transition        <int>        ..FV.......\\n     fade            0            ..FV....... fade transition\\n\'; exit 0;;',
-      'esac',
+      /*
+       * The capability probe, matched ANYWHERE in the argv rather than at `$1`.
+       *
+       * `renderProject` spawns `[-hide_banner, -h, filter=xfade]`, so a `case
+       * "$1"` never saw the `-h` and the probe fell through to the render
+       * branch below. `eval "out=\${$#}"` then read the LAST argument —
+       * `filter=xfade` — as the output path and wrote the payload to a file of
+       * that name in the process's cwd, which is the repo root. Two failures
+       * from one line: the probe this shim claims to answer was never
+       * answering, and every run littered the repository.
+       */
+      'for a in "$@"; do',
+      '  if [ "$a" = "-h" ]; then',
+      '    printf \'xfade AVOptions:\\n   transition        <int>        ..FV.......\\n     fade            0            ..FV....... fade transition\\n\'',
+      '    exit 0',
+      '  fi',
+      'done',
       'eval "out=\\${$#}"',
       payload ? `printf '%s' '${payload}' > "$out"` : ': # write nothing',
       'exit 0',

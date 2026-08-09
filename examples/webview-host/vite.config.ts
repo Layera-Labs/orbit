@@ -5,11 +5,11 @@ import { resolve } from 'path';
 
 // Alias workspace packages to their source so the host bundles the live v2 code.
 const workspacePackageAliases = {
-  '@orbit/editor': resolve(__dirname, '../../packages/editor/src/index.ts'),
-  '@orbit/model': resolve(__dirname, '../../packages/model/src/index.ts'),
-  '@orbit/providers': resolve(__dirname, '../../packages/providers/src/index.ts'),
-  '@orbit/render': resolve(__dirname, '../../packages/render/src/index.ts'),
-  '@orbit/react-native': resolve(__dirname, '../../packages/react-native/src/index.ts'),
+  '@layera-labs/editor': resolve(__dirname, '../../packages/editor/src/index.ts'),
+  '@layera-labs/model': resolve(__dirname, '../../packages/model/src/index.ts'),
+  '@layera-labs/providers': resolve(__dirname, '../../packages/providers/src/index.ts'),
+  '@layera-labs/render': resolve(__dirname, '../../packages/render/src/index.ts'),
+  '@layera-labs/react-native': resolve(__dirname, '../../packages/react-native/src/index.ts'),
 };
 
 export default defineConfig({
