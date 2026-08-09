@@ -144,7 +144,7 @@ Legend: ✅ done · ◐ partial, with the gap named · ○ not built.
 | `POST /v1/generate` + example client UI | ✅ | Topic in, job id out, poll to completion. All four formats are selectable over HTTP |
 | Formats | ✅ | Four archetypes in `FORMATS`: `story`, `listicle`, `split`, `chat`. The runner dispatches to `format.compose`, so a format decides the video's shape rather than being composed as a story |
 | Brand kit | ✅ | `brandOf` fills the defaults, `logoOverlays` places the mark; all four formats read it |
-| Stock **footage**, over HTTP | ○ | `story`, `listicle` and `split` ask for `visualKind: 'video'`, and `split` also wants a filler clip. The pipeline takes a `videoProvider` for both; **the render service passes its stock provider only in the stills slot and leaves `videoProvider` unset**, so a generation over HTTP always downgrades — reported honestly as `visualsDowngraded` / `fillerSkipped`, never silently |
+| Stock **footage**, over HTTP | ✅ | `story`, `listicle` and `split` ask for `visualKind: 'video'`, and `split` also wants a filler clip. The service fills both slots from `PEXELS_API_KEY` — stills-mode in one, videos-mode in the other, because stock search is per-provider. Openverse has no video corpus, so without a key the formats fall back to stills and the finished job says so (`visualsDowngraded` / `fillerSkipped`); `/health` reports `capabilities.stockVideo` either way |
 | Never run against real vendors | ⚠ | The LLM, ElevenLabs and Openverse paths are tested against fakes only |
 
 ### Render service
@@ -422,10 +422,6 @@ cd examples/mobile && npx vitest run   # Expo examples are outside the workspace
   shape on the timeline; the panels do not exist.
 - **A format** in `@orbit/formats` — pure `(ScenePlan, Assets, Brand) → VideoProject`.
   Four exist; `formats.test.ts` shows what a new one has to satisfy.
-- **Wire footage into the service** — `openverseOrPexels` can already return a
-  video provider, but `server.ts` hands it to the pipeline's stills slot only and
-  never fills `videoProvider`, which is the whole reason a generation over HTTP
-  comes back as a slideshow.
 - **An SSE route for generation jobs** — the render one is the template.
 - **A migration runner** — before the next table lands, not after.
 

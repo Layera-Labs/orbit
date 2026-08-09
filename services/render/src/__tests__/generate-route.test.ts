@@ -55,6 +55,8 @@ vi.mock('../stock-provider.js', () => ({
     ],
     getById: async () => ({ id: 'x', type: 'image', src: 'https://cdn/x.jpg', width: 1080, height: 1920 }),
   }),
+  /* No key here, so no footage slot — which is the case this file exercises. */
+  stockVideoProvider: () => undefined,
 }));
 
 /* The download: no network, a token straight back. */
@@ -192,6 +194,25 @@ describe('the whole flow', () => {
     expect(job.status).toBe('done');
     expect(job.step).toBe('render');
   }, 25_000);
+
+  /*
+   * The other half of `generate-footage.test.ts`, and the half that runs on
+   * most boxes: no stock video key, so the formats that ask for footage get
+   * stills. It has to FINISH — a generation that has already paid for a
+   * language model and a voice must not die for want of a key — and it has to
+   * SAY so, all the way out to the caller. The route used to drop both fields
+   * on their way from the pipeline's result to the job's.
+   */
+  it('degrades to stills, and says so, with no footage provider', async () => {
+    const health = await (await fetch(`${base}/health`)).json();
+    expect(health.capabilities.stockVideo).toBe(false);
+
+    // `story` asks for `visualKind: 'video'`; `split` also wants a filler.
+    const { id } = await (await post({ topic: 'lighthouses' })).json();
+    const job = await settle(id);
+    expect(job.status).toBe('done');
+    expect(job.result.visualsDowngraded).toMatch(/no stock video provider/);
+  }, 20_000);
 
   /* Not yours is not found, exactly as for a render. */
   it('does not show a generation to another account', async () => {

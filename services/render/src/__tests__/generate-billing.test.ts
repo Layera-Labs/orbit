@@ -59,6 +59,8 @@ vi.mock('../stock-provider.js', () => ({
     ],
     getById: async () => ({ id: 'x', type: 'image', src: 'https://cdn/x.jpg', width: 1080, height: 1920 }),
   }),
+  /* No key here, so no footage slot — which is the case this file exercises. */
+  stockVideoProvider: () => undefined,
 }));
 
 vi.mock('../asset-store.js', () => ({

@@ -86,7 +86,7 @@ import { brainFromEnv } from "./brain.js";
 import { ElevenLabsVoice, parseGenerationRequest } from "./generation.js";
 import { MediaDirAssetStore } from "./asset-store.js";
 import { PgGenerationQueue, PgStepLog } from "./generation-queue.js";
-import { openverseOrPexels } from "./stock-provider.js";
+import { openverseOrPexels, stockVideoProvider } from "./stock-provider.js";
 import {
   InMemoryGenerationQueue,
   InMemoryStepLog,
@@ -1223,6 +1223,17 @@ export function createServer(): Express {
   };
 
   /*
+   * The two stock slots, built once and shared by `/health` and the worker.
+   *
+   * Hoisted above the health route on purpose: whether this box can fetch
+   * FOOTAGE is a capability, not a detail of the generation worker, and an
+   * operator asking "why does every video come back as a slideshow" should get
+   * the answer from `/health` rather than from a finished job's result.
+   */
+  const stock = openverseOrPexels(process.env);
+  const stockFootage = stockVideoProvider(process.env);
+
+  /*
    * Health, with the numbers you actually need during an incident.
    *
    * `ok` stays true while the queue is merely busy — a load balancer pulling
@@ -1283,7 +1294,19 @@ export function createServer(): Express {
        * and the process plainly is not.
        */
       schema: readyState,
-      capabilities: { hdr, transitions, rasterize: rasterizes },
+      /*
+       * `stockVideo` is a static fact about the configuration, not a probe —
+       * it is here rather than beside `PEXELS_API_KEY` in a log line because
+       * its ABSENCE is silent everywhere else: the formats that want footage
+       * degrade to stills and the video still renders, so nothing fails and
+       * nothing pages. It reports a boolean, never the key.
+       */
+      capabilities: {
+        hdr,
+        transitions,
+        rasterize: rasterizes,
+        stockVideo: Boolean(stockFootage),
+      },
       /*
        * Which build is actually answering. Without this, "is the fix
        * deployed?" is unanswerable from outside the box — and during an
@@ -1857,7 +1880,6 @@ export function createServer(): Express {
   if (generationReady && process.env.ORBIT_GENERATION_WORKER !== "0") {
     const store = new MediaDirAssetStore({ mediaDir });
     const voice = new ElevenLabsVoice(ELEVEN_KEY!, mediaDir);
-    const stock = openverseOrPexels(process.env);
 
     const worker = startGenerationWorker({
       queue: genQueue,
@@ -1876,6 +1898,13 @@ export function createServer(): Express {
               brain: brain!,
               voice,
               provider: stock,
+              /*
+               * Spread rather than passed as `undefined`, so an unconfigured
+               * box leaves the key absent and `Boolean(deps.videoProvider)` in
+               * the pipeline reads what it means. Optional in earnest: without
+               * it the footage formats downgrade to stills and say so.
+               */
+              ...(stockFootage ? { videoProvider: stockFootage } : {}),
               store,
               log: genLog,
               onStep: setStep,
@@ -1906,6 +1935,15 @@ export function createServer(): Express {
             durationSec: projectDuration(out.project),
             compromises: out.compromises,
             ...(out.alignmentSkipped ? { alignmentSkipped: out.alignmentSkipped } : {}),
+            /*
+             * Forwarded for the same reason `alignmentSkipped` is, and they
+             * were missing: the pipeline reports honestly that it served
+             * stills for a format that asked for footage, and the route
+             * dropped both fields on the floor — so over HTTP the downgrade
+             * was exactly as silent as if nothing reported it at all.
+             */
+            ...(out.visualsDowngraded ? { visualsDowngraded: out.visualsDowngraded } : {}),
+            ...(out.fillerSkipped ? { fillerSkipped: out.fillerSkipped } : {}),
           };
         } catch (err) {
           /*
