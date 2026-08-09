@@ -89,7 +89,7 @@ Requires backend FFmpeg processing. Use the video export flow with `format: 'mp3
 Available in the React wrapper:
 
 ```tsx
-import { exportToPDF } from '@orbit/react';
+import { exportToPDF } from '@layera-labs/react';
 
 const pdfBlob = await exportToPDF(engine, {
   pages: [

@@ -3,3 +3,7 @@ packages:
   - 'apps/*'
   - 'services/*'
   - 'examples/*'
+  # Expo apps install with npm, never pnpm — pnpm's symlinked store corrupts
+  # Metro's module resolution, and the failure looks like a missing module in a
+  # package that is plainly installed.
+  - '!examples/mobile'

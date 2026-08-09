@@ -1,6 +1,6 @@
 'use client';
 
-import { useEditorState, useStore } from '@orbit/editor';
+import { useEditorState, useStore } from '@layera-labs/editor';
 import { ColourRow, SwatchGrid } from '@/brand/Colour';
 import styles from './Panels.module.css';
 

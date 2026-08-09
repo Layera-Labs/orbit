@@ -7,8 +7,8 @@ import {
   type Format,
   type FormatBrief,
   type ScenePlan,
-} from '@orbit/pipeline';
-import type { VideoProject } from '@orbit/video/browser';
+} from '@layera-labs/pipeline';
+import type { VideoProject } from '@layera-labs/video/browser';
 
 /**
  * The story: one idea, told from a hook to a resolution.
@@ -156,6 +156,9 @@ function validate(plan: ScenePlan): void {
 }
 
 export const story: Format = {
+  // Moving footage where it exists: a story is carried by its pictures, and a
+  // run of stills is the thing that makes a generated video look generated.
+  needs: { visualKind: 'video' },
   id: 'story',
   title: 'Story',
   description: 'One idea, from a hook to a resolution.',

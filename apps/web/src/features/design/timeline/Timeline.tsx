@@ -6,7 +6,7 @@ import type {
   Overlay,
   VideoProject,
   VisualTrack,
-} from '@orbit/video/browser';
+} from '@layera-labs/video/browser';
 import { Icon } from '@/brand/Icon';
 import { useDesign, PX_PER_SECOND_MAX, PX_PER_SECOND_MIN } from '@/store/designStore';
 import { addVisualTrack, byStart, overlayLabel, useVideo } from '@/store/videoStore';

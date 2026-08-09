@@ -7,10 +7,11 @@
  * fifths of a paid-for job away.
  */
 import { describe, expect, it, vi } from 'vitest';
-import type { Asset, AssetProvider } from '@orbit/shared';
+import type { Asset, AssetProvider } from '@layera-labs/shared';
 import { generate, mapLimit } from '../generate.ts';
 import { InMemoryStepLog } from '../steps.ts';
 import type { Format } from '../format.ts';
+import { composeStory, type ComposeInput } from '../compose.ts';
 import type { ScenePlan } from '../scene-plan.ts';
 import type { GenerateDeps } from '../generate.ts';
 
@@ -36,10 +37,25 @@ const format: Format = {
     example,
   },
   validate: () => undefined,
-  compose: () => {
-    throw new Error('not used');
+  /*
+   * A REAL compose, recording what it was handed.
+   *
+   * It used to throw `not used`, and the whole suite passed — which is exactly
+   * how `generate` came to call `composeStory` unconditionally while the
+   * planner prompted and validated against `req.format`. Every archetype but
+   * the default was planned, validated and then silently discarded, and the one
+   * test that could have caught it was asserting the opposite.
+   */
+  compose: (input) => {
+    composed.push(input);
+    // Delegates to the story composition so the tests below can keep asserting
+    // on a real project, while still proving the RUNNER dispatched here.
+    return composeStory(input);
   },
 };
+
+/** Every `ComposeInput` the runner has handed a format, newest last. */
+const composed: ComposeInput[] = [];
 
 const asset = (id: string): Asset => ({
   id,
@@ -274,5 +290,96 @@ describe('mapLimit', () => {
   it('copes with an empty list and a ceiling of zero', async () => {
     expect(await mapLimit([], 3, async (x) => x)).toEqual([]);
     expect(await mapLimit([1, 2], 0, async (x) => x * 2)).toEqual([2, 4]);
+  });
+});
+
+/** A provider whose results are VIDEO, so `pickAsset`'s kind filter passes. */
+const videoProvider: AssetProvider = {
+  id: 'fake-video',
+  search: async (q) => [
+    {
+      id: q.replace(/\W+/g, '-'),
+      type: 'video',
+      src: `https://cdn/${q.replace(/\W+/g, '-')}.mp4`,
+      width: 1080,
+      height: 1920,
+      duration: 600,
+    },
+  ],
+  getById: async () => ({ id: 'x', type: 'video', src: 'https://cdn/x.mp4' }),
+};
+
+describe('the format decides', () => {
+  it('composes with the FORMAT, not with the story', async () => {
+    // The regression. Everything else in this file passed while this was false.
+    composed.length = 0;
+    const { deps: d } = deps();
+    const seen: ComposeInput[] = [];
+    const f: Format = { ...format, compose: (i) => (seen.push(i), format.compose(i)) };
+    await generate(d, 'g-fmt', { ...req, format: f });
+    expect(seen).toHaveLength(1);
+    expect(seen[0].plan.scenes).toHaveLength(2);
+  });
+
+  it('asks for footage when the format wants it, and stills when it does not', async () => {
+    for (const [visualKind, want] of [['video', 'video'], ['image', 'image']] as const) {
+      composed.length = 0;
+      const { deps: d } = deps({ videoProvider });
+      await generate(d, `g-${visualKind}`, {
+        ...req,
+        format: { ...format, needs: { visualKind } },
+      });
+      expect(composed.at(-1)!.visuals.every((v) => v.type === want)).toBe(true);
+    }
+  });
+
+  it('falls back to stills, and SAYS so, when the box has no video provider', async () => {
+    /*
+     * A generation that has already paid for a language model and a voice must
+     * not die because the deployment has photos only — and it must not quietly
+     * serve a slideshow either, which is indistinguishable from a format that
+     * never wanted footage.
+     */
+    composed.length = 0;
+    const { deps: d } = deps(); // no videoProvider
+    const out = await generate(d, 'g-nofallback', {
+      ...req,
+      format: { ...format, needs: { visualKind: 'video' } },
+    });
+    expect(composed.at(-1)!.visuals.every((v) => v.type === 'image')).toBe(true);
+    expect(out.visualsDowngraded).toMatch(/stock video/);
+    expect(out.url).toBe('https://out/final.mp4');
+  });
+
+  it('resolves a filler long enough for the whole video', async () => {
+    composed.length = 0;
+    const { deps: d } = deps({ videoProvider });
+    await generate(d, 'g-filler', {
+      ...req,
+      format: { ...format, needs: { visualKind: 'video', filler: 'abstract loop' } },
+    });
+    expect(composed.at(-1)!.filler).toBeTruthy();
+  });
+
+  it('loses the filler rather than the video when it cannot be found', async () => {
+    composed.length = 0;
+    const empty: AssetProvider = { ...videoProvider, search: async () => [] };
+    const { deps: d } = deps({ videoProvider: empty });
+    const out = await generate(d, 'g-nofiller', {
+      ...req,
+      // Stills for the scenes, so only the FILLER search comes up empty.
+      format: { ...format, needs: { visualKind: 'image', filler: 'abstract loop' } },
+    });
+    expect(out.url).toBe('https://out/final.mp4');
+    expect(out.fillerSkipped).toBeTruthy();
+    expect(composed.at(-1)!.filler).toBeUndefined();
+  });
+
+  it('asks for no filler at all when the format wants none', async () => {
+    composed.length = 0;
+    const { deps: d, calls } = deps({ videoProvider });
+    await generate(d, 'g-plain', req);
+    expect(calls.some((c) => c.includes('abstract'))).toBe(false);
+    expect(composed.at(-1)!.filler).toBeUndefined();
   });
 });

@@ -23,11 +23,11 @@ Orbit is a $200/month subscription SDK that gives you a full-featured image/vide
 ## Quick Start
 
 ```bash
-npm install @orbit/react
+npm install @layera-labs/react
 ```
 
 ```tsx
-import { OrbitEditor } from '@orbit/react';
+import { OrbitEditor } from '@layera-labs/react';
 
 function App() {
   return (
@@ -50,14 +50,14 @@ Orbit is built as a monorepo with 8 packages:
 
 | Package | Purpose |
 |---------|---------|
-| `@orbit/core` | Vanilla TypeScript canvas engine (Fabric.js v6) |
-| `@orbit/react` | React wrapper with UI panels |
-| `@orbit/next` | Next.js wrapper |
-| `@orbit/ui` | Themeable UI component library |
-| `@orbit/shared` | Types, utilities, constants |
-| `@orbit/agentic` | AI backend adapter |
-| `@orbit/effects` | WebGL shaders |
-| `@orbit/assets` | Asset utilities |
+| `@layera-labs/core` | Vanilla TypeScript canvas engine (Fabric.js v6) |
+| `@layera-labs/react` | React wrapper with UI panels |
+| `@layera-labs/next` | Next.js wrapper |
+| `@layera-labs/ui` | Themeable UI component library |
+| `@layera-labs/shared` | Types, utilities, constants |
+| `@layera-labs/agentic` | AI backend adapter |
+| `@layera-labs/effects` | WebGL shaders |
+| `@layera-labs/assets` | Asset utilities |
 
 ## Next Steps
 

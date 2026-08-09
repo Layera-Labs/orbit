@@ -1,4 +1,4 @@
-import { type OrbitTheme } from '@orbit/shared';
+import { type OrbitTheme } from '@layera-labs/shared';
 import { darkTheme } from './dark';
 import { lightTheme } from './light';
 

@@ -3,7 +3,7 @@
 // The SSE half of the export contract: the vocabulary adapter, the stream
 // ticket, and the route that puts them together.
 //
-// `ExportJobPoller` in `@orbit/core` has been written against this endpoint
+// `ExportJobPoller` in `@layera-labs/core` has been written against this endpoint
 // since before it existed, and the two halves did NOT agree — which is the
 // point of most of what is asserted here.
 import { describe, expect, it, vi } from 'vitest';

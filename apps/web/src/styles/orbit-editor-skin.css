@@ -1,5 +1,5 @@
 /**
- * Re-skins the embedded `@orbit/editor` so it belongs to this app.
+ * Re-skins the embedded `@layera-labs/editor` so it belongs to this app.
  *
  * The editor is themed by ~30 `--o-*` custom properties declared on `.orbit`,
  * so this is a pure additive override — no fork, no patched package. It also
@@ -12,7 +12,7 @@
  * emerald. That needs a change in `packages/render` — see the shared-package
  * work item.
  */
-@import '@orbit/editor/styles.css';
+@import '@layera-labs/editor/styles.css';
 
 /*
  * ALL THREE SELECTORS, not just `.orbit`.

@@ -18,14 +18,14 @@ import { bearer, guestToken } from './guest.js';
 const COST = 25;
 const FREE = 100;
 
-vi.mock('@orbit/video/node', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@orbit/video/node')>();
+vi.mock('@layera-labs/video/node', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@layera-labs/video/node')>();
   return { ...actual, renderProject: async () => undefined };
 });
 
 /* Fails on one topic, so success and failure share one server. */
 vi.mock('../brain.js', async () => {
-  const { story } = await import('@orbit/formats');
+  const { story } = await import('@layera-labs/formats');
   return {
     brainFromEnv: () => ({
       complete: async (prompt: string) => {
@@ -59,6 +59,8 @@ vi.mock('../stock-provider.js', () => ({
     ],
     getById: async () => ({ id: 'x', type: 'image', src: 'https://cdn/x.jpg', width: 1080, height: 1920 }),
   }),
+  /* No key here, so no footage slot — which is the case this file exercises. */
+  stockVideoProvider: () => undefined,
 }));
 
 vi.mock('../asset-store.js', () => ({

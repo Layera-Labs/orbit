@@ -11,9 +11,9 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
-        '@orbit/model',
-        '@orbit/render',
-        '@orbit/providers',
+        '@layera-labs/model',
+        '@layera-labs/render',
+        '@layera-labs/providers',
         'konva',
         'react',
         'react-dom',
@@ -22,6 +22,10 @@ export default defineConfig({
         'valtio',
         'valtio/vanilla',
         'framer-motion',
+        // Declared, but not listed, so jspdf and html2canvas were bundled into
+        // dist as well as installed: 3.9MB of package, most of it a second copy
+        // of a dependency the consumer already has.
+        /^jspdf($|\/)/,
       ],
     },
     sourcemap: true,

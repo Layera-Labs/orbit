@@ -16,8 +16,8 @@ import type { Server } from 'node:http';
 
 let broken = false;
 
-vi.mock('@orbit/video/node', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@orbit/video/node')>();
+vi.mock('@layera-labs/video/node', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@layera-labs/video/node')>();
   return {
     ...actual,
     renderProject: async () => {},

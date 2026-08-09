@@ -7,7 +7,7 @@
 #
 # Built from the REPO ROOT, not this directory:
 #   docker build -f services/render/Dockerfile -t orbit-render .
-# The service imports workspace packages (@orbit/video, @orbit/billing, …) by
+# The service imports workspace packages (@layera-labs/video, @layera-labs/billing, …) by
 # source, so it needs the whole pnpm workspace present to install and build.
 
 # The architecture is STATED, because one dependency here is a native addon.
@@ -46,10 +46,10 @@ RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.json ./
 COPY services/render/package.json services/render/
 COPY packages packages
-RUN pnpm install --frozen-lockfile --filter @orbit/render-service...
+RUN pnpm install --frozen-lockfile --filter @layera-labs/render-service...
 
 COPY services/render services/render
-RUN pnpm --filter @orbit/render-service... build
+RUN pnpm --filter @layera-labs/render-service... build
 
 # Re-link, production only.
 #
@@ -57,7 +57,7 @@ RUN pnpm --filter @orbit/render-service... build
 # directories a pnpm workspace resolves through, leaving only the root store, so
 # the service starts and immediately cannot find `cors`. A second install with
 # `--prod` rebuilds the links with the dev dependencies left out.
-RUN CI=true pnpm install --frozen-lockfile --prod --filter @orbit/render-service...
+RUN CI=true pnpm install --frozen-lockfile --prod --filter @layera-labs/render-service...
 
 # ---- run --------------------------------------------------------------------
 FROM --platform=${PLATFORM} node:22-trixie-slim

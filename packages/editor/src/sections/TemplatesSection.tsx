@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { TemplateSummary } from '@orbit/providers';
+import type { TemplateSummary } from '@layera-labs/providers';
 import { useProviders, useStore } from '../context';
 import { defineSection } from './types';
 

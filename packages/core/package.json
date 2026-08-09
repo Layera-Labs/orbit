@@ -1,7 +1,18 @@
 {
-  "name": "@orbit/core",
-  "version": "0.0.1",
+  "name": "@layera-labs/core",
+  "version": "1.0.0-beta.1",
   "description": "Orbit Canvas Engine - Vanilla TypeScript core",
+  "license": "MIT",
+  "author": "Layera Labs",
+  "homepage": "https://github.com/Layera-Labs/orbit/tree/main/packages/core#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Layera-Labs/orbit.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/Layera-Labs/orbit/issues"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -24,8 +35,8 @@
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "@orbit/effects": "workspace:*",
-    "@orbit/shared": "workspace:*",
+    "@layera-labs/effects": "workspace:*",
+    "@layera-labs/shared": "workspace:*",
     "fabric": "^6.9.1",
     "modern-gif": "^2.1.0",
     "yjs": "^13.6.30"
@@ -36,5 +47,6 @@
     "vite": "^5.2.0",
     "vite-plugin-dts": "^3.8.0"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "//publishConfig": "REGISTRY AND ACCESS ARE NOT DECIDED YET, so publishConfig is deliberately absent rather than guessed. Public npm needs {\"access\":\"public\"} (a scoped package defaults to restricted and the publish fails without it). GitHub Packages needs {\"registry\":\"https://npm.pkg.github.com\"}; the @layera-labs scope already matches the owning GitHub org, so nothing further has to be renamed. Add exactly one of those here before the first publish."
 }

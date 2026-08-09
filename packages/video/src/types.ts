@@ -1,7 +1,7 @@
 /**
  * Orbit video timeline model — headless, JSON-serializable.
  *
- * This is the video counterpart to `@orbit/model`: a project is plain data that
+ * This is the video counterpart to `@layera-labs/model`: a project is plain data that
  * a UI edits, an agent mutates, and the server render pipeline turns into an
  * MP4. v1 is intentionally minimal (a single visual track + text overlays +
  * audio) — the seed of a fuller NLE, not a CapCut-depth multi-track engine.
@@ -155,6 +155,39 @@ export interface TextOverlay extends OverlayBase {
   stroke?: TextStroke;
   /** Optional caption background box. */
   box?: { color: string; opacity?: number; padding?: number };
+  /**
+   * Pick out the word being spoken, using `words`.
+   *
+   * **The style is what opts in**, not the presence of timings. Auto-captions
+   * carry `words` whether or not anyone wants the effect, so keying off the
+   * array would turn karaoke on for every transcribed project ever saved and
+   * silently multiply its render cost. Absent means the caption draws as one
+   * static plate, exactly as it always has.
+   *
+   * Ignored when `words` no longer spells `text` — see `captionWordsValid`.
+   */
+  highlight?: WordHighlight;
+}
+
+/**
+ * How the word being spoken is picked out.
+ *
+ * Deliberately only ink and a plate behind it, which is what the look actually
+ * is. **Scaling the active word is not offered and should not be added
+ * casually:** a wider word re-measures its line, which re-wraps it, which
+ * re-flows every line after it — so the caption would twitch its whole layout
+ * once per word. If a size change is ever wanted it has to be a transform that
+ * does not feed back into measurement.
+ */
+export interface WordHighlight {
+  /** Ink for the active word. Absent means the caption's own `color`. */
+  color?: string;
+  /** Filled plate behind the active word. Absent means none. */
+  background?: string;
+  /** Corner radius of that plate, px at the output resolution. */
+  radius?: number;
+  /** Space around the word inside its plate, px at the output resolution. */
+  padding?: number;
 }
 
 /**
@@ -220,6 +253,30 @@ export type Overlay = TextOverlay | ImageOverlay | ShapeOverlay;
 /** Narrow an overlay list to captions — the one kind that carries words. */
 export function textOverlaysOf(overlays: readonly Overlay[]): TextOverlay[] {
   return overlays.filter((o): o is TextOverlay => o.type === "text");
+}
+
+/**
+ * An overlay rasterized to a FULL-FRAME PNG, as opposed to one placed as a clip.
+ *
+ * This is the distinction both renderers actually care about, and it is not the
+ * same as "is it text". Text and shapes are baked at their anchor into a
+ * width×height plate that is then composited at 0,0, so their `motion` zooms
+ * the whole layer and their keyframed position is a DELTA from the baked
+ * anchor. An `ImageOverlay` instead becomes a `VisualTrackClip` and is placed
+ * like a picture-in-picture, where keyframes REPLACE the origin.
+ *
+ * Naming the category is what let the shape renderer land without a second
+ * copy of the compositing arithmetic: everything downstream asks "is this a
+ * plate?", not "is this a caption?", so a shape inherits the window, the fade,
+ * `animateIn`, the slide and the keyframe sample already written and tested for
+ * captions.
+ */
+export type PlateOverlay = TextOverlay | ShapeOverlay;
+
+export function plateOverlaysOf(overlays: readonly Overlay[]): PlateOverlay[] {
+  return overlays.filter(
+    (o): o is PlateOverlay => o.type === "text" || o.type === "shape",
+  );
 }
 
 export interface AudioClip {

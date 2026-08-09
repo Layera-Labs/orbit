@@ -1,6 +1,7 @@
 {
-  "name": "@orbit/billing",
+  "name": "@layera-labs/billing",
   "version": "0.0.1",
+  "private": true,
   "description": "License keys + credit ledger + usage metering — the spine generation debits before it costs money",
   "type": "module",
   "main": "./dist/index.js",
@@ -26,5 +27,6 @@
     "vite": "^5.2.0",
     "vite-plugin-dts": "^3.8.0"
   },
-  "sideEffects": false
+  "sideEffects": false,
+  "//private": "The render service credit ledger. Service internals, not SDK surface."
 }

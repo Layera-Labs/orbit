@@ -13,8 +13,8 @@ import { bearer, guestToken } from './guest.js';
 
 const ENCODE_MS = 150;
 
-vi.mock('@orbit/video/node', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@orbit/video/node')>();
+vi.mock('@layera-labs/video/node', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@layera-labs/video/node')>();
   return {
     ...actual,
     renderProject: async () => {

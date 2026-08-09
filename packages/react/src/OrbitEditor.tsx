@@ -5,8 +5,8 @@ import * as React from 'react';
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { useOrbitEngine } from './hooks/useOrbitEngine';
 import { useEngineBridge } from './hooks/useEngineBridge';
-import { OrbitSidebar } from '@orbit/ui';
-import { themeManager } from '@orbit/ui';
+import { OrbitSidebar } from '@layera-labs/ui';
+import { themeManager } from '@layera-labs/ui';
 import { useEditorStore } from './store';
 import { localStorageDesignBackend } from './backends/design';
 import { ToastProvider, useToast } from './components/ToastProvider';
@@ -32,12 +32,18 @@ import {
   TemplatesPanel,
 } from './components/panels';
 import { AgenticPanel } from './components/right-panel/AgenticPanel';
-import type { AssetProvider, SceneGraph as SceneGraphState } from '@orbit/shared';
+import type { AssetProvider, SceneGraph as SceneGraphState } from '@layera-labs/shared';
 import type { UploadConfig, AutoSaveConfig, DesignBackend, DesignData } from './store/types';
+import type { AiBackend, ExportBackend } from './backends/types';
 import { addLayerAndSelect, createImageLayer, createVideoLayer } from './utils/layerPlacement';
 
 export interface OrbitEditorProps {
-  apiKey: string;
+  /**
+   * Kept for source compatibility, but the editor no longer reads either of
+   * these: they existed only so it could construct a backend client of its own.
+   * Credentials now belong to whoever builds the backend it is handed.
+   */
+  apiKey?: string;
   backendUrl?: string;
   theme?: string;
   config?: Record<string, unknown>;
@@ -54,6 +60,19 @@ export interface OrbitEditorProps {
   uploadConfig?: UploadConfig;
   designBackend?: DesignBackend;
   autoSave?: AutoSaveConfig;
+  /**
+   * Where MP4 / PNG-sequence renders are sent. Injected rather than built here:
+   * the editor used to construct `@layera-labs/agentic`'s client for this, which made
+   * the AI package a runtime dependency of plain editing. Omit it and export
+   * still works, in the browser, as GIF.
+   */
+  exportBackend?: ExportBackend;
+  /**
+   * The AI layer, and entirely opt-in. Omit it and the editor has no AI at all:
+   * the canvas "AI" button and the agentic drawer are not rendered, rather than
+   * rendered and unable to answer a click.
+   */
+  aiBackend?: AiBackend;
 }
 
 // Simple SVG icons for sidebar rail
@@ -128,8 +147,6 @@ export const OrbitEditor: React.FC<OrbitEditorProps> = (props) => {
 };
 
 const OrbitEditorInner: React.FC<OrbitEditorProps> = ({
-  apiKey,
-  backendUrl,
   theme,
   config,
   providers,
@@ -137,6 +154,8 @@ const OrbitEditorInner: React.FC<OrbitEditorProps> = ({
   uploadConfig,
   designBackend: customDesignBackend,
   autoSave,
+  exportBackend,
+  aiBackend,
 }) => {
   const { addToast } = useToast();
   const initialCanvasWidth = (config?.width as number) || 1080;
@@ -691,6 +710,9 @@ const OrbitEditorInner: React.FC<OrbitEditorProps> = ({
               <ContextToolbar engine={engine} />
             </div>
 
+            {/* No AI backend, no AI button. A control that cannot answer a click
+                is worse than an absent one. */}
+            {aiBackend && (
             <button
               type="button"
               aria-pressed={editorMode === 'agentic' && agenticDrawerOpen}
@@ -709,6 +731,7 @@ const OrbitEditorInner: React.FC<OrbitEditorProps> = ({
               {Icons.ai}
               AI
             </button>
+            )}
 
             <RulerOverlay
               zoom={zoom}
@@ -732,7 +755,7 @@ const OrbitEditorInner: React.FC<OrbitEditorProps> = ({
             <div ref={containerRef} className="h-full w-full" />
           </div>
 
-          {agenticDrawerOpen && (
+          {agenticDrawerOpen && aiBackend && (
             <aside className="absolute bottom-4 right-4 top-4 z-[65] flex w-[calc(100vw-2rem)] max-w-[390px] flex-col overflow-hidden rounded-[26px] border border-white/70 bg-white/90 shadow-[0_30px_80px_-34px_rgba(15,23,42,0.5)] backdrop-blur-xl sm:w-[390px]">
               <div className="flex items-center justify-between border-b border-white/60 px-5 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.75)]">
                 <div>
@@ -754,7 +777,7 @@ const OrbitEditorInner: React.FC<OrbitEditorProps> = ({
                 </button>
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto">
-                <AgenticPanel engine={engine} apiKey={apiKey} backendUrl={backendUrl} />
+                <AgenticPanel engine={engine} backend={aiBackend} />
               </div>
             </aside>
           )}
@@ -768,8 +791,7 @@ const OrbitEditorInner: React.FC<OrbitEditorProps> = ({
         open={videoExportOpen}
         onClose={() => setVideoExportOpen(false)}
         engine={engine}
-        apiKey={apiKey}
-        backendUrl={backendUrl}
+        backend={exportBackend}
         onError={(err) => {
           callbacks?.onError?.(err);
           addToast(err.message, 'error');

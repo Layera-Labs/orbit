@@ -26,7 +26,7 @@ import {
   type VideoProject,
   type VisualTrack,
   type VisualTrackClip,
-} from '@orbit/video/browser';
+} from '@layera-labs/video/browser';
 import { newId } from '@/db/idb';
 import { persistProject } from '@/db/persist';
 

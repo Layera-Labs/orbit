@@ -3,7 +3,7 @@ import {
   overlayBox,
   overlayFontOptions,
   type VideoProject,
-} from '@orbit/video/browser';
+} from '@layera-labs/video/browser';
 import { loadedCaptionFonts } from '../../../net/fonts';
 
 export interface Box {

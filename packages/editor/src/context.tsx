@@ -8,8 +8,8 @@ import {
   type ReactNode,
 } from 'react';
 import { useSnapshot } from 'valtio';
-import { createStore, type OrbitStore } from '@orbit/model';
-import { ProviderRegistry, type ProviderMap } from '@orbit/providers';
+import { createStore, type OrbitStore } from '@layera-labs/model';
+import { ProviderRegistry, type ProviderMap } from '@layera-labs/providers';
 
 export type ThemeMode = 'dark' | 'light';
 

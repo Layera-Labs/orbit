@@ -1,5 +1,5 @@
 /**
- * @orbit/assets - Orbit Asset Providers and Cache
+ * @layera-labs/assets - Orbit Asset Providers and Cache
  */
 
 export * from './providers/unsplash';

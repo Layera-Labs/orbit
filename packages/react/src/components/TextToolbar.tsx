@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { createPortal } from 'react-dom';
-import type { Layer, TextContent } from '@orbit/shared';
-import type { OrbitEngine } from '@orbit/core';
+import type { Layer, TextContent } from '@layera-labs/shared';
+import type { OrbitEngine } from '@layera-labs/core';
 import { GoogleFontPicker } from './GoogleFontPicker';
 
 type TextGradient = NonNullable<TextContent['gradient']>;

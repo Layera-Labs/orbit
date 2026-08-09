@@ -1,8 +1,8 @@
 {
-  "name": "@orbit/pipeline",
+  "name": "@layera-labs/pipeline",
   "version": "0.0.1",
   "private": true,
-  "description": "Brief → ScenePlan → VideoProject. The part that DECIDES; @orbit/video is the part that renders.",
+  "description": "Brief → ScenePlan → VideoProject. The part that DECIDES; @layera-labs/video is the part that renders.",
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -24,9 +24,9 @@
     "spike": "node --experimental-strip-types src/spike/run.ts"
   },
   "dependencies": {
-    "@orbit/shared": "workspace:*",
-    "@orbit/video": "workspace:*",
-    "@orbit/video-gen": "workspace:*"
+    "@layera-labs/shared": "workspace:*",
+    "@layera-labs/video": "workspace:*",
+    "@layera-labs/video-gen": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

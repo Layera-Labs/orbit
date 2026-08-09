@@ -2,16 +2,22 @@
 
 Orbit's agentic system connects to `api.orbit.ai` to generate and edit media using AI models.
 
+It is **opt-in**. `@layera-labs/agentic` is an optional peer of `@layera-labs/react`: install
+it, build a backend, and hand that backend to the editor. Skip all of it and the
+editor still runs — including video export, which is core editing, not AI.
+
 ## Setup
 
-Pass your API key and backend URL to the editor:
-
 ```tsx
-<OrbitEditor
-  apiKey="orbit_sk_your_key"
-  backendUrl="https://api.orbit.ai"
-/>
+import { OrbitBackendAdapter } from '@layera-labs/agentic';
+
+const backend = new OrbitBackendAdapter('orbit_sk_your_key', 'https://api.orbit.ai');
+
+<OrbitEditor aiBackend={backend} exportBackend={backend} />;
 ```
+
+Without `aiBackend` the canvas AI button and the agentic drawer are not rendered
+at all.
 
 ## Available Tools
 
@@ -20,7 +26,9 @@ Pass your API key and backend URL to the editor:
 Create an image from a text prompt:
 
 ```ts
-const { generate } = useOrbitAgentic({ engine, apiKey, backendUrl });
+import { useOrbitAgentic } from '@layera-labs/react/agentic';
+
+const { generate } = useOrbitAgentic({ engine, backend });
 const asset = await generate({
   prompt: 'A futuristic city at sunset with flying cars',
   model: 'gpt-4o',

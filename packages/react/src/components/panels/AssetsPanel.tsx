@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { OrbitInput, OrbitButton, OrbitLoading } from '@orbit/ui';
-import type { AssetProvider, Asset } from '@orbit/shared';
+import { OrbitInput, OrbitButton, OrbitLoading } from '@layera-labs/ui';
+import type { AssetProvider, Asset } from '@layera-labs/shared';
 
 interface AssetsPanelProps {
   photoProvider?: AssetProvider;

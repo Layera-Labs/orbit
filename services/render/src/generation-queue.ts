@@ -5,12 +5,12 @@ import type {
   GenerationStatus,
   StepLog,
   StepRecord,
-} from "@orbit/pipeline";
+} from "@layera-labs/pipeline";
 
 /**
  * The generation queue and step log, in SQL.
  *
- * Both interfaces live in `@orbit/pipeline` with in-memory implementations, and
+ * Both interfaces live in `@layera-labs/pipeline` with in-memory implementations, and
  * everything about their BEHAVIOUR is proven there — which matters, because the
  * tests in this file are gated on `TEST_DATABASE_URL` and do not run in
  * ordinary CI. There is deliberately no logic here beyond the queries.

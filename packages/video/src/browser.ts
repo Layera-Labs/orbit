@@ -1,5 +1,5 @@
 /**
- * Browser-safe surface of `@orbit/video`.
+ * Browser-safe surface of `@layera-labs/video`.
  *
  * Everything re-exported here is pure TypeScript over plain data — no `node:`
  * builtins, no native addons — so a web bundle can import the timeline model and
@@ -58,6 +58,7 @@ export type {
   AudioTrack,
   Track,
   VideoProject,
+  WordHighlight,
   WordTiming,
 } from './types';
 export { FULL_FRAME, FULL_SOURCE, textOverlaysOf } from './types';

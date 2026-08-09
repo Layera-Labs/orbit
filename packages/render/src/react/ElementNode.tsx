@@ -12,7 +12,7 @@ import {
   Text,
 } from 'react-konva';
 import { useSnapshot } from 'valtio';
-import type { Element, GroupElement, ID } from '@orbit/model';
+import type { Element, GroupElement, ID } from '@layera-labs/model';
 import { computeSnap } from '../snapping';
 import type { Box } from '../types';
 import { useWorkspace } from './context';

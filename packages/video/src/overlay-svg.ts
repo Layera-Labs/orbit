@@ -32,7 +32,7 @@
  * and the two finally agree. resvg ignores the `@font-face` and uses its own
  * `fontFiles`, which is harmless: both are the same face.
  */
-import type { TextOverlay } from './types';
+import type { ShapeOverlay, TextOverlay } from './types';
 import { col, esc, fontFamily as family, num as n } from './svg';
 import {
   approximateMeasurer,
@@ -81,6 +81,16 @@ export interface OverlayRenderOptions {
    * can use the right face.
    */
   fontData?: Uint8Array;
+  /**
+   * Which word to light, as an index into `words`, or `NO_WORD` for none.
+   *
+   * The caller decides, and it decides from `karaoke.ts` — `render.ts` passes
+   * the segment's, `frame.ts` passes `activeWordAt(o, t)`. Both therefore build
+   * the SAME markup for the same instant, which is the whole reason this is a
+   * parameter rather than something this function works out from a clock it
+   * does not have.
+   */
+  activeWord?: number;
 }
 
 /** Base64 without `Buffer` or `btoa`, so this stays browser-safe and portable. */
@@ -196,9 +206,83 @@ export function overlayToSVG(
 
   // Vertically center the block of lines around the anchor.
   const firstY = anchorY - ((lines.length - 1) * lineH) / 2;
-  const tspans = lines
-    .map((l, i) => `<tspan x="${n(anchorX)}" y="${n(firstY + i * lineH)}">${esc(l) || ' '}</tspan>`)
-    .join('');
+
+  /*
+   * The active word, if this caption is being lit.
+   *
+   * `words[i]` is the i-th space-separated token of `text` — that is what
+   * `captionWordsValid` guarantees — and wrapping only ever breaks at a space,
+   * so counting tokens line by line maps a word index onto a line and a
+   * position within it. No second tokenization anywhere.
+   */
+  const active = opts?.activeWord ?? -1;
+  const hl = active >= 0 ? o.highlight : undefined;
+
+  let tspans = '';
+  let plates = '';
+  let token = 0;
+  lines.forEach((l, i) => {
+    const y = firstY + i * lineH;
+    const toks = l.length ? l.split(' ') : [];
+    const rel = active - token;
+    token += toks.length;
+
+    if (!hl || rel < 0 || rel >= toks.length) {
+      tspans += `<tspan x="${n(anchorX)}" y="${n(y)}">${esc(l) || ' '}</tspan>`;
+      return;
+    }
+
+    const pre = rel > 0 ? toks.slice(0, rel).join(' ') + ' ' : '';
+    const word = toks[rel];
+    const post = rel + 1 < toks.length ? ' ' + toks.slice(rel + 1).join(' ') : '';
+
+    /*
+     * The line is still ONE anchored chunk: only the first tspan carries `x`,
+     * and the rest continue it, so `text-anchor: middle` centres the whole
+     * line exactly as it does without a highlight. Splitting it into separate
+     * `<text>` elements would centre each fragment on its own and tear the
+     * line apart.
+     *
+     * When the first word is the lit one there is no leading fragment, so `x`
+     * goes on the lit tspan itself rather than on an empty one — an empty
+     * anchored chunk is not something every renderer positions the same way.
+     */
+    const ink = ` fill="${col(hl.color, o.color)}"`;
+    tspans +=
+      (pre ? `<tspan x="${n(anchorX)}" y="${n(y)}">${esc(pre)}</tspan><tspan${ink}>` : `<tspan x="${n(anchorX)}" y="${n(y)}"${ink}>`) +
+      `${esc(word)}</tspan>` +
+      (post ? `<tspan>${esc(post)}</tspan>` : '');
+
+    if (hl.background) {
+      /*
+       * Measured, not shaped. The plate is positioned from the same measurer
+       * the wrapping used, so it agrees with where the line breaks; it can
+       * still sit a pixel or two off the glyphs where the shaper kerns and the
+       * sum of advances does not. That is the right error to accept — a plate
+       * a hair wide is invisible, whereas positioning the GLYPHS by
+       * measurement would double-draw them against the shaped line.
+       *
+       * With REAL font metrics the plate lands tight on the word. Under the
+       * flat `0.58em` fallback — which is what a caption gets when its font
+       * could not be resolved — it is visibly too wide, by about 15% on a word
+       * like "give". Rendered and looked at, not reasoned about. Nothing here
+       * can fix that (the fallback is wrong in both directions by
+       * construction); it is one more reason the `font-missing` warning
+       * `renderProject` already emits is worth acting on, and it is why a
+       * background plate is opt-in rather than the default look.
+       */
+      const pad = hl.padding ?? Math.round(o.fontSize * 0.18);
+      const lineW = measure(l, o.fontSize);
+      const left =
+        align === 'left' ? anchorX : align === 'right' ? anchorX - lineW : anchorX - lineW / 2;
+      const x0 = left + measure(pre, o.fontSize) - pad;
+      const w0 = measure(word, o.fontSize) + pad * 2;
+      const h0 = o.fontSize + pad * 2;
+      plates +=
+        `<rect x="${n(x0)}" y="${n(y - h0 / 2)}" width="${n(w0)}" height="${n(h0)}" ` +
+        `rx="${n(Math.max(0, Math.min(hl.radius ?? 0, w0 / 2, h0 / 2)))}" fill="${col(hl.background)}"/>`;
+    }
+  });
 
   // Optional drop shadow via an SVG filter applied to the caption text.
   let filterEl = '';
@@ -217,10 +301,102 @@ export function overlayToSVG(
     ? ` stroke="${col(o.stroke.color)}" stroke-width="${n(o.stroke.width)}" stroke-linejoin="round" paint-order="stroke"`
     : '';
 
+  /*
+   * `xml:space="preserve"`, but ONLY while a word is lit.
+   *
+   * A highlighted line is split across tspans at word boundaries, and the space
+   * either side of the lit word lives at the end of one fragment and the start
+   * of the next — exactly where the default collapsing rule throws it away.
+   * Losing it closes the gap around the word being spoken, which is the one
+   * word anybody is looking at.
+   *
+   * Scoped to the karaoke path on purpose: `linesOf` never yields a leading,
+   * trailing or doubled space, so preserving is equivalent for our own lines —
+   * but "equivalent for the input we expect" is not a change worth making to
+   * every caption ever rendered.
+   */
+  const space = hl ? ' xml:space="preserve"' : '';
   const textEl =
     `<text font-family="${esc(fontFamily)}" font-size="${n(o.fontSize, 32)}" font-weight="${n(fontWeight, 400)}" ` +
-    `letter-spacing="${n(letterSpacing)}" ` +
+    `letter-spacing="${n(letterSpacing)}"${space} ` +
     `fill="${col(o.color, '#ffffff')}" text-anchor="${textAnchor}" dominant-baseline="middle"${strokeAttr}${filterAttr}>${tspans}</text>`;
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${n(width, 1)}" height="${n(height, 1)}">${fontEl}${filterEl}${boxEl}${textEl}</svg>`;
+  // The word's plate goes behind the glyphs and in front of the caption box.
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${n(width, 1)}" height="${n(height, 1)}">${fontEl}${filterEl}${boxEl}${plates}${textEl}</svg>`;
+}
+
+/**
+ * The shape's box in project pixels.
+ *
+ * `x`/`y` is the CENTRE and `width`/`height` are fractions of the frame — the
+ * same reading `imageOverlayAsClip` gives an `ImageOverlay`, and the type says
+ * as much. Written once here so an editor's selection outline and the
+ * rasterizer cannot disagree about where the rectangle is, which is the same
+ * reason `overlayBox` exists for text.
+ */
+export function shapeBox(
+  o: ShapeOverlay,
+  width: number,
+  height: number,
+): { x: number; y: number; w: number; h: number } {
+  const w = Math.max(0, o.width) * width;
+  const h = Math.max(0, o.height) * height;
+  return { x: o.x * width - w / 2, y: o.y * height - h / 2, w, h };
+}
+
+/**
+ * Produce a `width`×`height` SVG containing the positioned shape.
+ *
+ * **Full-frame, exactly like a caption's**, and that is the whole design. A
+ * shape could have been rasterized to its own small PNG and composited at an
+ * offset — but then its keyframes would REPLACE the origin (a clip's reading)
+ * while a caption's keyframes are a DELTA on a full-frame layer, and the two
+ * overlay kinds would animate differently for no reason a format author could
+ * ever guess. Sharing the caption's path means every timing rule already
+ * written and already tested — the window, the fade, `animateIn`, the slide,
+ * the keyframe sample — applies to a shape with no second copy of it anywhere.
+ *
+ * The cost is a full-frame PNG per shape, which is what text already pays.
+ *
+ * Every interpolated value goes through `num`/`col`, never `esc`. A colour is
+ * not text: `esc` is an XML transform the parser UNDOES, so `url('/etc/passwd')`
+ * looks escaped and decodes back into a live reference. `col` rejects anything
+ * that is not a colour outright. Same rule as the rest of this file, and the
+ * reason `rasterizeSVG` additionally refuses `<image>`/`<use>` on the way in.
+ */
+export function shapeToSVG(o: ShapeOverlay, width: number, height: number): string {
+  const b = shapeBox(o, width, height);
+  const fill = `fill="${col(o.fill, '#000000')}" fill-opacity="${n(o.fillOpacity ?? 1, 1)}"`;
+  /*
+   * `stroke-width` alone does not draw a stroke; an absent `stroke` colour
+   * leaves SVG's default of `none`. Requiring BOTH here means a shape that sets
+   * only one of them renders the same way in every surface rather than picking
+   * up a default that differs between resvg and a browser.
+   */
+  const stroked = o.stroke != null && (o.strokeWidth ?? 0) > 0;
+  const stroke = stroked
+    ? ` stroke="${col(o.stroke)}" stroke-width="${n(o.strokeWidth)}"`
+    : '';
+
+  const el =
+    o.shape === 'ellipse'
+      ? `<ellipse cx="${n(b.x + b.w / 2)}" cy="${n(b.y + b.h / 2)}" rx="${n(b.w / 2)}" ry="${n(b.h / 2)}" ${fill}${stroke}/>`
+      : // `rx` is clamped to half the box: SVG treats a larger radius as half
+        // anyway, but resvg and browsers have disagreed about the rounding on
+        // the way there, and a pill must be a pill in both.
+        `<rect x="${n(b.x)}" y="${n(b.y)}" width="${n(b.w)}" height="${n(b.h)}" ` +
+        `rx="${n(Math.max(0, Math.min(o.cornerRadius ?? 0, b.w / 2, b.h / 2)))}" ${fill}${stroke}/>`;
+
+  /*
+   * Rotation is about the shape's own centre, clockwise, matching
+   * `VisualTrackClip.rotation` — degrees, so it round-trips through JSON
+   * exactly, and clockwise because that is what ffmpeg's `rotate`, Skia and
+   * canvas all do, so no renderer has to flip the sign.
+   */
+  const rot = o.rotation ?? 0;
+  const body = rot
+    ? `<g transform="rotate(${n(rot)} ${n(b.x + b.w / 2)} ${n(b.y + b.h / 2)})">${el}</g>`
+    : el;
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${n(width, 1)}" height="${n(height, 1)}">${body}</svg>`;
 }

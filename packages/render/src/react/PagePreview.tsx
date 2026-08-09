@@ -11,7 +11,7 @@ import {
   Star,
   Text,
 } from 'react-konva';
-import type { Element, Page } from '@orbit/model';
+import type { Element, Page } from '@layera-labs/model';
 import { backgroundFill } from './background';
 import { useImage } from './useImage';
 

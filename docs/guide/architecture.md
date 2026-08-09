@@ -6,27 +6,27 @@ Orbit is a layered architecture built for performance, extensibility, and white-
 
 ```
 ┌─────────────────────────────────────────┐
-│           @orbit/react                  │
+│           @layera-labs/react                  │
 │    (React wrapper + UI panels)          │
 ├─────────────────────────────────────────┤
-│           @orbit/next                   │
+│           @layera-labs/next                   │
 │      (Next.js wrapper)                  │
 ├─────────────────────────────────────────┤
-│           @orbit/core                   │
+│           @layera-labs/core                   │
 │  (Canvas engine + renderer + tools)     │
 ├─────────────────────────────────────────┤
-│           @orbit/ui                     │
+│           @layera-labs/ui                     │
 │     (Themeable UI components)           │
 ├─────────────────────────────────────────┤
-│           @orbit/shared                 │
+│           @layera-labs/shared                 │
 │      (Types + utilities)                │
 ├─────────────────────────────────────────┤
-│     @orbit/agentic | @orbit/effects     │
+│     @layera-labs/agentic | @layera-labs/effects     │
 │        (AI | WebGL shaders)             │
 └─────────────────────────────────────────┘
 ```
 
-## Core Engine (`@orbit/core`)
+## Core Engine (`@layera-labs/core`)
 
 The engine is framework-agnostic vanilla TypeScript. It coordinates:
 
@@ -42,7 +42,7 @@ The engine is framework-agnostic vanilla TypeScript. It coordinates:
 - **TransitionEngine** — Time-based opacity/transform overrides
 - **CollaborationManager** — Yjs CRDT + WebSocket sync
 
-## React Wrapper (`@orbit/react`)
+## React Wrapper (`@layera-labs/react`)
 
 The React layer provides:
 

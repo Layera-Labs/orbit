@@ -2,14 +2,14 @@ import { spawn } from "node:child_process";
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
-import { ElevenLabsProvider, groupWords } from "@orbit/video-gen";
-import type { CaptionLine } from "@orbit/video/browser";
-import type { Spoken, VoiceProvider } from "@orbit/pipeline";
+import { ElevenLabsProvider, groupWords } from "@layera-labs/video-gen";
+import type { CaptionLine } from "@layera-labs/video/browser";
+import type { Spoken, VoiceProvider } from "@layera-labs/pipeline";
 
 /**
  * The real providers behind the generation pipeline's injected seams.
  *
- * `@orbit/pipeline` owns the sequencing and knows nothing about ElevenLabs,
+ * `@layera-labs/pipeline` owns the sequencing and knows nothing about ElevenLabs,
  * ffprobe or the media directory. This is the other half.
  */
 

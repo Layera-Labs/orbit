@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { themeManager } from '../themes/manager';
-import type { OrbitTheme } from '@orbit/shared';
+import type { OrbitTheme } from '@layera-labs/shared';
 
 export function useTheme() {
   const [theme, setThemeState] = useState<OrbitTheme>(themeManager.getCurrentTheme());

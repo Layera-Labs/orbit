@@ -3,7 +3,7 @@
 A from-scratch rebuild of the Orbit canvas-editor SDK on a **single reactive
 document model**, replacing the legacy dual/triple-store + imperative Fabric
 renderer that caused the jank. Built green-field **in parallel** with the old
-`@orbit/core`/`@orbit/react` packages so nothing breaks before cutover.
+`@layera-labs/core`/`@layera-labs/react` packages so nothing breaks before cutover.
 
 ## Why the rebuild
 
@@ -17,10 +17,10 @@ declaratively by both the renderer and the UI.**
 
 | Package | Role |
 |---|---|
-| `@orbit/model` | Headless **Valtio** document model. `Document → Page → Element` (discriminated union). Mutations, selection, **transactional history** (a whole drag = one undo), `toJSON`/`loadJSON`, `applyAction`, `fromPolotnoJSON`, `migrateSceneGraphToDocument`. No DOM — runs in Node. |
-| `@orbit/render` | **react-konva** renderer. The canvas is a pure function of the model; each element binds to its own `useSnapshot`, so dragging one element re-renders only that node. Transformer, snapping/smart-guides, zoom-to-cursor, marquee, inline text editing, raster export. `OrbitRenderer` interface is the seam for a future WebGL/web3 renderer. |
-| `@orbit/providers` | Pluggable provider interfaces — `Template`/`Photo`/`Video`/`Font`/`Background`/`Asset` — plus `ProviderRegistry` and zero-config built-ins (Picsum, preset backgrounds, Google Fonts, demo templates). Also the web3 seams: `StorageProvider`, `PublishTarget`, `AssetRef.uri`. |
-| `@orbit/editor` | React UI. Thin store bindings (`useStore`/`useEditorState`/`useSelectedElement`), pluggable **SidePanel sections** (Templates/Elements/Text/Photos/Background/Fonts/Layers — provider-backed ones auto-hide), Toolbar, Pages bar, Properties, Export menu. No bridge. |
+| `@layera-labs/model` | Headless **Valtio** document model. `Document → Page → Element` (discriminated union). Mutations, selection, **transactional history** (a whole drag = one undo), `toJSON`/`loadJSON`, `applyAction`, `fromPolotnoJSON`, `migrateSceneGraphToDocument`. No DOM — runs in Node. |
+| `@layera-labs/render` | **react-konva** renderer. The canvas is a pure function of the model; each element binds to its own `useSnapshot`, so dragging one element re-renders only that node. Transformer, snapping/smart-guides, zoom-to-cursor, marquee, inline text editing, raster export. `OrbitRenderer` interface is the seam for a future WebGL/web3 renderer. |
+| `@layera-labs/providers` | Pluggable provider interfaces — `Template`/`Photo`/`Video`/`Font`/`Background`/`Asset` — plus `ProviderRegistry` and zero-config built-ins (Picsum, preset backgrounds, Google Fonts, demo templates). Also the web3 seams: `StorageProvider`, `PublishTarget`, `AssetRef.uri`. |
+| `@layera-labs/editor` | React UI. Thin store bindings (`useStore`/`useEditorState`/`useSelectedElement`), pluggable **SidePanel sections** (Templates/Elements/Text/Photos/Background/Fonts/Layers — provider-backed ones auto-hide), Toolbar, Pages bar, Properties, Export menu. No bridge. |
 | `examples/studio` | New demo app exercising the full stack. |
 
 Dependency graph (acyclic): `model → render → editor`; `model → providers → editor`.
@@ -28,11 +28,11 @@ Dependency graph (acyclic): `model → render → editor`; `model → providers 
 ## Consuming the SDK
 
 ```tsx
-import { OrbitEditor, createStore } from '@orbit/editor';
+import { OrbitEditor, createStore } from '@layera-labs/editor';
 import {
   DemoTemplateProvider, PicsumPhotoProvider,
   PresetBackgroundProvider, GoogleFontProvider,
-} from '@orbit/providers';
+} from '@layera-labs/providers';
 
 const store = createStore({ width: 1080, height: 1080 });
 
@@ -48,7 +48,7 @@ const store = createStore({ width: 1080, height: 1080 });
 />
 ```
 
-Headless (e.g. server-side thumbnails): `import { createStore } from '@orbit/model'` — mutate and `toJSON()` with no React/DOM.
+Headless (e.g. server-side thumbnails): `import { createStore } from '@layera-labs/model'` — mutate and `toJSON()` with no React/DOM.
 
 ## Status
 
@@ -66,10 +66,10 @@ Headless (e.g. server-side thumbnails): `import { createStore } from '@orbit/mod
 
 **Deferred (honest):**
 - Live AI generation — `model.applyAction` foundation + action schema are in; the backend wiring (image/video/audio generation) is not.
-- Video/audio playback + timeline — render as placeholders; the legacy audio mixer / video-export pipeline still needs re-homing from `@orbit/core`.
+- Video/audio playback + timeline — render as placeholders; the legacy audio mixer / video-export pipeline still needs re-homing from `@layera-labs/core`.
 - Real-time collaboration (Yjs on the Valtio doc).
-- WebGL effects (`@orbit/effects`) re-attached as Konva filters; true SVG export.
+- WebGL effects (`@layera-labs/effects`) re-attached as Konva filters; true SVG export.
 
-**Cutover:** when the deferred items reach parity, delete `@orbit/core` and the
-old `@orbit/react`, and rename `@orbit/editor` → `@orbit/react`. The
+**Cutover:** when the deferred items reach parity, delete `@layera-labs/core` and the
+old `@layera-labs/react`, and rename `@layera-labs/editor` → `@layera-labs/react`. The
 `migrateSceneGraphToDocument` adapter preserves existing saved designs.

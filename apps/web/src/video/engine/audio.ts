@@ -2,14 +2,14 @@
  * Audio playback for the preview.
  *
  * One `AudioContext`; each audio-bearing source gets its own element routed
- * through a `GainNode`. Gain comes from `sampleVolume` in `@orbit/video` — the
+ * through a `GainNode`. Gain comes from `sampleVolume` in `@layera-labs/video` — the
  * same function the export bakes into its `volume` expression — so a fade drawn
  * on the timeline sounds the same here as in the rendered file.
  *
  * Note the mobile Skia preview has no audio at all. Web being ahead is a
  * capability difference, not drift, precisely because the gain maths is shared.
  */
-import { curvePoints, sampleVolume, type AudioTrackClip } from '@orbit/video/browser';
+import { curvePoints, sampleVolume, type AudioTrackClip } from '@layera-labs/video/browser';
 
 interface Voice {
   el: HTMLAudioElement;

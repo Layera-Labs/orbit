@@ -1,5 +1,5 @@
 {
-  "name": "@orbit/webview-host",
+  "name": "@layera-labs/webview-host",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,11 +9,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@orbit/editor": "workspace:*",
-    "@orbit/model": "workspace:*",
-    "@orbit/providers": "workspace:*",
-    "@orbit/react-native": "workspace:*",
-    "@orbit/render": "workspace:*",
+    "@layera-labs/editor": "workspace:*",
+    "@layera-labs/model": "workspace:*",
+    "@layera-labs/providers": "workspace:*",
+    "@layera-labs/react-native": "workspace:*",
+    "@layera-labs/render": "workspace:*",
     "framer-motion": "^12.40.0",
     "jspdf": "^2.5.2",
     "konva": "^9.3.16",

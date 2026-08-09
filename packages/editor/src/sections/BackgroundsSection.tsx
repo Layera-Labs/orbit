@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { BackgroundItem } from '@orbit/providers';
+import type { BackgroundItem } from '@layera-labs/providers';
 import { useProviders, useStore } from '../context';
 import { defineSection } from './types';
 

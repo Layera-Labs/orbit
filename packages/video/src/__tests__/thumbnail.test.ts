@@ -66,7 +66,7 @@ describe('thumbnailTime', () => {
 });
 
 /*
- * Against real ffmpeg. `ORBIT_FFMPEG_PROBE=1 pnpm --filter @orbit/video test`.
+ * Against real ffmpeg. `ORBIT_FFMPEG_PROBE=1 pnpm --filter @layera-labs/video test`.
  */
 const PROBE = process.env.ORBIT_FFMPEG_PROBE === '1';
 const FFMPEG = process.env.FFMPEG_PATH ?? 'ffmpeg';

@@ -35,19 +35,19 @@ importers:
 
   apps/web:
     dependencies:
-      '@orbit/editor':
+      '@layera-labs/editor':
         specifier: workspace:*
         version: link:../../packages/editor
-      '@orbit/model':
+      '@layera-labs/model':
         specifier: workspace:*
         version: link:../../packages/model
-      '@orbit/providers':
+      '@layera-labs/providers':
         specifier: workspace:*
         version: link:../../packages/providers
-      '@orbit/render':
+      '@layera-labs/render':
         specifier: workspace:*
         version: link:../../packages/render
-      '@orbit/video':
+      '@layera-labs/video':
         specifier: workspace:*
         version: link:../../packages/video
       framer-motion:
@@ -99,10 +99,10 @@ importers:
 
   examples/demo:
     dependencies:
-      '@orbit/assets':
+      '@layera-labs/assets':
         specifier: workspace:*
         version: link:../../packages/assets
-      '@orbit/react':
+      '@layera-labs/react':
         specifier: workspace:*
         version: link:../../packages/react
       react:
@@ -139,10 +139,10 @@ importers:
 
   examples/demo-next:
     dependencies:
-      '@orbit/assets':
+      '@layera-labs/assets':
         specifier: workspace:*
         version: link:../../packages/assets
-      '@orbit/next':
+      '@layera-labs/next':
         specifier: workspace:*
         version: link:../../packages/next
       next:
@@ -179,16 +179,16 @@ importers:
 
   examples/studio:
     dependencies:
-      '@orbit/editor':
+      '@layera-labs/editor':
         specifier: workspace:*
         version: link:../../packages/editor
-      '@orbit/model':
+      '@layera-labs/model':
         specifier: workspace:*
         version: link:../../packages/model
-      '@orbit/providers':
+      '@layera-labs/providers':
         specifier: workspace:*
         version: link:../../packages/providers
-      '@orbit/render':
+      '@layera-labs/render':
         specifier: workspace:*
         version: link:../../packages/render
       framer-motion:
@@ -231,19 +231,19 @@ importers:
 
   examples/webview-host:
     dependencies:
-      '@orbit/editor':
+      '@layera-labs/editor':
         specifier: workspace:*
         version: link:../../packages/editor
-      '@orbit/model':
+      '@layera-labs/model':
         specifier: workspace:*
         version: link:../../packages/model
-      '@orbit/providers':
+      '@layera-labs/providers':
         specifier: workspace:*
         version: link:../../packages/providers
-      '@orbit/react-native':
+      '@layera-labs/react-native':
         specifier: workspace:*
         version: link:../../packages/react-native
-      '@orbit/render':
+      '@layera-labs/render':
         specifier: workspace:*
         version: link:../../packages/render
       framer-motion:
@@ -289,7 +289,7 @@ importers:
 
   packages/agentic:
     dependencies:
-      '@orbit/shared':
+      '@layera-labs/shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
@@ -305,7 +305,7 @@ importers:
 
   packages/assets:
     dependencies:
-      '@orbit/shared':
+      '@layera-labs/shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
@@ -349,10 +349,10 @@ importers:
 
   packages/core:
     dependencies:
-      '@orbit/effects':
+      '@layera-labs/effects':
         specifier: workspace:*
         version: link:../effects
-      '@orbit/shared':
+      '@layera-labs/shared':
         specifier: workspace:*
         version: link:../shared
       fabric:
@@ -380,13 +380,13 @@ importers:
 
   packages/editor:
     dependencies:
-      '@orbit/model':
+      '@layera-labs/model':
         specifier: workspace:*
         version: link:../model
-      '@orbit/providers':
+      '@layera-labs/providers':
         specifier: workspace:*
         version: link:../providers
-      '@orbit/render':
+      '@layera-labs/render':
         specifier: workspace:*
         version: link:../render
       framer-motion:
@@ -429,7 +429,7 @@ importers:
 
   packages/effects:
     dependencies:
-      '@orbit/shared':
+      '@layera-labs/shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
@@ -445,10 +445,10 @@ importers:
 
   packages/formats:
     dependencies:
-      '@orbit/pipeline':
+      '@layera-labs/pipeline':
         specifier: workspace:*
         version: link:../pipeline
-      '@orbit/video':
+      '@layera-labs/video':
         specifier: workspace:*
         version: link:../video
     devDependencies:
@@ -483,7 +483,7 @@ importers:
 
   packages/next:
     dependencies:
-      '@orbit/react':
+      '@layera-labs/react':
         specifier: workspace:*
         version: link:../react
     devDependencies:
@@ -514,13 +514,13 @@ importers:
 
   packages/pipeline:
     dependencies:
-      '@orbit/shared':
+      '@layera-labs/shared':
         specifier: workspace:*
         version: link:../shared
-      '@orbit/video':
+      '@layera-labs/video':
         specifier: workspace:*
         version: link:../video
-      '@orbit/video-gen':
+      '@layera-labs/video-gen':
         specifier: workspace:*
         version: link:../video-gen
     devDependencies:
@@ -539,7 +539,7 @@ importers:
 
   packages/providers:
     dependencies:
-      '@orbit/model':
+      '@layera-labs/model':
         specifier: workspace:*
         version: link:../model
     devDependencies:
@@ -555,22 +555,16 @@ importers:
 
   packages/react:
     dependencies:
-      '@orbit/agentic':
-        specifier: workspace:*
-        version: link:../agentic
-      '@orbit/assets':
-        specifier: workspace:*
-        version: link:../assets
-      '@orbit/core':
+      '@layera-labs/core':
         specifier: workspace:*
         version: link:../core
-      '@orbit/effects':
+      '@layera-labs/effects':
         specifier: workspace:*
         version: link:../effects
-      '@orbit/shared':
+      '@layera-labs/shared':
         specifier: workspace:*
         version: link:../shared
-      '@orbit/ui':
+      '@layera-labs/ui':
         specifier: workspace:*
         version: link:../ui
       jspdf:
@@ -580,6 +574,9 @@ importers:
         specifier: ^4.5.7
         version: 4.5.7(@types/react@18.3.28)(react@18.3.1)
     devDependencies:
+      '@layera-labs/agentic':
+        specifier: workspace:*
+        version: link:../agentic
       '@types/react':
         specifier: ^18.2.0
         version: 18.3.28
@@ -604,7 +601,7 @@ importers:
 
   packages/react-native:
     dependencies:
-      '@orbit/model':
+      '@layera-labs/model':
         specifier: workspace:*
         version: link:../model
       react:
@@ -629,7 +626,7 @@ importers:
 
   packages/render:
     dependencies:
-      '@orbit/model':
+      '@layera-labs/model':
         specifier: workspace:*
         version: link:../model
       valtio:
@@ -685,7 +682,7 @@ importers:
 
   packages/ui:
     dependencies:
-      '@orbit/shared':
+      '@layera-labs/shared':
         specifier: workspace:*
         version: link:../shared
       '@radix-ui/react-slot':
@@ -744,7 +741,7 @@ importers:
       '@google/genai':
         specifier: ^2.10.0
         version: 2.10.0
-      '@orbit/video':
+      '@layera-labs/video':
         specifier: workspace:*
         version: link:../video
     devDependencies:
@@ -763,7 +760,7 @@ importers:
 
   packages/video-gen:
     dependencies:
-      '@orbit/billing':
+      '@layera-labs/billing':
         specifier: workspace:*
         version: link:../billing
     devDependencies:
@@ -779,28 +776,28 @@ importers:
 
   services/render:
     dependencies:
-      '@orbit/assets':
+      '@layera-labs/assets':
         specifier: workspace:*
         version: link:../../packages/assets
-      '@orbit/auth':
+      '@layera-labs/auth':
         specifier: workspace:*
         version: link:../../packages/auth
-      '@orbit/billing':
+      '@layera-labs/billing':
         specifier: workspace:*
         version: link:../../packages/billing
-      '@orbit/formats':
+      '@layera-labs/formats':
         specifier: workspace:*
         version: link:../../packages/formats
-      '@orbit/pipeline':
+      '@layera-labs/pipeline':
         specifier: workspace:*
         version: link:../../packages/pipeline
-      '@orbit/shared':
+      '@layera-labs/shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@orbit/video':
+      '@layera-labs/video':
         specifier: workspace:*
         version: link:../../packages/video
-      '@orbit/video-gen':
+      '@layera-labs/video-gen':
         specifier: workspace:*
         version: link:../../packages/video-gen
       cors:

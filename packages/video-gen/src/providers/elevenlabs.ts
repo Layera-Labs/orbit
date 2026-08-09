@@ -164,7 +164,7 @@ export interface TranscriptWord {
 /**
  * A caption line, as this package produces it.
  *
- * Structurally the `CaptionLine` of `@orbit/video`, declared separately because
+ * Structurally the `CaptionLine` of `@layera-labs/video`, declared separately because
  * this package does not depend on that one and should not acquire a dependency
  * to borrow a type. The two are held together where they actually meet — the
  * render service annotates `groupWords`' result as `CaptionLine[]` before it

@@ -1,10 +1,10 @@
 import * as React from 'react';
 import { useState, useEffect, useCallback } from 'react';
 import { useOrbitLayers } from '../../hooks/useOrbitEngine';
-import type { OrbitEngine } from '@orbit/core';
-import type { EasingType, Layer, TransitionType } from '@orbit/shared';
-import { OrbitInput, OrbitSlider, OrbitDropdown, OrbitButton, OrbitColorPicker } from '@orbit/ui';
-import { BLEND_MODES } from '@orbit/shared';
+import type { OrbitEngine } from '@layera-labs/core';
+import type { EasingType, Layer, TransitionType } from '@layera-labs/shared';
+import { OrbitInput, OrbitSlider, OrbitDropdown, OrbitButton, OrbitColorPicker } from '@layera-labs/ui';
+import { BLEND_MODES } from '@layera-labs/shared';
 
 interface PropertiesPanelProps {
   engine: OrbitEngine | null;

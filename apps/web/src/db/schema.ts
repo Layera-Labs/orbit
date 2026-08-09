@@ -11,8 +11,8 @@
  * `upload:` or `http(s)` srcs (`services/render/src/resolve.ts`), so this
  * indirection is what makes local media renderable at all.
  */
-import type { Document as OrbitDocument } from '@orbit/model';
-import type { VideoProject } from '@orbit/video/browser';
+import type { Document as OrbitDocument } from '@layera-labs/model';
+import type { VideoProject } from '@layera-labs/video/browser';
 
 export const DB_NAME = 'orbit-web';
 /** v2 adds `waveforms`. Additive — no existing row is touched or migrated. */

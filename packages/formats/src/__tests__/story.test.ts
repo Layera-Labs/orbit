@@ -10,8 +10,8 @@
  * that breaks the rule it is about to be held to.
  */
 import { describe, expect, it } from 'vitest';
-import { ScenePlanError, countWords, formatPrompt, parseScenePlan } from '@orbit/pipeline';
-import type { Scene, ScenePlan } from '@orbit/pipeline';
+import { ScenePlanError, countWords, formatPrompt, parseScenePlan } from '@layera-labs/pipeline';
+import type { Scene, ScenePlan } from '@layera-labs/pipeline';
 import { FORMATS, formatById, story } from '../index';
 
 const plan = (over: Partial<ScenePlan> = {}): ScenePlan => ({
@@ -137,7 +137,10 @@ describe('the registry', () => {
 
   /* Not a fallback to the default: see the note on `formatById`. */
   it('returns nothing for an id it does not have', () => {
-    expect(formatById('listicle')).toBeUndefined();
+    // Deliberately a name no archetype will ever take. It used to be
+    // 'listicle', which passed only until the countdown format existed — a
+    // negative test aimed at something on the roadmap expires without warning.
+    expect(formatById('not-a-format')).toBeUndefined();
   });
 
   it('gives every format a distinct id', () => {

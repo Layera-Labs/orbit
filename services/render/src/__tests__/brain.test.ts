@@ -195,8 +195,8 @@ describe('brainFromEnv', () => {
  */
 describe('brain → planner → story', () => {
   it('turns an endpoint reply into a validated story plan', async () => {
-    const { planScenes } = await import('@orbit/pipeline');
-    const { story } = await import('@orbit/formats');
+    const { planScenes } = await import('@layera-labs/pipeline');
+    const { story } = await import('@layera-labs/formats');
 
     // Fenced and prefaced, the way a model that ignores "JSON only" answers.
     const reply =
@@ -222,8 +222,8 @@ describe('brain → planner → story', () => {
 
   /* And a reply that breaks the format's rules is corrected, not accepted. */
   it('sends a rule-breaking plan back with the violation', async () => {
-    const { planScenes } = await import('@orbit/pipeline');
-    const { story } = await import('@orbit/formats');
+    const { planScenes } = await import('@layera-labs/pipeline');
+    const { story } = await import('@layera-labs/formats');
 
     const bad = {
       ...story.brief.example,

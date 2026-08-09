@@ -1,0 +1,32 @@
+{
+  "name": "orbit-example-mobile",
+  "version": "0.0.0",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "ios": "expo run:ios",
+    "android": "expo run:android",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "expo": "^55.0.0",
+    "expo-constants": "~55.0.17",
+    "expo-file-system": "~55.0.23",
+    "expo-image-picker": "~55.0.21",
+    "expo-media-library": "~55.0.18",
+    "expo-secure-store": "~55.0.15",
+    "expo-status-bar": "~55.0.6",
+    "expo-video": "~55.0.18",
+    "react": "19.2.0",
+    "react-native": "0.83.6"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.0",
+    "@types/react": "~19.2.10",
+    "babel-preset-expo": "~55.0.23",
+    "typescript": "~5.9.2",
+    "vitest": "^3.1.3"
+  }
+}

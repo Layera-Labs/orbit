@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { cn } from '@orbit/shared';
+import { cn } from '@layera-labs/shared';
 
 export interface OrbitLoadingProps {
   variant?: 'spinner' | 'skeleton' | 'progress' | 'dots';

@@ -1,4 +1,4 @@
-import type { Brain } from "@orbit/pipeline";
+import type { Brain } from "@layera-labs/pipeline";
 
 /**
  * A `Brain` over the OpenAI chat-completions wire format.

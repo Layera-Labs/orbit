@@ -3,10 +3,10 @@
  */
 import * as React from 'react';
 import { useState, useEffect, useCallback } from 'react';
-import { OrbitInput, OrbitButton, OrbitDropdown } from '@orbit/ui';
+import { OrbitInput, OrbitButton, OrbitDropdown } from '@layera-labs/ui';
 import { useEditorStore } from '../../store';
 import type { DesignBackend, DesignData, SortOption } from '../../store/types';
-import type { OrbitEngine } from '@orbit/core';
+import type { OrbitEngine } from '@layera-labs/core';
 import { useToast } from '../ToastProvider';
 
 interface MyDesignsPanelProps {

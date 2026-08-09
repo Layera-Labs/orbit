@@ -10,7 +10,7 @@ export default defineConfig({
       fileName: 'index',
     },
     rollupOptions: {
-      external: ['@orbit/shared'],
+      external: ['@layera-labs/shared'],
     },
     sourcemap: true,
   },
