@@ -346,6 +346,18 @@ Over HTTP, the same thing is `POST /v1/generate` → `202 {id}` → poll
 
 ## The render service
 
+**You host it. There is no Orbit-operated API to point at today.**
+
+Worth stating plainly, because the feature tables above can read as though an
+endpoint exists behind them. It does not. Exporting a video, generating with AI
+and signing in all require a service you run, and `OrbitBackendAdapter` will
+throw rather than guess a URL — `backendUrl` used to default to a host nobody
+runs, which failed later and less clearly than a missing argument does.
+
+A hosted API, metered by credits, is intended. It is not built, not dated, and
+nothing in this repo depends on it arriving; when it does it will be one more
+value you can put in `backendUrl`, not a replacement for self-hosting.
+
 ```bash
 cd services/render && cp .env.example .env
 docker compose up
