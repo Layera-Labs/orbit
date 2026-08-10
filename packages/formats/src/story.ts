@@ -7,8 +7,8 @@ import {
   type Format,
   type FormatBrief,
   type ScenePlan,
-} from '@layera-labs/pipeline';
-import type { VideoProject } from '@layera-labs/video/browser';
+} from '@layera-labs/orbit-pipeline';
+import type { VideoProject } from '@layera-labs/orbit-video/browser';
 
 /**
  * The story: one idea, told from a hook to a resolution.

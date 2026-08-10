@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { FontItem } from '@layera-labs/providers';
+import type { FontItem } from '@layera-labs/orbit-providers';
 import { useEditorState, useProviders, useStore } from '../context';
 import { Icon } from '../components/Icon';
 import { defineSection } from './types';

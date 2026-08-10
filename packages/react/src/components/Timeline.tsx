@@ -4,9 +4,9 @@
  */
 import * as React from 'react';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { OrbitButton, OrbitSlider } from '@layera-labs/ui';
-import type { OrbitEngine } from '@layera-labs/core';
-import type { Layer } from '@layera-labs/shared';
+import { OrbitButton, OrbitSlider } from '@layera-labs/orbit-ui';
+import type { OrbitEngine } from '@layera-labs/orbit-core';
+import type { Layer } from '@layera-labs/orbit-shared';
 
 interface TimelineProps {
   engine: OrbitEngine | null;

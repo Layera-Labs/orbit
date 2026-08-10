@@ -18,8 +18,8 @@ import type { Server } from 'node:http';
 import { bearer, guestToken } from './guest.js';
 
 /** Stubbed so a passing test can never depend on ffmpeg existing. */
-vi.mock('@layera-labs/video/node', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@layera-labs/video/node')>();
+vi.mock('@layera-labs/orbit-video/node', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@layera-labs/orbit-video/node')>();
   return { ...actual, renderProject: async () => {} };
 });
 

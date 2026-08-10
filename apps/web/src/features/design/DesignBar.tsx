@@ -18,7 +18,7 @@ export interface HistoryApi {
 }
 
 /**
- * The host owns the project name. `@layera-labs/editor`'s own TopBar keeps its title
+ * The host owns the project name. `@layera-labs/orbit-editor`'s own TopBar keeps its title
  * in local state and never writes it back to the document, so reading it from
  * there would be reading a value nothing persists.
  */

@@ -1,4 +1,4 @@
-import type { ViewportState, BackgroundProps, SceneGraph } from '@layera-labs/shared';
+import type { ViewportState, BackgroundProps, SceneGraph } from '@layera-labs/orbit-shared';
 
 // ===== Upload =====
 export interface UploadedAsset {

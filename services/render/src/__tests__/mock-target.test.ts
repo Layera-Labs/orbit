@@ -4,8 +4,8 @@
 // actually imports.
 //
 // `vi.mock('x')` for an `x` nobody imports is a NO-OP, and vitest says nothing
-// about it. When `@layera-labs/video` was split and the service moved to
-// `@layera-labs/video/node`, all seven suites here kept mocking the old name — so
+// about it. When `@layera-labs/orbit-video` was split and the service moved to
+// `@layera-labs/orbit-video/node`, all seven suites here kept mocking the old name — so
 // `renderProject` was suddenly the real one, spawning real ffmpeg, in seven
 // test files. Exactly ONE of them noticed, because only one drives a render far
 // enough to care; the other six carried on passing while their stub did
@@ -23,12 +23,12 @@ import { fileURLToPath } from 'node:url';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const server = readFileSync(resolve(HERE, '../server.ts'), 'utf8');
 
-/** Which `@layera-labs/*` specifiers `server.ts` really imports from. */
+/** Which `@layera-labs/orbit-*` specifiers `server.ts` really imports from. */
 const imported = new Set(
   [...server.matchAll(/from\s*["'](@layera-labs\/[^"']+)["']/g)].map((m) => m[1]),
 );
 
-/** Every `vi.mock('@layera-labs/…')` across the suites in this directory. */
+/** Every `vi.mock('@layera-labs/orbit-…')` across the suites in this directory. */
 const SELF = 'mock-target.test.ts';
 
 const mocks = readdirSync(HERE)
@@ -57,10 +57,10 @@ describe('the suites mock what the server imports', () => {
   });
 
   it('mocks the render entry, not the browser one', () => {
-    // The specific swap that happened. `@layera-labs/video` is browser-only now and
+    // The specific swap that happened. `@layera-labs/orbit-video` is browser-only now and
     // carries no `renderProject` at all, so mocking it would leave the real
     // one in place while looking entirely correct at the call site.
-    expect(imported.has('@layera-labs/video/node')).toBe(true);
-    expect([...imported]).not.toContain('@layera-labs/video');
+    expect(imported.has('@layera-labs/orbit-video/node')).toBe(true);
+    expect([...imported]).not.toContain('@layera-labs/orbit-video');
   });
 });

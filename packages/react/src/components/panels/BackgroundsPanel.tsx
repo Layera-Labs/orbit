@@ -2,8 +2,8 @@
  * BackgroundsPanel - Canvas background options
  */
 import * as React from 'react';
-import { OrbitButton } from '@layera-labs/ui';
-import type { OrbitEngine } from '@layera-labs/core';
+import { OrbitButton } from '@layera-labs/orbit-ui';
+import type { OrbitEngine } from '@layera-labs/orbit-core';
 import { addLayerAndSelect, createBackgroundLayer } from '../../utils/layerPlacement';
 
 interface BackgroundsPanelProps {

@@ -9,7 +9,7 @@ export default defineConfig({
       formats: ['es'],
       fileName: 'index',
     },
-    // A regex, not the two names: `compose` imports `@layera-labs/video/browser`, and
+    // A regex, not the two names: `compose` imports `@layera-labs/orbit-video/browser`, and
     // an exact-match external leaves the subpath bundled.
     rollupOptions: { external: [/^node:/, /^@layera-labs\//] },
     sourcemap: true,

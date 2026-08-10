@@ -1,5 +1,5 @@
 {
-  "name": "@layera-labs/react",
+  "name": "@layera-labs/orbit-react",
   "version": "1.0.0-beta.3",
   "description": "React wrapper for Orbit SDK",
   "keywords": [
@@ -52,17 +52,17 @@
     "clean": "rm -rf dist",
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
-  "//dependencies": "@layera-labs/assets was declared here and imported by nothing in src (0 hits); it survived only in the rollup `external` list. Publishing @layera-labs/react with it would have forced @layera-labs/assets onto the registry to satisfy an install that never uses it.",
+  "//dependencies": "@layera-labs/orbit-assets was declared here and imported by nothing in src (0 hits); it survived only in the rollup `external` list. Publishing @layera-labs/orbit-react with it would have forced @layera-labs/orbit-assets onto the registry to satisfy an install that never uses it.",
   "dependencies": {
-    "@layera-labs/core": "workspace:*",
-    "@layera-labs/effects": "workspace:*",
-    "@layera-labs/shared": "workspace:*",
-    "@layera-labs/ui": "workspace:*",
+    "@layera-labs/orbit-core": "workspace:*",
+    "@layera-labs/orbit-effects": "workspace:*",
+    "@layera-labs/orbit-shared": "workspace:*",
+    "@layera-labs/orbit-ui": "workspace:*",
     "jspdf": "^4.2.1",
     "zustand": "^4.5.7"
   },
   "devDependencies": {
-    "@layera-labs/agentic": "workspace:*",
+    "@layera-labs/orbit-agentic": "workspace:*",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "react": "^18.2.0",
@@ -72,12 +72,12 @@
     "vite-plugin-dts": "^3.8.0"
   },
   "peerDependencies": {
-    "@layera-labs/agentic": "workspace:*",
+    "@layera-labs/orbit-agentic": "workspace:*",
     "react": "^18.0.0",
     "react-dom": "^18.0.0"
   },
   "peerDependenciesMeta": {
-    "@layera-labs/agentic": {
+    "@layera-labs/orbit-agentic": {
       "optional": true
     }
   },

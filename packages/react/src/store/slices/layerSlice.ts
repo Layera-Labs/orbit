@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand';
-import type { Layer } from '@layera-labs/shared';
+import type { Layer } from '@layera-labs/orbit-shared';
 
 export interface LayerSlice {
   layers: Layer[];

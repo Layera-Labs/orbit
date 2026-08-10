@@ -3,7 +3,7 @@
  */
 import * as React from 'react';
 import { useEffect, useState } from 'react';
-import type { OrbitEngine } from '@layera-labs/core';
+import type { OrbitEngine } from '@layera-labs/orbit-core';
 
 interface HistoryPanelProps {
   engine: OrbitEngine | null;

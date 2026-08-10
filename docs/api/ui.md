@@ -1,6 +1,6 @@
 # UI Components
 
-The `@layera-labs/ui` package provides themeable, white-label UI components used by `@layera-labs/react`.
+The `@layera-labs/orbit-ui` package provides themeable, white-label UI components used by `@layera-labs/orbit-react`.
 
 ## Theme System
 
@@ -27,7 +27,7 @@ The `@layera-labs/ui` package provides themeable, white-label UI components used
 ### `registerTheme`
 
 ```ts
-import { registerTheme } from '@layera-labs/ui';
+import { registerTheme } from '@layera-labs/orbit-ui';
 
 registerTheme('dark', {
   primary: '#60a5fa',
@@ -42,7 +42,7 @@ registerTheme('dark', {
 ### `Button`
 
 ```tsx
-import { Button } from '@layera-labs/ui';
+import { Button } from '@layera-labs/orbit-ui';
 
 <Button variant="primary" size="sm" onClick={handleClick}>
   Click Me
@@ -107,7 +107,7 @@ Sizes: `xs` | `sm` | `md` | `lg`
 ### `Toast`
 
 ```tsx
-import { showToast } from '@layera-labs/ui';
+import { showToast } from '@layera-labs/orbit-ui';
 
 showToast({ message: 'Exported successfully', type: 'success' });
 showToast({ message: 'Export failed', type: 'error' });
@@ -139,7 +139,7 @@ showToast({ message: 'Export failed', type: 'error' });
 All icons are inline SVGs. No external icon library dependency.
 
 ```tsx
-import { IconExport, IconUndo, IconRedo } from '@layera-labs/ui';
+import { IconExport, IconUndo, IconRedo } from '@layera-labs/orbit-ui';
 
 <IconExport size={20} />
 ```

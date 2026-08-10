@@ -1,5 +1,5 @@
 /**
- * @layera-labs/agentic - Orbit AI Agentic Pipeline
+ * @layera-labs/orbit-agentic - Orbit AI Agentic Pipeline
  */
 
 export * from './adapter';

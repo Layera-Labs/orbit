@@ -3,7 +3,7 @@
  * the protocol over any `Transport`, so it works the same against a real
  * WebView and against an in-memory transport in tests.
  */
-import type { CanvasAction, Document, ID, Viewport } from '@layera-labs/model';
+import type { CanvasAction, Document, ID, Viewport } from '@layera-labs/orbit-model';
 import {
   decode,
   encode,

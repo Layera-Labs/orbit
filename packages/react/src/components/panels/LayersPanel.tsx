@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useOrbitLayers } from '../../hooks/useOrbitEngine';
-import type { OrbitEngine } from '@layera-labs/core';
+import type { OrbitEngine } from '@layera-labs/orbit-core';
 
 interface LayersPanelProps {
   engine: OrbitEngine | null;

@@ -1,5 +1,5 @@
 {
-  "name": "@layera-labs/react-native",
+  "name": "@layera-labs/orbit-react-native",
   "version": "0.0.1",
   "private": true,
   "description": "React Native embedding for the Orbit editor: a typed bridge between RN and the WebView-hosted v2 web build",
@@ -24,7 +24,7 @@
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "@layera-labs/model": "workspace:*"
+    "@layera-labs/orbit-model": "workspace:*"
   },
   "peerDependencies": {
     "react": ">=18",

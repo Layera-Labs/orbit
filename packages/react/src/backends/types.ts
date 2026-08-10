@@ -1,20 +1,20 @@
 /**
  * The two backends the editor can be handed.
  *
- * **Why these are re-declared here rather than imported from `@layera-labs/agentic`.**
- * The whole point of the split is that installing `@layera-labs/react` must not pull
+ * **Why these are re-declared here rather than imported from `@layera-labs/orbit-agentic`.**
+ * The whole point of the split is that installing `@layera-labs/orbit-react` must not pull
  * the AI package in. A `import type` erases at build time, so a type-only
  * import would already achieve that for the BUNDLE — but it would leave
- * `@layera-labs/react`'s public `.d.ts` naming `@layera-labs/agentic`, and once that package
+ * `@layera-labs/orbit-react`'s public `.d.ts` naming `@layera-labs/orbit-agentic`, and once that package
  * becomes an optional peer (the next step), every consumer who declined the AI
  * layer would fail `tsc` on a module specifier that resolves to nothing. So the
- * shapes live here, in the package that consumes them, and `@layera-labs/agentic`'s
+ * shapes live here, in the package that consumes them, and `@layera-labs/orbit-agentic`'s
  * `OrbitBackendAdapter` satisfies them structurally — TypeScript needs no
- * nominal link, and both sides are anchored to the same `@layera-labs/shared` types,
+ * nominal link, and both sides are anchored to the same `@layera-labs/orbit-shared` types,
  * which is what actually keeps them from drifting.
  *
  * `CanvasAgentParams`/`CanvasAgentResponse` used to be the one exception —
- * type-imported straight from `@layera-labs/agentic`, on the argument that copying a
+ * type-imported straight from `@layera-labs/orbit-agentic`, on the argument that copying a
  * twelve-member action union here would drift. That argument was right and the
  * conclusion was wrong: a type-only import erases from the BUNDLE but survives
  * in the emitted `.d.ts`, so this module's declaration still named the AI
@@ -22,12 +22,12 @@
  * consumer who declined the optional peer and ran `tsc` with
  * `skipLibCheck: false` therefore failed on a specifier resolving to nothing —
  * the editing SDK refusing to typecheck over an AI package they deliberately
- * did not install. The shapes now live in `@layera-labs/shared` alongside
+ * did not install. The shapes now live in `@layera-labs/orbit-shared` alongside
  * `GenerateParams` and `ExportJob`, which both packages depend on
- * unconditionally, so nothing is copied and nothing can drift. `@layera-labs/agentic`
+ * unconditionally, so nothing is copied and nothing can drift. `@layera-labs/orbit-agentic`
  * re-exports them, so its own public surface is unchanged.
  *
- * NOTHING in this file may name `@layera-labs/agentic`, in any import form.
+ * NOTHING in this file may name `@layera-labs/orbit-agentic`, in any import form.
  * `ai-optional.test.ts` asserts it.
  */
 
@@ -46,7 +46,7 @@ import type {
   ExportListResponse,
   CanvasAgentParams,
   CanvasAgentResponse,
-} from '@layera-labs/shared';
+} from '@layera-labs/orbit-shared';
 
 /**
  * Rendering a project to a file. Core editing, not AI: it is what the

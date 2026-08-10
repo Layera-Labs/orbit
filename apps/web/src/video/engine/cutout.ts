@@ -17,8 +17,8 @@
  * Falls back to reporting `false` when WebGL is unavailable, so the UI can hide
  * the control rather than offer an effect the preview would silently skip.
  */
-import { chromaParams, type ChromaParams } from '@layera-labs/video/browser';
-import type { ChromaKey } from '@layera-labs/video/browser';
+import { chromaParams, type ChromaParams } from '@layera-labs/orbit-video/browser';
+import type { ChromaKey } from '@layera-labs/orbit-video/browser';
 
 const VERT = `
 attribute vec2 a_pos;

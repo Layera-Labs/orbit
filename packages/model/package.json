@@ -1,5 +1,5 @@
 {
-  "name": "@layera-labs/model",
+  "name": "@layera-labs/orbit-model",
   "version": "1.0.0-beta.3",
   "description": "Headless reactive document model for the Orbit canvas editor SDK",
   "keywords": [

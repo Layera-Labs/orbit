@@ -160,8 +160,8 @@ export const speak = (body: { text: string; voice?: string }, signal?: AbortSign
  * needs its own copy — it installs outside the workspace and cannot resolve the
  * package at all — which is exactly why this one should not have existed.
  */
-export type { CaptionLine } from '@layera-labs/video/browser';
-import type { CaptionLine } from '@layera-labs/video/browser';
+export type { CaptionLine } from '@layera-labs/orbit-video/browser';
+import type { CaptionLine } from '@layera-labs/orbit-video/browser';
 
 /**
  * Speech to timed caption lines.

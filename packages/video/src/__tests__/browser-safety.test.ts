@@ -1,7 +1,7 @@
 /**
  * Guards the browser/node split.
  *
- * `@layera-labs/video/browser` exists so a web bundle can use the timeline model and
+ * `@layera-labs/orbit-video/browser` exists so a web bundle can use the timeline model and
  * the effect math without resolving `node:child_process` or the native resvg
  * addon. Nothing enforces that at the type level — one stray `import` in
  * `filters.ts` silently breaks every web consumer, and the failure shows up as
@@ -119,7 +119,7 @@ describe('browser entry stays browser-safe', () => {
 /**
  * The DEFAULT entry, which is the one that matters most in practice.
  *
- * `apps/web` imports `@layera-labs/video/browser` by convention, but nothing forces
+ * `apps/web` imports `@layera-labs/orbit-video/browser` by convention, but nothing forces
  * it to — and a new consumer, or a copied snippet, reaches for the package name
  * first. Until this entry was flipped to `export * from './browser'` that was a
  * bundle carrying `node:child_process` and a native addon.

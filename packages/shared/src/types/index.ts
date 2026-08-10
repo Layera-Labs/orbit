@@ -412,12 +412,12 @@ export interface AudioGenerateParams {
 /**
  * What a canvas agent may do to a scene, and the request/response around it.
  *
- * These live HERE rather than in `@layera-labs/agentic` for the same reason
- * `GenerateParams` and `ExportJob` do: `@layera-labs/react` has to NAME them — its
+ * These live HERE rather than in `@layera-labs/orbit-agentic` for the same reason
+ * `GenerateParams` and `ExportJob` do: `@layera-labs/orbit-react` has to NAME them — its
  * `AiBackend.runCanvasAgent` is part of `OrbitEditorProps` — while
- * `@layera-labs/agentic` is an OPTIONAL peer of that package. A type-only import
+ * `@layera-labs/orbit-agentic` is an OPTIONAL peer of that package. A type-only import
  * erases from the bundle but not from the emitted `.d.ts`, so anchoring them in
- * the AI package left `@layera-labs/react`'s main entry declaring a module a consumer
+ * the AI package left `@layera-labs/orbit-react`'s main entry declaring a module a consumer
  * who declined the AI layer cannot resolve. Both packages depend on this one
  * unconditionally, so this is the only place both can point at.
  *

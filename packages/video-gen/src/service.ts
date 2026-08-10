@@ -5,7 +5,7 @@ import {
   meter,
   type AccountId,
   type CostTable,
-} from '@layera-labs/billing';
+} from '@layera-labs/orbit-billing';
 import type { GenImageRequest, GenResult, GenVideoRequest, MediaProvider, TTSRequest } from './types';
 
 export interface GenerationServiceOptions {

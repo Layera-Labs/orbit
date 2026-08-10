@@ -10,7 +10,7 @@ export default defineConfig({
       fileName: 'index',
     },
     rollupOptions: {
-      external: ['@layera-labs/model'],
+      external: ['@layera-labs/orbit-model'],
     },
     sourcemap: true,
   },

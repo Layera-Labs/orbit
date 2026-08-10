@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { cn } from '@layera-labs/shared';
+import { cn } from '@layera-labs/orbit-shared';
 import { Slot } from '@radix-ui/react-slot';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {

@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { rename, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { AssetStore } from "@layera-labs/pipeline";
+import type { AssetStore } from "@layera-labs/orbit-pipeline";
 
 /**
  * Fetched stock media, cached by the hash of its own bytes.

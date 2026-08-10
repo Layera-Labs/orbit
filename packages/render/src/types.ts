@@ -1,4 +1,4 @@
-import type { ID, OrbitStore } from '@layera-labs/model';
+import type { ID, OrbitStore } from '@layera-labs/orbit-model';
 
 export interface Box {
   x: number;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createStore } from '@layera-labs/model';
+import { createStore } from '@layera-labs/orbit-model';
 import { createHostBridge } from '../host-bridge';
 import { createOrbitClient } from '../client';
 import { memoryTransportPair } from '../transport';

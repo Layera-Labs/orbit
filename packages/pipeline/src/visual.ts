@@ -6,7 +6,7 @@
  * The Orbit plan rejects `resolveVisual` on the grounds that there are already
  * three asset abstractions and a fourth would be worse. That objection is right
  * about abstractions and does not apply here, because nothing below defines a
- * provider: it CONSUMES `AssetProvider` from `@layera-labs/shared`, the same
+ * provider: it CONSUMES `AssetProvider` from `@layera-labs/orbit-shared`, the same
  * interface `PexelsProvider` already implements. What is added is the step
  * between "the planner said 'a glass of water on a windowsill'" and "a clip has
  * a src" — searching, CHOOSING, and fetching — and that step has to exist
@@ -25,7 +25,7 @@
  * being ignored, and every relaxation is reported. A caller that ends up with a
  * badly-cropped scene can see that it was the only thing the search returned.
  */
-import type { Asset, AssetProvider } from '@layera-labs/shared';
+import type { Asset, AssetProvider } from '@layera-labs/orbit-shared';
 
 export interface VisualWant {
   width: number;

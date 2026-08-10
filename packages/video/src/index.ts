@@ -1,7 +1,7 @@
 /**
  * Default entry — BROWSER-SAFE.
  *
- * Importing `@layera-labs/video` gets you the timeline model, the effect math, the
+ * Importing `@layera-labs/orbit-video` gets you the timeline model, the effect math, the
  * filtergraph builder and `frameStateAt`, and resolves no `node:` builtin and
  * no native addon. It is `./browser` under another name.
  *
@@ -11,7 +11,7 @@
  * an unreadable bundler error in a different repo. The default is now the safe
  * one, and a Node consumer names what it needs.
  *
- * Node consumers import `@layera-labs/video/node`, which is a SUPERSET — everything
+ * Node consumers import `@layera-labs/orbit-video/node`, which is a SUPERSET — everything
  * here, plus ffmpeg spawning, SVG rasterizing and font resolution.
  *
  * `__tests__/browser-safety.test.ts` walks BOTH this entry and `./browser` and

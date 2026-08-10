@@ -1,5 +1,5 @@
 {
-  "name": "@layera-labs/studio",
+  "name": "@layera-labs/orbit-studio",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -9,10 +9,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@layera-labs/editor": "workspace:*",
-    "@layera-labs/model": "workspace:*",
-    "@layera-labs/providers": "workspace:*",
-    "@layera-labs/render": "workspace:*",
+    "@layera-labs/orbit-editor": "workspace:*",
+    "@layera-labs/orbit-model": "workspace:*",
+    "@layera-labs/orbit-providers": "workspace:*",
+    "@layera-labs/orbit-render": "workspace:*",
     "framer-motion": "^12.40.0",
     "jspdf": "^2.5.2",
     "konva": "^9.3.16",

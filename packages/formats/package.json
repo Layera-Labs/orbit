@@ -1,5 +1,5 @@
 {
-  "name": "@layera-labs/formats",
+  "name": "@layera-labs/orbit-formats",
   "version": "0.0.1",
   "private": true,
   "description": "Video archetypes. What shape a generated video takes, what the planner is told, and what counts as a plan that obeyed.",
@@ -23,8 +23,8 @@
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "@layera-labs/pipeline": "workspace:*",
-    "@layera-labs/video": "workspace:*"
+    "@layera-labs/orbit-pipeline": "workspace:*",
+    "@layera-labs/orbit-video": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

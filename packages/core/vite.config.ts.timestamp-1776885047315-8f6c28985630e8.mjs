@@ -11,7 +11,7 @@ var vite_config_default = defineConfig({
       fileName: "index"
     },
     rollupOptions: {
-      external: ["@layera-labs/shared"]
+      external: ["@layera-labs/orbit-shared"]
     },
     sourcemap: true
   },

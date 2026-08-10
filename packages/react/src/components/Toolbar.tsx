@@ -3,10 +3,10 @@
  */
 import * as React from 'react';
 import { useState, useRef, useEffect } from 'react';
-import { OrbitButton, OrbitDialog, OrbitLoading } from '@layera-labs/ui';
-import { SOCIAL_PRESETS } from '@layera-labs/shared';
+import { OrbitButton, OrbitDialog, OrbitLoading } from '@layera-labs/orbit-ui';
+import { SOCIAL_PRESETS } from '@layera-labs/orbit-shared';
 import { useEditorStore } from '../store';
-import type { OrbitEngine } from '@layera-labs/core';
+import type { OrbitEngine } from '@layera-labs/orbit-core';
 
 interface ToolbarProps {
   engine: OrbitEngine | null;

@@ -1,5 +1,5 @@
 {
-  "name": "@layera-labs/providers",
+  "name": "@layera-labs/orbit-providers",
   "version": "1.0.0-beta.3",
   "description": "Pluggable template/font/background/photo provider interfaces for Orbit",
   "keywords": [
@@ -45,7 +45,7 @@
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "@layera-labs/model": "workspace:*"
+    "@layera-labs/orbit-model": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

@@ -11,7 +11,7 @@ var vite_config_default = defineConfig({
       fileName: "index"
     },
     rollupOptions: {
-      external: ["react", "react-dom", "@layera-labs/shared", "@radix-ui/react-slot", "class-variance-authority", "clsx", "tailwind-merge"]
+      external: ["react", "react-dom", "@layera-labs/orbit-shared", "@radix-ui/react-slot", "class-variance-authority", "clsx", "tailwind-merge"]
     },
     sourcemap: true
   },

@@ -1,5 +1,5 @@
 {
-  "name": "@layera-labs/editor",
+  "name": "@layera-labs/orbit-editor",
   "version": "1.0.0-beta.3",
   "description": "Orbit canvas editor React UI (new architecture)",
   "keywords": [
@@ -47,9 +47,9 @@
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "@layera-labs/model": "workspace:*",
-    "@layera-labs/providers": "workspace:*",
-    "@layera-labs/render": "workspace:*",
+    "@layera-labs/orbit-model": "workspace:*",
+    "@layera-labs/orbit-providers": "workspace:*",
+    "@layera-labs/orbit-render": "workspace:*",
     "framer-motion": "^12.40.0",
     "jspdf": "^2.5.2",
     "valtio": "^2.1.2"

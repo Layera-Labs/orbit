@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { cn } from '@layera-labs/shared';
+import { cn } from '@layera-labs/orbit-shared';
 
 export type ToastVariant = 'default' | 'success' | 'error' | 'warning' | 'info';
 

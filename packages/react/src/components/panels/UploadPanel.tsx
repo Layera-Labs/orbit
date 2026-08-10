@@ -3,11 +3,11 @@
  */
 import * as React from 'react';
 import { useState, useCallback, useRef } from 'react';
-// import { OrbitButton } from '@layera-labs/ui';
+// import { OrbitButton } from '@layera-labs/orbit-ui';
 import { useEditorStore } from '../../store';
 import { createUploadProvider } from '../../upload';
 import type { UploadConfig } from '../../store/types';
-import type { OrbitEngine } from '@layera-labs/core';
+import type { OrbitEngine } from '@layera-labs/orbit-core';
 import { useToast } from '../ToastProvider';
 
 interface UploadPanelProps {

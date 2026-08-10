@@ -17,7 +17,7 @@
  *   the renderer, which renders nothing for them).
  * - `pattern` page backgrounds are skipped; `gradient` supports `linear-gradient`.
  */
-import type { Background, Element, Page } from '@layera-labs/model';
+import type { Background, Element, Page } from '@layera-labs/orbit-model';
 
 type El<T extends Element['type']> = Extract<Element, { type: T }>;
 

@@ -1,11 +1,11 @@
-# @layera-labs/next
+# @layera-labs/orbit-next
 
-`@layera-labs/react`'s editor, wrapped for the Next.js App Router. This is the
+`@layera-labs/orbit-react`'s editor, wrapped for the Next.js App Router. This is the
 smallest package in the SDK and it is honest to say what it contains: one `'use
 client'` module that re-exports `OrbitEditor` through `next/dynamic` with `ssr: false`.
 
 ```bash
-npm i @layera-labs/next@beta
+npm i @layera-labs/orbit-next@beta
 ```
 
 That is the whole thing:
@@ -14,7 +14,7 @@ That is the whole thing:
 'use client';
 import dynamic from 'next/dynamic';
 
-const OrbitEditor = dynamic(() => import('@layera-labs/react').then((m) => m.OrbitEditor), {
+const OrbitEditor = dynamic(() => import('@layera-labs/orbit-react').then((m) => m.OrbitEditor), {
   ssr: false,
 });
 ```
@@ -34,14 +34,14 @@ work for you.
 
 ```tsx
 // app/design/page.tsx
-import { OrbitEditor } from '@layera-labs/next';
+import { OrbitEditor } from '@layera-labs/orbit-next';
 
 export default function Page() {
   return <OrbitEditor theme="dark" />;
 }
 ```
 
-Props are `OrbitEditorProps` from `@layera-labs/react`, unchanged. See
+Props are `OrbitEditorProps` from `@layera-labs/orbit-react`, unchanged. See
 [that package's README](https://github.com/Layera-Labs/orbit/tree/main/packages/react#readme)
 for `exportBackend`, `aiBackend` and the rest — including the fact that `apiKey` and
 `backendUrl` are inert.
@@ -51,8 +51,8 @@ for `exportBackend`, `aiBackend` and the rest — including the fact that `apiKe
 > **Beta.** `1.0.0-beta.3` under the `beta` tag; the API moves without notice.
 >
 > **This is the v1 line, which is legacy.** The current architecture is
-> [`@layera-labs/editor`](https://github.com/Layera-Labs/orbit/tree/main/packages/editor#readme),
-> and there is no `@layera-labs/next` equivalent for it — the v2 editor is a client
+> [`@layera-labs/orbit-editor`](https://github.com/Layera-Labs/orbit/tree/main/packages/editor#readme),
+> and there is no `@layera-labs/orbit-next` equivalent for it — the v2 editor is a client
 > component you import directly and wrap yourself if you need to.
 >
 > **Peers:** `next ^14.0.0`, `react ^18.0.0`, `react-dom ^18.0.0`. React 18 only,

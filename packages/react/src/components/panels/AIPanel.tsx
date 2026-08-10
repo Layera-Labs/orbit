@@ -6,12 +6,12 @@
  */
 import * as React from 'react';
 import { useState, useCallback } from 'react';
-import { OrbitButton, OrbitSlider, OrbitDropdown } from '@layera-labs/ui';
+import { OrbitButton, OrbitSlider, OrbitDropdown } from '@layera-labs/orbit-ui';
 import type { AiBackend } from '../../backends/types';
 import { useEditorStore } from '../../store';
 import { useToast } from '../ToastProvider';
-import type { OrbitEngine } from '@layera-labs/core';
-import type { GeneratedAsset } from '@layera-labs/shared';
+import type { OrbitEngine } from '@layera-labs/orbit-core';
+import type { GeneratedAsset } from '@layera-labs/orbit-shared';
 
 type TopTab = 'image' | 'video' | 'audio';
 

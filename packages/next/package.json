@@ -1,5 +1,5 @@
 {
-  "name": "@layera-labs/next",
+  "name": "@layera-labs/orbit-next",
   "version": "1.0.0-beta.3",
   "description": "Next.js wrapper for Orbit SDK",
   "keywords": [
@@ -44,7 +44,7 @@
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "@layera-labs/react": "workspace:*"
+    "@layera-labs/orbit-react": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",

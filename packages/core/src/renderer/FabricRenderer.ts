@@ -3,7 +3,7 @@
  */
 
 import * as fabric from 'fabric';
-import type { Layer, SceneGraph as SceneGraphType, WatermarkOptions } from '@layera-labs/shared';
+import type { Layer, SceneGraph as SceneGraphType, WatermarkOptions } from '@layera-labs/orbit-shared';
 import type { TransitionState } from '../transition-engine';
 
 export interface PeerCursor {

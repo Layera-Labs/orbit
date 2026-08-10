@@ -1,5 +1,5 @@
 {
-  "name": "@layera-labs/agentic",
+  "name": "@layera-labs/orbit-agentic",
   "version": "1.0.0-beta.3",
   "description": "Orbit AI Agentic Pipeline - Backend adapters",
   "keywords": [
@@ -44,7 +44,7 @@
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "@layera-labs/shared": "workspace:*"
+    "@layera-labs/orbit-shared": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

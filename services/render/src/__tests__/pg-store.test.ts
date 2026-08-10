@@ -8,7 +8,7 @@
 // It writes to (and cleans up) rows under `test:*` accounts / `*@test.local`
 // users in the target database.
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { Ledger, InsufficientCreditsError } from '@layera-labs/billing';
+import { Ledger, InsufficientCreditsError } from '@layera-labs/orbit-billing';
 import { makePgPool, PgLedgerStore, PgUserStore } from '../pg-store';
 
 const URL = process.env.TEST_DATABASE_URL;

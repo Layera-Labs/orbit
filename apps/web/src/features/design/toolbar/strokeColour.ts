@@ -2,7 +2,7 @@
  * Is this stroke colour one you could actually see?
  *
  * Its own module rather than a helper inside `ElementBar`, because importing
- * that component reaches `@layera-labs/editor` → konva → the native `canvas` binding,
+ * that component reaches `@layera-labs/orbit-editor` → konva → the native `canvas` binding,
  * which cannot load under jsdom. A pure function that needs testing should not
  * be behind a canvas.
  */

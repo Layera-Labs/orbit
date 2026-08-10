@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { TransitionEngine } from '../transition-engine';
-import type { Layer, Transition } from '@layera-labs/shared';
+import type { Layer, Transition } from '@layera-labs/orbit-shared';
 
 function createLayer(transitionIn?: Transition, transitionOut?: Transition): Layer {
   return {

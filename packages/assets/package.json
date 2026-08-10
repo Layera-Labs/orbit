@@ -1,5 +1,5 @@
 {
-  "name": "@layera-labs/assets",
+  "name": "@layera-labs/orbit-assets",
   "version": "0.0.1",
   "private": true,
   "description": "Orbit Asset Providers and Cache",
@@ -24,7 +24,7 @@
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "@layera-labs/shared": "workspace:*"
+    "@layera-labs/orbit-shared": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.4.0",

@@ -1,17 +1,17 @@
-# @layera-labs/ui
+# @layera-labs/orbit-ui
 
 The component library the **v1** Orbit editor is built from: fourteen React
 components, six hooks, and a light/dark theme pair expressed as CSS custom properties.
 
 ```bash
-npm i @layera-labs/ui@beta
+npm i @layera-labs/orbit-ui@beta
 ```
 
 > **Beta.** `1.0.0-beta.3` under the `beta` tag; the API moves without notice.
 >
 > **This is part of the v1 line, which is legacy.** It exists because
-> `@layera-labs/react` uses it. The v2 editor
-> ([`@layera-labs/editor`](https://github.com/Layera-Labs/orbit/tree/main/packages/editor#readme))
+> `@layera-labs/orbit-react` uses it. The v2 editor
+> ([`@layera-labs/orbit-editor`](https://github.com/Layera-Labs/orbit/tree/main/packages/editor#readme))
 > does not depend on this package and ships its own stylesheet.
 >
 > **React 18 only.** `react` and `react-dom` are peers at `^18.0.0`.
@@ -30,10 +30,10 @@ Tailwind in your build**, and you need the preset:
 ```js
 // tailwind.config.js
 module.exports = {
-  presets: [require('@layera-labs/ui/tailwind.preset')],
+  presets: [require('@layera-labs/orbit-ui/tailwind.preset')],
   content: [
     './src/**/*.{ts,tsx}',
-    './node_modules/@layera-labs/ui/dist/**/*.js',
+    './node_modules/@layera-labs/orbit-ui/dist/**/*.js',
   ],
 };
 ```
@@ -48,7 +48,7 @@ than literal colours. That indirection is what lets a running app be recoloured 
 re-rendering:
 
 ```ts
-import { themeManager } from '@layera-labs/ui/themes';
+import { themeManager } from '@layera-labs/orbit-ui/themes';
 themeManager.setTheme('orbit-dark');   // or 'orbit-light', or your own
 ```
 
@@ -71,7 +71,7 @@ object this repository builds its own apps with — not a second copy that can d
 ## Components
 
 ```tsx
-import { OrbitButton } from '@layera-labs/ui';
+import { OrbitButton } from '@layera-labs/orbit-ui';
 
 <OrbitButton variant="secondary" size="sm" onClick={save}>Save</OrbitButton>;
 ```
@@ -87,7 +87,7 @@ takes `variant` (`primary` | `secondary` | `ghost` | `destructive` | `outline`),
 `useSidebar`, `useDialog`, `useDropdown`, `useAccordion`, `useToast`, and `useTheme`:
 
 ```ts
-import { useTheme } from '@layera-labs/ui';
+import { useTheme } from '@layera-labs/orbit-ui';
 
 const { theme, setTheme, toggleTheme, isDark } = useTheme();
 ```
@@ -95,9 +95,9 @@ const { theme, setTheme, toggleTheme, isDark } = useTheme();
 ## Themes
 
 ```ts
-import { themeManager, darkTheme, lightTheme } from '@layera-labs/ui/themes';
+import { themeManager, darkTheme, lightTheme } from '@layera-labs/orbit-ui/themes';
 
-themeManager.registerTheme(myBrandTheme);   // an OrbitTheme from @layera-labs/shared
+themeManager.registerTheme(myBrandTheme);   // an OrbitTheme from @layera-labs/orbit-shared
 themeManager.setTheme('my-brand');
 themeManager.getCurrentTheme();
 ```
@@ -116,7 +116,7 @@ directory the tarball does not ship.
 
 Import the components instead. That is what the copier existed to avoid, and it was
 never the better option here — these components are not standalone files you own and
-edit, they read `cn` from `@layera-labs/shared` and Radix primitives from
+edit, they read `cn` from `@layera-labs/orbit-shared` and Radix primitives from
 `node_modules`.
 
 ## Links

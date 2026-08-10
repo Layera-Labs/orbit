@@ -1,5 +1,5 @@
 {
-  "name": "@layera-labs/video",
+  "name": "@layera-labs/orbit-video",
   "version": "1.0.0-beta.3",
   "description": "Headless video timeline model + server-side FFmpeg render pipeline for Orbit",
   "keywords": [

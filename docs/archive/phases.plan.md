@@ -14,10 +14,10 @@
 - [x] Vite build pipeline for all packages
 - [x] TypeScript 5.4+ strict mode
 - [x] 60+ CSS variable design tokens
-- [x] `@layera-labs/shared` — utilities (`cn`, `generateId`), types, constants
-- [x] `@layera-labs/ui` — 14 components (Button, Input, Sidebar, Tooltip, Dialog, Tabs, Toast, etc.)
+- [x] `@layera-labs/orbit-shared` — utilities (`cn`, `generateId`), types, constants
+- [x] `@layera-labs/orbit-ui` — 14 components (Button, Input, Sidebar, Tooltip, Dialog, Tabs, Toast, etc.)
 - [x] Theme manager with dark/light + runtime switching
-- [x] CLI scaffolding foundation (`npx @layera-labs/ui add`)
+- [x] CLI scaffolding foundation (`npx @layera-labs/orbit-ui add`)
 - [x] React + Next.js demo apps
 
 ---
@@ -26,7 +26,7 @@
 
 ### ✅ COMPLETED FEATURES
 
-#### Core Engine (`@layera-labs/core`)
+#### Core Engine (`@layera-labs/orbit-core`)
 - [x] Fabric.js v6 canvas engine with scene graph
 - [x] Renderer abstraction layer (swappable for future WebGL)
 - [x] Command History pattern (undo/redo with full command stack)
@@ -55,7 +55,7 @@
 - [x] **Export watermark baking** (watermark included in all exports)
 - [x] **JPG white background** (fills transparent areas)
 
-#### React Wrapper (`@layera-labs/react`)
+#### React Wrapper (`@layera-labs/orbit-react`)
 - [x] `OrbitEditor` main component with full layout
 - [x] `OrbitSidebar` rail + drawer (12 panels)
 - [x] Zustand store (6 slices: ui, canvas, layer, upload, designs, ai)
@@ -137,7 +137,7 @@
 - [x] Upload drag & drop
 - [x] Categorized assets (Images/Videos/Audios)
 
-#### AI / Agentic (`@layera-labs/agentic`)
+#### AI / Agentic (`@layera-labs/orbit-agentic`)
 - [x] `OrbitBackendAdapter` with 7 endpoints:
   - `generateImage` → `POST /v1/generate`
   - `inpaint` → `POST /v1/inpaint`
@@ -149,7 +149,7 @@
 - [x] System prompts injected per endpoint
 - [x] Model selector (GPT-4o, Gemini Pro, Flux 2 Klein, Flux Inpaint)
 
-#### WebGL Effects (`@layera-labs/effects`)
+#### WebGL Effects (`@layera-labs/orbit-effects`)
 - [x] `AdjustmentRenderer` class
 - [x] Brightness, Contrast, Saturation, Temperature shaders
 - [x] Applied to image layers via `engine.applyAdjustments()`
@@ -291,14 +291,14 @@ These were considered out of scope for the initial MVP and can be added in futur
 
 | Package | Status | Lines of Code (est.) |
 |---------|--------|---------------------|
-| `@layera-labs/shared` | ✅ Stable | ~1,500 |
-| `@layera-labs/core` | ✅ Stable | ~3,500 |
-| `@layera-labs/ui` | ✅ Stable | ~2,000 |
-| `@layera-labs/react` | ✅ Stable | ~5,000 |
-| `@layera-labs/next` | ✅ Stable | ~200 |
-| `@layera-labs/agentic` | ✅ Stable | ~400 |
-| `@layera-labs/effects` | ✅ Stable | ~300 |
-| `@layera-labs/assets` | ✅ Stable | ~400 |
+| `@layera-labs/orbit-shared` | ✅ Stable | ~1,500 |
+| `@layera-labs/orbit-core` | ✅ Stable | ~3,500 |
+| `@layera-labs/orbit-ui` | ✅ Stable | ~2,000 |
+| `@layera-labs/orbit-react` | ✅ Stable | ~5,000 |
+| `@layera-labs/orbit-next` | ✅ Stable | ~200 |
+| `@layera-labs/orbit-agentic` | ✅ Stable | ~400 |
+| `@layera-labs/orbit-effects` | ✅ Stable | ~300 |
+| `@layera-labs/orbit-assets` | ✅ Stable | ~400 |
 | `examples/demo` | ✅ Stable | ~100 |
 | `examples/demo-next` | ✅ Stable | ~100 |
 

@@ -9,7 +9,7 @@ import {
   GroupLayersCommand,
   UngroupLayerCommand,
 } from '../commands';
-import type { Layer } from '@layera-labs/shared';
+import type { Layer } from '@layera-labs/orbit-shared';
 
 function createTextLayer(name: string, x = 0, y = 0): Omit<Layer, 'id'> {
   return {

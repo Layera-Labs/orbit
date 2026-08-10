@@ -8,7 +8,7 @@
  *
  * ## Why the interface lives here and the SQL does not
  *
- * Same reason as `StepLog`. `@layera-labs/pipeline` decides; it does not talk to a
+ * Same reason as `StepLog`. `@layera-labs/orbit-pipeline` decides; it does not talk to a
  * database, and it must not pull `pg` into its dependency tree. What lives here
  * is the contract plus an in-memory implementation, so the loop below can be
  * tested without a database — which matters more than it sounds, because the

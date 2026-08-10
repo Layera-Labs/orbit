@@ -10,7 +10,7 @@ export default defineConfig({
        * in step. `node` is here because it stopped being reachable from any
        * other entry the moment `index.ts` became browser-only: rollup emitted
        * nothing for it, `vite-plugin-dts` still emitted `node.d.ts` from the
-       * source, and so `@layera-labs/video/node` TYPECHECKED while resolving to a
+       * source, and so `@layera-labs/orbit-video/node` TYPECHECKED while resolving to a
        * file that did not exist. A missing runtime with a present type is the
        * worst shape this failure can take.
        */

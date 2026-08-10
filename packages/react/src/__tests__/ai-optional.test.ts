@@ -1,16 +1,16 @@
 /**
  * Guards the AI opt-in.
  *
- * `@layera-labs/agentic` is an OPTIONAL peer of this package. A host that wants the
+ * `@layera-labs/orbit-agentic` is an OPTIONAL peer of this package. A host that wants the
  * image editor, the timeline and video EXPORT — all core editing — must be able
- * to install `@layera-labs/react`, render `<OrbitEditor>` and ship a bundle without
+ * to install `@layera-labs/orbit-react`, render `<OrbitEditor>` and ship a bundle without
  * the AI layer resolving at all. Nothing in the type system says so: one
- * `import { OrbitBackendAdapter } from '@layera-labs/agentic'` added to any module
+ * `import { OrbitBackendAdapter } from '@layera-labs/orbit-agentic'` added to any module
  * the main entry can reach puts it back, and the failure surfaces in someone
  * else's repo as an unresolved specifier at bundle time.
  *
  * So: walk the SOURCE import graph from `src/index.ts` and assert no RUNTIME
- * import of `@layera-labs/agentic` is reachable. Modelled on
+ * import of `@layera-labs/orbit-agentic` is reachable. Modelled on
  * `packages/video/src/__tests__/browser-safety.test.ts`, source rather than
  * `dist/` for the same reasons — it runs with no build step and it names the
  * file that introduced the edge.
@@ -20,11 +20,11 @@
  * The other half is the TYPES. `import type` costs a consumer nothing at
  * runtime — it erases from the bundle entirely — but it does NOT erase from the
  * `.d.ts` TypeScript emits. `backends/types.ts` used to type-import
- * `CanvasAgentParams` from `@layera-labs/agentic`, `AiBackend` is named by
+ * `CanvasAgentParams` from `@layera-labs/orbit-agentic`, `AiBackend` is named by
  * `OrbitEditorProps.aiBackend`, and so `dist/backends/types.d.ts` shipped
- * `import { CanvasAgentParams } from '@layera-labs/agentic'` on the MAIN entry's
+ * `import { CanvasAgentParams } from '@layera-labs/orbit-agentic'` on the MAIN entry's
  * declaration graph. A host who declined the optional peer and ran `tsc` with
- * `skipLibCheck: false` got `TS2307: Cannot find module '@layera-labs/agentic'` —
+ * `skipLibCheck: false` got `TS2307: Cannot find module '@layera-labs/orbit-agentic'` —
  * measured, not theorised — which is the editing SDK failing to typecheck over
  * an AI package they deliberately did not install.
  *
@@ -36,7 +36,7 @@
  * the runtime rule only: naming the AI package is the entire point of that
  * entry, and a host reaching for it has installed the peer by definition.
  *
- * The canvas-agent shapes now live in `@layera-labs/shared`, which both packages
+ * The canvas-agent shapes now live in `@layera-labs/orbit-shared`, which both packages
  * depend on unconditionally, so nothing is copied and nothing drifts.
  */
 import { describe, expect, it } from 'vitest';
@@ -48,7 +48,7 @@ import { fileURLToPath } from 'node:url';
 const SRC = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** The AI package and anything under it. Never a runtime edge from `.`. */
-const FORBIDDEN = /^@layera-labs\/agentic(\/|$)/;
+const FORBIDDEN = /^@layera-labs\/orbit-agentic(\/|$)/;
 
 /**
  * Every form that pulls another module in at RUNTIME.
@@ -163,7 +163,7 @@ describe('the main entry never needs the AI package at runtime', () => {
     expect([...files].some((f) => f.endsWith('/VideoExportModal.tsx'))).toBe(true);
   });
 
-  it('imports no value from @layera-labs/agentic', () => {
+  it('imports no value from @layera-labs/orbit-agentic', () => {
     expect(offenders(bare)).toEqual([]);
   });
 
@@ -206,27 +206,27 @@ describe("the main entry's TYPES never name the AI package either", () => {
   it('reaches strictly more than the runtime walk, including `backends/types.ts`', () => {
     // Without this the assertion below could pass because the walk found
     // nothing — and `backends/types.ts` specifically is the module whose
-    // `.d.ts` named `@layera-labs/agentic`, so it MUST be in scope here.
+    // `.d.ts` named `@layera-labs/orbit-agentic`, so it MUST be in scope here.
     const runtimeFiles = walk(resolve(SRC, 'index.ts')).files;
     expect(files.size).toBeGreaterThan(runtimeFiles.size);
     expect([...files].some((f) => f.endsWith('/backends/types.ts'))).toBe(true);
   });
 
-  it('names @layera-labs/agentic in no import form at all', () => {
+  it('names @layera-labs/orbit-agentic in no import form at all', () => {
     expect(offenders(bare)).toEqual([]);
   });
 
-  it('gets the canvas-agent shapes from @layera-labs/shared, a real dependency', () => {
+  it('gets the canvas-agent shapes from @layera-labs/orbit-shared, a real dependency', () => {
     /*
-     * The positive half of the claim. `@layera-labs/shared` is a `dependencies` entry,
+     * The positive half of the claim. `@layera-labs/orbit-shared` is a `dependencies` entry,
      * not an optional peer, so naming it in a `.d.ts` always resolves — which is
      * the whole reason the shapes were moved there rather than copied here.
      */
     const types = readFileSync(resolve(SRC, 'backends/types.ts'), 'utf8');
-    expect(types).toMatch(/CanvasAgentParams[\s\S]*?\} from '@layera-labs\/shared'/);
-    expect(types).not.toMatch(/@layera-labs\/agentic'/);
+    expect(types).toMatch(/CanvasAgentParams[\s\S]*?\} from '@layera-labs\/orbit-shared'/);
+    expect(types).not.toMatch(/@layera-labs\/orbit-agentic'/);
     const pkg = JSON.parse(readFileSync(resolve(SRC, '../package.json'), 'utf8'));
-    expect(pkg.dependencies['@layera-labs/shared']).toBeDefined();
+    expect(pkg.dependencies['@layera-labs/orbit-shared']).toBeDefined();
   });
 });
 
@@ -241,7 +241,7 @@ describe('the AI surface ships from the subpath, not the package name', () => {
     }
   });
 
-  it('is on `@layera-labs/react/agentic`, and that entry resolves', () => {
+  it('is on `@layera-labs/orbit-react/agentic`, and that entry resolves', () => {
     const entry = resolve(SRC, 'agentic/index.ts');
     expect(existsSync(entry)).toBe(true);
     expect(readFileSync(entry, 'utf8')).toMatch(/export\s*\{\s*useOrbitAgentic\s*\}/);
@@ -258,14 +258,14 @@ describe('the AI surface ships from the subpath, not the package name', () => {
     expect(vite).toContain(`'agentic/index'`);
   });
 
-  it('declares @layera-labs/agentic as an optional peer, never a dependency', () => {
+  it('declares @layera-labs/orbit-agentic as an optional peer, never a dependency', () => {
     const pkg = JSON.parse(readFileSync(resolve(SRC, '../package.json'), 'utf8'));
-    expect(pkg.dependencies['@layera-labs/agentic']).toBeUndefined();
-    expect(pkg.peerDependencies['@layera-labs/agentic']).toBeDefined();
-    expect(pkg.peerDependenciesMeta['@layera-labs/agentic'].optional).toBe(true);
+    expect(pkg.dependencies['@layera-labs/orbit-agentic']).toBeUndefined();
+    expect(pkg.peerDependencies['@layera-labs/orbit-agentic']).toBeDefined();
+    expect(pkg.peerDependenciesMeta['@layera-labs/orbit-agentic'].optional).toBe(true);
     // And it must still RESOLVE here, or the type-only imports above stop
     // compiling in this workspace. That is what the devDependency is for.
-    expect(pkg.devDependencies['@layera-labs/agentic']).toBeDefined();
+    expect(pkg.devDependencies['@layera-labs/orbit-agentic']).toBeDefined();
   });
 });
 
@@ -281,7 +281,7 @@ describe('the walker would catch a runtime import if one were added', () => {
     writeFileSync(join(dir, 'entry.ts'), `export * from './leaf';\n`);
     writeFileSync(
       join(dir, 'leaf.ts'),
-      `import { OrbitBackendAdapter } from '@layera-labs/agentic';\nexport const a = OrbitBackendAdapter;\n`,
+      `import { OrbitBackendAdapter } from '@layera-labs/orbit-agentic';\nexport const a = OrbitBackendAdapter;\n`,
     );
     const graph = walk(join(dir, 'entry.ts'));
 
@@ -296,7 +296,7 @@ describe('the walker would catch a runtime import if one were added', () => {
     writeFileSync(join(dir, 'entry.ts'), `export * from './leaf';\n`);
     writeFileSync(
       join(dir, 'leaf.ts'),
-      `import type { CanvasAgentParams } from '@layera-labs/agentic';\nexport type P = CanvasAgentParams;\n`,
+      `import type { CanvasAgentParams } from '@layera-labs/orbit-agentic';\nexport type P = CanvasAgentParams;\n`,
     );
     // The bundler is happy...
     expect(offenders(walk(join(dir, 'entry.ts')).bare)).toEqual([]);
@@ -314,7 +314,7 @@ describe('the walker would catch a runtime import if one were added', () => {
     writeFileSync(join(dir, 'entry.ts'), `export type { P } from './leaf';\n`);
     writeFileSync(
       join(dir, 'leaf.ts'),
-      `import type { CanvasAgentParams } from '@layera-labs/agentic';\nexport type P = CanvasAgentParams;\n`,
+      `import type { CanvasAgentParams } from '@layera-labs/orbit-agentic';\nexport type P = CanvasAgentParams;\n`,
     );
     expect([...walk(join(dir, 'entry.ts')).files].some((f) => f.endsWith('/leaf.ts'))).toBe(false);
     expect([...walk(join(dir, 'entry.ts'), 'types').files].some((f) => f.endsWith('/leaf.ts'))).toBe(
@@ -325,36 +325,36 @@ describe('the walker would catch a runtime import if one were added', () => {
 
   it('sees every form of runtime import', () => {
     const seen = (src: string) => [...runtimeSource(src).matchAll(SPECIFIER)].map((m) => m[1]);
-    expect(seen(`import '@layera-labs/agentic';`)).toEqual(['@layera-labs/agentic']);
-    expect(seen(`const x = require('@layera-labs/agentic');`)).toEqual(['@layera-labs/agentic']);
-    expect(seen(`const x = await import('@layera-labs/agentic');`)).toEqual(['@layera-labs/agentic']);
-    expect(seen(`export { X } from '@layera-labs/agentic';`)).toEqual(['@layera-labs/agentic']);
-    expect(seen(`export * from '@layera-labs/agentic';`)).toEqual(['@layera-labs/agentic']);
-    expect(seen(`import X from '@layera-labs/agentic';`)).toEqual(['@layera-labs/agentic']);
+    expect(seen(`import '@layera-labs/orbit-agentic';`)).toEqual(['@layera-labs/orbit-agentic']);
+    expect(seen(`const x = require('@layera-labs/orbit-agentic');`)).toEqual(['@layera-labs/orbit-agentic']);
+    expect(seen(`const x = await import('@layera-labs/orbit-agentic');`)).toEqual(['@layera-labs/orbit-agentic']);
+    expect(seen(`export { X } from '@layera-labs/orbit-agentic';`)).toEqual(['@layera-labs/orbit-agentic']);
+    expect(seen(`export * from '@layera-labs/orbit-agentic';`)).toEqual(['@layera-labs/orbit-agentic']);
+    expect(seen(`import X from '@layera-labs/orbit-agentic';`)).toEqual(['@layera-labs/orbit-agentic']);
   });
 
   it('erases only the type-only forms, and is not fooled by a comment', () => {
     const seen = (src: string) => [...runtimeSource(src).matchAll(SPECIFIER)].map((m) => m[1]);
-    expect(seen(`import type { A } from '@layera-labs/agentic';`)).toEqual([]);
-    expect(seen(`export type { A } from '@layera-labs/agentic';`)).toEqual([]);
+    expect(seen(`import type { A } from '@layera-labs/orbit-agentic';`)).toEqual([]);
+    expect(seen(`export type { A } from '@layera-labs/orbit-agentic';`)).toEqual([]);
     // A doc comment quoting a real import statement must not fail the build.
-    expect(seen(`/* never write: import { A } from '@layera-labs/agentic'; */`)).toEqual([]);
+    expect(seen(`/* never write: import { A } from '@layera-labs/orbit-agentic'; */`)).toEqual([]);
     // Stripping one type-only statement must not swallow the next real one.
     expect(
-      seen(`import type { A } from '@layera-labs/agentic';\nimport { B } from '@layera-labs/agentic';`),
-    ).toEqual(['@layera-labs/agentic']);
+      seen(`import type { A } from '@layera-labs/orbit-agentic';\nimport { B } from '@layera-labs/orbit-agentic';`),
+    ).toEqual(['@layera-labs/orbit-agentic']);
     // A multi-line type-only import is still erased whole.
-    expect(seen(`import type {\n  A,\n  B,\n} from '@layera-labs/agentic';`)).toEqual([]);
+    expect(seen(`import type {\n  A,\n  B,\n} from '@layera-labs/orbit-agentic';`)).toEqual([]);
     // And a local `export type` alias must not swallow the import after it.
-    expect(seen(`export type X = string;\nimport { B } from '@layera-labs/agentic';`)).toEqual([
-      '@layera-labs/agentic',
+    expect(seen(`export type X = string;\nimport { B } from '@layera-labs/orbit-agentic';`)).toEqual([
+      '@layera-labs/orbit-agentic',
     ]);
   });
 
   it('follows a `.js` specifier and a directory index, as this package writes them', () => {
     const dir = mkdtempSync(join(tmpdir(), 'orbit-ai-optional-'));
     writeFileSync(join(dir, 'entry.ts'), `export * from './leaf.js';\n`);
-    writeFileSync(join(dir, 'leaf.ts'), `import '@layera-labs/agentic';\n`);
+    writeFileSync(join(dir, 'leaf.ts'), `import '@layera-labs/orbit-agentic';\n`);
     expect(offenders(walk(join(dir, 'entry.ts')).bare)).toHaveLength(1);
   });
 });

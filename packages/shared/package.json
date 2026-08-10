@@ -1,5 +1,5 @@
 {
-  "name": "@layera-labs/shared",
+  "name": "@layera-labs/orbit-shared",
   "version": "1.0.0-beta.3",
   "description": "Shared utilities and types for Orbit SDK",
   "keywords": [

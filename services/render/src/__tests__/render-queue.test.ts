@@ -15,8 +15,8 @@ import { bearer, guestToken } from './guest.js';
 let inFlight = 0;
 let peak = 0;
 
-vi.mock('@layera-labs/video/node', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@layera-labs/video/node')>();
+vi.mock('@layera-labs/orbit-video/node', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@layera-labs/orbit-video/node')>();
   return {
     ...actual,
     renderProject: async () => {

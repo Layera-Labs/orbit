@@ -1,8 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useProviders, useSelectedElement, useStore } from '@layera-labs/editor';
-import type { FontItem } from '@layera-labs/providers';
+import { useProviders, useSelectedElement, useStore } from '@layera-labs/orbit-editor';
+import type { FontItem } from '@layera-labs/orbit-providers';
 import { ColourPicker } from '@/brand/Colour';
 import {
   BarButton,

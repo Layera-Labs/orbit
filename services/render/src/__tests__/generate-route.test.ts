@@ -12,14 +12,14 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { bearer, guestToken } from './guest.js';
 
-vi.mock('@layera-labs/video/node', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@layera-labs/video/node')>();
+vi.mock('@layera-labs/orbit-video/node', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@layera-labs/orbit-video/node')>();
   return { ...actual, renderProject: async () => undefined };
 });
 
 /* The language model: answers with the story format's own worked example. */
 vi.mock('../brain.js', async () => {
-  const { story } = await import('@layera-labs/formats');
+  const { story } = await import('@layera-labs/orbit-formats');
   return {
     brainFromEnv: () => ({
       complete: async () => JSON.stringify({ ...story.brief.example, topic: 'Faked' }),

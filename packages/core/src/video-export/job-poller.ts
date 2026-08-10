@@ -2,7 +2,7 @@
  * ExportJobPoller — Polls export job status via SSE with fallback to polling
  */
 
-import type { ExportJob } from '@layera-labs/shared';
+import type { ExportJob } from '@layera-labs/orbit-shared';
 
 export type JobStatusCallback = (job: ExportJob) => void;
 export type JobErrorCallback = (error: Error) => void;

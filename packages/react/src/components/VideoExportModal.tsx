@@ -3,10 +3,10 @@
  */
 import * as React from 'react';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { OrbitButton, OrbitDialog, OrbitSlider } from '@layera-labs/ui';
-import { GifEncoder, PreviewRecorder, VideoFrameCapture, ExportJobPoller } from '@layera-labs/core';
-import type { OrbitEngine } from '@layera-labs/core';
-import type { VideoExportOptions } from '@layera-labs/shared';
+import { OrbitButton, OrbitDialog, OrbitSlider } from '@layera-labs/orbit-ui';
+import { GifEncoder, PreviewRecorder, VideoFrameCapture, ExportJobPoller } from '@layera-labs/orbit-core';
+import type { OrbitEngine } from '@layera-labs/orbit-core';
+import type { VideoExportOptions } from '@layera-labs/orbit-shared';
 import type { ExportBackend } from '../backends/types';
 
 interface VideoExportModalProps {

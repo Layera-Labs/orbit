@@ -38,7 +38,7 @@ const contents = `/**
  * \`src/__tests__/version.test.ts\` fails if this copy falls behind.
  */
 
-/** The version of \`@layera-labs/shared\` this build was cut from. */
+/** The version of \`@layera-labs/orbit-shared\` this build was cut from. */
 export const ORBIT_VERSION = '${version}';
 `;
 

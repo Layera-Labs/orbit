@@ -228,7 +228,7 @@ describe('preview and export agree about a shape', () => {
      * day someone fixes it, this test fails and says exactly which claim moved.
      *
      * It costs nothing today: every shipping client sends `tracks`, so nothing
-     * reaches the legacy builder, and `@layera-labs/formats` emits tracks too.
+     * reaches the legacy builder, and `@layera-labs/orbit-formats` emits tracks too.
      */
     const anim = { type: 'fade', duration: 1 } as const;
     expect(graphOf(project([{ ...scrim, animateIn: anim }]))).not.toContain('fade=t=in');

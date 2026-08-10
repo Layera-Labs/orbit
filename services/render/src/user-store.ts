@@ -3,7 +3,7 @@
  * DATABASE_URL is configured (ephemeral dev/test runs). The durable store is
  * `PgUserStore` (see `pg-store.ts`); accounts live in Postgres, never on disk.
  */
-import type { UserRecord, UserStore } from '@layera-labs/auth';
+import type { UserRecord, UserStore } from '@layera-labs/orbit-auth';
 
 export class InMemoryUserStore implements UserStore {
   private byEmail = new Map<string, UserRecord>();

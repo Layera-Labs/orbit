@@ -1,5 +1,5 @@
 /**
- * @layera-labs/react - React wrapper for Orbit SDK
+ * @layera-labs/orbit-react - React wrapper for Orbit SDK
  */
 
 export { OrbitEditor } from './OrbitEditor';

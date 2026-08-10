@@ -1,5 +1,5 @@
 /**
- * Tailwind preset for `@layera-labs/ui`.
+ * Tailwind preset for `@layera-labs/orbit-ui`.
  *
  * Every component in this package styles itself with class names like
  * `bg-orbit-accent`, `text-orbit-text`, `rounded-orbit-md` and
@@ -16,10 +16,10 @@
  *
  *   // tailwind.config.js
  *   module.exports = {
- *     presets: [require('@layera-labs/ui/tailwind.preset')],
+ *     presets: [require('@layera-labs/orbit-ui/tailwind.preset')],
  *     content: [
  *       './src/**\/*.{ts,tsx}',
- *       './node_modules/@layera-labs/ui/dist/**\/*.js',
+ *       './node_modules/@layera-labs/orbit-ui/dist/**\/*.js',
  *     ],
  *   };
  *

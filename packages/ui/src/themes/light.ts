@@ -1,4 +1,4 @@
-import { type OrbitTheme } from '@layera-labs/shared';
+import { type OrbitTheme } from '@layera-labs/orbit-shared';
 
 export const lightTheme: OrbitTheme = {
   id: 'orbit-light',

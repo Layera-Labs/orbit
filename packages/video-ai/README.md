@@ -1,11 +1,11 @@
-# @layera-labs/video-ai
+# @layera-labs/orbit-video-ai
 
 The AI wedge — **"describe → video"**. Claude reads a prompt, picks one of the
-`@layera-labs/video` templates (via forced tool use), and fills its text fields; the
+`@layera-labs/orbit-video` templates (via forced tool use), and fills its text fields; the
 result is validated and rendered to an MP4.
 
 ```ts
-import { generateVideoFromPrompt } from '@layera-labs/video-ai';
+import { generateVideoFromPrompt } from '@layera-labs/orbit-video-ai';
 
 // Needs ANTHROPIC_API_KEY in the environment (billed per token).
 const { spec, outputPath } = await generateVideoFromPrompt(

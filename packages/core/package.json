@@ -1,5 +1,5 @@
 {
-  "name": "@layera-labs/core",
+  "name": "@layera-labs/orbit-core",
   "version": "1.0.0-beta.3",
   "description": "Orbit Canvas Engine - Vanilla TypeScript core",
   "keywords": [
@@ -44,8 +44,8 @@
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "@layera-labs/effects": "workspace:*",
-    "@layera-labs/shared": "workspace:*",
+    "@layera-labs/orbit-effects": "workspace:*",
+    "@layera-labs/orbit-shared": "workspace:*",
     "fabric": "^6.9.1",
     "modern-gif": "^2.1.0",
     "yjs": "^13.6.30"

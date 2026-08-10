@@ -11,7 +11,7 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [
-        '@layera-labs/model',
+        '@layera-labs/orbit-model',
         'konva',
         'react',
         'react-dom',

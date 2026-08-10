@@ -1,4 +1,4 @@
-# @layera-labs/providers
+# @layera-labs/orbit-providers
 
 Where the Orbit v2 editor gets its **content** from: templates, fonts, photos, videos,
 backgrounds, stock assets, storage, publishing. This package defines the interfaces
@@ -9,11 +9,11 @@ It contains no UI and no network client of consequence. It is the seam you imple
 so the editor shows *your* templates and *your* asset library instead of somebody
 else's.
 
-This is **v2**, alongside `@layera-labs/model`, `@layera-labs/render` and
-`@layera-labs/editor`.
+This is **v2**, alongside `@layera-labs/orbit-model`, `@layera-labs/orbit-render` and
+`@layera-labs/orbit-editor`.
 
 ```bash
-npm i @layera-labs/providers@beta
+npm i @layera-labs/orbit-providers@beta
 ```
 
 > **Beta.** `1.0.0-beta.3` under the `beta` tag; the API moves without notice.
@@ -30,7 +30,7 @@ panel and no Templates, Photos or Backgrounds panel — not an editor with four 
 three of which are empty or throw.
 
 ```ts
-import { ProviderRegistry, GoogleFontProvider, PicsumPhotoProvider } from '@layera-labs/providers';
+import { ProviderRegistry, GoogleFontProvider, PicsumPhotoProvider } from '@layera-labs/orbit-providers';
 
 const registry = new ProviderRegistry({
   fonts: new GoogleFontProvider(),
@@ -47,7 +47,7 @@ Note the keys are **plural** (`photos`, `videos`, `templates`, `fonts`, `backgro
 `assets`) while each provider's own `kind` is singular (`'photo'`, `'template'`). The
 map is a slot list; the `kind` is a discriminant on the object.
 
-`@layera-labs/editor` takes the `ProviderMap` itself, not the registry — it builds the
+`@layera-labs/orbit-editor` takes the `ProviderMap` itself, not the registry — it builds the
 registry internally:
 
 ```tsx
@@ -62,7 +62,7 @@ Every provider is a plain object with an `id` and the methods for its kind. Noth
 subclassed and nothing is registered globally.
 
 ```ts
-import type { TemplateProvider, TemplateSummary } from '@layera-labs/providers';
+import type { TemplateProvider, TemplateSummary } from '@layera-labs/orbit-providers';
 
 export const houseTemplates: TemplateProvider = {
   id: 'house',
@@ -78,7 +78,7 @@ export const houseTemplates: TemplateProvider = {
 ```
 
 A `TemplateProvider` returns lightweight `TemplateSummary` records for the grid and a
-full `Document` (from `@layera-labs/model`) on `get`, so a panel of two hundred
+full `Document` (from `@layera-labs/orbit-model`) on `get`, so a panel of two hundred
 templates does not download two hundred documents.
 
 ## The kinds

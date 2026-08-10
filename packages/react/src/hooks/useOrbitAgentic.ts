@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import type { AiBackend } from '../backends/types';
-import type { CanvasAgentParams, CanvasAgentResponse, GeneratedAsset } from '@layera-labs/shared';
-import type { OrbitEngine } from '@layera-labs/core';
+import type { CanvasAgentParams, CanvasAgentResponse, GeneratedAsset } from '@layera-labs/orbit-shared';
+import type { OrbitEngine } from '@layera-labs/orbit-core';
 
 
 export type AgenticTool =

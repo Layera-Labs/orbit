@@ -19,19 +19,19 @@ Orbit SDK is a white-label canvas editor for developers building design tools, s
 ### React
 
 ```bash
-npm install @layera-labs/react
+npm install @layera-labs/orbit-react
 ```
 
 ### Next.js
 
 ```bash
-npm install @layera-labs/next
+npm install @layera-labs/orbit-next
 ```
 
 ### Vanilla JS (Framework-Agnostic)
 
 ```bash
-npm install @layera-labs/core
+npm install @layera-labs/orbit-core
 ```
 
 ## Basic Usage
@@ -39,7 +39,7 @@ npm install @layera-labs/core
 ### React
 
 ```tsx
-import { OrbitEditor } from '@layera-labs/react';
+import { OrbitEditor } from '@layera-labs/orbit-react';
 
 export default function EditorPage() {
   return (
@@ -73,7 +73,7 @@ export default function EditorPage() {
 ### Vanilla JS
 
 ```ts
-import { OrbitEngine } from '@layera-labs/core';
+import { OrbitEngine } from '@layera-labs/orbit-core';
 
 const container = document.getElementById('canvas-container');
 const engine = new OrbitEngine({ width: 1080, height: 1080 });

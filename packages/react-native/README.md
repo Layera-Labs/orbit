@@ -1,7 +1,7 @@
-# @layera-labs/react-native
+# @layera-labs/orbit-react-native
 
 React Native embedding for the Orbit v2 editor. The editor itself runs as the
-web build (`@layera-labs/editor`) inside a `react-native-webview`; this package is the
+web build (`@layera-labs/orbit-editor`) inside a `react-native-webview`; this package is the
 **typed bridge** between your RN code and that WebView.
 
 ```
@@ -27,10 +27,10 @@ Add an entry to the web build that mounts the editor and attaches the host bridg
 
 ```tsx
 import { createRoot } from 'react-dom/client';
-import { OrbitEditor } from '@layera-labs/editor';
-import { createStore } from '@layera-labs/model';
-import { exportPageToSVG } from '@layera-labs/render';
-import { createHostBridge, createWebViewHostTransport } from '@layera-labs/react-native';
+import { OrbitEditor } from '@layera-labs/orbit-editor';
+import { createStore } from '@layera-labs/orbit-model';
+import { exportPageToSVG } from '@layera-labs/orbit-render';
+import { createHostBridge, createWebViewHostTransport } from '@layera-labs/orbit-react-native';
 
 const store = createStore({ width: 1080, height: 1080 });
 
@@ -55,7 +55,7 @@ Bundle this to a single self-contained HTML file (e.g. `vite build` +
 ```tsx
 import { useImperativeHandle, useMemo, useRef, forwardRef } from 'react';
 import { WebView } from 'react-native-webview';
-import { createNativeTransport, createOrbitClient, type OrbitClient } from '@layera-labs/react-native';
+import { createNativeTransport, createOrbitClient, type OrbitClient } from '@layera-labs/orbit-react-native';
 import html from './orbit-web-build.html'; // the bundle from step 1
 
 export const OrbitEditorView = forwardRef<OrbitClient>((_props, ref) => {

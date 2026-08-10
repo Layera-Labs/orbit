@@ -1,5 +1,5 @@
 {
-  "name": "@layera-labs/auth",
+  "name": "@layera-labs/orbit-auth",
   "version": "0.0.1",
   "private": true,
   "description": "Pluggable end-user auth — verify a bearer token to an endUserId, via self-hosted (JWT) or Clerk / Supabase / Firebase",

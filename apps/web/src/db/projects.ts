@@ -1,12 +1,12 @@
 /**
  * Project store.
  *
- * The host owns the project NAME — `@layera-labs/editor`'s TopBar keeps its title in
+ * The host owns the project NAME — `@layera-labs/orbit-editor`'s TopBar keeps its title in
  * local component state and never writes it to the document, so reading a name
  * back out of the editor would always return "Untitled".
  */
-import type { Document as OrbitDocument } from '@layera-labs/model';
-import { createProject, type VideoProject } from '@layera-labs/video/browser';
+import type { Document as OrbitDocument } from '@layera-labs/orbit-model';
+import { createProject, type VideoProject } from '@layera-labs/orbit-video/browser';
 import { db, newId } from './idb';
 import type { ProjectKind, ProjectRow } from './schema';
 

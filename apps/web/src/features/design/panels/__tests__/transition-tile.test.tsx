@@ -15,7 +15,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { previewableTransitions } from '@layera-labs/video/browser';
+import { previewableTransitions } from '@layera-labs/orbit-video/browser';
 import { TransitionTile } from '../TransitionTile';
 
 

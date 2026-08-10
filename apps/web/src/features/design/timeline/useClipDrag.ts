@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
-import type { VideoProject } from '@layera-labs/video/browser';
+import type { VideoProject } from '@layera-labs/orbit-video/browser';
 import { moveClip, setClipTrack, trimClip, updateOverlay, useVideo } from '@/store/videoStore';
 
 export type DragMode = 'move' | 'trim-in' | 'trim-out';

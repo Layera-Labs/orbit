@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
-import { OrbitEditor } from '@layera-labs/editor';
-import { createStore } from '@layera-labs/model';
+import { OrbitEditor } from '@layera-labs/orbit-editor';
+import { createStore } from '@layera-labs/orbit-model';
 import {
   DemoTemplateProvider,
   GoogleFontProvider,
   PicsumPhotoProvider,
   PresetBackgroundProvider,
-} from '@layera-labs/providers';
+} from '@layera-labs/orbit-providers';
 
 export default function App() {
   const store = useMemo(() => {

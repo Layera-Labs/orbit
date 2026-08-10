@@ -15,7 +15,7 @@ import {
   type AudioTrackClip,
   type VideoProject,
   type VisualTrack,
-} from '@layera-labs/video/browser';
+} from '@layera-labs/orbit-video/browser';
 import { resolveAll } from '@/db/media';
 import { AudioGraph } from './audio';
 import { PlaybackClock } from './clock';

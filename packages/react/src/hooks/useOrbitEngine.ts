@@ -3,8 +3,8 @@
  */
 
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { OrbitEngine } from '@layera-labs/core';
-import type { Layer, ViewportState } from '@layera-labs/shared';
+import { OrbitEngine } from '@layera-labs/orbit-core';
+import type { Layer, ViewportState } from '@layera-labs/orbit-shared';
 
 export function useOrbitEngine(config: { width?: number; height?: number }) {
   const containerRef = useRef<HTMLDivElement>(null);

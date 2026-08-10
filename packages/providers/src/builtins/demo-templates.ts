@@ -1,4 +1,4 @@
-import { createElement, createId, createPage, type Document } from '@layera-labs/model';
+import { createElement, createId, createPage, type Document } from '@layera-labs/orbit-model';
 import type {
   TemplateListOptions,
   TemplateProvider,

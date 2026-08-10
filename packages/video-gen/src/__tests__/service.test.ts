@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_COSTS, InMemoryLedgerStore, InsufficientCreditsError, Ledger } from '@layera-labs/billing';
+import { DEFAULT_COSTS, InMemoryLedgerStore, InsufficientCreditsError, Ledger } from '@layera-labs/orbit-billing';
 import { GenerationService } from '../service';
 import { MockMediaProvider } from '../mock';
 

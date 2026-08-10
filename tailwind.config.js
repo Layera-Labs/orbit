@@ -3,7 +3,7 @@
  *
  * The `orbit-*` theme extension this used to spell out in full now lives in
  * `packages/ui/tailwind.preset.cjs`, because it had to be PUBLISHED: the
- * components in `@layera-labs/ui` emit those class names, and a consumer who
+ * components in `@layera-labs/orbit-ui` emit those class names, and a consumer who
  * installed the package got no rules for any of them. Keeping a second copy
  * here would mean the preset consumers use and the theme the components are
  * developed against could quietly disagree, which is the same failure the

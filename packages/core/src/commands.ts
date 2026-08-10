@@ -4,7 +4,7 @@
 
 import type { Command } from './history';
 import type { SceneGraph } from './scene-graph';
-import type { Layer } from '@layera-labs/shared';
+import type { Layer } from '@layera-labs/orbit-shared';
 
 export class AddLayerCommand implements Command {
   label = 'Add Layer';

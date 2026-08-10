@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { PagePreview } from '@layera-labs/render';
-import type { Page } from '@layera-labs/model';
+import { PagePreview } from '@layera-labs/orbit-render';
+import type { Page } from '@layera-labs/orbit-model';
 import { useEditorState, useStore } from '../context';
 import { Icon } from './Icon';
 

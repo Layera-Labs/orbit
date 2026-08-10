@@ -16,7 +16,7 @@
  * on exactly the bug being guarded against.
  */
 import { describe, expect, it } from 'vitest';
-import type { TextOverlay, VideoProject, VisualTrackClip } from '@layera-labs/video/browser';
+import type { TextOverlay, VideoProject, VisualTrackClip } from '@layera-labs/orbit-video/browser';
 import {
   patchClip,
   setClipTransform,

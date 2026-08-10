@@ -1,4 +1,4 @@
-import type { AssetProvider, Asset, SearchOptions } from '@layera-labs/shared';
+import type { AssetProvider, Asset, SearchOptions } from '@layera-labs/orbit-shared';
 
 export class PexelsProvider implements AssetProvider {
   readonly id = 'pexels';

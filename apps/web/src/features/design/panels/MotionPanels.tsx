@@ -10,7 +10,7 @@ import {
   type TransitionType,
   type VideoProject,
   type VisualTrackClip,
-} from '@layera-labs/video/browser';
+} from '@layera-labs/orbit-video/browser';
 import { serverCapabilities } from '@/net/capabilities';
 import { Icon } from '@/brand/Icon';
 import { ColourRow, SwatchGrid } from '@/brand/Colour';

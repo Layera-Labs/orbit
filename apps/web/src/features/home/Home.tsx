@@ -9,7 +9,7 @@ import { syncDelete } from '@/db/sync';
 import { mediaSrc, type MediaRow, type ProjectKind, type ProjectRow } from '@/db/schema';
 import { appendAudio, appendVisual } from '@/store/videoStore';
 import { probe } from '@/features/design/panels/MediaPanel';
-import type { VideoProject } from '@layera-labs/video/browser';
+import type { VideoProject } from '@layera-labs/orbit-video/browser';
 import styles from './Home.module.css';
 
 interface Start {

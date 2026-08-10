@@ -36,8 +36,8 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { renderProject } from '@layera-labs/video/node';
-import { ElevenLabsProvider, groupWords } from '@layera-labs/video-gen';
+import { renderProject } from '@layera-labs/orbit-video/node';
+import { ElevenLabsProvider, groupWords } from '@layera-labs/orbit-video-gen';
 // Straight at the modules, not through the package index: the index uses
 // extensionless imports for the built library, and Node ESM needs explicit ones
 // when running from source.
@@ -350,7 +350,7 @@ function report(
   /*
    * Units, not money. A price belongs to the operator's contract — it differs
    * per plan and changes without notice — and the same reasoning that keeps
-   * rates out of `@layera-labs/video-gen` keeps them out of here. What is printed is
+   * rates out of `@layera-labs/orbit-video-gen` keeps them out of here. What is printed is
    * what was consumed, so it can be multiplied by a real invoice afterwards.
    */
   const chars = steps.find((s) => s.name === 'speak')?.units ?? 0;

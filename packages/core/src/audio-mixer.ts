@@ -3,7 +3,7 @@
  * Mixes multiple audio tracks with trim, volume, and offset into a single output
  */
 
-import type { AudioTrackSource } from '@layera-labs/shared';
+import type { AudioTrackSource } from '@layera-labs/orbit-shared';
 
 export interface AudioMixResult {
   blob: Blob;

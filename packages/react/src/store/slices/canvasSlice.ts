@@ -1,5 +1,5 @@
 import type { StateCreator } from 'zustand';
-import type { ViewportState, BackgroundProps } from '@layera-labs/shared';
+import type { ViewportState, BackgroundProps } from '@layera-labs/orbit-shared';
 
 export interface CanvasSlice {
   canvasWidth: number;

@@ -22,7 +22,7 @@ describe('ORBIT_VERSION', () => {
     // root script and from this package by its own, so both are tried.
     const manifest = ['packages/shared/package.json', 'package.json']
       .map((p) => resolve(process.cwd(), p))
-      .find((p) => existsSync(p) && JSON.parse(readFileSync(p, 'utf8')).name === '@layera-labs/shared');
+      .find((p) => existsSync(p) && JSON.parse(readFileSync(p, 'utf8')).name === '@layera-labs/orbit-shared');
 
     expect(manifest).toBeTruthy();
     const pkg = JSON.parse(readFileSync(manifest as string, 'utf8')) as { version?: unknown };

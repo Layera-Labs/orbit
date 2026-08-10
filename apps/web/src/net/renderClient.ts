@@ -16,7 +16,7 @@ import { authHeaders, discardIfGuest } from './session';
 import { collectClientSrcs } from './srcs';
 import { getMedia, invalidateUploadTokens, setUploadToken } from '@/db/media';
 import { mediaIdOf } from '@/db/schema';
-import type { ExportOutput, VideoProject } from '@layera-labs/video/browser';
+import type { ExportOutput, VideoProject } from '@layera-labs/orbit-video/browser';
 
 const BASE = process.env.NEXT_PUBLIC_ORBIT_RENDER_URL ?? 'http://localhost:8787';
 

@@ -9,7 +9,7 @@ import {
 import type Konva from 'konva';
 import { Group, Layer, Rect, Stage } from 'react-konva';
 import { useSnapshot } from 'valtio';
-import type { ID, OrbitStore } from '@layera-labs/model';
+import type { ID, OrbitStore } from '@layera-labs/orbit-model';
 import { ElementNode } from './ElementNode';
 import { SelectionTransformer } from './SelectionTransformer';
 import { SmartGuides } from './SmartGuides';

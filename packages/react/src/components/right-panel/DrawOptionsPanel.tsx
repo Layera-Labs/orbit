@@ -3,9 +3,9 @@
  */
 import * as React from 'react';
 import { useState, useCallback, useEffect } from 'react';
-import { OrbitSlider } from '@layera-labs/ui';
-import type { OrbitEngine } from '@layera-labs/core';
-import type { DrawOptions } from '@layera-labs/core';
+import { OrbitSlider } from '@layera-labs/orbit-ui';
+import type { OrbitEngine } from '@layera-labs/orbit-core';
+import type { DrawOptions } from '@layera-labs/orbit-core';
 
 interface DrawOptionsPanelProps {
   engine: OrbitEngine | null;

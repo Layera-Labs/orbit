@@ -6,27 +6,27 @@ Orbit is a layered architecture built for performance, extensibility, and white-
 
 ```
 ┌─────────────────────────────────────────┐
-│           @layera-labs/react                  │
+│           @layera-labs/orbit-react                  │
 │    (React wrapper + UI panels)          │
 ├─────────────────────────────────────────┤
-│           @layera-labs/next                   │
+│           @layera-labs/orbit-next                   │
 │      (Next.js wrapper)                  │
 ├─────────────────────────────────────────┤
-│           @layera-labs/core                   │
+│           @layera-labs/orbit-core                   │
 │  (Canvas engine + renderer + tools)     │
 ├─────────────────────────────────────────┤
-│           @layera-labs/ui                     │
+│           @layera-labs/orbit-ui                     │
 │     (Themeable UI components)           │
 ├─────────────────────────────────────────┤
-│           @layera-labs/shared                 │
+│           @layera-labs/orbit-shared                 │
 │      (Types + utilities)                │
 ├─────────────────────────────────────────┤
-│     @layera-labs/agentic | @layera-labs/effects     │
+│     @layera-labs/orbit-agentic | @layera-labs/orbit-effects     │
 │        (AI | WebGL shaders)             │
 └─────────────────────────────────────────┘
 ```
 
-## Core Engine (`@layera-labs/core`)
+## Core Engine (`@layera-labs/orbit-core`)
 
 The engine is framework-agnostic vanilla TypeScript. It coordinates:
 
@@ -42,7 +42,7 @@ The engine is framework-agnostic vanilla TypeScript. It coordinates:
 - **TransitionEngine** — Time-based opacity/transform overrides
 - **CollaborationManager** — Yjs CRDT + WebSocket sync
 
-## React Wrapper (`@layera-labs/react`)
+## React Wrapper (`@layera-labs/orbit-react`)
 
 The React layer provides:
 

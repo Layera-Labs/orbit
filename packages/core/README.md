@@ -1,4 +1,4 @@
-# @layera-labs/core
+# @layera-labs/orbit-core
 
 The canvas engine behind the **v1** Orbit SDK: a scene graph of layers, a
 [Fabric.js](http://fabricjs.com) renderer, a viewport controller, undo/redo, drawing
@@ -6,20 +6,20 @@ and vector tools, audio, and transitions. Framework-agnostic — it takes a DOM 
 and manages the canvas inside it.
 
 ```bash
-npm i @layera-labs/core@beta
+npm i @layera-labs/orbit-core@beta
 ```
 
 > ### Read this before installing
 >
 > **This is the v1 SDK, and v1 is legacy.** It builds, it is tested, and it is
 > feature-complete for what it does, but it is in maintenance: it gets fixes, not
-> features. `@layera-labs/core`, `@layera-labs/react`, `@layera-labs/next`,
-> `@layera-labs/ui`, `@layera-labs/shared`, `@layera-labs/effects` and
-> `@layera-labs/agentic` are all v1.
+> features. `@layera-labs/orbit-core`, `@layera-labs/orbit-react`, `@layera-labs/orbit-next`,
+> `@layera-labs/orbit-ui`, `@layera-labs/orbit-shared`, `@layera-labs/orbit-effects` and
+> `@layera-labs/orbit-agentic` are all v1.
 >
-> **The current line is v2**: `@layera-labs/model` (a headless Valtio document store)
-> → `@layera-labs/render` (react-konva) → `@layera-labs/providers` →
-> [`@layera-labs/editor`](https://github.com/Layera-Labs/orbit/tree/main/packages/editor#readme).
+> **The current line is v2**: `@layera-labs/orbit-model` (a headless Valtio document store)
+> → `@layera-labs/orbit-render` (react-konva) → `@layera-labs/orbit-providers` →
+> [`@layera-labs/orbit-editor`](https://github.com/Layera-Labs/orbit/tree/main/packages/editor#readme).
 > If you are starting something new, start there. The two lines share no code and do
 > not interoperate.
 
@@ -31,7 +31,7 @@ The engine is constructed headless and attached to a container. Nothing happens 
 `init`.
 
 ```ts
-import { OrbitEngine } from '@layera-labs/core';
+import { OrbitEngine } from '@layera-labs/orbit-core';
 
 const engine = new OrbitEngine({ width: 1080, height: 1080, background: '#ffffff' });
 engine.init(document.getElementById('canvas')!);
@@ -58,7 +58,7 @@ engine.destroy();   // removes the canvas, observers and listeners
 ```
 
 `addLayer` takes a full `Layer` minus its `id`, so the shape above is not verbose by
-accident — every field is required by `Layer` in `@layera-labs/shared`, which is where
+accident — every field is required by `Layer` in `@layera-labs/orbit-shared`, which is where
 all the v1 types live.
 
 **Call `destroy()`.** The engine installs a `ResizeObserver` and DOM listeners on the
@@ -79,7 +79,7 @@ the only implementation shipped, but the engine does not name Fabric anywhere el
 
 Fabric.js needs a DOM. There is no server-side or headless entry point here. For
 server-side video rendering, see
-[`@layera-labs/video`](https://github.com/Layera-Labs/orbit/tree/main/packages/video#readme),
+[`@layera-labs/orbit-video`](https://github.com/Layera-Labs/orbit/tree/main/packages/video#readme),
 which is version-independent — it is used by both lines and by neither's UI.
 
 ## Links

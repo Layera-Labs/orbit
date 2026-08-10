@@ -10,8 +10,8 @@
  * that breaks the rule it is about to be held to.
  */
 import { describe, expect, it } from 'vitest';
-import { ScenePlanError, countWords, formatPrompt, parseScenePlan } from '@layera-labs/pipeline';
-import type { Scene, ScenePlan } from '@layera-labs/pipeline';
+import { ScenePlanError, countWords, formatPrompt, parseScenePlan } from '@layera-labs/orbit-pipeline';
+import type { Scene, ScenePlan } from '@layera-labs/orbit-pipeline';
 import { FORMATS, formatById, story } from '../index';
 
 const plan = (over: Partial<ScenePlan> = {}): ScenePlan => ({

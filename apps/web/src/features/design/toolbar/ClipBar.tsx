@@ -8,7 +8,7 @@ import {
   snapAngle,
   withFades,
   withVolume,
-} from '@layera-labs/video/browser';
+} from '@layera-labs/orbit-video/browser';
 import type {
   AudioTrackClip,
   BlendMode,
@@ -20,7 +20,7 @@ import type {
   VisualTrackClip,
   VolumeCurve,
   VolumePoint,
-} from '@layera-labs/video/browser';
+} from '@layera-labs/orbit-video/browser';
 import { ColourPicker } from '@/brand/Colour';
 import {
   duplicateClip,

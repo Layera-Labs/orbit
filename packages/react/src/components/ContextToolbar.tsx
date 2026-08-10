@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useMemo } from 'react';
-import type { OrbitEngine } from '@layera-labs/core';
-import type { Layer, TextContent } from '@layera-labs/shared';
+import type { OrbitEngine } from '@layera-labs/orbit-core';
+import type { Layer, TextContent } from '@layera-labs/orbit-shared';
 import { useOrbitLayers } from '../hooks/useOrbitEngine';
 import { TextToolbar } from './TextToolbar';
 

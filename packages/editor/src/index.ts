@@ -44,5 +44,5 @@ export { Icon } from './components/Icon';
 export type { IconName } from './components/Icon';
 
 // Re-export the model + providers surface so SDK consumers need one import.
-export * from '@layera-labs/model';
-export * from '@layera-labs/providers';
+export * from '@layera-labs/orbit-model';
+export * from '@layera-labs/orbit-providers';

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEditorState } from '@layera-labs/editor';
+import { useEditorState } from '@layera-labs/orbit-editor';
 import { useDesign } from '@/store/designStore';
 import styles from './CanvasGuides.module.css';
 

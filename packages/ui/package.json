@@ -1,5 +1,5 @@
 {
-  "name": "@layera-labs/ui",
+  "name": "@layera-labs/orbit-ui",
   "version": "1.0.0-beta.3",
   "description": "React component library for the Orbit v1 editor (Tailwind + Radix)",
   "keywords": [
@@ -45,7 +45,7 @@
     "tailwind.preset.cjs",
     "!dist/**/*.map"
   ],
-  "//bin": "An `orbit-ui` bin pointed at ./cli/index.js, a shadcn-style `add <component>` copier. It was removed rather than fixed because it had never run even once as packaged, and was broken twice over: (1) it was CommonJS `require` in a file named .js inside a \"type\": \"module\" package, so EVERY invocation — including `help` — died with ReferenceError before parsing an argument; (2) `add` copies from ../src/components/<name>.tsx, and `files` ships only `dist`, so a published install had no source to copy from. Reviving it would mean shipping src/ purely to feed a copier that duplicates what `import { OrbitButton } from '@layera-labs/ui'` already does.",
+  "//bin": "An `orbit-ui` bin pointed at ./cli/index.js, a shadcn-style `add <component>` copier. It was removed rather than fixed because it had never run even once as packaged, and was broken twice over: (1) it was CommonJS `require` in a file named .js inside a \"type\": \"module\" package, so EVERY invocation — including `help` — died with ReferenceError before parsing an argument; (2) `add` copies from ../src/components/<name>.tsx, and `files` ships only `dist`, so a published install had no source to copy from. Reviving it would mean shipping src/ purely to feed a copier that duplicates what `import { OrbitButton } from '@layera-labs/orbit-ui'` already does.",
   "scripts": {
     "build": "tsc && vite build",
     "dev": "vite build --watch --emptyOutDir false",
@@ -54,7 +54,7 @@
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "@layera-labs/shared": "workspace:*",
+    "@layera-labs/orbit-shared": "workspace:*",
     "@radix-ui/react-slot": "^1.0.2",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",

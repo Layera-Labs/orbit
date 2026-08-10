@@ -3,11 +3,11 @@
  *
  * A format decides what shape a generated video takes, what the planner is told
  * to write, and what counts as a plan that obeyed. The `Format` interface lives
- * in `@layera-labs/pipeline`; the formats live here, and the dependency runs one way
+ * in `@layera-labs/orbit-pipeline`; the formats live here, and the dependency runs one way
  * only — the runner must stay indifferent to which archetypes exist, and a
  * package boundary is what makes that structural rather than a convention.
  */
-import type { Format } from '@layera-labs/pipeline';
+import type { Format } from '@layera-labs/orbit-pipeline';
 import { chat } from './chat';
 import { listicle } from './listicle';
 import { split } from './split';

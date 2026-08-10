@@ -1,8 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { VideoProject, VisualTrackClip } from '@layera-labs/video/browser';
-import { migrateTransitionOverlap } from '@layera-labs/video/browser';
+import type { VideoProject, VisualTrackClip } from '@layera-labs/orbit-video/browser';
+import { migrateTransitionOverlap } from '@layera-labs/orbit-video/browser';
 import { Icon } from '@/brand/Icon';
 import { getMedia } from '@/db/media';
 import { setThumbnail } from '@/db/projects';

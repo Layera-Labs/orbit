@@ -99,7 +99,7 @@ const PALETTE = [
 /**
  * Preset gradients, stored as the exact CSS the renderer parses.
  *
- * `backgroundFill` in `@layera-labs/render` reads an angle and two-or-more stops out
+ * `backgroundFill` in `@layera-labs/orbit-render` reads an angle and two-or-more stops out
  * of the string, so these are authored in the form it understands rather than in
  * some richer shape that would have to be serialised down to it.
  */

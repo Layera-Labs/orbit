@@ -4,7 +4,7 @@ import type { Job } from "./jobs.js";
  * The service's job, in the shape the client already expects.
  *
  * `ExportJobPoller` (`packages/core/src/video-export/job-poller.ts`) has been
- * written against `ExportJob` from `@layera-labs/shared` since long before anything
+ * written against `ExportJob` from `@layera-labs/orbit-shared` since long before anything
  * served it, and the two vocabularies do NOT line up. Left unmapped this is not
  * a cosmetic mismatch, it is a hang:
  *

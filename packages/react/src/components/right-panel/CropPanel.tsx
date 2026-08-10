@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useState, useCallback } from 'react';
-import type { OrbitEngine } from '@layera-labs/core';
+import type { OrbitEngine } from '@layera-labs/orbit-core';
 import { useOrbitLayers } from '../../hooks/useOrbitEngine';
 import { useToast } from '../ToastProvider';
 

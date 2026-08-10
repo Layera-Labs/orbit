@@ -1,5 +1,5 @@
 /**
- * Browser-safe surface of `@layera-labs/video`.
+ * Browser-safe surface of `@layera-labs/orbit-video`.
  *
  * Everything re-exported here is pure TypeScript over plain data — no `node:`
  * builtins, no native addons — so a web bundle can import the timeline model and

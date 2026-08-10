@@ -28,8 +28,8 @@ import {
   xfadeVeilAt,
   type XfMask,
   type XfState,
-} from '@layera-labs/video/browser';
-import type { TransitionType } from '@layera-labs/video/types';
+} from '@layera-labs/orbit-video/browser';
+import type { TransitionType } from '@layera-labs/orbit-video/types';
 
 /** Off-centre on purpose: at exactly half, a symmetric transition says nothing. */
 const AT = 0.42;

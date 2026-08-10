@@ -9,7 +9,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
-import { isLicenseKeyFormat } from '@layera-labs/billing';
+import { isLicenseKeyFormat } from '@layera-labs/orbit-billing';
 import { hashKey, isApiKey, PgApiKeyStore } from '../api-keys';
 import { makePgPool } from '../pg-store';
 import { bearer, guestToken } from './guest.js';

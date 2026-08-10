@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Background, Element, Page } from '@layera-labs/model';
+import type { Background, Element, Page } from '@layera-labs/orbit-model';
 import { exportPageToSVG, svgStringToBlob } from '../svg-export';
 
 /** Build an element with sensible BaseElement defaults; extra fields override. */

@@ -9,7 +9,7 @@ export default defineConfig({
       formats: ['es'],
       fileName: 'index',
     },
-    // Regexes, not the bare names: `agent` imports `@layera-labs/video/node`, and an
+    // Regexes, not the bare names: `agent` imports `@layera-labs/orbit-video/node`, and an
     // exact-match external matches the specifier STRING, so the subpath slips
     // past it and gets bundled — dragging the whole node entry, and with it
     // `@resvg/resvg-js`, into a build that resolves for the browser. Same fix,

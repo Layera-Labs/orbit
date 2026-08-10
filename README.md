@@ -20,17 +20,24 @@ a render service that does the actual encoding with ffmpeg.
 > of the dual-render proof simply lives somewhere it cannot reach, and publishing
 > is what repairs it.
 >
-> **Nothing is on npm yet.** `npm install @layera-labs/react` does not work today; the
-> packages are consumed from source in this workspace. Publishing is the next
-> milestone — see [Roadmap](#roadmap). Until then the APIs move without notice.
+> **The package names changed on 2026-08-10, and npm is one rename behind.**
+> 12 packages were published at `1.0.0-beta.3` under flat names —
+> `@layera-labs/video`, `@layera-labs/react` and so on. Every package in this
+> repo is now `@layera-labs/orbit-*`, and **those names are not on npm yet.**
 >
-> Prep is done as of 2026-08-09: 12 packages are marked publishable at
-> `1.0.0-beta.3`, the other 8 are `private: true`, and the tarballs have been
-> packed and installed into a scratch Vite app and a scratch Next app outside
-> this repo — both build, both typecheck under `skipLibCheck: false`, and neither
-> browser bundle contains a `node:` builtin. The one thing left is choosing a
-> registry and an access level, which is why `publishConfig` is absent rather
-> than guessed.
+> The reason is that Orbit is not the only SDK planned under this scope, and the
+> flat names had already spent the shared namespace: `core`, `react`, `next`,
+> `ui`, `shared` and `providers` were all held by Orbit's *legacy* v1 half,
+> leaving nothing for the next product to be called. Prefixing every package
+> with its own name gives each SDK a full set. It was worth doing while the
+> packages were a day old and had no external consumers; a month from now it
+> would have meant breaking somebody's lockfile.
+>
+> So: `npm install @layera-labs/orbit-react` does not work yet, and
+> `npm install @layera-labs/react` installs a build that predates the rename.
+> Until the new names go up, consume the packages from source in this workspace.
+> The old names will be deprecated, not unpublished — an unpublish breaks anyone
+> who already installed one.
 >
 > **React 18 only.** Every peer is `^18` and that is not conservatism: the packed
 > tarballs fail `ERESOLVE` outright against React 19, because `react-konva@18.2.x`
@@ -107,7 +114,7 @@ measured rather than assumed, and most of it was learned the expensive way.
 
 Legend: ✅ done · ◐ partial, with the gap named · ○ not built.
 
-### Video engine (`@layera-labs/video`)
+### Video engine (`@layera-labs/orbit-video`)
 
 | Feature | | Notes |
 |---|:--:|---|
@@ -123,14 +130,14 @@ Legend: ✅ done · ◐ partial, with the gap named · ○ not built.
 | Audio fades + volume curves | ✅ | One writer, so a curve and a slider cannot disagree |
 | Text metrics + wrapping | ✅ | Real sfnt advance widths; `maxWidth` in output pixels |
 | Image overlays / stickers / logo watermarks | ✅ | Go down the clip path, so placement is shared |
-| `ShapeOverlay` (rect / ellipse) | ✅ | Dual-rendered as a full-frame plate, like a caption. Fill, stroke, corner radius, rotation. **No editor UI authors one** — `@layera-labs/formats` does |
+| `ShapeOverlay` (rect / ellipse) | ✅ | Dual-rendered as a full-frame plate, like a caption. Fill, stroke, corner radius, rotation. **No editor UI authors one** — `@layera-labs/orbit-formats` does |
 | Word-timing render (karaoke captions) | ◐ | Shipped: `TextOverlay.highlight` opts in and the caption is sliced into one plate per word window, in both renderers. Capped at 64 words, above which it degrades to a static caption. **No editor UI authors one** — the pipeline sets it from the transcript |
 | SRT caption export | ✅ | |
 | Thumbnail / poster frame | ✅ | `RenderResult.thumbnailPath`, opt-in |
 | `RenderResult` metadata | ◐ | `path`, `durationSec`, `bytes`, `thumbnailPath`. No `width`/`height`/`fps`/`encodeMs` |
 | Segment / parallel rendering | ○ | One call is one encode. Needed for long-form, not before |
 
-### Generation pipeline (`@layera-labs/pipeline`, `@layera-labs/formats`)
+### Generation pipeline (`@layera-labs/orbit-pipeline`, `@layera-labs/orbit-formats`)
 
 | Feature | | Notes |
 |---|:--:|---|
@@ -196,18 +203,18 @@ pnpm test && pnpm typecheck
 Run a surface:
 
 ```bash
-pnpm --filter @layera-labs/web dev
+pnpm --filter @layera-labs/orbit-web dev
 ```
 
 ```bash
-pnpm --filter @layera-labs/studio dev
+pnpm --filter @layera-labs/orbit-studio dev
 ```
 
 The render service has no `dev` script — it compiles and runs:
 
 ```bash
-pnpm --filter @layera-labs/render-service build
-pnpm --filter @layera-labs/render-service start
+pnpm --filter @layera-labs/orbit-render-service build
+pnpm --filter @layera-labs/orbit-render-service start
 ```
 
 ### ffmpeg
@@ -226,12 +233,12 @@ scripts/orbit-render caps
 ## Using the SDK
 
 > Until the packages are published, these imports resolve through the workspace.
-> Inside this repo add `"@layera-labs/video": "workspace:*"` to your app's
+> Inside this repo add `"@layera-labs/orbit-video": "workspace:*"` to your app's
 > `package.json`. From outside, see [Roadmap](#roadmap).
 >
-> Note which packages are in the first publish. `@layera-labs/video`, `model`, `render`,
+> Note which packages are in the first publish. `@layera-labs/orbit-video`, `model`, `render`,
 > `providers`, `editor`, `core`, `react`, `next`, `ui`, `shared`, `effects` and
-> `agentic` are marked publishable. `@layera-labs/pipeline` and `@layera-labs/formats` — the
+> `agentic` are marked publishable. `@layera-labs/orbit-pipeline` and `@layera-labs/orbit-formats` — the
 > generation example below — are among the eight kept `private: true`, along with
 > `auth`, `billing`, `video-gen`, `video-ai`, `assets` and `react-native`. Each
 > manifest carries its own reason.
@@ -239,8 +246,8 @@ scripts/orbit-render caps
 ### Mount the image editor
 
 ```tsx
-import { OrbitEditor } from '@layera-labs/editor';
-import { createStore } from '@layera-labs/model';
+import { OrbitEditor } from '@layera-labs/orbit-editor';
+import { createStore } from '@layera-labs/orbit-model';
 
 const store = createStore();
 
@@ -255,24 +262,24 @@ outlives `defaultTheme` and leaves a light editor inside a dark application.
 
 ### The AI layer is opt-in
 
-`@layera-labs/agentic` is an **optional peer** of `@layera-labs/react`, and the hook that needs
+`@layera-labs/orbit-agentic` is an **optional peer** of `@layera-labs/orbit-react`, and the hook that needs
 it lives behind a subpath:
 
 ```ts
-import { useOrbitAgentic } from '@layera-labs/react/agentic';
+import { useOrbitAgentic } from '@layera-labs/orbit-react/agentic';
 ```
 
 `ai-optional.test.ts` walks the main entry's import graph and asserts it names
-`@layera-labs/agentic` in no import form at all — not at runtime, and not in types
-either, since the canvas-agent shapes it needs come from `@layera-labs/shared`. What is
+`@layera-labs/orbit-agentic` in no import form at all — not at runtime, and not in types
+either, since the canvas-agent shapes it needs come from `@layera-labs/orbit-shared`. What is
 proven is the source graph and the manifest, not an install: nothing here runs
 `npm install --omit=optional` against a registry that has no packages on it yet.
 
 ### Build a video project and render it
 
 ```ts
-import { createProject } from '@layera-labs/video/browser';
-import { renderProject } from '@layera-labs/video/node';
+import { createProject } from '@layera-labs/orbit-video/browser';
+import { renderProject } from '@layera-labs/orbit-video/node';
 
 const project = createProject({
   width: 1080,
@@ -298,9 +305,9 @@ const result = await renderProject(project, {
 // → { path, durationSec, bytes, thumbnailPath? }
 ```
 
-**Import the right entry.** The default `@layera-labs/video` entry is browser-safe — it
+**Import the right entry.** The default `@layera-labs/orbit-video` entry is browser-safe — it
 is `./browser` under another name, and both reach the same 31 modules with no
-`node:` import. `@layera-labs/video/node` is the superset that adds ffmpeg, resvg and
+`node:` import. `@layera-labs/orbit-video/node` is the superset that adds ffmpeg, resvg and
 `fs`; name it only from Node. `browser-safety.test.ts` walks **both** the default
 and `./browser` and fails if a `node:` builtin ever reaches either.
 
@@ -311,7 +318,7 @@ computes everything and draws nothing, which is what lets the browser and Skia
 previews share one answer with the export.
 
 ```ts
-import { frameStateAt } from '@layera-labs/video/browser';
+import { frameStateAt } from '@layera-labs/orbit-video/browser';
 
 const ops = frameStateAt(project, 3.25); // what is on screen at t=3.25s
 ```
@@ -319,8 +326,8 @@ const ops = frameStateAt(project, 3.25); // what is on screen at t=3.25s
 ### Generate a video from a topic
 
 ```ts
-import { generate } from '@layera-labs/pipeline';
-import { story } from '@layera-labs/formats';
+import { generate } from '@layera-labs/orbit-pipeline';
+import { story } from '@layera-labs/orbit-formats';
 
 const out = await generate(
   { brain, voice, provider, store, log, render },
@@ -399,7 +406,7 @@ stating up front.
 3. **Never gate content on an animation.** Nothing may start at `opacity: 0` and
    rely on a reveal firing. If the animation never runs, the content must still be
    fully there.
-4. **Keep `@layera-labs/video`'s default entry browser-safe.** It is `export * from
+4. **Keep `@layera-labs/orbit-video`'s default entry browser-safe.** It is `export * from
    './browser'` and that purity is now a promise to consumers, not an internal
    convention. Anything needing ffmpeg, resvg or `fs` goes in `./node`.
    `browser-safety.test.ts` walks both entries and fails on a `node:` builtin.
@@ -432,7 +439,7 @@ cd examples/mobile && npx vitest run   # Expo examples are outside the workspace
   overlay and a karaoke caption both dual-render today, and nothing in the web
   editor can author either. `overlayLabel` in `videoStore.ts` already names a
   shape on the timeline; the panels do not exist.
-- **A format** in `@layera-labs/formats` — pure `(ScenePlan, Assets, Brand) → VideoProject`.
+- **A format** in `@layera-labs/orbit-formats` — pure `(ScenePlan, Assets, Brand) → VideoProject`.
   Four exist; `formats.test.ts` shows what a new one has to satisfy.
 - **An SSE route for generation jobs** — the render one is the template.
 - **A migration runner** — before the next table lands, not after.
@@ -443,7 +450,7 @@ cd examples/mobile && npx vitest run   # Expo examples are outside the workspace
 
 Near-term, in order:
 
-1. **Publish `@layera-labs/*` to a registry.** The current milestone, and it gates
+1. **Publish `@layera-labs/orbit-*` to a registry.** The current milestone, and it gates
    everything below. The packaging is done — 12 publishable at `1.0.0-beta.3`, 8
    `private: true` — and what is left is one decision nobody should guess:
    **which registry, at what access level.** Public npm needs
@@ -453,7 +460,7 @@ Near-term, in order:
    on npm belongs to the unrelated Orbit.js project and publishing under it 403s.
 2. **Repair the parity tests.** orbit-mobile's 34 mirror checks on the
    dual-render invariant fail today because they import across a repo boundary.
-   Re-point those 12 files at the published `@layera-labs/video/browser` — the same day
+   Re-point those 12 files at the published `@layera-labs/orbit-video/browser` — the same day
    the packages go up, not later. Until then a change to an effect here can
    diverge from that app's preview with nothing to say so.
 3. **Finish the repo split.** The mobile editor left on 2026-08-08. Shortspilot

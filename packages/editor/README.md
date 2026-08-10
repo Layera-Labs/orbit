@@ -1,18 +1,18 @@
-# @layera-labs/editor
+# @layera-labs/orbit-editor
 
 The React UI for the Orbit v2 canvas editor: the shell, the side panels, the context
 toolbar, export, theming, and the keyboard shortcuts. It mounts
-`@layera-labs/render`'s canvas inside all of that and drives `@layera-labs/model`.
+`@layera-labs/orbit-render`'s canvas inside all of that and drives `@layera-labs/orbit-model`.
 
 This is the package to install if you want an editor. The other three v2 packages are
-its parts, and it re-exports both `@layera-labs/model` and `@layera-labs/providers`, so
+its parts, and it re-exports both `@layera-labs/orbit-model` and `@layera-labs/orbit-providers`, so
 `createStore` and `ProviderRegistry` are available from here without a second import.
 
-It is **v2**, the current line. `@layera-labs/react` is the *older* v1 editor and is
+It is **v2**, the current line. `@layera-labs/orbit-react` is the *older* v1 editor and is
 not this — see the bottom of this file.
 
 ```bash
-npm i @layera-labs/editor@beta konva react-konva
+npm i @layera-labs/orbit-editor@beta konva react-konva
 ```
 
 > **Beta.** `1.0.0-beta.3` under the `beta` tag; the API moves without notice.
@@ -24,8 +24,8 @@ npm i @layera-labs/editor@beta konva react-konva
 ## Mount it
 
 ```tsx
-import { OrbitEditor, createStore } from '@layera-labs/editor';
-import '@layera-labs/editor/styles.css';
+import { OrbitEditor, createStore } from '@layera-labs/orbit-editor';
+import '@layera-labs/orbit-editor/styles.css';
 
 const store = createStore({ width: 1080, height: 1080 });
 
@@ -58,7 +58,7 @@ consequence of what you supply rather than a list you maintain.
 import {
   OrbitEditor, createStore, defineSection,
   TemplatesSection, TextSection, LayersSection,
-} from '@layera-labs/editor';
+} from '@layera-labs/orbit-editor';
 
 const brandKit = defineSection({
   id: 'brand',
@@ -90,7 +90,7 @@ If you want the panels but not the shell, the pieces are exported individually:
 `SliderRow` for matching your own controls to the editor's. `useEditorShortcuts`
 installs the keymap on its own.
 
-Composing these yourself means rendering `Workspace` from `@layera-labs/render` and
+Composing these yourself means rendering `Workspace` from `@layera-labs/orbit-render` and
 wrapping the lot in `<div className="orbit">`, which is what the shell does. The web
 app in this repo does exactly that, and adds `orbitEmbedded` to undo the shell's
 `position: absolute` so a CSS grid survives around it.
@@ -103,13 +103,13 @@ Inside any of these, `useEditor`, `useStore`, `useEditorState`, `useSelectedElem
 
 `ExportMenu` covers PNG, JPEG, SVG and PDF (via `jspdf`). Video export is not in this
 package — the video timeline is a different document kind, in
-[`@layera-labs/video`](https://github.com/Layera-Labs/orbit/tree/main/packages/video#readme),
+[`@layera-labs/orbit-video`](https://github.com/Layera-Labs/orbit/tree/main/packages/video#readme),
 and rendering it to an MP4 needs ffmpeg on a server.
 
 ## v1 versus v2
 
-`@layera-labs/react` also exports a component called `OrbitEditor`. It is the v1 SDK: a
-fabric.js engine (`@layera-labs/core`), Zustand, its own panels. It is legacy and
+`@layera-labs/orbit-react` also exports a component called `OrbitEditor`. It is the v1 SDK: a
+fabric.js engine (`@layera-labs/orbit-core`), Zustand, its own panels. It is legacy and
 maintenance-only. This package is the current architecture and shares no code with it.
 Do not install both and expect them to interoperate.
 

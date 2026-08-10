@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Photo } from '@layera-labs/providers';
+import type { Photo } from '@layera-labs/orbit-providers';
 import { useProviders, useStore } from '../context';
 import { Icon } from '../components/Icon';
 import { defineSection } from './types';

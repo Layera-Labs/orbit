@@ -3,13 +3,13 @@
  *
  * **This file is temporary and it is the first thing to delete.** The canonical
  * definitions live in `packages/video/src/types.ts` and will ship as
- * `@layera-labs/video/browser` — at which point this whole module becomes:
+ * `@layera-labs/orbit-video/browser` — at which point this whole module becomes:
  *
  * ```ts
- * export type { VideoProject, VisualTrack, VisualTrackClip } from '@layera-labs/video/browser';
+ * export type { VideoProject, VisualTrack, VisualTrackClip } from '@layera-labs/orbit-video/browser';
  * ```
  *
- * It exists only because `@layera-labs/video` is not published yet AND an Expo app
+ * It exists only because `@layera-labs/orbit-video` is not published yet AND an Expo app
  * cannot join the pnpm workspace to reach it by source (pnpm's symlinked store
  * corrupts Metro's module resolution, which is why this example installs with
  * npm and sits outside the workspace).

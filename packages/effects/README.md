@@ -1,23 +1,23 @@
-# @layera-labs/effects
+# @layera-labs/orbit-effects
 
 WebGL image effects for the **v1** Orbit editor: a brightness / contrast / saturation /
 temperature adjustment renderer, a multi-light normal-mapped lighting shader, and the
 GLSL source for both.
 
 ```bash
-npm i @layera-labs/effects@beta
+npm i @layera-labs/orbit-effects@beta
 ```
 
 > **Beta.** `1.0.0-beta.3` under the `beta` tag; the API moves without notice.
 >
-> **v1 line, which is legacy.** It exists because `@layera-labs/core` uses it.
+> **v1 line, which is legacy.** It exists because `@layera-labs/orbit-core` uses it.
 
 ## These are not the video engine's filters
 
 Worth being clear about, because the names overlap and the difference matters.
 
 The colour grading in
-[`@layera-labs/video`](https://github.com/Layera-Labs/orbit/tree/main/packages/video#readme)
+[`@layera-labs/orbit-video`](https://github.com/Layera-Labs/orbit/tree/main/packages/video#readme)
 is modelled on ffmpeg's `eq` filter as it actually runs — on the YUV planes, in BT.601
 limited range — so that a browser preview and a server-side MP4 export agree to within
 a few units out of 255. That agreement is enforced by tests that parse the real
@@ -32,7 +32,7 @@ applying them to a frame will not reproduce what an export produces.
 ## Adjustments
 
 ```ts
-import { AdjustmentRenderer, DEFAULT_ADJUSTMENTS } from '@layera-labs/effects';
+import { AdjustmentRenderer, DEFAULT_ADJUSTMENTS } from '@layera-labs/orbit-effects';
 
 const renderer = new AdjustmentRenderer(image.width, image.height);
 renderer.loadImage(image);                       // HTMLImageElement | HTMLCanvasElement | ImageBitmap

@@ -21,8 +21,8 @@ const ENCODE_MS = 300;
 const FREE = 10;
 
 /** One topic explodes, so success and failure can share a server. */
-vi.mock('@layera-labs/video/node', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@layera-labs/video/node')>();
+vi.mock('@layera-labs/orbit-video/node', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@layera-labs/orbit-video/node')>();
   return {
     ...actual,
     renderProject: async (project: { id?: string }) => {

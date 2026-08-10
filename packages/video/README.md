@@ -1,4 +1,4 @@
-# @layera-labs/video
+# @layera-labs/orbit-video
 
 The video engine behind [Orbit](https://github.com/Layera-Labs/orbit). A timeline
 document model, the maths for every effect, a `DrawOp[]` draw list for live preview,
@@ -8,7 +8,7 @@ It is **not** an editor and not a React package. There are no components here, n
 canvas, no DOM. It computes what a frame should look like; something else draws it.
 
 ```bash
-npm i @layera-labs/video@beta
+npm i @layera-labs/orbit-video@beta
 ```
 
 > **Beta.** `1.0.0-beta.3`, published under the `beta` tag. The API moves without
@@ -34,11 +34,11 @@ it is.
 
 | Entry | Modules | Reaches |
 |---|---|---|
-| `@layera-labs/video` | 31 | Nothing outside itself. Browser-safe |
-| `@layera-labs/video/browser` | 31 | Identical to the default — the default is `export * from './browser'` |
-| `@layera-labs/video/node` | 34 | The superset. Adds `renderProject`, `rasterizeSVG`, Google font resolution, and with them `@resvg/resvg-js`, `node:child_process`, `node:fs`, `node:os`, `node:path` |
+| `@layera-labs/orbit-video` | 31 | Nothing outside itself. Browser-safe |
+| `@layera-labs/orbit-video/browser` | 31 | Identical to the default — the default is `export * from './browser'` |
+| `@layera-labs/orbit-video/node` | 34 | The superset. Adds `renderProject`, `rasterizeSVG`, Google font resolution, and with them `@resvg/resvg-js`, `node:child_process`, `node:fs`, `node:os`, `node:path` |
 
-`@layera-labs/video/types` is the type module on its own, for a consumer who wants
+`@layera-labs/orbit-video/types` is the type module on its own, for a consumer who wants
 `VideoProject` and nothing else.
 
 The default entry's purity is a promise, not a convention: `browser-safety.test.ts`
@@ -48,8 +48,8 @@ builtin ever reaches either. Import `./node` only from Node.
 ## Build a project and render it
 
 ```ts
-import { createProject } from '@layera-labs/video/browser';
-import { renderProject } from '@layera-labs/video/node';
+import { createProject } from '@layera-labs/orbit-video/browser';
+import { renderProject } from '@layera-labs/orbit-video/node';
 
 const project = createProject({
   width: 1080,
@@ -83,7 +83,7 @@ const result = await renderProject(project, {
 ## Preview a frame without rendering
 
 ```ts
-import { frameStateAt } from '@layera-labs/video/browser';
+import { frameStateAt } from '@layera-labs/orbit-video/browser';
 
 const ops = frameStateAt(project, 3.25); // DrawOp[] — what is on screen at t=3.25s
 ```

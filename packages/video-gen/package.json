@@ -1,5 +1,5 @@
 {
-  "name": "@layera-labs/video-gen",
+  "name": "@layera-labs/orbit-video-gen",
   "version": "0.0.1",
   "private": true,
   "description": "Generative media (image/video/TTS) behind a credit-metered service — every call debits the billing ledger",
@@ -23,7 +23,7 @@
     "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
   },
   "dependencies": {
-    "@layera-labs/billing": "workspace:*"
+    "@layera-labs/orbit-billing": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.4.0",
@@ -31,5 +31,5 @@
     "vite-plugin-dts": "^3.8.0"
   },
   "sideEffects": false,
-  "//private": "Credit-metered generation over provider adapters; depends on the private @layera-labs/billing. Service-side."
+  "//private": "Credit-metered generation over provider adapters; depends on the private @layera-labs/orbit-billing. Service-side."
 }

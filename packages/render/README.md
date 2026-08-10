@@ -1,6 +1,6 @@
-# @layera-labs/render
+# @layera-labs/orbit-render
 
-The canvas renderer for the Orbit v2 SDK. It turns a `@layera-labs/model` document
+The canvas renderer for the Orbit v2 SDK. It turns a `@layera-labs/orbit-model` document
 into [react-konva](https://konvajs.org/docs/react/) nodes, and adds the interaction
 that has to live next to the canvas: selection, transform handles, snapping.
 
@@ -8,12 +8,12 @@ The rule it is built on: **the canvas is a pure function of the model.** Nothing
 owns state. Every gesture ends in a store method, and the next frame is whatever the
 store now says.
 
-This is **v2**, the current line, alongside `@layera-labs/model`,
-`@layera-labs/providers` and `@layera-labs/editor`. It is not the same thing as
-`@layera-labs/core`, which is the v1 fabric.js engine.
+This is **v2**, the current line, alongside `@layera-labs/orbit-model`,
+`@layera-labs/orbit-providers` and `@layera-labs/orbit-editor`. It is not the same thing as
+`@layera-labs/orbit-core`, which is the v1 fabric.js engine.
 
 ```bash
-npm i @layera-labs/render@beta konva react-konva
+npm i @layera-labs/orbit-render@beta konva react-konva
 ```
 
 > **Beta.** `1.0.0-beta.3` under the `beta` tag; the API moves without notice.
@@ -36,8 +36,8 @@ not bundle them.
 ## Usage
 
 ```tsx
-import { createStore } from '@layera-labs/model';
-import { Workspace } from '@layera-labs/render';
+import { createStore } from '@layera-labs/orbit-model';
+import { Workspace } from '@layera-labs/orbit-render';
 
 const store = createStore({ width: 1080, height: 1080 });
 
@@ -56,7 +56,7 @@ Rasterising and SVG export live here rather than in the UI package, because both
 the stage:
 
 ```ts
-import { exportStageToDataURL, dataURLToBlob, exportPageToSVG } from '@layera-labs/render';
+import { exportStageToDataURL, dataURLToBlob, exportPageToSVG } from '@layera-labs/orbit-render';
 
 const page = store.activePage;
 const { zoom, x, y } = store.state.viewport;
@@ -82,7 +82,7 @@ zoom — it needs to know what the zoom it is undoing was.
 `useImage` is the loader the image nodes use.
 
 Most consumers should not reach for this directly.
-[`@layera-labs/editor`](https://github.com/Layera-Labs/orbit/tree/main/packages/editor#readme)
+[`@layera-labs/orbit-editor`](https://github.com/Layera-Labs/orbit/tree/main/packages/editor#readme)
 mounts it inside a full editor shell with panels, a toolbar and export. Use this
 package when you want the canvas and none of that chrome — a viewer, a thumbnail
 surface, your own layout around someone else's document.
@@ -91,8 +91,8 @@ surface, your own layout around someone else's document.
 
 The transform handles, guides and hover outlines are styled by `.o-*` class rules
 scoped under `.orbit`, which also declares the `--o-*` custom properties they read.
-If you mount this package without `@layera-labs/editor`, wrap it in
-`<div className="orbit">` and include `@layera-labs/editor/styles.css`, or the chrome
+If you mount this package without `@layera-labs/orbit-editor`, wrap it in
+`<div className="orbit">` and include `@layera-labs/orbit-editor/styles.css`, or the chrome
 renders unstyled.
 
 ## Links

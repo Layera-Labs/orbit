@@ -1,8 +1,8 @@
 import * as React from 'react';
 import { useCallback, useState } from 'react';
-import { OrbitButton, OrbitDropdown } from '@layera-labs/ui';
-import type { OrbitEngine } from '@layera-labs/core';
-import type { GeneratedAsset, Layer } from '@layera-labs/shared';
+import { OrbitButton, OrbitDropdown } from '@layera-labs/orbit-ui';
+import type { OrbitEngine } from '@layera-labs/orbit-core';
+import type { GeneratedAsset, Layer } from '@layera-labs/orbit-shared';
 import type { AgenticTool } from '../../hooks/useOrbitAgentic';
 import type { AiBackend } from '../../backends/types';
 import { useOrbitAgentic } from '../../hooks/useOrbitAgentic';

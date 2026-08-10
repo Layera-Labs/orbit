@@ -9,7 +9,7 @@ import {
   setAutoCaptions,
   toSRT,
   type VideoProject,
-} from '@layera-labs/video/browser';
+} from '@layera-labs/orbit-video/browser';
 import { Icon } from '@/brand/Icon';
 import { mediaIdOf } from '@/db/schema';
 import { GenError, transcribe } from '@/net/genClient';

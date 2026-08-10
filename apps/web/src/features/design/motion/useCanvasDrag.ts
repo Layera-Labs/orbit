@@ -1,5 +1,5 @@
 import { useRef, type PointerEvent as ReactPointerEvent } from 'react';
-import type { VideoProject } from '@layera-labs/video/browser';
+import type { VideoProject } from '@layera-labs/orbit-video/browser';
 import { findClip, findOverlay, setClipRect, updateOverlay, useVideo } from '@/store/videoStore';
 import { pickAt } from './pick';
 

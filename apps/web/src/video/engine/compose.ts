@@ -3,7 +3,7 @@
  *
  * Every number it draws with — destination rect, alpha, blur sigma, motion
  * transform, the SVG for a caption — arrives already resolved from
- * `frameStateAt` in `@layera-labs/video`. That is the whole anti-drift design: if this
+ * `frameStateAt` in `@layera-labs/orbit-video`. That is the whole anti-drift design: if this
  * file did its own maths, the preview and the exported MP4 could disagree and
  * only a human eye would ever notice.
  *
@@ -26,7 +26,7 @@ import {
   xfadeMaskAt,
   type DrawOp,
   type XfMask,
-} from '@layera-labs/video/browser';
+} from '@layera-labs/orbit-video/browser';
 import { filterString } from './grade';
 import { applyCutout, cutoutIsSupported } from './cutout';
 import type { MediaPool, Decoded } from './sources';

@@ -125,11 +125,11 @@ export default {
   // same reason.
   reactStrictMode: false,
   transpilePackages: [
-    '@layera-labs/editor',
-    '@layera-labs/render',
-    '@layera-labs/model',
-    '@layera-labs/providers',
-    '@layera-labs/video',
+    '@layera-labs/orbit-editor',
+    '@layera-labs/orbit-render',
+    '@layera-labs/orbit-model',
+    '@layera-labs/orbit-providers',
+    '@layera-labs/orbit-video',
   ],
   webpack(config, { isServer }) {
     config.resolve.alias = {

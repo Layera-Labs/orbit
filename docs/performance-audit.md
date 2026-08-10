@@ -2,7 +2,7 @@
 
 > Date: 2026-04-24
 > Auditor: OpenCode Agent
-> Scope: All packages (@layera-labs/shared, @layera-labs/core, @layera-labs/ui, @layera-labs/react, @layera-labs/agentic, @layera-labs/effects, @layera-labs/assets, @layera-labs/next)
+> Scope: All packages (@layera-labs/orbit-shared, @layera-labs/orbit-core, @layera-labs/orbit-ui, @layera-labs/orbit-react, @layera-labs/orbit-agentic, @layera-labs/orbit-effects, @layera-labs/orbit-assets, @layera-labs/orbit-next)
 
 ---
 
@@ -10,21 +10,21 @@
 
 | Package | Dist Size | JS Size | Sourcemaps | Gzipped (est.) |
 |---------|-----------|---------|------------|----------------|
-| `@layera-labs/react` | 4.7 MB | ~980 KB | ~3.7 MB | ~300 KB |
-| `@layera-labs/core` | 1.4 MB | ~290 KB | ~1.1 MB | ~70 KB |
-| `@layera-labs/shared` | 432 KB | ~69 KB | ~363 KB | ~14 KB |
-| `@layera-labs/ui` | 424 KB | ~63 KB | ~361 KB | ~15 KB |
-| `@layera-labs/next` | 136 KB | ~29 KB | ~107 KB | ~9 KB |
-| `@layera-labs/assets` | 60 KB | ~4 KB | ~56 KB | ~1 KB |
-| `@layera-labs/effects` | 56 KB | ~7 KB | ~49 KB | ~2 KB |
-| `@layera-labs/agentic` | 48 KB | ~4 KB | ~44 KB | ~1 KB |
+| `@layera-labs/orbit-react` | 4.7 MB | ~980 KB | ~3.7 MB | ~300 KB |
+| `@layera-labs/orbit-core` | 1.4 MB | ~290 KB | ~1.1 MB | ~70 KB |
+| `@layera-labs/orbit-shared` | 432 KB | ~69 KB | ~363 KB | ~14 KB |
+| `@layera-labs/orbit-ui` | 424 KB | ~63 KB | ~361 KB | ~15 KB |
+| `@layera-labs/orbit-next` | 136 KB | ~29 KB | ~107 KB | ~9 KB |
+| `@layera-labs/orbit-assets` | 60 KB | ~4 KB | ~56 KB | ~1 KB |
+| `@layera-labs/orbit-effects` | 56 KB | ~7 KB | ~49 KB | ~2 KB |
+| `@layera-labs/orbit-agentic` | 48 KB | ~4 KB | ~44 KB | ~1 KB |
 
 ### Key Findings
 
 - **Sourcemaps dominate dist size** (~78% of total). Sourcemaps are generated locally but now excluded from npm publish via `"!dist/**/*.map"` in `files` array.
 - **jspdf is the largest single dependency** (545 KB, ~145 KB gzipped). It's lazy-loaded and only fetched when PDF export is triggered — acceptable trade-off.
 - **html2canvas** (254 KB) is a transitive dependency of jspdf — unavoidable unless we switch PDF libraries.
-- **Yjs** is bundled into `@layera-labs/core` main chunk. It's only needed for collaboration but adds significant weight.
+- **Yjs** is bundled into `@layera-labs/orbit-core` main chunk. It's only needed for collaboration but adds significant weight.
 
 ### React Package Breakdown
 
@@ -119,10 +119,10 @@ destroy(): void {
 
 | Package | Barrel Export | Tree-Shakeable? | Notes |
 |---------|---------------|-----------------|-------|
-| `@layera-labs/shared` | `export * from './types'` | ⚠️ Partial | All types exported, no runtime bloat |
-| `@layera-labs/core` | `export * from './video-export'` | ✅ Yes | Vite handles tree-shaking |
-| `@layera-labs/react` | Single entry | ✅ Yes | Components imported individually by consumers |
-| `@layera-labs/ui` | Single entry | ✅ Yes | Radix Slot is external |
+| `@layera-labs/orbit-shared` | `export * from './types'` | ⚠️ Partial | All types exported, no runtime bloat |
+| `@layera-labs/orbit-core` | `export * from './video-export'` | ✅ Yes | Vite handles tree-shaking |
+| `@layera-labs/orbit-react` | Single entry | ✅ Yes | Components imported individually by consumers |
+| `@layera-labs/orbit-ui` | Single entry | ✅ Yes | Radix Slot is external |
 
 ### No Dead Code Found
 
@@ -146,11 +146,11 @@ Sourcemaps are now excluded from npm publishes while still generated for local d
 ]
 ```
 
-**Affected packages:** `@layera-labs/react`, `@layera-labs/core`, `@layera-labs/ui`, `@layera-labs/shared`
+**Affected packages:** `@layera-labs/orbit-react`, `@layera-labs/orbit-core`, `@layera-labs/orbit-ui`, `@layera-labs/orbit-shared`
 
 **Impact:** Published package sizes reduced by ~75%:
-- `@layera-labs/react`: 4.7 MB → ~1.2 MB
-- `@layera-labs/core`: 1.4 MB → ~350 KB
+- `@layera-labs/orbit-react`: 4.7 MB → ~1.2 MB
+- `@layera-labs/orbit-core`: 1.4 MB → ~350 KB
 
 ---
 

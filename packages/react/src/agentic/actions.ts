@@ -1,5 +1,5 @@
-import type { OrbitEngine } from '@layera-labs/core';
-import type { AgenticCanvasAction, Layer } from '@layera-labs/shared';
+import type { OrbitEngine } from '@layera-labs/orbit-core';
+import type { AgenticCanvasAction, Layer } from '@layera-labs/orbit-shared';
 import {
   addLayerAndSelect,
   createBackgroundLayer,

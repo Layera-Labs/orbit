@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OrbitEngine } from '@layera-labs/core';
+import { OrbitEngine } from '@layera-labs/orbit-core';
 import { createFallbackActionsFromPrompt, executeAgenticActions } from '../agentic/actions';
 
 describe('agentic canvas actions', () => {

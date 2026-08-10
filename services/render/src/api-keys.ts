@@ -31,7 +31,7 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Pool as PoolType } from 'pg';
 
-/** Matches `isLicenseKeyFormat` in @layera-labs/billing. */
+/** Matches `isLicenseKeyFormat` in @layera-labs/orbit-billing. */
 const PREFIX = 'orbit_sk_';
 /**
  * 24 bytes → 192 bits of entropy, rendered base62 so the key is one

@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react';
 import type Konva from 'konva';
-import type { OrbitStore, ID } from '@layera-labs/model';
+import type { OrbitStore, ID } from '@layera-labs/orbit-model';
 import type { Guide } from '../types';
 
 /** Registry mapping element id -> live Konva node, used by the Transformer. */

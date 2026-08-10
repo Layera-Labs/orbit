@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import type Konva from 'konva';
 import { Transformer } from 'react-konva';
 import { useSnapshot } from 'valtio';
-import type { Element } from '@layera-labs/model';
+import type { Element } from '@layera-labs/orbit-model';
 import { useWorkspace } from './context';
 
 /** A signature of the selected elements' geometry, so the transformer can
