@@ -10,8 +10,20 @@
  *   POST /v1/generate-video { prompt }                 → { url, balance }    generate a video (60/100 credits; needs RUNWAY_API_TOKEN)
  *   POST /v1/tts            { text, voice? }            → { url, balance }    text→speech voiceover (5 credits; needs ELEVENLABS_API_KEY)
  *   GET  /v1/credits                                   → { balance }         current account credit balance
+ *   POST /v1/render/quote   { project, output? }       → { credits, tier }   price a render without running it
+ *   POST /v1/keys           { name }                   → { key }             issue an API key (shown ONCE)
+ *   GET  /v1/keys                                      → { keys }            list them (last4 only; the secret is not stored)
+ *   DELETE /v1/keys/:id                                → { ok }              revoke one
  *   POST /v1/auth/guest                                → { token, user }     a token for a device that has not signed in
  *   POST /v1/billing/webhook { event }                 → { ok }              RevenueCat purchase → grant credits (shared-secret auth)
+ *
+ * TWO KINDS OF BEARER TOKEN reach these routes. A JWT is a PERSON — the app
+ * signed in, or a guest token this server issued. An `orbit_sk_` API key is a
+ * developer's own SERVER, running unattended with no browser and no session to
+ * refresh; it bills to the account that issued it. Keys require a database
+ * (there is no in-memory fallback: a credential that evaporates on restart is
+ * not a weaker feature, it is a broken one) and they cannot manage keys, since
+ * a key that can mint a key outlives revoking the one that leaked.
  *
  * Clients can't reach phone-local files, so they upload media first and reference
  * it in `clip.src` / `audio.src` as the returned `upload:<id>` token. `resolveSrc`
@@ -76,6 +88,7 @@ import {
   InsufficientCreditsError,
   Ledger,
   makeAccountId,
+  qualityTierOf,
   renderCost,
   withinTier,
   type AccountId,
@@ -123,6 +136,7 @@ import {
   newRequestId,
 } from "./logging.js";
 import { PgProjectStore, type SyncedProject } from "./project-store.js";
+import { PgApiKeyStore, isApiKey } from "./api-keys.js";
 import { storageFromEnv } from "./storage.js";
 
 /**
@@ -980,6 +994,16 @@ export function createServer(): Express {
   /** Project sync. Null without a database — there is nowhere to sync TO. */
   let projects: PgProjectStore | null = null;
   /*
+   * API keys, and only with a database.
+   *
+   * No in-memory fallback on purpose. A key is a long-lived credential a
+   * developer pastes into their own deployment; one that evaporates on restart
+   * is not a weaker version of the feature, it is a broken one — and it would
+   * break at 3am on a redeploy rather than at the moment anybody could see the
+   * cause.
+   */
+  let apiKeys: PgApiKeyStore | null = null;
+  /*
    * Hoisted, because the generation queue further down needs the same
    * connection pool. A second pool to the same database would double the
    * connection count for no gain, and Postgres counts connections per server.
@@ -991,6 +1015,7 @@ export function createServer(): Express {
     ledgerStore = new PgLedgerStore(pool);
     userStore = new PgUserStore(pool);
     projects = new PgProjectStore(pool);
+    apiKeys = new PgApiKeyStore(pool);
     /*
      * The SHARED queue, and only when the other half is true as well.
      *
@@ -1032,6 +1057,7 @@ export function createServer(): Express {
   let readyState: "starting" | "ready" | "failed" = "starting";
   const pending: Array<{ name: string; ready: Promise<void> }> = [];
   if (projects) pending.push({ name: "projects", ready: projects.whenReady() });
+  if (apiKeys) pending.push({ name: "api_keys", ready: apiKeys.whenReady() });
   if (queue) pending.push({ name: "render_jobs", ready: queue.whenReady() });
   /*
    * Postgres when there is one, memory otherwise. The in-memory pair is not a
@@ -1284,6 +1310,44 @@ export function createServer(): Express {
     }
     const header = req.header("Authorization") ?? "";
     const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+
+    /*
+     * An `orbit_sk_` bearer is a developer's server calling us, not a person.
+     *
+     * It is checked FIRST and by prefix, so a key is never handed to the JWT
+     * verifier: that would spend a signature check on something that cannot be
+     * a JWT, and — worse — would make the failure mode for a mistyped key
+     * indistinguishable from an expired session, which is the difference
+     * between "rotate your key" and "sign in again".
+     *
+     * A key bills to the account that OWNS it. The developer's own end users
+     * are their business, not ours: they hold one balance, top it up once, and
+     * partition it however their product needs. Minting a sub-account per
+     * caller-supplied user id would let anyone with a key create unbounded
+     * accounts, each seeded with free credits.
+     */
+    if (isApiKey(token)) {
+      if (!apiKeys) {
+        res.status(503).json({
+          error: "API keys require a database on this deployment",
+          kind: "api_keys_unavailable",
+        });
+        return null;
+      }
+      const record = await apiKeys.verify(token);
+      if (!record) {
+        res.status(401).json({
+          error: "invalid or revoked API key",
+          kind: "bad_api_key",
+        });
+        return null;
+      }
+      apiKeys.touch(record.id);
+      // Not seeded: free credits belong to a person signing up once, and a key
+      // is issued BY an account that already has them.
+      return record.account;
+    }
+
     const user = token ? await auth.adapter.verify(token) : null;
     if (!user) {
       res
@@ -1294,6 +1358,30 @@ export function createServer(): Express {
     const account = makeAccountId(LICENSE_KEY, user.endUserId);
     await seedFreeTier(account);
     return account;
+  }
+
+  /**
+   * The account of a signed-in PERSON, refusing an API key.
+   *
+   * Key management has to be one of these. A key that can mint another key is
+   * a privilege escalation with no ceiling: one leaked credential becomes a
+   * permanent foothold that survives revoking the key that leaked, because it
+   * has already issued its replacement.
+   */
+  async function humanAccountOf(
+    req: Request,
+    res: Response,
+  ): Promise<AccountId | null> {
+    const header = req.header("Authorization") ?? "";
+    const token = header.startsWith("Bearer ") ? header.slice(7).trim() : "";
+    if (isApiKey(token)) {
+      res.status(403).json({
+        error: "API keys cannot manage API keys — sign in",
+        kind: "key_cannot_manage_keys",
+      });
+      return null;
+    }
+    return accountOf(req, res);
   }
 
   /**
@@ -2165,6 +2253,119 @@ export function createServer(): Express {
     if (!account) return;
     res.json({ balance: await ledger.balance(account) });
   });
+
+  /*
+   * ---- what a render would cost ----
+   *
+   * Priced by the SAME `quoteFor` the render route uses, so the number a caller
+   * is quoted is the number it is charged. A separate estimator on the client
+   * would be a second implementation of the price, free to drift from this one
+   * — and the drift would only ever be discovered as a billing complaint.
+   *
+   * A quote costs nothing and reserves nothing. It reads the tier ceiling too,
+   * so a caller can find out that 4K is not on their plan without burning an
+   * upload and a render slot to learn it.
+   */
+  app.post("/v1/render/quote", readLimit, async (req: Request, res: Response) => {
+    const account = await accountOf(req, res);
+    if (!account) return;
+    const body = req.body as
+      | { project?: VideoProject; output?: ExportOutput }
+      | undefined;
+    if (!body?.project) {
+      res.status(400).json({ error: "project is required" });
+      return;
+    }
+    let quote: RenderQuote | null;
+    try {
+      quote = quoteFor(body.project, body.output);
+    } catch {
+      res.status(400).json({ error: "project could not be priced" });
+      return;
+    }
+    const allowed = !quote || withinTier(quote.tier, RENDER_PRICING?.maxTier);
+    const out = body.output;
+    res.json({
+      // False when this deployment does not meter rendering at all, which is a
+      // different answer from "it costs 0" and should not be flattened into it.
+      metered: quote != null,
+      credits: quote?.credits ?? 0,
+      perSecond: quote?.perSecond ?? 0,
+      maxTier: RENDER_PRICING?.maxTier ?? null,
+      allowed,
+      balance: await ledger.balance(account),
+      /*
+       * Length and tier are facts about the RENDER, not about the price, so
+       * they are reported whether or not this box charges for it. Deriving
+       * them from the quote meant an unmetered deployment answered "0 seconds"
+       * for an eight-second video — which is not a cheaper answer, it is a
+       * wrong one, and a client sizing a progress bar off it would be wrong too.
+       */
+      billedSec: Math.ceil(projectDuration(body.project)),
+      tier:
+        quote?.tier ??
+        qualityTierOf(
+          out?.width ?? body.project.width,
+          out?.height ?? body.project.height,
+        ),
+    });
+  });
+
+  /*
+   * ---- API keys ----
+   *
+   * Mounted only where they can be stored. `humanAccountOf` on every one of
+   * these: a key must not be able to mint or revoke a key.
+   */
+  if (apiKeys) {
+    const keys = apiKeys;
+
+    app.post("/v1/keys", writeLimit, async (req: Request, res: Response) => {
+      const account = await humanAccountOf(req, res);
+      if (!account) return;
+      const name = String(
+        (req.body as { name?: unknown } | undefined)?.name ?? "",
+      ).trim();
+      if (!name) {
+        res.status(400).json({ error: "name is required" });
+        return;
+      }
+      const created = await keys.create(account, name);
+      /*
+       * The one and only time the raw key exists outside the caller's hands.
+       * 201 with the secret in the body; every later read returns `last4` and
+       * nothing more, because nothing more is stored.
+       */
+      res.status(201).json({
+        id: created.id,
+        key: created.key,
+        name: created.name,
+        last4: created.last4,
+        createdAt: created.createdAt,
+        warning: "store this now — it cannot be shown again",
+      });
+    });
+
+    app.get("/v1/keys", readLimit, async (req: Request, res: Response) => {
+      const account = await humanAccountOf(req, res);
+      if (!account) return;
+      res.json({ keys: await keys.list(account) });
+    });
+
+    app.delete("/v1/keys/:id", writeLimit, async (req: Request, res: Response) => {
+      const account = await humanAccountOf(req, res);
+      if (!account) return;
+      // Scoped to the account inside the UPDATE, so a wrong id and someone
+      // else's id are indistinguishable from out here — which is what stops
+      // this enumerating other people's key ids.
+      const done = await keys.revoke(account, req.params.id);
+      if (!done) {
+        res.status(404).json({ error: "no such key" });
+        return;
+      }
+      res.json({ ok: true });
+    });
+  }
 
   /*
    * ---- fonts ----
