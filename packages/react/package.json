@@ -1,6 +1,6 @@
 {
   "name": "@layera-labs/react",
-  "version": "1.0.0-beta.3",
+  "version": "1.0.0-beta.4",
   "description": "React wrapper for Orbit SDK",
   "keywords": [
     "react",
@@ -82,5 +82,7 @@
     }
   },
   "sideEffects": false,
-  "//publishConfig": "REGISTRY AND ACCESS ARE NOT DECIDED YET, so publishConfig is deliberately absent rather than guessed. Public npm needs {\"access\":\"public\"} (a scoped package defaults to restricted and the publish fails without it). GitHub Packages needs {\"registry\":\"https://npm.pkg.github.com\"}; the @layera-labs scope already matches the owning GitHub org, so nothing further has to be renamed. Add exactly one of those here before the first publish."
+  "publishConfig": {
+    "access": "public"
+  }
 }

@@ -1,7 +1,7 @@
 {
   "name": "orbit",
   "private": true,
-  "version": "1.0.0-beta.3",
+  "version": "1.0.0-beta.4",
   "description": "Orbit Agentic Canvas Editor SDK",
   "scripts": {
     "build": "turbo run build",
