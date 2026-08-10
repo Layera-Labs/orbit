@@ -16,3 +16,17 @@ export {
 } from './license';
 export type { LicenseRegistry } from './license';
 export { meter, DEFAULT_COSTS } from './metering';
+export {
+  QUALITY_TIERS,
+  DEFAULT_RENDER_PRICING,
+  qualityTierOf,
+  tierRank,
+  renderCost,
+  withinTier,
+} from './render-pricing';
+export type {
+  QualityTier,
+  RenderPricing,
+  RenderSpec,
+  RenderQuote,
+} from './render-pricing';
