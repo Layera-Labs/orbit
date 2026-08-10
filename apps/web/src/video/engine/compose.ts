@@ -17,6 +17,7 @@
  */
 import {
   blendToCanvas,
+  maskToCanvas,
   sourceCropPx,
   magnifierCropPx,
   mosaicBlurSigma,
@@ -620,20 +621,29 @@ function drawFitted(
   ctx.drawImage(source, sx, sy, sw, sh, 0, 0, dw, dh);
 }
 
+/**
+ * Clip to the mask, using the package's resolved geometry rather than our own.
+ *
+ * This used to scale `cx/cy/rx/ry` here, which meant the same arithmetic
+ * existed twice — once for the canvas and once for `maskToFFmpeg` — with
+ * nothing comparing them. It had already drifted: a mask with a zero radius is
+ * dropped by the export, so the clip renders whole, and this function clipped
+ * to a zero-radius path and rendered nothing. `maskToCanvas` returns null for
+ * exactly the cases the filter refuses, so the two now agree about absence as
+ * well as about pixels.
+ */
 function applyMask(
   ctx: CanvasRenderingContext2D,
   mask: NonNullable<DrawOp['mask']>,
   w: number,
   h: number,
 ): void {
-  const cx = mask.cx * w;
-  const cy = mask.cy * h;
-  const rx = mask.rx * w;
-  const ry = mask.ry * h;
+  const m = maskToCanvas(mask, w, h);
+  if (!m) return;
   ctx.beginPath();
-  if (mask.shape === 'circle') ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-  else ctx.rect(cx - rx, cy - ry, rx * 2, ry * 2);
-  if (mask.invert) {
+  if (m.shape === 'circle') ctx.ellipse(m.cx, m.cy, m.rx, m.ry, 0, 0, Math.PI * 2);
+  else ctx.rect(m.cx - m.rx, m.cy - m.ry, m.rx * 2, m.ry * 2);
+  if (m.invert) {
     // Even-odd against the full box turns the shape into a hole.
     ctx.rect(0, 0, w, h);
     ctx.clip('evenodd');
