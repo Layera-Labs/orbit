@@ -215,12 +215,25 @@ export class PgJobQueue {
     );
   }
 
-  async fail(id: string, error: string, workerId: string): Promise<void> {
-    await this.pool.query(
+  /**
+   * Mark a claimed job failed. Returns whether this worker's claim was still
+   * the live one — i.e. whether the failure actually took.
+   *
+   * The boolean matters because of shutdown. On the way out a worker releases
+   * its claim and THEN kills ffmpeg, so the dying encode raises an error and
+   * lands here for a job that is already back in the queue for someone else.
+   * The guard makes that a no-op, which is what keeps the job retryable — but
+   * a caller that reacts to failure (refunding the credits it reserved) would
+   * otherwise react to a failure that did not happen, and refund a render that
+   * is about to run anyway. It has to be able to tell the two apart.
+   */
+  async fail(id: string, error: string, workerId: string): Promise<boolean> {
+    const res = await this.pool.query(
       `UPDATE render_jobs SET status = 'error', error = $2, finished_at = now()
        WHERE id = $1 AND claimed_by = $3`,
       [id, error.slice(0, 2000), workerId],
     );
+    return (res.rowCount ?? 0) > 0;
   }
 
   /**

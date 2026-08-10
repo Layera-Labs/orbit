@@ -71,12 +71,17 @@ import {
   groupWords,
 } from "@layera-labs/video-gen";
 import {
+  DEFAULT_RENDER_PRICING,
   InMemoryLedgerStore,
   InsufficientCreditsError,
   Ledger,
   makeAccountId,
+  renderCost,
+  withinTier,
   type AccountId,
   type LedgerStore,
+  type RenderPricing,
+  type RenderQuote,
 } from "@layera-labs/billing";
 import { authFromEnv, AuthError, type UserStore } from "@layera-labs/auth";
 import { randomBytes, timingSafeEqual } from "node:crypto";
@@ -1086,8 +1091,90 @@ export function createServer(): Express {
   });
   const ttsGen = new GenerationService(elevenLabs, ledger);
   const FREE_CREDITS = envNumber("ORBIT_FREE_CREDITS", 100, 0);
-  /** Credits an export costs. 0 (the default) leaves rendering unmetered. */
+  /**
+   * Credits an export costs, as a FLAT per-render charge. 0 (the default)
+   * leaves rendering unmetered.
+   *
+   * Kept because it is what existing deployments have configured, and because
+   * a flat price is a legitimate thing to want. Setting `ORBIT_RENDER_PRICING`
+   * switches to per-second billing and takes precedence — the two cannot both
+   * apply, and silently adding them would be a surprise nobody could read off
+   * their config.
+   */
   const RENDER_COST = envNumber("ORBIT_RENDER_COST", 0, 0);
+
+  /*
+   * ---- per-second render pricing ----
+   *
+   * `ORBIT_RENDER_PRICING` is JSON overriding any part of the default table,
+   * e.g. {"perSecond":{"4k":6},"maxTier":"1080p"}. Unset means the flat
+   * `ORBIT_RENDER_COST` above still governs, so this is additive: no existing
+   * deployment changes price because this shipped.
+   */
+  const RENDER_PRICING: RenderPricing | null = (() => {
+    const raw = process.env.ORBIT_RENDER_PRICING;
+    if (!raw) return null;
+    try {
+      const over = JSON.parse(raw) as Partial<RenderPricing>;
+      return {
+        ...DEFAULT_RENDER_PRICING,
+        ...over,
+        perSecond: {
+          ...DEFAULT_RENDER_PRICING.perSecond,
+          ...(over.perSecond ?? {}),
+        },
+      };
+    } catch {
+      /*
+       * Refuse to boot rather than fall back to the default table. A typo here
+       * silently prices every render at whatever we shipped, which is a
+       * revenue bug that looks like nothing at all — unlike a crash at start,
+       * which is one line in the deploy log.
+       */
+      throw new Error(
+        "ORBIT_RENDER_PRICING is not valid JSON — refusing to start rather " +
+          "than bill at a price nobody configured",
+      );
+    }
+  })();
+
+  /**
+   * What this render will cost, or null when rendering is unmetered.
+   *
+   * Dimensions are the OUTPUT's: an export override beats the project's own
+   * canvas, because the override is what ffmpeg will actually encode and
+   * therefore what the box actually pays for.
+   */
+  function quoteFor(
+    project: VideoProject,
+    output?: ExportOutput,
+  ): RenderQuote | null {
+    if (!RENDER_PRICING) {
+      if (RENDER_COST <= 0) return null;
+      // Flat pricing, expressed in the same shape so one code path bills both.
+      return {
+        credits: RENDER_COST,
+        tier: "1080p",
+        billedSec: Math.ceil(projectDuration(project)),
+        perSecond: 0,
+      };
+    }
+    /*
+     * An audio-only export has no pixels to tier on, so it bills at the bottom
+     * rung. Tiering it on the project's canvas would charge 4K rates for an
+     * m4a — the frames are never encoded.
+     */
+    const audioOnly = output?.audioOnly === true;
+    return renderCost(
+      {
+        durationSec: projectDuration(project),
+        width: audioOnly ? 1 : (output?.width ?? project.width),
+        height: audioOnly ? 1 : (output?.height ?? project.height),
+        hdr: !audioOnly && output?.hdr === true,
+      },
+      RENDER_PRICING,
+    );
+  }
   /** Credits a transcription costs. Priced like TTS: one pass over the audio. */
   const TRANSCRIBE_COST = Math.max(
     0,
@@ -1428,23 +1515,90 @@ export function createServer(): Express {
         return;
       }
 
-      if (RENDER_COST > 0) {
-        if (!(await ledger.canAfford(account, RENDER_COST))) {
-          res.status(402).json({
-            error: "not enough credits to export",
-            balance: await ledger.balance(account),
-            cost: RENDER_COST,
+      const quote = quoteFor(project, body?.output);
+
+      /*
+       * Over the plan's resolution ceiling. 403, not 402: topping up will not
+       * help, so the 402 "you need credits" answer would send the caller to buy
+       * something that cannot fix it.
+       *
+       * Refused rather than quietly downscaled. A silent downscale bills for
+       * output nobody asked for and the caller cannot detect it without probing
+       * the file they just paid for.
+       */
+      if (quote && !withinTier(quote.tier, RENDER_PRICING?.maxTier)) {
+        res.status(403).json({
+          code: "tier_not_allowed",
+          tier: quote.tier,
+          maxTier: RENDER_PRICING?.maxTier,
+          error:
+            `this plan renders up to ${RENDER_PRICING?.maxTier}; ` +
+            `that export is ${quote.tier}`,
+        });
+        return;
+      }
+
+      /*
+       * Reserve the credits BEFORE encoding, rather than checking the balance
+       * and charging afterwards.
+       *
+       * `canAfford` then debit-on-success is a check-then-act spanning the
+       * whole encode, and the gap is minutes wide. Twenty renders accepted at
+       * once on an account that can pay for one all passed the check, all ran,
+       * and all but one failed to charge — so the box did twenty encodes of
+       * work and was paid for one. The hold is an ordinary negative ledger row,
+       * so those credits stop being spendable the moment the render is
+       * accepted.
+       *
+       * The hold id IS the render id, which is what makes this idempotent: a
+       * retried job re-holds under the same id and reserves nothing further.
+       */
+      const renderId = `r_${Date.now().toString(36)}_${randomBytes(9).toString("hex")}`;
+      let holdId: string | null = null;
+      if (quote && quote.credits > 0) {
+        try {
+          await ledger.hold(account, renderId, quote.credits, {
+            reason: "render",
+            tier: quote.tier,
+            billedSec: quote.billedSec,
           });
-          return;
+          holdId = renderId;
+        } catch (err) {
+          if (err instanceof InsufficientCreditsError) {
+            res.status(402).json({
+              code: "insufficient_credits",
+              error: "not enough credits to export",
+              balance: await ledger.balance(account),
+              cost: quote.credits,
+              tier: quote.tier,
+              billedSec: quote.billedSec,
+            });
+            return;
+          }
+          throw err;
         }
       }
 
-      // Charged only once the file exists. A failed encode the user never
-      // received is not a render, and billing for it is indefensible.
+      /*
+       * Close the hold at what it actually cost. A hold is already a charge —
+       * the row's delta is negative — so settling at the quoted amount nets to
+       * exactly the quote and leaves an audit row saying so.
+       *
+       * Charged only once the file exists, as before. The difference is that a
+       * failure now RELEASES rather than simply never charging, because the
+       * credits are already reserved and leaving them reserved would be a
+       * silent charge for a render the user never received.
+       */
       const settle = async (url: string) => {
-        if (RENDER_COST > 0)
-          await ledger.debit(account, RENDER_COST, "render").catch(() => undefined);
+        if (holdId && quote)
+          await ledger
+            .settle(account, holdId, quote.credits, { reason: "render" })
+            .catch(() => undefined);
         return url;
+      };
+      const refund = async () => {
+        if (holdId)
+          await ledger.release(account, holdId, { reason: "render-failed" }).catch(() => undefined);
       };
 
       /*
@@ -1457,9 +1611,14 @@ export function createServer(): Express {
         // Shared queue when there is one, so any replica can do the work; the
         // in-process registry otherwise, which is the single-box behaviour.
         if (queue) {
-          const id = `job_${Date.now().toString(36)}_${randomBytes(9).toString("hex")}`;
+          /*
+           * The job id IS the hold id. The worker that eventually encodes this
+           * is a DIFFERENT PROCESS — possibly on a different machine — and it
+           * has to close the hold this request opened. Deriving both from one
+           * id is what lets it, without a second column to keep in step.
+           */
           const job = await queue.enqueue(
-            id,
+            renderId,
             project,
             body?.output,
             account,
@@ -1472,7 +1631,14 @@ export function createServer(): Express {
           (markRunning, setProgress) =>
             render(project, body?.output, markRunning, setProgress, {
               rid: ridOf(req),
-            }).then(settle),
+            })
+              .then(settle)
+              .catch(async (err) => {
+                // Give the reservation back before the job goes to `failed`.
+                // Nothing else will: this path never reaches the route's catch.
+                await refund();
+                throw err;
+              }),
           account,
         );
         res.status(202).json({ id: job.id, status: job.status });
@@ -1487,6 +1653,10 @@ export function createServer(): Express {
         );
         res.json({ url });
       } catch (err) {
+        // Every exit from here is a render the caller never received, so the
+        // reservation goes back on all of them — including the two that answer
+        // before the encode was ever attempted.
+        await refund();
         if (err instanceof QueueFullError) {
           res
             .status(503)
@@ -1578,15 +1748,25 @@ export function createServer(): Express {
           );
           await q.finish(job.id, url, WORKER_ID);
           /*
-           * Charge here, not at enqueue. A queued render used to be free while
-           * the synchronous one was billed — the debit lived in `settle`, which
-           * only the in-process path ran. Same rule as everywhere else: only
-           * once the file exists.
+           * Close the hold the ACCEPTING process opened, which is why the job
+           * id and the hold id are the same string.
+           *
+           * The amount is recomputed from the row rather than carried on it:
+           * `quoteFor` is deterministic in the project and the output, so the
+           * worker arrives at the number the request quoted without a column
+           * that could drift from it. `settle` is guarded on the hold id, so a
+           * job re-offered after a worker died closes exactly once.
            */
-          if (RENDER_COST > 0 && job.account)
-            await ledger
-              .debit(job.account, RENDER_COST, "render")
-              .catch(() => undefined);
+          if (job.account) {
+            const q2 = quoteFor(
+              job.project as VideoProject,
+              job.output as ExportOutput | undefined,
+            );
+            if (q2 && q2.credits > 0)
+              await ledger
+                .settle(job.account, job.id, q2.credits, { reason: "render" })
+                .catch(() => undefined);
+          }
         } catch (err) {
           logError("render-failed", {
             rid: job.requestId,
@@ -1594,9 +1774,27 @@ export function createServer(): Express {
             worker: WORKER_ID,
             ...errFields(err),
           });
-          await q
+          const reallyFailed = await q
             .fail(job.id, err instanceof Error ? err.message : String(err), WORKER_ID)
-            .catch(() => undefined);
+            .catch(() => false);
+          /*
+           * Hand the credits back — but ONLY if the failure actually took.
+           *
+           * Without the refund a failed queued render is a silent charge: the
+           * hold row is already negative, the client sees `failed`, and nothing
+           * ever closes it.
+           *
+           * Without the condition it is the opposite bug, and a worse one. On
+           * shutdown this worker releases its claim and then kills ffmpeg, so
+           * the dying encode arrives here for a job that is already requeued
+           * for somebody else. Refunding there gives back credits for a render
+           * that then runs anyway — and the retry's `settle` finds the hold
+           * already closed and no-ops, so the whole thing is free.
+           */
+          if (job.account && reallyFailed)
+            await ledger
+              .release(job.account, job.id, { reason: "render-failed" })
+              .catch(() => undefined);
         } finally {
           clearInterval(beat);
           inFlight = null;
