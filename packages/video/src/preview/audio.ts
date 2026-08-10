@@ -9,7 +9,8 @@
  * Note the mobile Skia preview has no audio at all. Web being ahead is a
  * capability difference, not drift, precisely because the gain maths is shared.
  */
-import { curvePoints, sampleVolume, type AudioTrackClip } from '@layera-labs/video/browser';
+import { curvePoints, sampleVolume } from '../curve';
+import type { AudioTrackClip } from '../types';
 
 interface Voice {
   el: HTMLAudioElement;

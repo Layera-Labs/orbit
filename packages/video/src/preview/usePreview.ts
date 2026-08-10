@@ -7,16 +7,9 @@
  * compositor. It never computes geometry, timing or colour itself.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { loadCaptionFonts } from '../../net/fonts';
-import {
-  frameStateAt,
-  projectDuration,
-  type AudioTrack,
-  type AudioTrackClip,
-  type VideoProject,
-  type VisualTrack,
-} from '@layera-labs/video/browser';
-import { resolveAll } from '@/db/media';
+import { frameStateAt } from '../frame';
+import { projectDuration } from '../project';
+import type { AudioTrack, AudioTrackClip, VideoProject, VisualTrack } from '../types';
 import { AudioGraph } from './audio';
 import { PlaybackClock } from './clock';
 import { renderFrame, supportsCanvasFilter } from './compose';
@@ -53,9 +46,32 @@ export interface PreviewApi {
   snapshot(maxWidth?: number): Promise<Blob | null>;
 }
 
+/**
+ * The two things the preview needs that this package cannot know.
+ *
+ * Both are environment, not engine. A project stores whatever src scheme its
+ * app invented — the web editor writes `orbit-media:<id>` and resolves it from
+ * IndexedDB — and the font bytes come from wherever that app serves them. The
+ * engine only needs the answers, so it asks.
+ *
+ * Neither is optional in practice and both are deliberately not defaulted: a
+ * silent no-op `resolveSrcs` renders every clip as a missing picture, and a
+ * silent no-op `loadCaptionFonts` measures captions by the flat approximation
+ * while the export measures them from real metrics — the exact divergence the
+ * font plumbing exists to close. Making them required means a caller has to
+ * notice.
+ */
+export interface PreviewDeps {
+  /** `src` → a URL the browser can load. Unresolvable srcs are simply absent. */
+  resolveSrcs(srcs: string[]): Promise<Record<string, string>>;
+  /** Font family → the face's bytes, for `overlayToSVG`'s `@font-face`. */
+  loadCaptionFonts(families: string[]): Promise<Map<string, Uint8Array>>;
+}
+
 export function usePreview(
   canvasRef: React.RefObject<HTMLCanvasElement>,
   project: VideoProject,
+  deps: PreviewDeps,
 ): PreviewApi {
   const duration = useMemo(() => projectDuration(project), [project]);
   const [playing, setPlaying] = useState(false);
@@ -77,6 +93,18 @@ export function usePreview(
   const fontsRef = useRef<Map<string, Uint8Array>>(new Map());
   const projectRef = useRef(project);
   projectRef.current = project;
+  /*
+   * Through a ref, not read directly in the effects below.
+   *
+   * Callers pass an object literal — `{ resolveSrcs, loadCaptionFonts }` built
+   * inline — so its identity changes every render. Naming it in a dependency
+   * array would re-resolve every src and re-fetch every font on every render;
+   * leaving it out while reading it directly would be a stale closure. A ref is
+   * the honest answer: the effects key off what actually changed, the SET of
+   * srcs and families, and always call the current functions.
+   */
+  const depsRef = useRef(deps);
+  depsRef.current = deps;
 
   // A fresh clock whenever the duration changes, so seeking stays clamped.
   if (!clockRef.current) clockRef.current = new PlaybackClock(duration);
@@ -91,7 +119,7 @@ export function usePreview(
   const srcKey = projectSrcs(project).join('|');
   useEffect(() => {
     let live = true;
-    void resolveAll(srcKey ? srcKey.split('|') : []).then((map) => {
+    void depsRef.current.resolveSrcs(srcKey ? srcKey.split('|') : []).then((map) => {
       if (live) resolvedRef.current = map;
     });
     return () => {
@@ -117,7 +145,7 @@ export function usePreview(
     .join('|');
   useEffect(() => {
     let live = true;
-    void loadCaptionFonts(familyKey ? familyKey.split('|') : []).then((m) => {
+    void depsRef.current.loadCaptionFonts(familyKey ? familyKey.split('|') : []).then((m) => {
       if (live) fontsRef.current = m;
     });
     return () => {

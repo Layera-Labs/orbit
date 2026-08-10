@@ -50,7 +50,26 @@
       "import": "./dist/types.js",
       "default": "./dist/types.js"
     },
+    "./preview": {
+      "types": "./dist/preview.d.ts",
+      "import": "./dist/preview.js",
+      "default": "./dist/preview.js"
+    },
+    "./preview-react": {
+      "types": "./dist/preview-react.d.ts",
+      "import": "./dist/preview-react.js",
+      "default": "./dist/preview-react.js"
+    },
     "./package.json": "./package.json"
+  },
+  "//peerDependencies": "React is reached ONLY from ./preview-react, which is the one entry that binds the compositor to a component. Optional, because ./preview drives the same canvas with no framework at all and a consumer using it should not be made to install React. Pinned to 18 for the reason the whole repo is: react-konva 18.2.x is the React-18 line, and two React copies is a hard crash in its reconciler rather than a size regression.",
+  "peerDependencies": {
+    "react": "^18.2.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
   },
   "files": [
     "dist",
@@ -68,6 +87,8 @@
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "@types/react": "^18.3.28",
+    "react": "18.3.1",
     "typescript": "^5.4.0",
     "vite": "^5.2.0",
     "vite-plugin-dts": "^3.8.0"

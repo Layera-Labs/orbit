@@ -30,8 +30,8 @@ import { fileURLToPath } from 'node:url';
 
 const SRC = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** The four files named by `package.json#exports`. */
-const ENTRIES = ['index', 'browser', 'node', 'types'];
+/** The files named by `package.json#exports`. */
+const ENTRIES = ['index', 'browser', 'node', 'types', 'preview', 'preview-react'];
 
 /**
  * Symbols that are exported from their module but deliberately not from any
@@ -83,9 +83,11 @@ const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\
 const DECL =
   /^export\s+(?:declare\s+)?(?:async\s+)?(?:function|const|let|var|class|interface|type|enum)\s+([A-Za-z_$][\w$]*)/gm;
 // Both quote styles: this package is not consistent about them, and matching
-// only one silently marks a whole module's re-exports unreachable.
-const REEXPORT = /export\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"]\.\/([\w-]+)['"]/g;
-const STAR = /export\s+\*\s+from\s*['"]\.\/([\w-]+)['"]/g;
+// only one silently marks a whole module's re-exports unreachable. The path
+// admits a slash so an entry can re-export out of a subdirectory — `./preview`
+// does, and without it every module under it would look unreachable.
+const REEXPORT = /export\s+(?:type\s+)?\{([^}]*)\}\s*from\s*['"]\.\/([\w\-/]+)['"]/g;
+const STAR = /export\s+\*\s+from\s*['"]\.\/([\w\-/]+)['"]/g;
 
 const read = (mod: string) => strip(readFileSync(resolve(SRC, `${mod}.ts`), 'utf8'));
 const declaredIn = (mod: string) => [...read(mod).matchAll(DECL)].map((m) => m[1]);
@@ -115,10 +117,25 @@ function reachable(): Set<string> {
   return found;
 }
 
-const modules = readdirSync(SRC)
-  .filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts'))
-  .map((f) => f.replace(/\.ts$/, ''))
-  .filter((m) => !ENTRIES.includes(m));
+/**
+ * Every module under `src/`, recursively, as a slash path relative to it.
+ *
+ * Recursive because a module in a subdirectory is exactly as publishable and
+ * exactly as easy to strand as one at the top: `preserveModules` emits
+ * `dist/preview/compose.js` whether or not any entry names it.
+ */
+function modulesUnder(dir: string, prefix = ''): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    if (e.isDirectory()) {
+      return e.name === '__tests__' ? [] : modulesUnder(resolve(dir, e.name), `${prefix}${e.name}/`);
+    }
+    return e.name.endsWith('.ts') && !e.name.endsWith('.d.ts')
+      ? [`${prefix}${e.name.replace(/\.ts$/, '')}`]
+      : [];
+  });
+}
+
+const modules = modulesUnder(SRC).filter((m) => !ENTRIES.includes(m));
 
 const REACHABLE = reachable();
 const isInternal = (mod: string, sym: string) => INTERNAL[mod]?.symbols.includes(sym) ?? false;

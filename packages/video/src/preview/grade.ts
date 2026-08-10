@@ -25,7 +25,8 @@
  * `url()` filters are unavailable we fall back to the CSS approximation rather
  * than showing nothing, and say so through `gradeIsExact`.
  */
-import { gradeMatrix, type FilterParams } from '@layera-labs/video/browser';
+import { gradeMatrix } from '../filters';
+import type { FilterParams } from '../filters';
 
 const NS = 'http://www.w3.org/2000/svg';
 const HOST_ID = 'orbit-grade-filters';

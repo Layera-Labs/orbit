@@ -15,19 +15,19 @@
  * live there), and only then composited onto the frame under its alpha and blend
  * mode. Skip the scratch and every blurred or blended clip is subtly wrong.
  */
+import { blendToCanvas } from '../blend';
+import { maskToCanvas } from '../mask';
+import { sourceCropPx } from '../transform';
 import {
-  blendToCanvas,
-  maskToCanvas,
-  sourceCropPx,
   magnifierCropPx,
   mosaicBlurSigma,
   mosaicStepPx,
   regionBoxPx,
   ROUNDED_R,
-  xfadeMaskAt,
-  type DrawOp,
-  type XfMask,
-} from '@layera-labs/video/browser';
+} from '../layout';
+import { xfadeMaskAt } from '../xfade';
+import type { XfMask } from '../xfade';
+import type { DrawOp } from '../frame';
 import { filterString } from './grade';
 import { applyCutout, cutoutIsSupported } from './cutout';
 import type { MediaPool, Decoded } from './sources';

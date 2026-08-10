@@ -14,8 +14,7 @@ import {
 import { serverCapabilities } from '@/net/capabilities';
 import { Icon } from '@/brand/Icon';
 import { ColourRow, SwatchGrid } from '@/brand/Colour';
-import { gradeIsExact } from '@/video/engine/grade';
-import { cutoutIsSupported } from '@/video/engine/cutout';
+import { cutoutIsSupported, gradeIsExact } from '@layera-labs/video/preview';
 import { newId } from '@/db/idb';
 import {
   addOverlay,

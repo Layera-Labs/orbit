@@ -19,11 +19,16 @@ export default defineConfig({
         browser: resolve(__dirname, 'src/browser.ts'),
         node: resolve(__dirname, 'src/node.ts'),
         types: resolve(__dirname, 'src/types.ts'),
+        preview: resolve(__dirname, 'src/preview.ts'),
+        'preview-react': resolve(__dirname, 'src/preview-react.ts'),
       },
       formats: ['es'],
     },
     rollupOptions: {
-      external: [/^node:/, '@resvg/resvg-js'],
+      // React is an OPTIONAL peer, reached only from `./preview-react`. It must
+      // be external or rollup would inline a copy — and two React copies is a
+      // hard crash in a consumer's reconciler, not a size regression.
+      external: [/^node:/, '@resvg/resvg-js', 'react', 'react-dom'],
       output: {
         // One output file per source file. With default chunking rollup can
         // hoist a shared helper into a chunk that ALSO carries a node-only

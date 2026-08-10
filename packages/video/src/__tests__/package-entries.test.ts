@@ -36,11 +36,20 @@ const subpaths = Object.entries(manifest.exports).filter(
   ([key, value]) => key !== './package.json' && typeof value === 'object',
 ) as [string, { types: string; import: string; default: string }][];
 
-/** `index: resolve(__dirname, 'src/index.ts')` → `index`. */
+/**
+ * `index: resolve(__dirname, 'src/index.ts')` → `index`.
+ *
+ * The key may be quoted: a subpath like `preview-react` is not a valid bare JS
+ * identifier, so rollup's entry map has to quote it. Matching only bare keys
+ * silently dropped such an entry from this set, which would have made the check
+ * below pass by finding nothing rather than by finding agreement.
+ */
 const buildEntries = new Set(
-  [...viteConfig.matchAll(/^\s*(\w[\w-]*):\s*resolve\(__dirname,\s*'src\/([\w-]+)\.ts'\)/gm)].map(
-    (m) => m[1],
-  ),
+  [
+    ...viteConfig.matchAll(
+      /^\s*'?([\w-]+)'?:\s*resolve\(__dirname,\s*'src\/([\w-]+)\.ts'\)/gm,
+    ),
+  ].map((m) => m[1]),
 );
 
 describe('every exported subpath is actually built', () => {
