@@ -26,7 +26,22 @@ import {
   splitAt,
   useVideo,
 } from '@/store/videoStore';
-import { usePreview } from '@/video/engine/usePreview';
+import { usePreview, type PreviewDeps } from '@layera-labs/orbit-video/preview-react';
+import { loadCaptionFonts } from '@/net/fonts';
+import { resolveAll } from '@/db/media';
+
+/*
+ * How this app answers the two questions the engine cannot.
+ *
+ * Module-level so its identity never changes: the hook holds it in a ref and
+ * keys its effects off the src and family SETS, but a fresh object every render
+ * is still pointless churn. `orbit-media:<id>` → object URL comes from
+ * IndexedDB; the font bytes come from the render service.
+ */
+const PREVIEW_DEPS: PreviewDeps = {
+  resolveSrcs: resolveAll,
+  loadCaptionFonts,
+};
 import { boxOf } from './motion/pick';
 import { useCanvasDrag } from './motion/useCanvasDrag';
 import { DesignBar } from './DesignBar';
@@ -115,7 +130,7 @@ export function MotionDesign({
   );
 
   const live = project ?? blank;
-  const preview = usePreview(canvasRef, live);
+  const preview = usePreview(canvasRef, live, PREVIEW_DEPS);
   const hasClips = !!live.tracks?.some((t) => t.clips.length) || !!live.overlays?.length;
   const selected = useMemo(() => findClip(live, selection), [live, selection]);
   const selectedText = useMemo(() => findTextOverlay(live, selection), [live, selection]);

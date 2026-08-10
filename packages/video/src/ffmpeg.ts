@@ -68,7 +68,17 @@ import { HDR_CONVERT_FILTER, HDR_X265_PARAMS } from "./hdr";
 
 export interface BuildFFmpegOptions {
   outputPath: string;
-  /** overlay id → rendered PNG path. Overlays without an image are skipped. */
+  /**
+   * `PlateSegment.key` → rendered PNG path. Segments without an image are
+   * skipped.
+   *
+   * NOT the overlay id, though for most overlays it is the same string. A
+   * karaoke caption is sliced into one plate per word window and each window
+   * keys as `${overlay.id}#${n}` — build this map from `plateSegmentsOf`, not
+   * from `project.overlays`, or every highlighted caption silently falls out of
+   * the filtergraph. A plate with no highlight keeps its overlay's own id, which
+   * is what makes the older shape of this map still correct.
+   */
   overlayImages?: Record<string, string>;
   /** Base image to use when the project has no visual clip (e.g. a rendered background). */
   baseImage?: string;
@@ -1258,8 +1268,10 @@ function buildMultiTrackArgs(
    * per-frame alpha, keyframed position translates the layer by the delta from
    * the baked anchor.
    *
-   * A `shape` overlay has no renderer here and falls out of the filter below —
-   * as it does in `frameStateAt`, so both agree about the absence.
+   * A `shape` overlay rasterizes to a full-frame PNG exactly as a caption does,
+   * so it arrives here as a plate and takes the same path. `frameStateAt` draws
+   * it from the same `shapeToSVG`, which is what keeps a scrim under a caption
+   * in the file where the preview put it.
    */
   type Drawable =
     | { kind: "clip"; id: string; layer: number }

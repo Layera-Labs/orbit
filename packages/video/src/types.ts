@@ -102,10 +102,12 @@ export interface OverlayBase {
  *
  * Speech-to-text returns these; `groupWords` folds them into readable lines and
  * keeps the array, because the line's own start and end cannot be taken apart
- * again. Nothing RENDERS a word timing today — this is the data a word-level
- * effect (a karaoke highlight, a word-by-word reveal) would need, landed
- * separately from the effect so the effect does not also have to invent a
- * transcript format.
+ * again.
+ *
+ * The timings arrive on every auto-caption whether or not anyone wants the
+ * effect, so `TextOverlay.highlight` is what opts a caption into being lit —
+ * see `karaoke.ts`, which turns these into the word windows both renderers
+ * slice on.
  */
 export interface WordTiming {
   text: string;

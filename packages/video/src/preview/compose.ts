@@ -15,18 +15,19 @@
  * live there), and only then composited onto the frame under its alpha and blend
  * mode. Skip the scratch and every blurred or blended clip is subtly wrong.
  */
+import { blendToCanvas } from '../blend';
+import { maskToCanvas } from '../mask';
+import { sourceCropPx } from '../transform';
 import {
-  blendToCanvas,
-  sourceCropPx,
   magnifierCropPx,
   mosaicBlurSigma,
   mosaicStepPx,
   regionBoxPx,
   ROUNDED_R,
-  xfadeMaskAt,
-  type DrawOp,
-  type XfMask,
-} from '@layera-labs/orbit-video/browser';
+} from '../layout';
+import { xfadeMaskAt } from '../xfade';
+import type { XfMask } from '../xfade';
+import type { DrawOp } from '../frame';
 import { filterString } from './grade';
 import { applyCutout, cutoutIsSupported } from './cutout';
 import type { MediaPool, Decoded } from './sources';
@@ -620,20 +621,29 @@ function drawFitted(
   ctx.drawImage(source, sx, sy, sw, sh, 0, 0, dw, dh);
 }
 
+/**
+ * Clip to the mask, using the package's resolved geometry rather than our own.
+ *
+ * This used to scale `cx/cy/rx/ry` here, which meant the same arithmetic
+ * existed twice — once for the canvas and once for `maskToFFmpeg` — with
+ * nothing comparing them. It had already drifted: a mask with a zero radius is
+ * dropped by the export, so the clip renders whole, and this function clipped
+ * to a zero-radius path and rendered nothing. `maskToCanvas` returns null for
+ * exactly the cases the filter refuses, so the two now agree about absence as
+ * well as about pixels.
+ */
 function applyMask(
   ctx: CanvasRenderingContext2D,
   mask: NonNullable<DrawOp['mask']>,
   w: number,
   h: number,
 ): void {
-  const cx = mask.cx * w;
-  const cy = mask.cy * h;
-  const rx = mask.rx * w;
-  const ry = mask.ry * h;
+  const m = maskToCanvas(mask, w, h);
+  if (!m) return;
   ctx.beginPath();
-  if (mask.shape === 'circle') ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
-  else ctx.rect(cx - rx, cy - ry, rx * 2, ry * 2);
-  if (mask.invert) {
+  if (m.shape === 'circle') ctx.ellipse(m.cx, m.cy, m.rx, m.ry, 0, 0, Math.PI * 2);
+  else ctx.rect(m.cx - m.rx, m.cy - m.ry, m.rx * 2, m.ry * 2);
+  if (m.invert) {
     // Even-odd against the full box turns the shape into a hole.
     ctx.rect(0, 0, w, h);
     ctx.clip('evenodd');

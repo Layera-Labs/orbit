@@ -60,8 +60,15 @@ export type {
   VideoProject,
   WordHighlight,
   WordTiming,
+  // A plate is a text or shape overlay — the two kinds that rasterize to their
+  // own picture. `PlateOverlay` is the argument type of everything in
+  // `./karaoke` below, and `EffectRegion` is the argument type of the already
+  // exported `regionBoxPx`, so a consumer could call them but not name them.
+  PlateOverlay,
+  EffectRegion,
+  EffectRegionShape,
 } from './types';
-export { FULL_FRAME, FULL_SOURCE, textOverlaysOf } from './types';
+export { FULL_FRAME, FULL_SOURCE, plateOverlaysOf, textOverlaysOf } from './types';
 export {
   FILTER_PRESETS,
   NEUTRAL,
@@ -77,7 +84,10 @@ export type { FilterParams } from './filters';
 export { hasMotion, motionStateAt, motionToZoompan, motionIntensity, ZOOM_DELTA, PAN_ZOOM } from './motion';
 export { chromaToFFmpeg, chromaParams, chromaAlphaAt, hexToRgb } from './cutout';
 export type { ChromaParams } from './cutout';
-export { maskToFFmpeg } from './mask';
+// Both targets, as `blend` already ships. The canvas half used to live in the
+// web app, where nothing compared it to the filter it is supposed to match.
+export { maskToFFmpeg, maskToCanvas } from './mask';
+export type { CanvasMask } from './mask';
 export { blendToFFmpeg, blendToSkia, blendToCanvas, BLEND_MODES } from './blend';
 export {
   DUCK_RAMP,
@@ -101,13 +111,57 @@ export {
 export type { AudioFades } from './audio-fade';
 export { hasKeyframes, sampleKeyframes, keyframeExpr, animatesOpacity, animatesPosition } from './keyframes';
 export { createProject, projectDuration, transitionDuration } from './project';
+/*
+ * Timeline editing. `createProject` used to be the only thing here that touched
+ * a project, so every editor built on this package had to reinvent the rest —
+ * and the rules are not guessable from the types. See `edit.ts`.
+ */
+export {
+  addOverlay,
+  addOverlayClip,
+  addVisualTrack,
+  appendAudio,
+  appendVisual,
+  byStart,
+  duplicateClip,
+  duplicateOverlay,
+  findClip,
+  findOverlay,
+  findTextOverlay,
+  mainTrack,
+  moveClip,
+  nextOverlayLayer,
+  overlayLabel,
+  patchClip,
+  removeClip,
+  removeOverlay,
+  removeTrackGap,
+  reorderClip,
+  rippleDeleteClip,
+  rippleDeleteOverlay,
+  setClipRect,
+  setClipTrack,
+  setClipTransform,
+  setElementAnim,
+  setFrame,
+  setTransition,
+  splitAt,
+  trimClip,
+  updateOverlay,
+} from './edit';
+export type { IdFactory } from './edit';
 export { buildFFmpegArgs, MOSAIC_BLOCK } from './ffmpeg';
 export type { BuildFFmpegOptions } from './ffmpeg';
-export { overlayBox, overlayToSVG, overlayFontOptions } from './overlay-svg';
+// `shapeToSVG` and `shapeBox` are the shape half of this pair. `overlayToSVG`
+// takes text only, so without them an outside renderer draws no shapes, and
+// `overlayBox` — which exists so a caller can hit-test a click or draw a
+// selection outline — had no counterpart for the kind you can also click.
+export { overlayBox, overlayToSVG, overlayFontOptions, shapeBox, shapeToSVG } from './overlay-svg';
 export type { FontMap, OverlayRenderOptions } from './overlay-svg';
-export { subsetFont, codePointsOf } from './font-subset';
+export { subsetFont, subsetFontCached, codePointsOf } from './font-subset';
 export {
   parseFontMetrics,
+  metricsFor,
   measureLine,
   measurerFor,
   approximateMeasurer,
@@ -126,6 +180,7 @@ export {
   hasSlide,
   resolveAnim,
   slideExpr,
+  slideIsIdentity,
   slideOffsetAt,
 } from './element-anim';
 export type { ElementAnimPair } from './element-anim';
@@ -139,6 +194,7 @@ export {
   frameOuterPaint,
   hasCanvasFrame,
 } from './canvas-frame';
+export type { FrameOuterPaint } from './canvas-frame';
 export { captionReel, lyricVideo, quoteCard, TEMPLATE_LIST } from './templates';
 export type { CaptionReelInput, LyricVideoInput, QuoteCardInput, TemplateId } from './templates';
 
@@ -206,6 +262,10 @@ export {
   xfadeStateFor,
   xfadeVeilAt,
   zoomExpr,
+  // `zoomExpr` is the ffmpeg half; this is the scalar the preview multiplies by.
+  // Shipping one without the other is what forces a second surface to re-derive
+  // the curve, which is the divergence the pair exists to prevent.
+  zoomScaleAt,
 } from './xfade';
 export type {
   ClipXfades,
@@ -244,6 +304,31 @@ export type { Cue } from './srt';
 // needs the same door, and until now there was no specifier that opened it.
 export { imageOverlayAsClip, imageOverlaysOf } from './overlay-clip';
 
-// The declarative frame description a canvas renderer executes.
+// The declarative frame description a canvas renderer executes. `FrameOptions`
+// and `XfDraw` are the signature types of `frameStateAt` and of `DrawOp.xf`:
+// inference reaches them, a typed wrapper or a helper taking `op.xf` does not.
 export { frameStateAt } from './frame';
-export type { DrawOp, Fit } from './frame';
+export type { DrawOp, Fit, FrameOptions, XfDraw } from './frame';
+
+/*
+ * Word-by-word caption slicing.
+ *
+ * This is not a convenience re-export. `BuildFFmpegOptions.overlayImages` is
+ * keyed by `PlateSegment.key`, and for a karaoke caption that key is
+ * `${overlay.id}#${n}` — one entry per word window, not one per overlay. A
+ * consumer calling `buildFFmpegArgs` cannot compute those keys without this
+ * module, so every highlighted caption silently falls out of its filtergraph.
+ *
+ * `activeWordAt` is the preview's half of the same boundary. Both surfaces
+ * slice here or they do not agree, which is the whole reason `karaoke.ts` reads
+ * the way it does — and an outside surface could not reach it at all.
+ */
+export {
+  activeWordAt,
+  karaokeWords,
+  plateSegmentsOf,
+  segmentsOf,
+  MAX_WORD_SEGMENTS,
+  NO_WORD,
+} from './karaoke';
+export type { PlateSegment } from './karaoke';
