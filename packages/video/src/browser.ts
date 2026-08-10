@@ -111,6 +111,45 @@ export {
 export type { AudioFades } from './audio-fade';
 export { hasKeyframes, sampleKeyframes, keyframeExpr, animatesOpacity, animatesPosition } from './keyframes';
 export { createProject, projectDuration, transitionDuration } from './project';
+/*
+ * Timeline editing. `createProject` used to be the only thing here that touched
+ * a project, so every editor built on this package had to reinvent the rest —
+ * and the rules are not guessable from the types. See `edit.ts`.
+ */
+export {
+  addOverlay,
+  addOverlayClip,
+  addVisualTrack,
+  appendAudio,
+  appendVisual,
+  byStart,
+  duplicateClip,
+  duplicateOverlay,
+  findClip,
+  findOverlay,
+  findTextOverlay,
+  mainTrack,
+  moveClip,
+  nextOverlayLayer,
+  overlayLabel,
+  patchClip,
+  removeClip,
+  removeOverlay,
+  removeTrackGap,
+  reorderClip,
+  rippleDeleteClip,
+  rippleDeleteOverlay,
+  setClipRect,
+  setClipTrack,
+  setClipTransform,
+  setElementAnim,
+  setFrame,
+  setTransition,
+  splitAt,
+  trimClip,
+  updateOverlay,
+} from './edit';
+export type { IdFactory } from './edit';
 export { buildFFmpegArgs, MOSAIC_BLOCK } from './ffmpeg';
 export type { BuildFFmpegOptions } from './ffmpeg';
 // `shapeToSVG` and `shapeBox` are the shape half of this pair. `overlayToSVG`
