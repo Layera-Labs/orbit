@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useEditorState, useStore } from '@layera-labs/orbit-editor';
 import type { ID } from '@layera-labs/orbit-model';
-import { Icon } from '@/brand/Icon';
+import { Icon } from '@layera-labs/orbit-brand';
 import { useDesign } from '@/store/designStore';
 import styles from './PageBar.module.css';
 

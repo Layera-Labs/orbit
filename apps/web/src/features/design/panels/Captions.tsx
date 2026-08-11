@@ -10,7 +10,7 @@ import {
   toSRT,
   type VideoProject,
 } from '@layera-labs/orbit-video/browser';
-import { Icon } from '@/brand/Icon';
+import { Icon } from '@layera-labs/orbit-brand';
 import { mediaIdOf } from '@/db/schema';
 import { GenError, transcribe } from '@/net/genClient';
 import { uploadMedia } from '@/net/renderClient';

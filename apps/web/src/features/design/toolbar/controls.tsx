@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, type ReactNode } from 'react';
-import { Icon, type IconName } from '@/brand/Icon';
+import { Icon, type IconName } from '@layera-labs/orbit-brand';
 import { Popover } from '@/brand/Popover';
 import styles from './PropertyBar.module.css';
 

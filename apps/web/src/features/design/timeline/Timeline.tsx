@@ -7,7 +7,7 @@ import type {
   VideoProject,
   VisualTrack,
 } from '@layera-labs/orbit-video/browser';
-import { Icon } from '@/brand/Icon';
+import { Icon } from '@layera-labs/orbit-brand';
 import { useDesign, PX_PER_SECOND_MAX, PX_PER_SECOND_MIN } from '@/store/designStore';
 import { addVisualTrack, byStart, overlayLabel, useVideo } from '@/store/videoStore';
 import { Clip, type ClipView } from './Clip';

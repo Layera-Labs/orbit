@@ -14,7 +14,7 @@
  * matters.
  */
 import { useSaveState } from '@/db/persist';
-import { Icon } from '@/brand/Icon';
+import { Icon } from '@layera-labs/orbit-brand';
 import styles from './Design.module.css';
 
 export function SaveIndicator() {

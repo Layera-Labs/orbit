@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Icon } from '@/brand/Icon';
-import { Plate } from '@/brand/Plate';
+import { Icon, Plate } from '@layera-labs/orbit-brand';
 import type { MediaRow } from '@/db/schema';
 import { SignIn } from '@/features/auth/SignIn';
 import { MODES, useJobs, type GenMode, type Job } from '@/store/jobsStore';

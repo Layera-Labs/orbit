@@ -1,7 +1,6 @@
 'use client';
 
-import type { IconName } from '@/brand/Icon';
-import { Icon } from '@/brand/Icon';
+import { Icon, type IconName } from '@layera-labs/orbit-brand';
 import type { ProjectKind } from '@/db/schema';
 import { useDesign, type ToolId } from '@/store/designStore';
 import styles from './Design.module.css';

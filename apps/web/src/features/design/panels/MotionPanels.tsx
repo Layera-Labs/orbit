@@ -12,7 +12,7 @@ import {
   type VisualTrackClip,
 } from '@layera-labs/orbit-video/browser';
 import { serverCapabilities } from '@/net/capabilities';
-import { Icon } from '@/brand/Icon';
+import { Icon } from '@layera-labs/orbit-brand';
 import { ColourRow, SwatchGrid } from '@/brand/Colour';
 import { cutoutIsSupported, gradeIsExact } from '@layera-labs/orbit-video/preview';
 import { newId } from '@/db/idb';

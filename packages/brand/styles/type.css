@@ -1,0 +1,42 @@
+/*
+ * The type half of the brand: the display face and the three stacks.
+ *
+ * The `url()` below is relative to THIS file and resolved by the consuming
+ * bundler's asset pipeline, so the woff2 travels with the package and no app
+ * has to keep a copy in `public/` or run a copy step to stay in sync.
+ *
+ * Scope note: this file holds type and nothing else. Spacing ladders, radii and
+ * surface colours are deliberately NOT here — they are decisions about a
+ * particular surface, and a 4px scale costs nothing to restate while a shared
+ * one quietly couples an editor's density to a landing page's. What would be
+ * genuinely wrong to have two of is the FACE, because that is the voice.
+ */
+
+@font-face {
+  font-family: 'Gambarino';
+  src: url('../fonts/Gambarino-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  /*
+   * The text is readable in the fallback while the face loads, rather than
+   * invisible. A display face carries headlines, and headlines are the thing a
+   * reader most needs during the first paint.
+   */
+  font-display: swap;
+}
+
+:root {
+  /*
+   * Gambarino (Fontshare) is the signature and it ships in ONE weight — there
+   * is no bold and no italic. That is a constraint to design within, not to
+   * work around: `font-weight: 700` on a headline here gets a synthesised,
+   * smeared face that looks like a rendering bug. Size, spacing and colour do
+   * the emphasis instead.
+   */
+  --ob-display: 'Gambarino', Georgia, serif;
+  /* A genuinely neutral body, not a trend pick that dates the page. */
+  --ob-body: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* The SYSTEM mono. No Google mono anywhere, and never as the house voice —
+     it is for data (timings, credits, resolutions), not for atmosphere. */
+  --ob-data: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+}

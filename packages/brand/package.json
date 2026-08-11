@@ -1,0 +1,33 @@
+{
+  "name": "@layera-labs/orbit-brand",
+  "version": "1.0.0-beta.4",
+  "private": true,
+  "//private": "The brand itself, not a thing a consumer mounts. Publishing it would invite someone to build an interface that looks like Orbit's, which is the one thing a white-label SDK must not hand out. The SDK's own themeable surface is @layera-labs/orbit-ui.",
+  "description": "Orbit's brand primitives: the Plate mark, the icon set, the display face, and the tokens that must not diverge between products",
+  "license": "MIT",
+  "author": "Layera Labs",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "//exports": "Source, not dist. Every consumer is a Next app inside this workspace that already transpiles workspace packages, so a build step here would buy nothing and cost a watch process during development.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./type.css": "./styles/type.css",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config ../../vitest.config.ts --passWithNoTests"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "react": "^18.3.1",
+    "typescript": "^5.4.0"
+  },
+  "sideEffects": [
+    "*.css"
+  ]
+}

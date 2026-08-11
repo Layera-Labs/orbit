@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Icon } from '@/brand/Icon';
+import { Icon } from '@layera-labs/orbit-brand';
 import { GraduatedRule } from '@/features/shell/GraduatedRule';
 import { addMedia, deleteMedia, listMedia } from '@/db/media';
 import type { MediaRow } from '@/db/schema';

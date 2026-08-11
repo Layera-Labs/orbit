@@ -130,6 +130,10 @@ export default {
     '@layera-labs/orbit-model',
     '@layera-labs/orbit-providers',
     '@layera-labs/orbit-video',
+    // Ships .tsx source rather than a dist build — it is consumed only by apps
+    // inside this workspace, which all transpile anyway, so a build step there
+    // would add a watch process during development and buy nothing.
+    '@layera-labs/orbit-brand',
   ],
   webpack(config, { isServer }) {
     config.resolve.alias = {

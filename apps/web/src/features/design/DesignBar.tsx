@@ -2,9 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Icon } from '@/brand/Icon';
+import { Icon, Plate } from '@layera-labs/orbit-brand';
 import { ThemeSwitch } from '@/brand/ThemeSwitch';
-import { Plate } from '@/brand/Plate';
 import { renameProject } from '@/db/projects';
 import type { ProjectRow } from '@/db/schema';
 import { SaveIndicator } from './SaveIndicator';

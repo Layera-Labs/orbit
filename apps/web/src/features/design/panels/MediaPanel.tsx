@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Icon } from '@/brand/Icon';
+import { Icon } from '@layera-labs/orbit-brand';
 import { addMedia, listMedia } from '@/db/media';
 import type { MediaOrigin, MediaRow } from '@/db/schema';
 import { useJobs } from '@/store/jobsStore';

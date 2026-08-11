@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
-import { Icon } from '@/brand/Icon';
+import { Icon } from '@layera-labs/orbit-brand';
 import { addMedia, listMedia } from '@/db/media';
 import { createNewProject, deleteProject, listProjects, saveProject } from '@/db/projects';
 import { syncDelete } from '@/db/sync';

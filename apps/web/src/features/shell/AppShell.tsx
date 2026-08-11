@@ -4,9 +4,8 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 import { useAuth } from '@/store/authStore';
-import { Icon, type IconName } from '@/brand/Icon';
+import { Icon, Plate, type IconName } from '@layera-labs/orbit-brand';
 import { ThemeSwitch } from '@/brand/ThemeSwitch';
-import { Plate } from '@/brand/Plate';
 import styles from './AppShell.module.css';
 
 interface RailItem {

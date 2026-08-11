@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { Icon } from '@/brand/Icon';
+import { Icon } from '@layera-labs/orbit-brand';
 import { paintFilmstrip } from './filmstrip';
 import { paintWaveform } from './waveform';
 import styles from './Timeline.module.css';

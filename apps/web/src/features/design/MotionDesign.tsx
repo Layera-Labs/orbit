@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { VideoProject, VisualTrackClip } from '@layera-labs/orbit-video/browser';
 import { migrateTransitionOverlap } from '@layera-labs/orbit-video/browser';
-import { Icon } from '@/brand/Icon';
+import { Icon } from '@layera-labs/orbit-brand';
 import { getMedia } from '@/db/media';
 import { setThumbnail } from '@/db/projects';
 import { mediaSrc, type MediaRow, type ProjectRow } from '@/db/schema';

@@ -35,6 +35,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@layera-labs/orbit-brand':
+        specifier: workspace:*
+        version: link:../../packages/brand
       '@layera-labs/orbit-editor':
         specifier: workspace:*
         version: link:../../packages/editor
@@ -346,6 +349,18 @@ importers:
       vite-plugin-dts:
         specifier: ^3.8.0
         version: 3.9.1(@types/node@20.19.39)(rollup@4.60.2)(typescript@5.9.3)(vite@5.4.21(@types/node@20.19.39)(lightningcss@1.33.0)(terser@5.48.0))
+
+  packages/brand:
+    devDependencies:
+      '@types/react':
+        specifier: ^18.2.0
+        version: 18.3.28
+      react:
+        specifier: ^18.3.1
+        version: 18.3.1
+      typescript:
+        specifier: ^5.4.0
+        version: 5.9.3
 
   packages/core:
     dependencies:

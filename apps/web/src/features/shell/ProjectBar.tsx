@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
-import { Icon } from '@/brand/Icon';
+import { Icon } from '@layera-labs/orbit-brand';
 import { renameProject } from '@/db/projects';
 import type { ProjectRow } from '@/db/schema';
 import styles from './ProjectBar.module.css';
