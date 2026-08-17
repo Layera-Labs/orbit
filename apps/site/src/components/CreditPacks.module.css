@@ -1,0 +1,127 @@
+.wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s-8);
+  align-items: start;
+}
+
+.head {
+  margin: 0 0 var(--s-3);
+}
+
+.body {
+  color: var(--s-ink-dim);
+  font-size: 14px;
+  margin-bottom: var(--s-5);
+  max-width: 46ch;
+}
+
+.packs,
+.ops {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/*
+ * Packs sit on ONE grid: every column's credits, bonus and state land on the
+ * same line whatever the strings are. A pack whose label runs long must not
+ * push its neighbour's rows out of step.
+ */
+.packs {
+  display: grid;
+  gap: var(--s-3);
+}
+
+.pack {
+  display: grid;
+  grid-template-columns: auto auto 1fr auto;
+  align-items: baseline;
+  gap: var(--s-2) var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--s-r);
+  background: var(--s-raise);
+  box-shadow: inset 0 0 0 1px var(--s-edge);
+}
+
+.credits {
+  font-family: var(--ob-display);
+  font-size: 1.75rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.creditsLabel {
+  font-size: 13px;
+  color: var(--s-ink-faint);
+}
+
+.bonus {
+  font-family: var(--ob-data);
+  font-size: 12px;
+  color: var(--s-live);
+}
+
+.bonusNone {
+  font-family: var(--ob-data);
+  font-size: 12px;
+  color: var(--s-ink-faint);
+}
+
+/*
+ * The honest state. Not a disabled button — there is no button, because there
+ * is nothing behind it yet.
+ */
+.unavailable {
+  grid-column: 4;
+  font-size: 12px;
+  color: var(--s-ink-faint);
+  white-space: nowrap;
+}
+
+.ops {
+  display: grid;
+  gap: 0;
+}
+
+.op {
+  display: grid;
+  grid-template-columns: 2.5rem 1fr auto;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--s-edge);
+}
+
+.opCost {
+  font-family: var(--ob-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  color: var(--s-live);
+  text-align: right;
+}
+
+.opLabel {
+  font-size: 14px;
+}
+
+.opNote {
+  font-size: 12px;
+  color: var(--s-ink-faint);
+  white-space: nowrap;
+}
+
+@media (max-width: 860px) {
+  .wrap {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s-7);
+  }
+  .pack {
+    grid-template-columns: auto auto;
+    grid-template-areas: 'credits label' 'bonus state';
+  }
+  .unavailable {
+    grid-column: auto;
+  }
+}

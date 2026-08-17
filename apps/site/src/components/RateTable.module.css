@@ -1,0 +1,88 @@
+/* The table scrolls inside its own box; the page body never moves sideways. */
+.wrap {
+  overflow-x: auto;
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 400px;
+  font-size: 14px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: var(--s-3) var(--s-5) var(--s-3) 0;
+  border-bottom: 1px solid var(--s-edge);
+  font-weight: 400;
+}
+
+.table thead th {
+  font-family: var(--ob-data);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--s-ink-faint);
+  padding-bottom: var(--s-2);
+}
+
+.tier {
+  font-family: var(--ob-data);
+  font-size: 14px;
+  color: var(--s-ink);
+  white-space: nowrap;
+}
+
+.example {
+  font-family: var(--ob-data);
+  font-size: 13px;
+  color: var(--s-ink-faint);
+  white-space: nowrap;
+}
+
+/*
+ * Digits in a column line up, so they compare at a glance. Left-aligned, not
+ * right: `.table th` outranks a bare `.right` class on specificity, so a
+ * right-alignment rule here would have been dead CSS — and with the middle
+ * column dropped on a phone, keeping the rate next to its tier reads better
+ * than pushing it to the far edge anyway.
+ */
+.rate {
+  font-family: var(--ob-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+  color: var(--s-ink);
+}
+
+/* The row the estimator currently lands on. Clay, because it is a live reading. */
+.on .tier,
+.on .rate {
+  color: var(--s-live);
+}
+.on .example {
+  color: var(--s-ink-dim);
+}
+
+.note {
+  margin-top: var(--s-3);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--s-ink-faint);
+  max-width: 52ch;
+}
+
+/*
+ * On a phone the middle column goes. Three columns cannot fit 375px without the
+ * table scrolling sideways inside its own box, and of the three "typical
+ * output" is the one a reader can do without — the tier name already says it.
+ * Dropping a column beats making someone drag a table to see the price.
+ */
+@media (max-width: 560px) {
+  .example {
+    display: none;
+  }
+  .table {
+    min-width: 0;
+  }
+}

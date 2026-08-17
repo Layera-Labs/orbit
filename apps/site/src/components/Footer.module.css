@@ -1,0 +1,110 @@
+/*
+ * The footer steps onto its own slightly deeper floor. This is the one place a
+ * deliberate tonal break belongs — every other section boundary on this page
+ * is a continuous surface, and a page that changes ground at every seam is the
+ * hard-colour-seam failure.
+ */
+.footer {
+  /* Modest, because the last section already carries its own bottom padding —
+     stacking a full section gap on top of that left a dead band above the
+     footer that read as the page having run out rather than resolved. */
+  margin-top: var(--s-6);
+  padding-top: var(--s-8);
+  background: var(--s-panel-hi);
+  overflow: hidden;
+}
+
+.top {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 160px)) minmax(0, 1fr);
+  gap: var(--s-6) var(--s-7);
+  align-items: start;
+  max-width: var(--s-measure);
+  /* The same gutter as the sections above, so the footer sits on the page's
+     grid instead of announcing itself as a different document. */
+  margin: 0 auto;
+  padding: 0 var(--s-5) var(--s-8);
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  font-size: 14px;
+  color: var(--s-ink-dim);
+}
+
+.col a {
+  transition: color 160ms ease;
+}
+.col a:hover {
+  color: var(--s-ink);
+}
+
+.colHead {
+  font-family: var(--ob-body);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--s-ink-faint);
+  margin: 0 0 var(--s-1);
+}
+
+.colophon {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--s-ink-faint);
+  max-width: 44ch;
+  /* Aligned to the right-hand track rather than shoved against the viewport
+     rim — the far-edges split is the imbalance this avoids. */
+  justify-self: start;
+}
+
+/*
+ * The signature. Flush to the bottom, bleeding off it, on top of the surface.
+ *
+ * `overflow: hidden` on the footer does the clipping; the line-height and the
+ * negative bottom margin decide exactly how much of the descender-free word is
+ * cut. It is the BASELINE that leaves the page, never the caps — the tops of
+ * the letters have the whole padding above them and are never shaved.
+ */
+.signature {
+  max-width: var(--s-measure);
+  margin: 0 auto;
+  padding: 0 var(--s-5);
+}
+
+.signature span {
+  display: block;
+  font-family: var(--ob-display);
+  /*
+   * Sized so the word very nearly SPANS its box at every width — that is what
+   * makes it a signature rather than large text with air stranded to the right
+   * of it. The ratio is measured, not guessed: at this tracking "Orbit" renders
+   * about 2.48× its font size wide, so 35vw fills the gutter-to-gutter box with
+   * a small margin left over, and the 27rem cap keeps it inside the 1180px
+   * measure once the viewport outgrows it. The margin matters: the footer clips
+   * (for the bottom bleed), so a word that overran would lose its last letter.
+   */
+  font-size: clamp(5rem, 35vw, 27rem);
+  line-height: 0.78;
+  letter-spacing: 0.06em;
+  color: var(--s-ink);
+  opacity: 0.09;
+  margin-bottom: -0.14em;
+  user-select: none;
+}
+
+@media (max-width: 720px) {
+  .top {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 0 var(--s-4) var(--s-7);
+  }
+  .colophon {
+    grid-column: 1 / -1;
+  }
+  .signature {
+    padding: 0 var(--s-4);
+  }
+}

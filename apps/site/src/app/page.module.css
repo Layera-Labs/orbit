@@ -1,0 +1,277 @@
+/*
+ * The hero owns the first screen. `min-height: 100svh` rather than `vh` —
+ * on iOS `vh` is the tallest the viewport ever gets, so the fold sits under the
+ * browser chrome and the next section peeks in unaligned beneath it, which is
+ * the first impression the whole page is judged on.
+ */
+.hero {
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  padding: var(--s-9) var(--s-5) var(--s-8);
+}
+
+.measure {
+  width: 100%;
+  max-width: var(--s-measure);
+  margin: 0 auto;
+}
+
+/*
+ * One line at desktop widths, two at most. A headline that stacks into three or
+ * four short rows reads as type wrapping wherever the box ended rather than as
+ * a composition.
+ */
+.headline {
+  margin-bottom: var(--s-5);
+}
+
+.lead {
+  color: var(--s-ink-dim);
+  font-size: clamp(1rem, 1.25vw, 1.125rem);
+  margin-bottom: var(--s-7);
+}
+
+/*
+ * One rhythm for every section after the hero. No dividing rules between them:
+ * a bare hairline dropped in to separate things is a lazy way to fake
+ * structure, and space already does the job.
+ */
+.section {
+  padding: var(--s-9) var(--s-5);
+}
+
+.after {
+  margin-top: var(--s-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  max-width: var(--s-text-measure);
+}
+
+/*
+ * The heading and its paragraph sit side by side rather than stacked, so this
+ * section does not open the same way the last one did. They share a baseline —
+ * `align-items: start` plus matching leading — instead of drifting apart.
+ */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1fr);
+  gap: var(--s-5) var(--s-7);
+  align-items: start;
+  margin-bottom: var(--s-7);
+}
+
+.splitHead {
+  margin: 0;
+}
+
+.splitBody {
+  color: var(--s-ink-dim);
+  padding-top: 6px;
+}
+
+.hostGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--s-7);
+  align-items: start;
+}
+
+.hostGrid h2 {
+  margin-bottom: var(--s-4);
+}
+
+.hostGrid p + p {
+  margin-top: var(--s-4);
+}
+
+.hostGrid p {
+  color: var(--s-ink-dim);
+}
+
+/*
+ * A real command, so it is set as one. It scrolls inside its own box — the
+ * page body must never move sideways because a clone URL was long.
+ */
+.code {
+  margin: 0;
+  padding: var(--s-5);
+  border-radius: var(--s-r-lg);
+  background: var(--s-panel);
+  box-shadow: inset 0 0 0 1px var(--s-edge);
+  overflow-x: auto;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--s-ink-dim);
+}
+
+.aside {
+  font-size: 13.5px;
+  color: var(--s-ink-faint);
+}
+
+.bandHead {
+  margin-bottom: var(--s-6);
+  max-width: 20ch;
+}
+
+/*
+ * Three groups on ONE grid. Every column's figure, label, title and body sit on
+ * the same baselines whatever the copy length — a long paragraph in one column
+ * must never push its neighbour's heading down. `align-content: start` inside
+ * each cell plus a shared row template is what holds that.
+ */
+.groups {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-7);
+}
+
+.group {
+  display: grid;
+  grid-template-rows: auto auto auto 1fr;
+  gap: var(--s-2);
+  align-content: start;
+}
+
+/*
+ * The count is the point of each group, so it is set at display scale with the
+ * tracking opened up. Big numerals crushed tight read as squeezed, not composed.
+ */
+.figure {
+  font-family: var(--ob-display);
+  font-size: 3rem;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  color: var(--s-live);
+}
+
+.figureLabel {
+  font-family: var(--ob-data);
+  font-size: 11.5px;
+  color: var(--s-ink-faint);
+}
+
+.groupTitle {
+  margin-top: var(--s-3);
+}
+
+.groupBody {
+  color: var(--s-ink-dim);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.more {
+  margin-top: var(--s-4);
+  font-size: 14px;
+}
+
+.more a {
+  color: var(--s-live);
+  border-bottom: 1px solid transparent;
+  transition: border-color 160ms ease;
+}
+.more a:hover {
+  /* A colour-carrying rule appearing under the link, not an underline that
+     grows in from one side. */
+  border-bottom-color: var(--s-live);
+}
+
+/*
+ * The closing row. One action, and it is the same action as the top bar rather
+ * than a second offer invented for the footer.
+ */
+.startRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5) var(--s-7);
+  padding: var(--s-7);
+  border-radius: var(--s-r-lg);
+  background: var(--s-raise);
+  box-shadow: inset 0 0 0 1px var(--s-edge);
+}
+
+/*
+ * The one filled control on the page.
+ *
+ * Filled with INK, not with the clay. `tokens.css` reserves the clay for things
+ * that are live or measured — the delta the hero computed, the tier the
+ * estimator landed on, the counts in the capability band — and a button is
+ * neither. Spending the accent on a fill here would drain it from every reading
+ * on the page that earned it. Ink on stone is also the higher contrast of the
+ * two, which is what a primary action wants.
+ *
+ * It does not move on hover; the surface deepens instead.
+ */
+.cta {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--s-3) var(--s-5);
+  border-radius: var(--s-r);
+  background: var(--s-ink);
+  color: var(--s-ground);
+  font-size: 14.5px;
+  white-space: nowrap;
+  transition: background 160ms ease;
+}
+.cta:hover {
+  background: #322a25;
+}
+
+/* The block's own code element inherits the block's colour rather than taking
+   the inline-code ink set globally. */
+.code code {
+  color: inherit;
+}
+
+@media (max-width: 900px) {
+  .groups {
+    /* Two up before one up: three narrow columns of prose go unreadable long
+       before the screen is phone-width. */
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--s-6);
+  }
+}
+
+@media (max-width: 860px) {
+  .split,
+  .hostGrid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .splitBody {
+    padding-top: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  .groups {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .startRow {
+    padding: var(--s-5);
+  }
+  .cta {
+    width: 100%;
+    justify-content: center;
+  }
+  .section {
+    padding: var(--s-8) var(--s-4);
+  }
+  .hero {
+    /* The bar is not fought for on a phone: filling the screen exactly matters
+       less than not cramping the artifact, which needs its aspect ratio. */
+    min-height: 0;
+    padding: var(--s-8) var(--s-4) var(--s-7);
+  }
+  .lead {
+    margin-bottom: var(--s-6);
+  }
+}

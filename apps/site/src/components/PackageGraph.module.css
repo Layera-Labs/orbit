@@ -1,0 +1,131 @@
+.wrap {
+  width: 100%;
+}
+
+/*
+ * The graph scrolls inside its own box below the width where its labels would
+ * start colliding. It does NOT shrink to fit — a dependency diagram scaled to
+ * phone width is a picture of grey lines, and scrolling a wide technical
+ * drawing is the honest behaviour. The page body never scrolls sideways.
+ */
+.svg {
+  display: block;
+  width: 100%;
+  min-width: 720px;
+  height: auto;
+  overflow: visible;
+}
+
+@media (max-width: 780px) {
+  .wrap {
+    overflow-x: auto;
+    /* Room for the focus ring on the leftmost node, which would otherwise be
+       clipped by the scroll container the moment it is tabbed to. */
+    padding: 4px;
+    margin: -4px;
+  }
+}
+
+.band {
+  font-family: var(--ob-data);
+  font-size: 11px;
+  fill: var(--s-ink-faint);
+}
+
+.edge {
+  stroke: var(--s-ink);
+  stroke-width: 1.25;
+  opacity: 0.28;
+  transition: opacity 220ms ease, stroke 220ms ease;
+}
+
+.edgeQuiet {
+  opacity: 0.16;
+}
+
+/* Clay, on the connectors the reader is actually interrogating — a live
+   relationship, which is what this accent is for. */
+.edgeLive {
+  stroke: var(--s-live);
+  opacity: 0.85;
+  stroke-width: 1.75;
+}
+
+.node {
+  cursor: default;
+  transition: opacity 220ms ease;
+}
+
+.node:focus {
+  outline: none;
+}
+.node:focus-visible .rule {
+  outline: 2px solid var(--s-live);
+  outline-offset: 5px;
+  border-radius: 2px;
+}
+
+.name {
+  font-family: var(--ob-data);
+  font-size: 13.5px;
+  fill: var(--s-ink);
+  transition: fill 220ms ease;
+}
+
+.rule {
+  fill: var(--s-ink);
+  opacity: 0.5;
+  transition: opacity 220ms ease, fill 220ms ease;
+}
+
+.disc {
+  fill: var(--s-ink);
+  transition: fill 220ms ease;
+}
+
+/* v1 sits a value step back. It is real and published, and it is not what a
+   newcomer should read first. */
+.quiet .name {
+  fill: var(--s-ink-dim);
+}
+.quiet .rule,
+.quiet .disc {
+  opacity: 0.32;
+}
+
+.dim {
+  opacity: 0.22;
+}
+
+.active .name,
+.active .disc {
+  fill: var(--s-live);
+}
+.active .rule {
+  fill: var(--s-live);
+  opacity: 1;
+}
+
+.role {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s-2) var(--s-3);
+  margin: var(--s-4) 0 0;
+  /* Two lines' worth, held whatever is in it. */
+  min-height: 3em;
+  font-size: 14px;
+  color: var(--s-ink-dim);
+  max-width: 70ch;
+}
+
+.roleName {
+  font-family: var(--ob-data);
+  font-size: 12.5px;
+  color: var(--s-live);
+  white-space: nowrap;
+}
+
+.roleIdle {
+  color: var(--s-ink-faint);
+}

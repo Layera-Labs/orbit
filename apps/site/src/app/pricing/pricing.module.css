@@ -1,0 +1,108 @@
+/*
+ * The pricing page's own rhythm. It does not reuse home's `.hero`: this page
+ * opens on a question rather than an artifact, so it takes the space it needs
+ * and no more, and the rate table is above the fold on a laptop.
+ */
+.top {
+  padding: var(--s-8) var(--s-5) var(--s-6);
+}
+
+.section {
+  padding: var(--s-7) var(--s-5);
+}
+
+.measure {
+  width: 100%;
+  max-width: var(--s-measure);
+  margin: 0 auto;
+}
+
+.headline {
+  margin-bottom: var(--s-5);
+  max-width: 18ch;
+}
+
+.lead {
+  color: var(--s-ink-dim);
+  font-size: clamp(1rem, 1.25vw, 1.125rem);
+}
+
+/*
+ * Table and rules side by side: the rules are footnotes to the table, so they
+ * sit beside it rather than under it where they would read as a second topic.
+ */
+.rates {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: var(--s-7);
+  align-items: start;
+}
+
+.rules {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  font-size: 13.5px;
+  color: var(--s-ink-dim);
+  max-width: 44ch;
+}
+
+/*
+ * A short rounded dash rather than a bullet: the caps on it are the house's own
+ * geometry, and a default disc is the one shape here that would belong to
+ * nothing.
+ */
+.rules li {
+  position: relative;
+  padding-left: var(--s-5);
+  line-height: 1.55;
+}
+
+.rules li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--s-live);
+  opacity: 0.75;
+}
+
+.rule {
+  max-width: var(--s-text-measure);
+}
+
+.rule h2 {
+  margin-bottom: var(--s-4);
+}
+
+.rule p {
+  color: var(--s-ink-dim);
+}
+
+@media (max-width: 860px) {
+  .rates {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s-5);
+  }
+}
+
+@media (max-width: 720px) {
+  .headline {
+    /* The 18ch measure gives the desired two-line break on a laptop and forces
+       an unnecessarily early one on a phone, where the viewport is already the
+       constraint. */
+    max-width: none;
+  }
+  .top {
+    padding: var(--s-7) var(--s-4) var(--s-5);
+  }
+  .section {
+    padding: var(--s-6) var(--s-4);
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "id": "hero",
+  "schemaVersion": 3,
+  "width": 1280,
+  "height": 720,
+  "fps": 30,
+  "background": { "type": "gradient", "from": "#1f1c19", "to": "#0e0c0b", "angle": 135 },
+  "clips": [],
+  "tracks": [],
+  "audio": [],
+  "overlays": [
+    {
+      "id": "s1",
+      "type": "shape",
+      "shape": "rect",
+      "start": 0,
+      "end": 3,
+      "layer": 0,
+      "x": 0.34,
+      "y": 0.5,
+      "width": 0.36,
+      "height": 0.5,
+      "rotation": -14,
+      "fill": "#c4553d",
+      "fillOpacity": 0.92,
+      "cornerRadius": 28
+    },
+    {
+      "id": "s2",
+      "type": "shape",
+      "shape": "ellipse",
+      "start": 0,
+      "end": 3,
+      "layer": 1,
+      "x": 0.63,
+      "y": 0.42,
+      "width": 0.3,
+      "height": 0.42,
+      "fill": "#f4f1ec",
+      "fillOpacity": 0.16,
+      "stroke": "#f4f1ec",
+      "strokeWidth": 3
+    }
+  ]
+}

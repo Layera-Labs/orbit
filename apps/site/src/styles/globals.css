@@ -1,0 +1,192 @@
+@import '@layera-labs/orbit-brand/type.css';
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  /* The anchor targets in the docs sit under a sticky header; this keeps a
+     jumped-to heading from landing behind it. */
+  scroll-padding-top: var(--s-8);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--s-ground);
+  color: var(--s-ink);
+  font-family: var(--ob-body);
+  font-size: 16px;
+  line-height: 1.6;
+  /*
+   * No `-webkit-font-smoothing: antialiased` here, deliberately. It thins every
+   * stem by roughly half a pixel, which rescues light-on-dark (where the ink
+   * blooms) and ruins dark-on-light (where it was already correct) — the text
+   * goes grey and under-inked. It was right when this page was dark and is
+   * wrong now.
+   */
+  /*
+   * The page is one continuous surface. Anything wide — a table, a code block,
+   * a diagram — scrolls inside its own container, never by moving the page.
+   */
+  overflow-x: hidden;
+}
+
+/*
+ * Grain, on the substrate and nowhere near the content.
+ *
+ * A large warm gradient banding into visible stripes is the cheapest-looking
+ * thing a page can do, and this is what stops it. On a light stone it also
+ * does the second job it does on paper: it makes the surface read as a
+ * substrate rather than as a flat fill. It sits at z-index 0
+ * behind everything (content is z-index 1) precisely so it never lands on top
+ * of text — noise over type makes the type muddier, not more tactile.
+ */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  /* Lower than it was on the dark ground: the noise texture is dark, so on a
+     light surface every grain is a subtractive speck and the same opacity
+     reads as dirt rather than tooth. */
+  opacity: 0.025;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/*
+ * The rake. A single directional light from the top-left that carries the whole
+ * page rather than stopping at a section edge — the seam between two sections
+ * with different atmospheres is one of the loudest cheap-looking tells there
+ * is. Fixed, so it does not scroll away from the content it is lighting.
+ *
+ * Not a radial bloom behind the hero: a symmetric halo parked behind an object
+ * reads as a sticker glow. This is a light with a direction.
+ */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    148deg,
+    rgba(168, 64, 42, 0.05) 0%,
+    rgba(168, 64, 42, 0.016) 26%,
+    transparent 58%
+  );
+}
+
+#page {
+  position: relative;
+  z-index: 1;
+}
+
+/*
+ * Headings take the display face at 400 and nothing else. Gambarino ships in
+ * ONE weight — asking for 600 or 700 gets a synthesised, smeared face that
+ * reads as a font-loading bug. Emphasis is size, colour and space.
+ */
+h1,
+h2,
+h3 {
+  font-family: var(--ob-display);
+  font-weight: 400;
+  margin: 0;
+  letter-spacing: -0.005em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+h1 {
+  /*
+   * Fluid, and capped at both ends. Past ~68px this face starts to need optical
+   * tracking corrections a single weight cannot provide; below ~34px a long
+   * headline on a 375px screen breaks into four short rows, which reads as type
+   * wrapping wherever the box ended rather than as a line.
+   */
+  font-size: clamp(2.15rem, 6.2vw, 4.25rem);
+}
+h2 {
+  font-size: clamp(1.9rem, 3.6vw, 2.6rem);
+}
+h3 {
+  font-size: 1.28rem;
+}
+
+p {
+  margin: 0;
+  max-width: var(--s-text-measure);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--ob-data);
+  font-size: 0.875em;
+}
+
+/*
+ * Inline code steps UP to full ink inside dimmed prose — a package name is the
+ * part of the sentence a developer is scanning for. No tinted pill behind it:
+ * a chip around every technical noun is the component-kit look, and the mono
+ * face already marks it as code.
+ */
+code {
+  color: var(--s-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--s-live);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+::selection {
+  background: var(--s-live);
+  /* Not `--s-ink`: on a light page that is the near-black, and near-black on
+     clay is the unreadable-label failure in its most basic form. */
+  color: var(--s-on-scrim);
+}
+
+/*
+ * Motion is honoured as an accessibility setting, not clamped to zero and
+ * forgotten: a duration of 0.001ms means every transition still RUNS and still
+ * settles on its end state, so nothing that fades in can be stranded invisible.
+ * That is the failure this guards against — a reveal that never completes is a
+ * blank page, and "reduced motion" must never mean "reduced content".
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

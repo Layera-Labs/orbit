@@ -1,0 +1,68 @@
+/*
+ * Contained and inset on every side, so it reads as an object placed on the
+ * page rather than a band welded to the top of it. Not sticky: see Nav.tsx.
+ */
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-5);
+  max-width: var(--s-measure);
+  margin: var(--s-4) auto 0;
+  padding: var(--s-2) var(--s-3) var(--s-2) var(--s-2);
+  border-radius: 999px;
+  background: var(--s-raise);
+  box-shadow: inset 0 0 0 1px var(--s-edge);
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0 var(--s-2);
+}
+
+.word {
+  font-family: var(--ob-display);
+  font-size: 1.05rem;
+  letter-spacing: 0.01em;
+}
+
+.links {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  font-size: 14px;
+  color: var(--s-ink-dim);
+}
+
+/*
+ * Colour shift only. No underline growing in from one side, and nothing that
+ * moves — both are the reflex flourishes this house does not use.
+ */
+.links a {
+  transition: color 160ms ease;
+}
+.links a:hover {
+  color: var(--s-ink);
+}
+
+.repo {
+  color: var(--s-ink);
+}
+
+@media (max-width: 720px) {
+  .nav {
+    margin: var(--s-3) var(--s-3) 0;
+    gap: var(--s-3);
+  }
+  .links {
+    gap: var(--s-4);
+    font-size: 13px;
+  }
+  .word {
+    /* The mark carries the identity at this width; the wordmark beside it is
+       what pushes the links into a wrap. */
+    display: none;
+  }
+}

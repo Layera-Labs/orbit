@@ -1,0 +1,30 @@
+{
+  "name": "@layera-labs/orbit-site",
+  "version": "1.0.0-beta.4",
+  "private": true,
+  "//": "The public site: marketing, docs, and the developer portal. Separate from @layera-labs/orbit-web because that app's CSP forbids exactly what a public site needs (no external script or font origins, no iframes) and its React/Next versions are pinned by a Konva constraint that has nothing to do with a landing page.",
+  "scripts": {
+    "dev": "NEXT_DIST_DIR=.next-dev next dev -p 3200",
+    "build": "next build",
+    "start": "next start -p 3200",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "hero": "node scripts/gen-hero-frame.mjs"
+  },
+  "dependencies": {
+    "@layera-labs/orbit-billing": "workspace:*",
+    "@layera-labs/orbit-brand": "workspace:*",
+    "@layera-labs/orbit-video": "workspace:*",
+    "motion": "^11.15.0",
+    "next": "14.2.35",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.4.0",
+    "vitest": "3.1.3"
+  }
+}

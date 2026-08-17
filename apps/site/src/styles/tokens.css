@@ -1,0 +1,85 @@
+/*
+ * The site's surface language.
+ *
+ * Related to the editor's "The Instrument" and deliberately not identical. That
+ * palette is a workspace: light by default, warm graphite, hierarchy from tone,
+ * one clay accent held back for genuinely live state. Correct for something you
+ * stare at for an hour; too quiet for a page you see for eight seconds.
+ *
+ * So this is the same WORLD, light like the editor is, but pitched warmer and
+ * with more contrast range — a landing page is read in eight seconds, not
+ * stared at for an hour. Three things it is specifically not:
+ *
+ *   - not the cool UI-kit neutral (#f3f4f6 and its family), which is the
+ *     light-mode twin of defaulting to blue-charcoal;
+ *   - not cream or bone, the other reflex;
+ *   - not a two-hue gradient anywhere.
+ *
+ * The surface is a warm stone at hue ~20, pulled toward the clay so ground and
+ * accent belong to one another rather than being a neutral with a colour
+ * dropped on it.
+ *
+ * The ONE chromatic token is that clay, and it keeps the editor's discipline:
+ * it marks things that are live or measured — a running request, a delta the
+ * page actually computed — and it is never decoration and never a plain button
+ * fill. Everything else is a value step in the same warm neutral.
+ */
+:root {
+  color-scheme: light;
+
+  /* Ground → raised. On light these step DOWN in value as they come forward:
+     a raised surface catches more light than the wall behind it. A rake of
+     light is applied in globals.css over these rather than baked in as a
+     second hue. */
+  --s-ground: #f6f2ed;
+  --s-raise: #fbf9f6;
+  --s-panel: #ffffff;
+  --s-panel-hi: #efe9e1;
+
+  /* Ink. Pure black never appears — it reads as a hole punched in a warm
+     ground, the same way pure white did on the dark one. */
+  --s-ink: #1b1613;
+  --s-ink-dim: #5c534b;
+  /* The faintest step still carries running 12px prose (the measured note under
+     the hero), so it is set to clear 4.5:1 on the ground rather than to the
+     lightest grey that still looked "quiet" — on a light surface a faint ink
+     goes illegible long before it looks wrong in a mock. */
+  --s-ink-faint: #6f665e;
+
+  /* Edges are the surface's own ink at low alpha, never a drawn grey line. */
+  --s-edge: rgba(27, 22, 19, 0.1);
+  --s-edge-strong: rgba(27, 22, 19, 0.2);
+
+  /* The clay. Live and measured things only. Deepened from the dark palette's
+     #c4553d: the same hue at the same lightness that read as a lit ember on
+     near-black fails contrast against stone. */
+  --s-live: #a8402a;
+  --s-live-dim: rgba(168, 64, 42, 0.12);
+
+  /* Constant across any surface: a scrim laid over an image, and the ink that
+     sits on it. These do not flip — the photograph underneath does not care
+     what the page's theme is. */
+  --s-scrim: rgba(20, 15, 12, 0.66);
+  --s-on-scrim: #f6f2ed;
+
+  /* Spacing, 4px base. Restated rather than shared with the editor — a landing
+     page and a timeline want different density and should be free to differ. */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 72px;
+  --s-9: 112px;
+  --s-10: 168px;
+
+  --s-r-sm: 3px;
+  --s-r: 6px;
+  --s-r-lg: 12px;
+
+  /* One measure for the whole page, so nothing has to re-decide it. */
+  --s-measure: 1180px;
+  --s-text-measure: 62ch;
+}
