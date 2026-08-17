@@ -1,5 +1,5 @@
 import type { AccountId, LedgerEntry } from './types';
-import type { LedgerStore } from './store';
+import type { HistoryPage, HistoryQuery, LedgerStore } from './store';
 import { InsufficientCreditsError, UnknownHoldError } from './errors';
 
 export { InsufficientCreditsError, UnknownHoldError };
@@ -28,6 +28,17 @@ export class Ledger {
 
   history(account: AccountId): Promise<LedgerEntry[]> {
     return this.store.history(account);
+  }
+
+  /**
+   * A bounded, newest-first window over the same rows.
+   *
+   * Prefer this anywhere the result is going to be shown rather than summed:
+   * `history` has no LIMIT, so anything user-facing built on it degrades with
+   * the account's age.
+   */
+  historyPage(account: AccountId, query?: HistoryQuery): Promise<HistoryPage> {
+    return this.store.historyPage(account, query);
   }
 
   /**

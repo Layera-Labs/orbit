@@ -14,7 +14,10 @@ import pkg from 'pg';
 import type { Pool as PoolType } from 'pg';
 import {
   InsufficientCreditsError,
+  pageLimit,
   type AccountId,
+  type HistoryPage,
+  type HistoryQuery,
   type LedgerEntry,
   type LedgerStore,
   type RecordGuard,
@@ -212,6 +215,58 @@ export class PgLedgerStore implements LedgerStore {
       at: r.at.toISOString(),
       meta: r.meta ?? undefined,
     }));
+  }
+
+  /**
+   * A bounded, newest-first page of the same rows.
+   *
+   * Keyset on `row`, which is a BIGINT identity and therefore both unique and
+   * monotonic — so `row < $2 ORDER BY row DESC LIMIT $3` is a stable window
+   * even while new entries land at the head. An OFFSET would shift under a
+   * reader as their own renders wrote rows, repeating or skipping entries.
+   *
+   * Runs on the existing `(account, row)` index, so it is an index scan of
+   * exactly `limit` rows rather than the full-history read `history` does.
+   *
+   * One extra row is fetched and dropped: that, not `entries.length === limit`,
+   * is what proves another page exists. A history whose length is an exact
+   * multiple of the limit would otherwise advertise a page that is empty.
+   */
+  async historyPage(
+    account: AccountId,
+    query: HistoryQuery = {},
+  ): Promise<HistoryPage> {
+    await this.ready;
+    const limit = pageLimit(query.limit);
+
+    // `row` is BIGINT and node-pg hands it back as a string; the cursor is the
+    // `le_<row>` id we minted, so strip the prefix and let Postgres do the
+    // comparison numerically rather than parsing a bigint into a JS number that
+    // cannot hold it.
+    const before = query.before?.startsWith('le_') ? query.before.slice(3) : undefined;
+    if (query.before !== undefined && (before === undefined || !/^\d+$/.test(before))) {
+      // A malformed cursor returns nothing rather than the newest page, so a
+      // client that corrupts one cannot silently loop over the same rows.
+      return { entries: [] };
+    }
+
+    const res = await this.pool.query<LedgerRow>(
+      `SELECT row, delta, reason, balance_after, at, meta
+         FROM ledger_entries
+        WHERE account = $1 ${before !== undefined ? 'AND row < $3' : ''}
+        ORDER BY row DESC
+        LIMIT $2`,
+      before !== undefined ? [account, limit + 1, before] : [account, limit + 1],
+    );
+
+    const more = res.rows.length > limit;
+    const rows = more ? res.rows.slice(0, limit) : res.rows;
+    const entries = rows.map((r) => rowToEntry(account, r));
+
+    return {
+      entries,
+      ...(more ? { nextCursor: entries[entries.length - 1].id } : {}),
+    };
   }
 
   /**

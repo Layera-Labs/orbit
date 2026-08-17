@@ -32,6 +32,71 @@ describe.skipIf(!URL)('Postgres stores (integration)', () => {
     await pool.end();
   });
 
+  /**
+   * Paging, against real SQL.
+   *
+   * The in-memory store is covered in packages/billing, but the two
+   * implementations page by different means — array positions there, a keyset
+   * on a BIGINT identity here — so agreeing on the SEMANTICS is something only
+   * a test against Postgres can show.
+   */
+  it('pages newest-first, keyset, without repeating or skipping', async () => {
+    const store = new PgLedgerStore(pool);
+    const pAcct = `${acct}:page`;
+    for (let i = 1; i <= 5; i++) await store.record(pAcct, 1, `e${i}`);
+
+    const first = await store.historyPage(pAcct, { limit: 2 });
+    expect(first.entries.map((e) => e.reason)).toEqual(['e5', 'e4']);
+    expect(first.nextCursor).toBeDefined();
+
+    // A write lands mid-scroll; the window must not shift under the reader.
+    await store.record(pAcct, 1, 'e6');
+
+    const second = await store.historyPage(pAcct, { limit: 2, before: first.nextCursor });
+    expect(second.entries.map((e) => e.reason)).toEqual(['e3', 'e2']);
+
+    const third = await store.historyPage(pAcct, { limit: 2, before: second.nextCursor });
+    expect(third.entries.map((e) => e.reason)).toEqual(['e1']);
+    expect(third.nextCursor).toBeUndefined();
+  });
+
+  it('omits the cursor when the page divides the history exactly', async () => {
+    const store = new PgLedgerStore(pool);
+    const pAcct = `${acct}:exact`;
+    for (let i = 1; i <= 4; i++) await store.record(pAcct, 1, `x${i}`);
+    const page = await store.historyPage(pAcct, { limit: 4 });
+    expect(page.entries).toHaveLength(4);
+    expect(page.nextCursor).toBeUndefined();
+  });
+
+  it('rejects a malformed cursor instead of returning the newest page', async () => {
+    const store = new PgLedgerStore(pool);
+    const pAcct = `${acct}:bad`;
+    await store.record(pAcct, 1, 'only');
+    // Not `le_<digits>` — must not be interpolated anywhere near the query, and
+    // must not silently become "start again from the top".
+    expect((await store.historyPage(pAcct, { before: "le_1; DROP TABLE ledger_entries" })).entries).toEqual([]);
+    expect((await store.historyPage(pAcct, { before: 'garbage' })).entries).toEqual([]);
+    // The table is still there.
+    expect(await store.balance(pAcct)).toBe(1);
+  });
+
+  it('caps the page size a caller can ask for', async () => {
+    const store = new PgLedgerStore(pool);
+    const pAcct = `${acct}:cap`;
+    await store.record(pAcct, 1, 'one');
+    const page = await store.historyPage(pAcct, { limit: 100_000 });
+    expect(page.entries.length).toBeLessThanOrEqual(200);
+  });
+
+  it('never returns another account rows', async () => {
+    const store = new PgLedgerStore(pool);
+    await store.record(`${acct}:mine`, 1, 'mine');
+    await store.record(`${acct}:theirs`, 1, 'theirs');
+    const page = await store.historyPage(`${acct}:mine`);
+    expect(page.entries.map((e) => e.reason)).toEqual(['mine']);
+  });
+
   it('records signed deltas with a running balance', async () => {
     const store = new PgLedgerStore(pool);
     await store.record(acct, 100, 'free-tier');

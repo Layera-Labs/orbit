@@ -47,6 +47,7 @@
  *
  *   Credits and billing
  *     GET  /v1/credits                                  → { balance }
+ *     GET  /v1/credits/history ?limit&before            → { entries, nextCursor? }  newest first, keyset
  *     POST /v1/credits/grant  { credits }               → { balance }  dev/admin only
  *     POST /v1/billing/webhook { event }                → { ok }  purchase → grant (shared-secret auth)
  *
@@ -2292,6 +2293,49 @@ export function createServer(): Express {
     if (!account) return;
     res.json({ balance: await ledger.balance(account) });
   });
+
+  /*
+   * ---- where the credits went ----
+   *
+   * Newest first, bounded, keyset-paginated. `accountOf` rather than
+   * `humanAccountOf`: reading your own usage is not managing credentials, and a
+   * developer's own server has a legitimate reason to check what it has spent.
+   *
+   * Scoped to the caller's account inside the query, so there is no id to
+   * tamper with and nothing to enumerate.
+   *
+   * A render's hold already records `tier` and `billedSec` in its meta, so the
+   * entries explain what each charge was FOR without any new bookkeeping — the
+   * whole point of putting them there when metering was built.
+   */
+  app.get(
+    "/v1/credits/history",
+    readLimit,
+    async (req: Request, res: Response) => {
+      const account = await accountOf(req, res);
+      if (!account) return;
+
+      const raw = req.query.limit;
+      // Absent is fine (the store's default applies); present-but-nonsense is
+      // not, because silently treating `limit=abc` as 50 hides a client bug
+      // that will otherwise surface as "pagination sometimes skips rows".
+      let limit: number | undefined;
+      if (raw !== undefined) {
+        limit = Number(raw);
+        if (!Number.isFinite(limit) || limit <= 0) {
+          res
+            .status(400)
+            .json({ error: "limit must be a positive number", code: "bad_limit" });
+          return;
+        }
+      }
+
+      const before = typeof req.query.before === "string" ? req.query.before : undefined;
+
+      const page = await ledger.historyPage(account, { limit, before });
+      res.json(page);
+    },
+  );
 
   /*
    * ---- what a render would cost ----

@@ -1,6 +1,31 @@
 import type { AccountId, LedgerEntry } from './types';
 import { InsufficientCreditsError } from './errors';
 
+/** One page of ledger history, newest first. */
+export interface HistoryPage {
+  entries: LedgerEntry[];
+  /**
+   * Pass back as `before` for the next page. ABSENT when the last page has
+   * been reached — a caller should test for its presence rather than compare
+   * `entries.length` to the limit, because a page that happens to be exactly
+   * `limit` long is not evidence that another one exists.
+   */
+  nextCursor?: string;
+}
+
+export interface HistoryQuery {
+  /** Rows to return. Implementations clamp this; callers cannot ask for the table. */
+  limit?: number;
+  /** The `id` of the last entry already seen. Returns strictly older rows. */
+  before?: string;
+}
+
+/** Clamped in one place so every store agrees on what a page is. */
+export function pageLimit(requested?: number): number {
+  if (!Number.isFinite(requested) || (requested as number) <= 0) return 50;
+  return Math.min(Math.floor(requested as number), 200);
+}
+
 export interface RecordOptions {
   /**
    * Refuse the write if it would take the balance below this, and do the check
@@ -69,6 +94,22 @@ export interface LedgerStore {
   ): Promise<RecordOnceResult>;
   balance(account: AccountId): Promise<number>;
   history(account: AccountId): Promise<LedgerEntry[]>;
+  /**
+   * A bounded, newest-first window over `history`.
+   *
+   * Exists because `history` does not have one. Showing an account its own
+   * usage is the most ordinary thing a portal does, and doing it on top of an
+   * unbounded read means every visit materialises every row that account has
+   * ever written — which is precisely the shape of the table scan
+   * `findByMeta` was introduced to stop. A busy account would be the one that
+   * takes the service down, and it would happen on the screen built to
+   * reassure them.
+   *
+   * Keyset, not OFFSET: cursors are stable while new entries land at the head,
+   * whereas an offset shifts under the reader and silently repeats or skips a
+   * row. `before` is the `id` of the last entry seen.
+   */
+  historyPage(account: AccountId, query?: HistoryQuery): Promise<HistoryPage>;
   /**
    * The first entry for this account with this reason and this `meta` key/value,
    * or undefined.
@@ -162,6 +203,30 @@ export class InMemoryLedgerStore implements LedgerStore {
 
   async history(account: AccountId): Promise<LedgerEntry[]> {
     return [...(this.byAccount.get(account) ?? [])];
+  }
+
+  async historyPage(account: AccountId, query: HistoryQuery = {}): Promise<HistoryPage> {
+    const limit = pageLimit(query.limit);
+    const all = this.byAccount.get(account) ?? [];
+
+    // Newest first. The array is append-ordered, so position IS age and no
+    // timestamp comparison is needed — which matters because two entries
+    // written in the same millisecond would otherwise order arbitrarily.
+    let end = all.length;
+    if (query.before !== undefined) {
+      const at = all.findIndex((e) => e.id === query.before);
+      // An unknown cursor yields nothing rather than silently restarting from
+      // the newest row, which would loop a paginating client forever.
+      if (at < 0) return { entries: [] };
+      end = at;
+    }
+
+    const start = Math.max(0, end - limit);
+    const entries = all.slice(start, end).reverse();
+    return {
+      entries,
+      ...(start > 0 ? { nextCursor: entries[entries.length - 1]?.id } : {}),
+    };
   }
 
   async findByMeta(

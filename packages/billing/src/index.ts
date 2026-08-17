@@ -6,7 +6,8 @@ export type {
   RecordGuard,
   RecordOnceResult,
 } from './store';
-export { InMemoryLedgerStore } from './store';
+export { InMemoryLedgerStore, pageLimit } from './store';
+export type { HistoryPage, HistoryQuery } from './store';
 export { Ledger, InsufficientCreditsError, UnknownHoldError } from './ledger';
 export type { Hold } from './ledger';
 export {
