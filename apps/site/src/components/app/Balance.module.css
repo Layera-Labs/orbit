@@ -1,0 +1,68 @@
+.wrap {
+  display: grid;
+  gap: 2px;
+  padding: var(--s-3);
+  border-radius: var(--s-r);
+  background: var(--s-panel);
+  box-shadow: inset 0 0 0 1px var(--s-edge);
+  /* Held, so the rail does not resize when the figure arrives or when the
+     low-balance link appears under it. */
+  min-height: 76px;
+  align-content: start;
+}
+
+.label {
+  font-family: var(--ob-data);
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--s-ink-faint);
+}
+
+.value {
+  font-family: var(--ob-display);
+  font-size: 1.6rem;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+/*
+ * Low balance is a semantic state, not the brand accent — an integration is
+ * about to start failing, and that reading has to survive whatever colour the
+ * brand becomes.
+ */
+.low {
+  color: #a8402a;
+}
+
+.note {
+  font-size: 11.5px;
+  color: var(--s-ink-faint);
+}
+
+.top {
+  margin-top: var(--s-1);
+  font-size: 12.5px;
+  color: var(--s-ink);
+  border-bottom: 1px solid var(--s-edge-strong);
+  justify-self: start;
+  transition: border-color 140ms ease;
+}
+.top:hover {
+  border-bottom-color: var(--s-ink);
+}
+
+@media (max-width: 860px) {
+  .wrap {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s-2);
+    min-height: 0;
+    padding: var(--s-2) var(--s-3);
+    white-space: nowrap;
+  }
+  .value {
+    font-size: 1.05rem;
+  }
+}

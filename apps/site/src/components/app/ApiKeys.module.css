@@ -1,0 +1,272 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+/* ---------------------------------------------------------------
+   The reveal. The loudest thing on the surface, once, deliberately.
+   --------------------------------------------------------------- */
+.reveal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  padding: var(--s-5);
+  border-radius: var(--s-r-lg);
+  background: var(--s-panel);
+  /* A real edge, not a glow: this is the one element that must not be missed,
+     and an inner bloom would read as decoration rather than as urgency. */
+  box-shadow: inset 0 0 0 1.5px var(--s-live);
+}
+.reveal:focus {
+  outline: none;
+}
+
+.revealTitle {
+  font-size: 1.25rem;
+}
+
+.revealWarn {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--s-ink-dim);
+  max-width: 62ch;
+}
+
+.secretRow {
+  display: flex;
+  align-items: stretch;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+/*
+ * The secret is selectable and wraps rather than scrolling: a key that runs off
+ * the edge of its box is one a reader can copy incompletely by hand.
+ */
+.secret {
+  flex: 1 1 260px;
+  min-width: 0;
+  padding: var(--s-3);
+  border-radius: var(--s-r);
+  background: var(--s-sunk, var(--s-ground));
+  box-shadow: inset 0 0 0 1px var(--s-edge);
+  font-family: var(--ob-data);
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-all;
+  user-select: all;
+}
+
+.copy,
+.done,
+.primary {
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--s-r);
+  background: var(--s-ink);
+  color: var(--s-ground);
+  font-size: 13.5px;
+  white-space: nowrap;
+  transition: background 140ms ease;
+}
+.copy:hover,
+.done:hover,
+.primary:hover {
+  background: #322a25;
+}
+.primary:disabled {
+  background: var(--s-edge-strong);
+  color: var(--s-ink-faint);
+  cursor: default;
+}
+
+.done {
+  align-self: flex-start;
+  background: transparent;
+  color: var(--s-ink);
+  box-shadow: inset 0 0 0 1px var(--s-edge-strong);
+}
+.done:hover {
+  background: var(--s-raise);
+}
+
+/* ---------------------------------------------------------------
+   Create
+   --------------------------------------------------------------- */
+.create {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+
+.field {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.fieldLabel {
+  font-size: 12.5px;
+  color: var(--s-ink-faint);
+}
+
+.input {
+  width: 240px;
+  max-width: 100%;
+  padding: var(--s-2) var(--s-3);
+  border: none;
+  border-radius: var(--s-r);
+  background: var(--s-panel);
+  box-shadow: inset 0 0 0 1px var(--s-edge);
+  color: var(--s-ink);
+  font: inherit;
+  font-size: 14px;
+}
+.input:focus-visible {
+  outline: 2px solid var(--s-live);
+  outline-offset: 1px;
+}
+
+.problem {
+  font-size: 13px;
+  color: var(--s-live);
+}
+
+/* ---------------------------------------------------------------
+   List
+   --------------------------------------------------------------- */
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+}
+
+/*
+ * One grid for every row, so name, key, dates and the action land on the same
+ * columns whatever the strings are. A long name must not shunt its row's
+ * button out of line with its neighbours'.
+ */
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) auto minmax(0, 1fr) minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--s-edge);
+}
+
+.name {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.masked {
+  font-family: var(--ob-data);
+  font-size: 12.5px;
+  color: var(--s-ink-dim);
+  white-space: nowrap;
+}
+
+.meta {
+  font-size: 12.5px;
+  color: var(--s-ink-faint);
+  white-space: nowrap;
+}
+
+.confirm {
+  display: flex;
+  gap: var(--s-2);
+  justify-self: end;
+}
+
+.ghost {
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--s-r);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--s-edge);
+  font-size: 13px;
+  color: var(--s-ink-dim);
+  white-space: nowrap;
+  justify-self: end;
+  transition: background 140ms ease, color 140ms ease;
+}
+.ghost:hover {
+  background: var(--s-raise);
+  color: var(--s-ink);
+}
+
+/* Irreversible, so it looks it — and only after the reader has asked for it. */
+.danger {
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--s-r);
+  background: #a8402a;
+  color: #f6f2ed;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: background 140ms ease;
+}
+.danger:hover {
+  background: #8f3522;
+}
+
+/* ---------------------------------------------------------------
+   Empty, failed, loading
+   --------------------------------------------------------------- */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-6);
+  border-radius: var(--s-r-lg);
+  background: var(--s-raise);
+  box-shadow: inset 0 0 0 1px var(--s-edge);
+}
+
+.empty h3 {
+  font-size: 1.1rem;
+}
+
+.empty p {
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: var(--s-ink-dim);
+  max-width: 58ch;
+}
+
+/*
+ * Reserves the height two rows occupy. No shimmer: a pulsing gradient is
+ * decoration, and what this needs to do is stop the page moving.
+ */
+.skeleton {
+  display: grid;
+  gap: var(--s-3);
+}
+.skeleton span {
+  height: 44px;
+  border-radius: var(--s-r);
+  background: var(--s-raise);
+}
+
+@media (max-width: 720px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--s-2) var(--s-3);
+    padding: var(--s-4) 0;
+  }
+  .masked {
+    grid-column: 1 / -1;
+  }
+  .meta {
+    grid-column: 1 / -1;
+  }
+  .confirm,
+  .ghost {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}

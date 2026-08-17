@@ -1,0 +1,117 @@
+/*
+ * The app shell. Denser than the marketing pages on purpose: this surface is
+ * scanned and operated, not read top to bottom.
+ */
+.shell {
+  display: grid;
+  grid-template-columns: 208px minmax(0, 1fr);
+  min-height: 100svh;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding: var(--s-5) var(--s-4);
+  background: var(--s-raise);
+  /* A self-coloured edge rather than a drawn border: the surface's own ink at
+     low alpha, so the boundary is felt as a lip catching light. */
+  box-shadow: inset -1px 0 0 var(--s-edge);
+}
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: 0 var(--s-2);
+}
+
+.word {
+  font-family: var(--ob-display);
+  font-size: 1rem;
+}
+
+/*
+ * `margin-bottom: auto` here, rather than `margin-top: auto` on the last child.
+ * The balance renders nothing when there is no session, so a `:last-child` rule
+ * silently retargeted the nav itself and pushed the whole menu to the floor of
+ * the rail. Anchoring from the nav does not care what follows it, or whether
+ * anything does.
+ */
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: auto;
+}
+
+.navItem {
+  padding: var(--s-2) var(--s-2);
+  border-radius: var(--s-r);
+  font-size: 14px;
+  color: var(--s-ink-dim);
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.navItem:hover {
+  background: var(--s-panel);
+  color: var(--s-ink);
+}
+
+.content {
+  padding: var(--s-7) var(--s-6) var(--s-8);
+  max-width: 940px;
+  min-width: 0;
+}
+
+.pageHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-4);
+  margin-bottom: var(--s-3);
+}
+
+.pageTitle {
+  font-size: 1.9rem;
+}
+
+.pageLede {
+  color: var(--s-ink-dim);
+  font-size: 14px;
+  line-height: 1.65;
+  max-width: 64ch;
+  margin-bottom: var(--s-6);
+}
+
+.pageLede em {
+  font-style: normal;
+  color: var(--s-ink);
+}
+
+@media (max-width: 860px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sidebar {
+    /* Becomes a top row rather than a drawer: five items fit across a phone,
+       and a hamburger for five links is a control nobody needed. */
+    flex-direction: row;
+    align-items: center;
+    gap: var(--s-4);
+    overflow-x: auto;
+    padding: var(--s-3) var(--s-4);
+    box-shadow: inset 0 -1px 0 var(--s-edge);
+  }
+  .nav {
+    flex-direction: row;
+    gap: var(--s-1);
+    margin-bottom: 0;
+  }
+  .navItem {
+    white-space: nowrap;
+  }
+  .content {
+    padding: var(--s-6) var(--s-4) var(--s-7);
+  }
+}

@@ -1,6 +1,4 @@
 import type { Metadata, Viewport } from 'next';
-import { Footer } from '@/components/Footer';
-import { Nav } from '@/components/Nav';
 import '../styles/globals.css';
 
 export const metadata: Metadata = {
@@ -32,11 +30,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        <div id="page">
-          <Nav />
-          {children}
-          <Footer />
-        </div>
+        {/*
+          Only the document frame. The nav and footer belong to the marketing
+          route group, not to every route — see src/app/(marketing)/layout.tsx.
+        */}
+        <div id="page">{children}</div>
       </body>
     </html>
   );
