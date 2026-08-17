@@ -2,20 +2,53 @@
  * HTTP render service: wraps the headless `@layera-labs/orbit-video` engine so any client
  * (the iOS app, web, a webhook) can render a video server-side with ffmpeg.
  *
- * Endpoints:
- *   GET  /health
- *   POST /v1/upload         (multipart, field "file") → { id }   store media, return an opaque token
- *   POST /v1/render         { project }               → { url }   render a VideoProject
- *   POST /v1/generate-image { prompt }                 → { url, balance }    generate an image (10 credits; needs RUNWAY_API_TOKEN)
- *   POST /v1/generate-video { prompt }                 → { url, balance }    generate a video (60/100 credits; needs RUNWAY_API_TOKEN)
- *   POST /v1/tts            { text, voice? }            → { url, balance }    text→speech voiceover (5 credits; needs ELEVENLABS_API_KEY)
- *   GET  /v1/credits                                   → { balance }         current account credit balance
- *   POST /v1/render/quote   { project, output? }       → { credits, tier }   price a render without running it
- *   POST /v1/keys           { name }                   → { key }             issue an API key (shown ONCE)
- *   GET  /v1/keys                                      → { keys }            list them (last4 only; the secret is not stored)
- *   DELETE /v1/keys/:id                                → { ok }              revoke one
- *   POST /v1/auth/guest                                → { token, user }     a token for a device that has not signed in
- *   POST /v1/billing/webhook { event }                 → { ok }              RevenueCat purchase → grant credits (shared-secret auth)
+ * Endpoints — ALL 30 of them. This list used to name twelve, which is worse
+ * than naming none: a reader who found their route missing had no way to tell
+ * an undocumented endpoint from one that did not exist. Add a route, add a line.
+ *
+ *   Health
+ *     GET  /health                                     → storage/queue/capacity, cluster depth
+ *
+ *   Auth
+ *     POST /v1/auth/guest                              → { token, user }  a token for a device that has not signed in
+ *     POST /v1/auth/register    { email, password }    → { token, user }
+ *     POST /v1/auth/login       { email, password }    → { token, user }
+ *     POST /v1/auth/forgot      { email }              → { ok, delivery: 'link' | 'code' }
+ *     POST /v1/auth/reset       { token, password }    → { ok }
+ *     GET  /reset                                      → the reset form this service serves itself
+ *
+ *   API keys (JWT only — a key may not manage keys)
+ *     POST   /v1/keys          { name }                → { key }   issued once; only a SHA-256 hash is stored
+ *     GET    /v1/keys                                  → { keys }  last4 only
+ *     DELETE /v1/keys/:id                              → { ok }    tombstoned
+ *
+ *   Media and rendering
+ *     POST /v1/upload         (multipart, field "file") → { id }   store media, return an opaque token
+ *     POST /v1/render         { project, async? }       → { url } or 202 { id }
+ *     GET  /v1/render/:id                               → job status
+ *     GET  /v1/render/:id/events                        → server-sent progress
+ *     POST /v1/render/:id/ticket                        → a short-lived ticket for the events stream
+ *     POST /v1/render/quote   { project, output? }      → { credits, tier }  price without running
+ *
+ *   Generation (credit-metered; charged only on success)
+ *     POST /v1/generate       { … }                     → 202 { id }
+ *     GET  /v1/generate/:id                             → job status
+ *     POST /v1/generate-image { prompt }                → { url, balance }  10 credits
+ *     POST /v1/generate-video { prompt }                → { url, balance }  60 muted / 100 with audio
+ *     POST /v1/tts            { text, voice? }          → { url, balance }  5 credits
+ *     POST /v1/transcribe     { src }                   → { cues, balance } 1 credit
+ *     GET  /v1/fonts/:family                            → a subset font file
+ *
+ *   Projects — documents only; media travels as its upload tokens
+ *     GET    /v1/projects                               → { projects, mediaDurable }
+ *     GET    /v1/projects/:id                           → { project }
+ *     PUT    /v1/projects/:id { project }               → { ok } or 409 WITH THE WINNER
+ *     DELETE /v1/projects/:id                           → { ok }  tombstoned
+ *
+ *   Credits and billing
+ *     GET  /v1/credits                                  → { balance }
+ *     POST /v1/credits/grant  { credits }               → { balance }  dev/admin only
+ *     POST /v1/billing/webhook { event }                → { ok }  purchase → grant (shared-secret auth)
  *
  * TWO KINDS OF BEARER TOKEN reach these routes. A JWT is a PERSON — the app
  * signed in, or a guest token this server issued. An `orbit_sk_` API key is a
@@ -544,13 +577,19 @@ export function createServer(): Express {
   /**
    * Fixed-window rate limit, keyed by client IP.
    *
-   * `/v1/upload` and `/v1/render` are deliberately unauthenticated — the app is
-   * guest-first, so requiring a token here would break the primary flow. That
-   * leaves no per-account meter by default, so an anonymous caller could still
-   * fill the disk. Two things now sit behind this: `withRenderSlot` caps encodes
-   * in flight (the "pin every core" half of the problem), and `ORBIT_RENDER_COST`
-   * can price an export against the ledger for deployments that want a quota.
-   * Requiring identity to render remains a product decision, not this file's.
+   * EVERY route here requires a bearer token, `/v1/upload` and `/v1/render`
+   * included — being signed out is not the absence of one, it is a guest token
+   * this server issued via `/v1/auth/guest`. So this limit is not the thing
+   * standing between an anonymous caller and the disk; it is the thing standing
+   * between a caller and cheaply minting tokens or hammering a route faster
+   * than the per-account meter can price it.
+   *
+   * Two other things carry the load a limit cannot: `withRenderSlot` caps
+   * encodes in flight, and a render places a credit hold BEFORE ffmpeg starts,
+   * so an account cannot spend capacity it has not paid for.
+   *
+   * (This comment previously said upload and render were "deliberately
+   * unauthenticated". That stopped being true when auth became mandatory.)
    */
   /**
    * Compare a shared secret without leaking its length or contents by timing.
