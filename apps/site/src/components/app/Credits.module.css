@@ -1,0 +1,208 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-7);
+}
+
+.balanceRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--s-6);
+  padding: var(--s-5);
+  border-radius: var(--s-r-lg);
+  background: var(--s-panel);
+  box-shadow: inset 0 0 0 1px var(--s-edge);
+}
+
+.balanceLabel {
+  display: block;
+  font-family: var(--ob-data);
+  font-size: 10.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--s-ink-faint);
+}
+
+/* The largest number on the screen, because it is the one being looked for. */
+.balance {
+  font-family: var(--ob-display);
+  font-size: 3.2rem;
+  line-height: 1.05;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.unit {
+  margin-left: var(--s-2);
+  font-size: 14px;
+  color: var(--s-ink-faint);
+}
+
+/*
+ * The honest state, as a sentence rather than a disabled button. A greyed-out
+ * "Buy" still reads as a thing that will work if you click hard enough.
+ */
+.unavailable {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--s-ink-dim);
+  max-width: 46ch;
+}
+
+.head {
+  font-size: 1.05rem;
+  margin-bottom: var(--s-4);
+}
+
+.quiet {
+  font-size: 13.5px;
+  color: var(--s-ink-faint);
+}
+
+/* ---- packs ---- */
+.packs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+
+/*
+ * Three columns on one grid: credits, label and bonus each share a row across
+ * all three packs, so nothing goes ragged when one bonus string is longer.
+ */
+.pack {
+  display: grid;
+  grid-template-rows: auto auto auto;
+  align-content: start;
+  gap: 2px;
+  padding: var(--s-4);
+  border-radius: var(--s-r);
+  background: var(--s-raise);
+  box-shadow: inset 0 0 0 1px var(--s-edge);
+}
+
+.packCredits {
+  font-family: var(--ob-display);
+  font-size: 1.7rem;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+.packLabel {
+  font-size: 12.5px;
+  color: var(--s-ink-faint);
+}
+
+.packBonus {
+  margin-top: var(--s-2);
+  font-family: var(--ob-data);
+  font-size: 11.5px;
+  color: var(--s-live);
+}
+
+/* ---- ledger ---- */
+.ledger {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.entry {
+  display: grid;
+  grid-template-columns: 4.5rem 9rem minmax(0, 1fr) 5rem 5rem;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--s-edge);
+  font-size: 13px;
+}
+
+.when {
+  font-family: var(--ob-data);
+  font-size: 12.5px;
+  color: var(--s-ink-faint);
+  white-space: nowrap;
+}
+
+.what {
+  color: var(--s-ink);
+}
+
+.detail {
+  font-family: var(--ob-data);
+  font-size: 12px;
+  color: var(--s-ink-faint);
+}
+
+.debit,
+.credit,
+.after {
+  font-family: var(--ob-data);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.debit {
+  color: var(--s-ink);
+}
+
+/* Money arriving is the one thing on this screen worth the accent. */
+.credit {
+  color: var(--s-live);
+}
+
+.after {
+  color: var(--s-ink-faint);
+}
+
+.moreBtn {
+  margin-top: var(--s-4);
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--s-r);
+  box-shadow: inset 0 0 0 1px var(--s-edge);
+  font-size: 13px;
+  color: var(--s-ink-dim);
+  transition: background 140ms ease, color 140ms ease;
+}
+.moreBtn:hover {
+  background: var(--s-raise);
+  color: var(--s-ink);
+}
+.moreBtn:disabled {
+  color: var(--s-ink-faint);
+  cursor: default;
+}
+
+@media (max-width: 860px) {
+  .balanceRow {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--s-4);
+  }
+  .packs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .entry {
+    grid-template-columns: minmax(0, 1fr) 4.5rem;
+    gap: var(--s-1) var(--s-3);
+  }
+  .when,
+  .detail {
+    grid-column: 1;
+  }
+  .debit,
+  .credit {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .after {
+    display: none;
+  }
+}

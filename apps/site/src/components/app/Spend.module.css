@@ -1,0 +1,59 @@
+.wrap {
+  display: grid;
+  gap: var(--s-2);
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* A fixed aspect via the viewBox, so the chart never reflows as data lands —
+     the shape changes, the box does not. */
+  overflow: visible;
+}
+
+.grid {
+  stroke: var(--s-edge);
+  stroke-width: 1;
+}
+
+/*
+ * The area is the accent at low alpha, not a gradient into transparency: a
+ * two-stop fade under a line is the stock chart look, and a flat wash reads as
+ * a measured quantity rather than a decoration.
+ */
+.area {
+  fill: var(--s-live);
+  opacity: 0.1;
+}
+
+.line {
+  stroke: var(--s-live);
+  stroke-width: 1.75;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* The house disc, at the endpoint, where the value is read. */
+.tip {
+  fill: var(--s-live);
+}
+
+.tick {
+  font-family: var(--ob-data);
+  font-size: 10px;
+  fill: var(--s-ink-faint);
+}
+
+.axis {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--ob-data);
+  font-size: 10.5px;
+  color: var(--s-ink-faint);
+}
+
+.none {
+  font-size: 13px;
+  color: var(--s-ink-faint);
+}

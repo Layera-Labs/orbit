@@ -85,3 +85,18 @@ export const revokeKey = (id: string) =>
   call<{ ok: true }>(`v1/keys/${encodeURIComponent(id)}`, { method: 'DELETE' });
 
 export const getCredits = () => call<{ balance: number }>('v1/credits');
+
+/**
+ * One page of ledger history, newest first.
+ *
+ * `limit` and `before` go on the query string, which the proxy forwards
+ * verbatim — the server clamps the limit, so asking for more than it allows is
+ * answered with a bounded page rather than an error.
+ */
+export function getHistory(opts: { limit?: number; before?: string } = {}) {
+  const qs = new URLSearchParams();
+  if (opts.limit != null) qs.set('limit', String(opts.limit));
+  if (opts.before) qs.set('before', opts.before);
+  const q = qs.toString();
+  return call<import('./ledger').HistoryPage>(`v1/credits/history${q ? `?${q}` : ''}`);
+}

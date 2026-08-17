@@ -62,9 +62,17 @@ async function forward(req: NextRequest, path: string[]) {
 
   const body = req.method === 'GET' || req.method === 'DELETE' ? undefined : await req.text();
 
+  /*
+   * The query string travels, or pagination silently does not work: `?limit`
+   * and `?before` are how the history route is READ, and dropping them here
+   * would hand every caller page one forever with no error to notice. Only the
+   * search is forwarded — the path is already fixed by the allowlist above.
+   */
+  const qs = req.nextUrl.search;
+
   let upstream: Response;
   try {
-    upstream = await fetch(`${SERVER}/${route}`, {
+    upstream = await fetch(`${SERVER}/${route}${qs}`, {
       method: req.method,
       headers,
       body,

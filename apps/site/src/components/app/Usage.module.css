@@ -1,0 +1,249 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-7);
+}
+
+.range {
+  display: flex;
+  gap: var(--s-2);
+}
+
+.rangeBtn {
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--s-r);
+  background: var(--s-raise);
+  box-shadow: inset 0 0 0 1px var(--s-edge);
+  font-size: 13px;
+  color: var(--s-ink-dim);
+  transition: background 140ms ease, color 140ms ease;
+}
+.rangeBtn:hover {
+  background: var(--s-panel);
+  color: var(--s-ink);
+}
+
+.on {
+  background: var(--s-live-dim);
+  box-shadow: inset 0 0 0 1px rgba(168, 64, 42, 0.4);
+  color: var(--s-live);
+}
+.on:hover {
+  background: var(--s-live-dim);
+  color: var(--s-live);
+}
+
+.chartBlock {
+  display: grid;
+  gap: var(--s-4);
+}
+
+.chartHead {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-2);
+}
+
+.total {
+  font-family: var(--ob-display);
+  font-size: 2.6rem;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.totalLabel {
+  font-size: 13.5px;
+  color: var(--s-ink-faint);
+}
+
+/*
+ * A bounded read is a fact about the data, not a footnote. Stated where the
+ * numbers are, because a partial total that looks complete is worse than no
+ * total at all.
+ */
+.truncated {
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--s-live);
+  max-width: 62ch;
+}
+
+.head {
+  font-size: 1.05rem;
+  margin-bottom: var(--s-4);
+}
+
+.quiet {
+  font-size: 13.5px;
+  color: var(--s-ink-faint);
+}
+
+/* ---- by tier ---- */
+.tiers,
+.log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/*
+ * One grid for every tier row, so the bars all start at the same x and the
+ * numbers all end at the same one. Bars that begin at different offsets cannot
+ * be compared, which is the only thing a bar is for.
+ */
+.tier {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) 6rem 4rem;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) 0;
+}
+
+.tierName {
+  font-family: var(--ob-data);
+  font-size: 13px;
+}
+
+.barTrack {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--s-edge);
+  overflow: hidden;
+}
+
+.bar {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--s-live);
+  opacity: 0.65;
+}
+
+.tierRenders {
+  font-size: 12.5px;
+  color: var(--s-ink-faint);
+  text-align: right;
+}
+
+.tierCredits {
+  font-family: var(--ob-data);
+  font-variant-numeric: tabular-nums;
+  font-size: 13.5px;
+  text-align: right;
+}
+
+/* ---- render log ---- */
+.logRow {
+  display: grid;
+  grid-template-columns: 8.5rem 4rem 3.5rem minmax(0, 1fr) 4rem;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--s-edge);
+  font-size: 13px;
+}
+
+.when {
+  font-family: var(--ob-data);
+  font-size: 12.5px;
+  color: var(--s-ink-dim);
+  white-space: nowrap;
+}
+
+.tierTag,
+.secs {
+  font-family: var(--ob-data);
+  font-size: 12.5px;
+  color: var(--s-ink-dim);
+}
+
+.done {
+  font-size: 12.5px;
+  color: var(--s-ink-faint);
+}
+
+/*
+ * A failed render is not an error state on this screen — it is the refund
+ * policy working. It reads as information, not as alarm.
+ */
+.failed {
+  font-size: 12.5px;
+  color: var(--s-ink-dim);
+}
+
+.charged {
+  font-family: var(--ob-data);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ---- trouble ---- */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-3);
+  padding: var(--s-6);
+  border-radius: var(--s-r-lg);
+  background: var(--s-raise);
+  box-shadow: inset 0 0 0 1px var(--s-edge);
+}
+
+.empty h3 {
+  font-size: 1.1rem;
+}
+
+.empty p {
+  font-size: 13.5px;
+  color: var(--s-ink-dim);
+  max-width: 58ch;
+}
+
+.retry {
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--s-r);
+  box-shadow: inset 0 0 0 1px var(--s-edge);
+  font-size: 13px;
+  color: var(--s-ink-dim);
+}
+.retry:hover {
+  background: var(--s-panel);
+  color: var(--s-ink);
+}
+
+@media (max-width: 720px) {
+  .tier {
+    grid-template-columns: 3.5rem minmax(0, 1fr) 3.5rem;
+  }
+  .tierRenders {
+    display: none;
+  }
+  .logRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--s-1) var(--s-3);
+  }
+  .tierTag,
+  .secs,
+  .done,
+  .failed {
+    grid-column: 1;
+  }
+  .charged {
+    grid-column: 2;
+    grid-row: 1;
+  }
+}
+
+/*
+ * Why this section's total does not equal the headline. Stated here rather
+ * than left for a reader to discover by adding up the column and finding a
+ * gap — an unexplained discrepancy on a page about money reads as a bug.
+ */
+.sectionNote {
+  margin: calc(var(--s-4) * -1) 0 var(--s-4);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--s-ink-faint);
+  max-width: 60ch;
+}
