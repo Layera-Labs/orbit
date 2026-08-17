@@ -73,5 +73,5 @@ Skia preview. A published engine the mobile app is not tracking is an invariant
 nobody is checking.
 
 ```bash
-cd ~/Github/orbit-mobile && npx vitest run   # expect 328/328
+cd /Volumes/Workspace/github/orbit-mobile && npx vitest run   # expect 328/328
 ```

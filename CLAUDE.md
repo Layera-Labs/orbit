@@ -11,8 +11,11 @@ Next.js, and React Native.
 **This repo is the SDK.** The mobile video editor was extracted to its own repo on
 2026-08-08 and **purged from this history** — it is a product, not part of what is
 being published, and it was 40k lines of app sitting where an SDK's examples
-belong. It lives at `~/Github/orbit-mobile` with its own 182 commits and its own
-CLAUDE.md carrying everything that was learned building it.
+belong. It lives at `/Volumes/Workspace/github/orbit-mobile` with its own 182
+commits and its own CLAUDE.md carrying everything that was learned building it.
+**It is on an external volume, moved there on 2026-08-11** — it used to sit at
+`~/Github/orbit-mobile`, and a tool that cannot see `/Volumes` will report the
+repo as missing rather than as unreachable.
 
 **One brand, settled 2026-07-31: Layera Labs is the org, Orbit is the product.**
 `github.com/Layera-Labs/orbit`. The SDK is Orbit SDK and the app is Orbit — not two
@@ -111,7 +114,7 @@ is still the repo root, so nothing about the Dockerfile's depth changed.
    store corrupts Metro's module resolution. That is why `examples/mobile` is
    outside the workspace.
 
-**The mobile editor's rules moved with it** to `~/Github/orbit-mobile/CLAUDE.md`:
+**The mobile editor's rules moved with it** to `/Volumes/Workspace/github/orbit-mobile/CLAUDE.md`:
 the vendored-model discipline, the parity tests, Vela, VIcon, the simulator
 verification workflow. If you are changing `@layera-labs/orbit-video` in a way that touches an
 effect that app mirrors, that file names the mirrors.
@@ -448,7 +451,7 @@ will follow. What stays is packages, the render service, the web app and example
 ### What already happened
 
 `apps/mobile` was extracted with `git subtree split` — all 182 of its commits —
-into `~/Github/orbit-mobile`, then **purged from this repo's history** with
+into `/Volumes/Workspace/github/orbit-mobile`, then **purged from this repo's history** with
 `git filter-repo --path apps/mobile --invert-paths`. That was deliberate and it
 was the right moment: the repo had never been public, so no clone or fork existed
 to break, and the alternative (deleting from HEAD only) would have left the whole
@@ -457,7 +460,7 @@ app recoverable by anyone with `git log` the instant the repo opened.
 A backup bundle of the pre-purge repo was kept until publishing was done, then
 **deleted on 2026-08-09**. Nothing unique went with it: its only reason to exist
 was the `apps/mobile` history, and all 186 of those commits live in
-`~/Github/orbit-mobile`, which is now a private GitHub repo of its own. What is
+`/Volumes/Workspace/github/orbit-mobile`, which is now a private GitHub repo of its own. What is
 gone is the pre-purge hashes of THIS repo, which is what purging them meant.
 
 ### The cost, measured rather than predicted
