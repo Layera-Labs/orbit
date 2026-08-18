@@ -1,5 +1,16 @@
 # Transitions
 
+> **This page documents v1.** It is accurate: v1 is published, feature-complete
+> and in maintenance, and the APIs below are the ones it ships. What it is not
+> is the current SDK — new work goes into v2 (`@layera-labs/orbit-model`,
+> `-render`, `-providers`, `-editor`), which has a different architecture and a
+> different API. Start at [installation](./installation.md) if you are choosing.
+>
+> Note also that these are LAYER transitions — a layer entering or leaving. They
+> are not the same thing as the clip transitions in `@layera-labs/orbit-video`,
+> which cut between two clips on a timeline and come in 21 families / 51 types
+> built on ffmpeg `xfade`.
+
 Transitions create smooth animated effects when layers appear or disappear during video playback and export.
 
 ## Transition Types

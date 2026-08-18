@@ -16,16 +16,32 @@ Orbit is distributed as a monorepo of scoped npm packages. Install only what you
 
 ## Package Overview
 
-| Package | Install | Description |
-|---------|---------|-------------|
-| `@layera-labs/orbit-react` | `npm install @layera-labs/orbit-react` | React wrapper + full UI |
-| `@layera-labs/orbit-next` | `npm install @layera-labs/orbit-next` | Next.js wrapper |
-| `@layera-labs/orbit-core` | `npm install @layera-labs/orbit-core` | Vanilla canvas engine |
-| `@layera-labs/orbit-ui` | `npm install @layera-labs/orbit-ui` | UI component library |
-| `@layera-labs/orbit-shared` | `npm install @layera-labs/orbit-shared` | Types & utilities |
-| `@layera-labs/orbit-agentic` | `npm install @layera-labs/orbit-agentic` | AI backend adapter |
-| `@layera-labs/orbit-effects` | `npm install @layera-labs/orbit-effects` | WebGL shaders |
-| `@layera-labs/orbit-assets` | `npm install @layera-labs/orbit-assets` | Asset utilities |
+**The current SDK (v2), and the engine underneath it.**
+
+| Package | Install | What it is |
+|---------|---------|------------|
+| `@layera-labs/orbit-video` | `npm i @layera-labs/orbit-video` | The engine: timeline model, effect maths, the ffmpeg argument builder. Depends on nothing else here |
+| `@layera-labs/orbit-model` | `npm i @layera-labs/orbit-model` | Headless reactive document model, with history |
+| `@layera-labs/orbit-render` | `npm i @layera-labs/orbit-render` | Konva renderer — the canvas as a pure function of the model |
+| `@layera-labs/orbit-providers` | `npm i @layera-labs/orbit-providers` | Interfaces for templates, fonts, backgrounds and stock photos |
+| `@layera-labs/orbit-editor` | `npm i @layera-labs/orbit-editor` | The assembled React editor |
+
+**v1 — feature-complete and in maintenance.** It still builds and is still
+published; new work goes into v2. Most of this guide documents v1.
+
+| Package | Install | What it is |
+|---------|---------|------------|
+| `@layera-labs/orbit-react` | `npm i @layera-labs/orbit-react` | React wrapper + full UI |
+| `@layera-labs/orbit-next` | `npm i @layera-labs/orbit-next` | Next.js wrapper |
+| `@layera-labs/orbit-core` | `npm i @layera-labs/orbit-core` | Vanilla canvas engine |
+| `@layera-labs/orbit-ui` | `npm i @layera-labs/orbit-ui` | UI component library |
+| `@layera-labs/orbit-shared` | `npm i @layera-labs/orbit-shared` | Types and utilities |
+| `@layera-labs/orbit-effects` | `npm i @layera-labs/orbit-effects` | WebGL shaders |
+| `@layera-labs/orbit-agentic` | `npm i @layera-labs/orbit-agentic` | AI backend adapter. An OPTIONAL peer — v1 builds and runs without it |
+
+> `@layera-labs/orbit-assets` used to be listed here. It is **private and not
+> published**, so the install line 404s. It is an internal dependency of the
+> render service, not something a consumer mounts.
 
 ## Quick Install (React)
 

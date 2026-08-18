@@ -32,3 +32,9 @@ apps/mobile/android
 # Untracked AND unignored is the bad combination: `git add -A` eventually
 # swallows them, and 14MB of PNGs is not source.
 orbit-video-editor/
+
+# Vite writes these next to a config when it has to transpile it, and deletes
+# them on a clean exit. Nine were committed by an interrupted build, each
+# carrying an absolute path into someone else's node_modules — machine-local
+# junk that could never work anywhere but the laptop that made it.
+*.timestamp-*.mjs

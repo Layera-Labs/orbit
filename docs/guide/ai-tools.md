@@ -12,7 +12,7 @@ editor still runs — including video export, which is core editing, not AI.
 ```tsx
 import { OrbitBackendAdapter } from '@layera-labs/orbit-agentic';
 
-const backend = new OrbitBackendAdapter('orbit_sk_your_key', 'https://api.example.com');
+const backend = new OrbitBackendAdapter('orbit_sk_your_key', 'https://api.layeralabs.com');
 
 <OrbitEditor aiBackend={backend} exportBackend={backend} />;
 ```

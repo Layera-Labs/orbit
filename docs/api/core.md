@@ -1,5 +1,8 @@
 # Core Engine API
 
+> **This is v1's API.** Published and maintained, but not the current SDK —
+> see [installation](../guide/installation.md) for the v2 packages.
+
 ## `OrbitEngine`
 
 The main canvas engine class.

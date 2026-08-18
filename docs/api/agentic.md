@@ -9,7 +9,7 @@ no default URL, and the constructor throws if you omit one.
 ```ts
 import { OrbitBackendAdapter } from '@layera-labs/orbit-agentic';
 
-const adapter = new OrbitBackendAdapter(apiKey, 'https://api.example.com');
+const adapter = new OrbitBackendAdapter(apiKey, 'https://api.layeralabs.com');
 ```
 
 ### Methods

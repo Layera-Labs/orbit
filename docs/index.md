@@ -33,7 +33,7 @@ function App() {
   return (
     <OrbitEditor
       apiKey="orbit_sk_your_key"
-      backendUrl="https://api.example.com"
+      backendUrl="https://api.layeralabs.com"
       callbacks={{
         onExport: (blob, format) => {
           // Handle exported file

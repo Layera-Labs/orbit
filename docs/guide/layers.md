@@ -1,5 +1,11 @@
 # Layers
 
+> **This page documents v1.** It is accurate: v1 is published, feature-complete
+> and in maintenance, and the APIs below are the ones it ships. What it is not
+> is the current SDK — new work goes into v2 (`@layera-labs/orbit-model`,
+> `-render`, `-providers`, `-editor`), which has a different architecture and a
+> different API. Start at [installation](./installation.md) if you are choosing.
+
 Layers are the fundamental building blocks of an Orbit design. Everything on the canvas — text, images, shapes, videos, audio — is a layer.
 
 ## Layer Types

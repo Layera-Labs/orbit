@@ -164,5 +164,5 @@ For Next.js or server-side usage, set:
 
 ```env
 ORBIT_API_KEY=orbit_sk_your_key
-ORBIT_BACKEND_URL=https://api.example.com   # your service; there is no default
+ORBIT_BACKEND_URL=https://api.layeralabs.com   # your service; there is no default
 ```
