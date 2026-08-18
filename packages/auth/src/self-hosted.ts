@@ -134,6 +134,93 @@ export class SelfHostedAuth implements AuthAdapter {
     return { token, user: { endUserId: id, guest: true }, isNew: true };
   }
 
+  /**
+   * Sign in (or sign up) through an external provider.
+   *
+   * `register` cannot be reused for this and that is the whole reason this
+   * exists: it demands a password of 8+ characters, which an OAuth user does
+   * not have, and it throws `email-taken` on a duplicate email — which is
+   * exactly what a RETURNING GitHub user looks like.
+   *
+   * Three lookups, in this order, and the order is the point:
+   *
+   *   1. By provider id. The immutable key. A user who renamed their GitHub
+   *      account or changed their primary email is still this account.
+   *   2. By email, to LINK. Someone who registered with a password and later
+   *      clicks "continue with GitHub" is the same person; creating a second
+   *      account would split their credits and their keys in half.
+   *   3. Create.
+   *
+   * The linking step is a deliberate trust decision, not an oversight. It is
+   * safe only because the provider is asserting a VERIFIED email — GitHub is
+   * asked for `/user/emails` and the caller must pass a primary, verified one.
+   * Link on an unverified address and anyone who can register that email at
+   * the provider takes over the local account.
+   */
+  async upsertOAuthUser(
+    provider: string,
+    providerId: string,
+    email: string,
+  ): Promise<AuthResult> {
+    const addr = normalizeEmail(email);
+    if (!EMAIL_RE.test(addr)) throw new AuthError('bad-email');
+
+    const existing = await this.store.findByProviderId(provider, providerId);
+    if (existing) {
+      return {
+        token: await this.issue(existing.id, existing.email),
+        user: { endUserId: existing.id, email: existing.email },
+        isNew: false,
+      };
+    }
+
+    const byEmail = await this.store.findByEmail(addr);
+    if (byEmail) {
+      /*
+       * Refuse to REPOINT an account that already belongs to a different
+       * external identity. Reaching here means some other providerId already
+       * owns this address, so linking would hand one person another person's
+       * account, their credits and their API keys.
+       *
+       * Enforced HERE rather than in each store, which is what the first
+       * version did — the Postgres implementation guarded on `provider IS
+       * NULL` and both in-memory ones did not, so the same call had different
+       * security depending on which store was configured. Policy belongs in
+       * one place; stores just write what they are told.
+       */
+      if (byEmail.provider && byEmail.providerId !== providerId) {
+        throw new AuthError(
+          'email-taken',
+          'That email is already linked to a different account.',
+        );
+      }
+      await this.store.linkProvider(byEmail.id, provider, providerId);
+      return {
+        token: await this.issue(byEmail.id, byEmail.email),
+        user: { endUserId: byEmail.id, email: byEmail.email },
+        isNew: false,
+      };
+    }
+
+    const id = this.idgen();
+    await this.store.create({
+      id,
+      email: addr,
+      // No password, and none can be guessed into existence: `verifyPassword`
+      // rejects any stored value that is not a well-formed scrypt string, so
+      // an empty hash cannot be matched by an empty password.
+      passwordHash: '',
+      createdAt: new Date().toISOString(),
+      provider,
+      providerId,
+    });
+    return {
+      token: await this.issue(id, addr),
+      user: { endUserId: id, email: addr },
+      isNew: true,
+    };
+  }
+
   async login(email: string, password: string): Promise<AuthResult> {
     const addr = normalizeEmail(email);
     const rec = await this.store.findByEmail(addr);

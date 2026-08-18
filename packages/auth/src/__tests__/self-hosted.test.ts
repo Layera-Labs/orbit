@@ -15,8 +15,19 @@ class MemUserStore implements UserStore {
     for (const rec of this.byEmail.values()) if (rec.id === id) return rec;
     return null;
   }
+  async findByProviderId(provider: string, providerId: string) {
+    for (const rec of this.byEmail.values()) {
+      if (rec.provider === provider && rec.providerId === providerId) return rec;
+    }
+    return null;
+  }
   async create(user: UserRecord) {
     this.byEmail.set(user.email, user);
+  }
+  async linkProvider(id: string, provider: string, providerId: string) {
+    for (const [email, rec] of this.byEmail) {
+      if (rec.id === id) this.byEmail.set(email, { ...rec, provider, providerId });
+    }
   }
   async updatePassword(id: string, passwordHash: string) {
     for (const [email, rec] of this.byEmail) {

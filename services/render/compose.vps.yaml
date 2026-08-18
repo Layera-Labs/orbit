@@ -153,6 +153,20 @@ services:
       # Both must be listed here. Compose passes through only what a service
       # names, so setting either in .env alone leaves the container without it
       # — the same trap that made the email block above silently unconfigured.
+      # GitHub sign-in for the developer portal. All four are required
+      # together — the routes do not mount unless every one is set, so a
+      # half-configured provider cannot put a "Continue with GitHub" button in
+      # front of somebody that answers 503.
+      #
+      # The callback is built from ORBIT_PUBLIC_URL above and must match the
+      # OAuth app's registered callback EXACTLY:
+      #   <ORBIT_PUBLIC_URL>/v1/auth/github/callback
+      # ORBIT_APP_URL is where the portal lives — where the browser lands once
+      # signed in, and where the session cookie is set for.
+      GITHUB_CLIENT_ID: ${GITHUB_CLIENT_ID:-}
+      GITHUB_CLIENT_SECRET: ${GITHUB_CLIENT_SECRET:-}
+      ORBIT_APP_URL: ${ORBIT_APP_URL:-}
+
       ORBIT_FREE_CREDITS: ${ORBIT_FREE_CREDITS:-0}
       ORBIT_SIGNUP_BONUS: ${ORBIT_SIGNUP_BONUS:-0}
 

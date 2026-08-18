@@ -14,8 +14,21 @@ export class InMemoryUserStore implements UserStore {
     for (const rec of this.byEmail.values()) if (rec.id === id) return rec;
     return null;
   }
+  async findByProviderId(provider: string, providerId: string): Promise<UserRecord | null> {
+    for (const rec of this.byEmail.values()) {
+      if (rec.provider === provider && rec.providerId === providerId) return rec;
+    }
+    return null;
+  }
+
   async create(user: UserRecord): Promise<void> {
     this.byEmail.set(user.email, user);
+  }
+
+  async linkProvider(id: string, provider: string, providerId: string): Promise<void> {
+    for (const [email, rec] of this.byEmail) {
+      if (rec.id === id) this.byEmail.set(email, { ...rec, provider, providerId });
+    }
   }
   async updatePassword(id: string, passwordHash: string): Promise<void> {
     for (const [email, rec] of this.byEmail) {

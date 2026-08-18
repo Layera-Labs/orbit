@@ -342,6 +342,21 @@ export class PgUserStore implements UserStore {
     await this.pool.query(
       'ALTER TABLE users ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMPTZ',
     );
+
+    // OAuth. Same idiom and the same reason: an existing deployment has the
+    // table already and would never run a changed CREATE.
+    await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS provider TEXT');
+    await this.pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS provider_id TEXT');
+    // UNIQUE on the PAIR, not on provider_id alone: two providers can hand out
+    // the same numeric id, and a bare unique index would make GitHub user 4212
+    // collide with Google user 4212 — locking the second one out of signing up
+    // with an error naming nothing they did.
+    await this.pool.query(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_users_provider ON users(provider, provider_id) WHERE provider IS NOT NULL',
+    );
+    // An OAuth account has no password, so the column cannot stay NOT NULL.
+    // Existing rows are unaffected — they all have a hash.
+    await this.pool.query('ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL');
   }
 
   private toRecord(r: {
@@ -350,18 +365,26 @@ export class PgUserStore implements UserStore {
     password_hash: string;
     created_at: Date;
     password_changed_at: Date | null;
+    provider: string | null;
+    provider_id: string | null;
   }): UserRecord {
     return {
       id: r.id,
       email: r.email,
-      passwordHash: r.password_hash,
+      // NULL in the column, '' in the record: every caller treats the hash as a
+      // string, and `verifyPassword` refuses anything that is not a well-formed
+      // scrypt value — so an OAuth account cannot be signed into with a
+      // password, empty or otherwise.
+      passwordHash: r.password_hash ?? '',
       createdAt: r.created_at.toISOString(),
       passwordChangedAt: r.password_changed_at?.toISOString(),
+      provider: r.provider ?? undefined,
+      providerId: r.provider_id ?? undefined,
     };
   }
 
   private static readonly COLS =
-    'id, email, password_hash, created_at, password_changed_at';
+    'id, email, password_hash, created_at, password_changed_at, provider, provider_id';
 
   async findByEmail(email: string): Promise<UserRecord | null> {
     await this.ready;
@@ -381,14 +404,42 @@ export class PgUserStore implements UserStore {
     return res.rows[0] ? this.toRecord(res.rows[0]) : null;
   }
 
+  async findByProviderId(provider: string, providerId: string): Promise<UserRecord | null> {
+    await this.ready;
+    const res = await this.pool.query(
+      `SELECT ${PgUserStore.COLS} FROM users WHERE provider = $1 AND provider_id = $2`,
+      [provider, providerId],
+    );
+    return res.rows[0] ? this.toRecord(res.rows[0]) : null;
+  }
+
   async create(user: UserRecord): Promise<void> {
     await this.ready;
-    await this.pool.query('INSERT INTO users (id, email, password_hash, created_at) VALUES ($1, $2, $3, $4)', [
-      user.id,
-      user.email,
-      user.passwordHash,
-      user.createdAt,
-    ]);
+    await this.pool.query(
+      'INSERT INTO users (id, email, password_hash, created_at, provider, provider_id) VALUES ($1, $2, $3, $4, $5, $6)',
+      [
+        user.id,
+        user.email,
+        // '' means "no password" (an OAuth account) and is stored as NULL, so
+        // the column says the same thing the record does.
+        user.passwordHash === '' ? null : user.passwordHash,
+        user.createdAt,
+        user.provider ?? null,
+        user.providerId ?? null,
+      ],
+    );
+  }
+
+  async linkProvider(id: string, provider: string, providerId: string): Promise<void> {
+    await this.ready;
+    // Guarded on provider IS NULL: linking must never REPOINT an account that
+    // already belongs to another external identity. Without it, anyone who
+    // could get a provider to assert a verified email could take over an
+    // account already linked to someone else's.
+    await this.pool.query(
+      'UPDATE users SET provider = $2, provider_id = $3 WHERE id = $1 AND provider IS NULL',
+      [id, provider, providerId],
+    );
   }
 
   async updatePassword(id: string, passwordHash: string): Promise<void> {

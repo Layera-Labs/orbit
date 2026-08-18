@@ -10,6 +10,8 @@
  *     GET  /health                                     → storage/queue/capacity, cluster depth
  *
  *   Auth
+ *     GET  /v1/auth/github                             → 302 to GitHub (portal sign-in; only mounted when configured)
+ *     GET  /v1/auth/github/callback                    → 302 back to the portal, session in an httpOnly cookie
  *     POST /v1/auth/guest                              → { token, user }  a token for a device that has not signed in
  *     POST /v1/auth/register    { email, password }    → { token, user }
  *     POST /v1/auth/login       { email, password }    → { token, user }
@@ -171,6 +173,14 @@ import {
 } from "./logging.js";
 import { PgProjectStore, type SyncedProject } from "./project-store.js";
 import { PgApiKeyStore, isApiKey } from "./api-keys.js";
+import {
+  authorizeUrl,
+  exchange,
+  githubFromEnv,
+  identityTag,
+  signState,
+  verifyState,
+} from "./github-oauth.js";
 import { storageFromEnv } from "./storage.js";
 
 /**
@@ -2682,6 +2692,104 @@ export function createServer(): Express {
      * issuance is unlimited free generation billed to whoever owns the
      * provider key.
      */
+    /*
+     * ---- GitHub sign-in ----
+     *
+     * Only mounted when it is configured. An unconfigured provider that
+     * answers 503 still puts a "Continue with GitHub" button in front of
+     * someone; a route that does not exist lets the portal ask once and hide
+     * the control, which is the difference between an honest UI and a dead one.
+     */
+    const github = githubFromEnv();
+    if (github) {
+      const stateSecret = new TextEncoder().encode(
+        authEnv.ORBIT_JWT_SECRET ?? "",
+      );
+
+      app.get(
+        "/v1/auth/github",
+        rateLimit(GUEST_RATE_LIMIT, RATE_WINDOW_MS),
+        (req: Request, res: Response) => {
+          /*
+           * `returnTo` is confined to a PATH on the portal, never a full URL.
+           * Echoing back whatever the caller sends is an open redirect, and an
+           * open redirect on an auth route is how a phishing page borrows your
+           * domain to look legitimate.
+           */
+          const raw = typeof req.query.returnTo === "string" ? req.query.returnTo : "";
+          const returnTo = raw.startsWith("/") && !raw.startsWith("//") ? raw : "/app";
+          res.redirect(authorizeUrl(github, signState(stateSecret, returnTo)));
+        },
+      );
+
+      app.get(
+        "/v1/auth/github/callback",
+        rateLimit(GUEST_RATE_LIMIT, RATE_WINDOW_MS),
+        async (req: Request, res: Response) => {
+          const fail = (code: string) =>
+            res.redirect(`${github.appUrl}/signin?error=${encodeURIComponent(code)}`);
+
+          // GitHub itself can decline, e.g. the user pressed Cancel. That is
+          // not an error to log loudly; it is a person changing their mind.
+          if (typeof req.query.error === "string") return fail(req.query.error);
+
+          const state = verifyState(
+            stateSecret,
+            typeof req.query.state === "string" ? req.query.state : undefined,
+          );
+          // No state, expired state, or a forged one. All the same answer: this
+          // callback was not started by us, so nothing is signed in.
+          if (!state) return fail("bad_state");
+
+          const code = typeof req.query.code === "string" ? req.query.code : "";
+          if (!code) return fail("no_code");
+
+          let identity;
+          try {
+            identity = await exchange(github, code);
+          } catch (err) {
+            logError("github-oauth-failed", { ...errFields(err) });
+            return fail("github_unavailable");
+          }
+
+          const result = await selfHosted.upsertOAuthUser(
+            "github",
+            identity.id,
+            identity.email,
+          );
+          const account = makeAccountId(LICENSE_KEY, result.user.endUserId);
+          await seedFreeTier(account);
+          if (result.isNew && SIGNUP_BONUS > 0)
+            await ledger.credit(account, SIGNUP_BONUS, "signup-bonus");
+
+          logInfo("github-oauth", {
+            isNew: result.isNew,
+            // The hash, not the id or the login: this line ends up in a log
+            // aggregator, and it only needs to distinguish identities, not name
+            // them.
+            identity: identityTag(identity.id),
+          });
+
+          /*
+           * The session goes back as an httpOnly cookie, not in the URL.
+           *
+           * A token on the query string lands in browser history, in the
+           * Referer of the next outbound request, and in any access log between
+           * here and the user. httpOnly also means the portal's own JavaScript
+           * cannot read it, which is the property the site's proxy is built on.
+           */
+          res.cookie("orbit_session", result.token, {
+            httpOnly: true,
+            secure: true,
+            sameSite: "lax",
+            path: "/",
+            maxAge: 30 * 24 * 60 * 60 * 1000,
+          });
+          res.redirect(`${github.appUrl}${state.returnTo}`);
+        },
+      );
+    }
+
     app.post(
       "/v1/auth/guest",
       rateLimit(GUEST_RATE_LIMIT, RATE_WINDOW_MS),
