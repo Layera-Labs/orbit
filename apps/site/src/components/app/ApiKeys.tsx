@@ -233,10 +233,10 @@ function Trouble({ why, retry }: { why: Failure; retry: () => void }) {
     return (
       <div className={styles.empty}>
         <h3>Sign in to manage keys</h3>
-        <p>
-          Keys belong to an account and bill to its credits, so this page needs a
-          session. Sign-in is not wired up yet.
-        </p>
+        <p>Keys belong to an account and bill to its credits, so this page needs a session.</p>
+        <a className={styles.signin} href="/signin?returnTo=/app/keys">
+          Sign in
+        </a>
       </div>
     );
   }

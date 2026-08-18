@@ -270,3 +270,17 @@
     grid-row: 1;
   }
 }
+
+/* The way out of the signed-out state. Same treatment as the retry control:
+   this is a next step, not a primary action competing with the page. */
+.signin {
+  padding: var(--s-2) var(--s-4);
+  border-radius: var(--s-r);
+  box-shadow: inset 0 0 0 1px var(--s-edge-strong);
+  font-size: 13px;
+  color: var(--s-ink);
+  transition: background 140ms ease;
+}
+.signin:hover {
+  background: var(--s-panel);
+}

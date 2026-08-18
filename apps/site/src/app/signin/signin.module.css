@@ -1,0 +1,26 @@
+/*
+ * Centred, and vertically too — this page has one job and nothing else on it,
+ * so the card sits in the optical middle rather than at the top of a mostly
+ * empty screen.
+ */
+.page {
+  min-height: 100svh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--s-5);
+  padding: var(--s-7) var(--s-4);
+}
+
+.back {
+  font-size: 13px;
+  color: var(--s-ink-faint);
+}
+
+.back a {
+  border-bottom: 1px solid transparent;
+  transition: border-color 160ms ease;
+}
+.back a:hover {
+  border-bottom-color: var(--s-edge-strong);
+}

@@ -177,7 +177,10 @@ export function Trouble({ why, retry }: { why: Failure; retry: () => void }) {
     return (
       <div className={styles.empty}>
         <h3>Sign in to see your usage</h3>
-        <p>Usage belongs to an account, so this page needs a session. Sign-in is not wired up yet.</p>
+        <p>Usage belongs to an account, so this page needs a session.</p>
+        <a className={styles.signin} href="/signin">
+          Sign in
+        </a>
       </div>
     );
   }
