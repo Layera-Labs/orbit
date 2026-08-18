@@ -26,6 +26,16 @@ services:
       # because Orbit is an embeddable SDK called from customers' own pages.
       ORBIT_ALLOWED_ORIGINS: ${ORBIT_ALLOWED_ORIGINS:-}
 
+      # Credits for a new account. Forwarded here so it is SETTABLE at all:
+      # compose passes through only what a service names.
+      #
+      # Left at the service's own default of 100, because this file is a local
+      # reference stack rather than something reachable from the internet.
+      # compose.vps.yaml defaults it to 0 instead, and explains why: the free
+      # tier is seeded from POST /v1/auth/guest, which anyone can call.
+      ORBIT_FREE_CREDITS: ${ORBIT_FREE_CREDITS:-100}
+      ORBIT_SIGNUP_BONUS: ${ORBIT_SIGNUP_BONUS:-0}
+
       # Credits and self-hosted accounts. WITHOUT this the ledger is in-memory
       # and resets on every restart — fine for a demo, silent data loss in
       # production, which is why the service warns about it on boot.

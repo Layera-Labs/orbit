@@ -134,6 +134,28 @@ services:
       PEXELS_API_KEY: ${PEXELS_API_KEY:-}
       ORBIT_GENERATION_WORKER: ${ORBIT_GENERATION_WORKER:-}
 
+      # Credits handed to a NEW account, and the reason this block exists.
+      #
+      # `seedFreeTier` runs from `accountOf` on every authenticated request AND
+      # from POST /v1/auth/guest — and a guest token is issued to anyone who
+      # asks, with no password and no email. So a non-zero free tier means any
+      # caller can mint a funded account in a loop, bounded only by a rate
+      # limit. Verified against the deployed box before this was added: one
+      # anonymous POST returned a token whose balance read 100.
+      #
+      # DEFAULTS TO 0 HERE, unlike the service's own default of 100. A
+      # deployment is reachable from the internet and should fail closed; the
+      # in-code default suits a laptop.
+      #
+      # Onboarding credit belongs in ORBIT_SIGNUP_BONUS instead, which fires
+      # ONCE, on registration, for an account that has an email behind it.
+      #
+      # Both must be listed here. Compose passes through only what a service
+      # names, so setting either in .env alone leaves the container without it
+      # — the same trap that made the email block above silently unconfigured.
+      ORBIT_FREE_CREDITS: ${ORBIT_FREE_CREDITS:-0}
+      ORBIT_SIGNUP_BONUS: ${ORBIT_SIGNUP_BONUS:-0}
+
       ORBIT_RENDER_COST: ${ORBIT_RENDER_COST:-0}
       # What one generated video costs. Unset is FREE, deliberately — metering
       # is opt-in here exactly as it is for rendering.
